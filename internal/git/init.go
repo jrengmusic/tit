@@ -7,6 +7,41 @@ import (
 	"strings"
 )
 
+// DefaultGitignoreContent contains common patterns to ignore
+const DefaultGitignoreContent = `# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts (common)
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.dll
+
+# Logs
+*.log
+`
+
 // InitializeRepository initializes a git repository in the given directory
 // AUDIO THREAD - Called from git operations, must be in worker goroutine
 func InitializeRepository(dirPath string) error {
@@ -123,4 +158,21 @@ func ListRemoteBranches() ([]string, error) {
 		}
 	}
 	return branches, nil
+}
+
+// CreateDefaultGitignore creates a .gitignore file with common patterns
+// Used during clone-to-cwd to ignore OS and IDE garbage files
+func CreateDefaultGitignore() error {
+	// Check if .gitignore already exists
+	if _, err := os.Stat(".gitignore"); err == nil {
+		// .gitignore exists, don't overwrite it
+		return nil
+	}
+
+	// Create .gitignore with default patterns
+	if err := os.WriteFile(".gitignore", []byte(DefaultGitignoreContent), 0644); err != nil {
+		return fmt.Errorf("failed to write .gitignore: %w", err)
+	}
+
+	return nil
 }

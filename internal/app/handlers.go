@@ -444,6 +444,11 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git init failed"}
 			}
 
+			// Create .gitignore for common garbage files BEFORE checkout
+			if err := git.CreateDefaultGitignore(); err != nil {
+				return GitOperationMsg{Step: "clone", Success: false, Error: fmt.Sprintf("Failed to create .gitignore: %v", err)}
+			}
+
 			result = git.ExecuteWithStreaming("remote", "add", "origin", cloneURL)
 			if !result.Success {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote add failed"}
@@ -454,12 +459,19 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git fetch failed"}
 			}
 
+			// Set remote HEAD to auto-detect default branch
+			result = git.ExecuteWithStreaming("remote", "set-head", "origin", "-a")
+			if !result.Success {
+				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote set-head failed"}
+			}
+
 			// Get default branch from remote
 			defaultBranch := git.GetRemoteDefaultBranch()
 			if defaultBranch == "" {
 				defaultBranch = "main"
 			}
 
+			// Checkout default branch (untracked files are now ignored)
 			result = git.ExecuteWithStreaming("checkout", defaultBranch)
 			if !result.Success {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git checkout failed"}
@@ -488,13 +500,25 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 	if app.selectedIndex < 0 || app.selectedIndex >= len(app.cloneBranches) {
 		return app, nil
 	}
-	
+
 	selectedBranch := app.cloneBranches[app.selectedIndex]
-	
-	// TODO: Save canon branch to config
+
+	// Save canon branch to config
+	cfg := git.RepoConfig{}
+	cfg.Repo.Initialized = true
+	cfg.Repo.RepositoryPath, _ = os.Getwd()
+	cfg.Repo.CanonBranch = selectedBranch
+	cfg.Repo.LastWorkingBranch = "dev" // Default working branch
+	git.SaveRepoConfig(cfg)
+
+	// Reload git state with new config
+	if state, err := git.DetectState(); err == nil {
+		app.gitState = state
+	}
+
 	app.footerHint = fmt.Sprintf("Canon branch set to: %s", selectedBranch)
-	
-	// Return to menu
+
+	// Clean up clone state and return to menu
 	app.cloneBranches = nil
 	app.cloneURL = ""
 	app.clonePath = ""
@@ -502,6 +526,6 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 	app.selectedIndex = 0
 	menu := app.GenerateMenu()
 	app.menuItems = menu
-	
+
 	return app, nil
 }

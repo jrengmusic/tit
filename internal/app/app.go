@@ -295,10 +295,10 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.footerHint = msg.Error
 			}
 		case "clone":
-			a.asyncOperationActive = false
-			a.asyncOperationAborted = false
-			
 			if msg.Success {
+				// Clone succeeded - STAY in console mode (contract: user dismisses with ESC)
+				// DO NOT set asyncOperationActive = false yet
+
 				// Change to cloned directory if subdir was created
 				if a.clonePath != "" {
 					cwd, _ := os.Getwd()
@@ -306,37 +306,55 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						os.Chdir(a.clonePath)
 					}
 				}
-				
-				// Detect branches
+
+				// Reload git state after successful clone
+				if state, err := git.DetectState(); err == nil {
+					a.gitState = state
+				}
+
+				// Detect branches for canon selection
 				branches, err := git.ListRemoteBranches()
 				if err != nil || len(branches) == 0 {
 					// Fallback to local branches
 					branches, _ = git.ListBranches()
 				}
-				
+
 				if len(branches) == 0 {
-					// No branches found - use default
-					a.footerHint = "Clone completed. No branches detected."
-					a.mode = ModeMenu
-					a.selectedIndex = 0
-					menu := a.GenerateMenu()
-					a.menuItems = menu
+					// No branches found - set flag to allow ESC to close console
+					a.asyncOperationActive = false
+					a.footerHint = "Clone completed. No branches detected. Press ESC to continue."
 				} else if len(branches) == 1 {
-					// Single branch - auto-set as canon
-					a.footerHint = fmt.Sprintf("Clone completed. Canon branch set to: %s", branches[0])
-					// TODO: Save config with canon branch
-					a.mode = ModeMenu
-					a.selectedIndex = 0
-					menu := a.GenerateMenu()
-					a.menuItems = menu
+					// Single branch - auto-set as canon and save config
+					canonBranch := branches[0]
+					cfg := git.RepoConfig{}
+					cfg.Repo.Initialized = true
+					cfg.Repo.RepositoryPath, _ = os.Getwd()
+					cfg.Repo.CanonBranch = canonBranch
+					cfg.Repo.LastWorkingBranch = "dev" // Default working branch
+					git.SaveRepoConfig(cfg)
+
+					// Reload state with new config
+					if state, err := git.DetectState(); err == nil {
+						a.gitState = state
+					}
+
+					// Set flag to allow ESC to close console
+					a.asyncOperationActive = false
+					a.footerHint = fmt.Sprintf("Clone completed. Canon branch: %s. Press ESC to continue.", canonBranch)
 				} else {
-					// Multiple branches - show selection menu
+					// Multiple branches - need user selection
+					// Keep asyncOperationActive = true to prevent ESC from closing console
+					// Instead, transition to branch selection mode
+					a.asyncOperationActive = false
 					a.cloneBranches = branches
 					a.mode = ModeSelectBranch
 					a.selectedIndex = 0
 					a.footerHint = "Select canon branch"
 				}
 			} else {
+				// Clone failed - allow ESC to close console
+				a.asyncOperationActive = false
+				a.asyncOperationAborted = false
 				a.footerHint = fmt.Sprintf("Clone failed: %s. Press ESC to return.", msg.Error)
 			}
 		}

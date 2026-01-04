@@ -1,6 +1,166 @@
 # TIT Project Development Session Log
 ## Go + Bubble Tea + Lip Gloss Implementation (Redesign v2)
 
+## ⚠️ CRITICAL AGENT RULES
+
+**AGENTS BUILD APP FOR USER TO TEST**
+- run script ./build.sh
+- USER tests
+- Agent waits for feedback
+
+**AGENTS CAN RUN GIT ONLY IF USER EXPLICITLY ASKS**
+- Code changes without git commands
+- Agent runs git ONLY when user explicitly requests
+- Never autonomous git operations
+- **When committing:** Always stage ALL changes with `git add -A` before commit
+  - ❌ DON'T selectively stage files (agents forget/miss files)
+  - ✅ DO `git add -A` to capture every modified file
+  - This ensures complete commits with nothing accidentally left unstaged
+
+**EMOJI WIDTH RULE (CRITICAL)**
+- ❌ NEVER use small/narrow width emojis - they break layout alignment
+- ✅ ONLY use wide/double-width emojis (🔗 📡 ⬆️ 💥 etc.) or text symbols (✓ ✗)
+- Test emoji width before using: wide emojis take 2 character cells, narrow take 1
+- When in doubt, use text-based symbols instead of emojis
+
+**LOG MAINTENANCE RULE**
+- **All session logs must be written from the latest to earliest (top to bottom), BELOW this rules section.**
+- **Only the last 5 sessions are kept in active log.**
+- Agents must identify itself as session log author
+```
+**Agent:** Sonnet 3.5, Sonnet 4.5, Mistral Vibe
+**Date:** 2025-12-31
+```
+- Session could be executed parallel with multiple agents.
+- Remove older sessions from active log (git history serves as permanent archive)
+- This keeps log focused on recent work
+- **Agent NEVER updates log without explicit user request**
+- **During active sessions, only user decides whether to log**
+- **All changes must be tested/verified, or marked UNTESTED**
+- If rule not in this section, agent must ADD it (don't erase old rules)
+
+**NAMING RULE (CODE VOCABULARY)**
+- All identifiers must obey: `___user-modules___/codebase-for-dummies/docs/How to choose your words wisely.md`
+- Variable names: semantic + precise (not `temp`, `data`, `x`)
+- Function names: verb-noun pattern (initRepository, detectCanonBranch)
+- Struct fields: domain-specific terminology (not generic `value`, `item`, `entry`)
+- Type names: PascalCase, clear intent (CanonBranchConfig, not BranchData)
+
+**PATTERN FOR PORTING A COMPONENT (IMMUTABLE)**
+- When porting UI components from old-tit to new-tit:
+  1. **Read source** - Study old component structure and logic in old-tit
+  2. **Identify SSOT** - Find sizing constants and use new-tit SSOT (ContentInnerWidth, ContentHeight, etc.)
+  3. **Update colors** - Replace old hardcoded colors with semantic theme names
+  4. **Extract abstractions** - Use existing utilities (RenderBox, RenderInputField, formatters)
+  5. **Test structure** - Verify component compiles and renders within bounds
+  6. **Verify dimensions** - Ensure component respects content box boundaries (never double-border)
+  7. **Document pattern** - Add comments for thread context (AUDIO/UI THREAD) if applicable
+  8. **Port is NOT refactor** - Move old code first, refactor after in separate session
+  9. **Keep git history clean** - Port + refactor in separate commits if doing both
+
+**⚠️ NEVER EVER REMOVE THESE RULES**
+- Rules at top of SESSION-LOG.md are immutable
+- If rules need update: ADD new rules, don't erase old ones
+- Any agent that removes or modifies these rules has failed
+- Rules protect the integrity of the development log
+
+---
+
+## Session 15: Architecture Pivot — Single Active Branch Model (COMPLETE) ✅
+
+**Agent:** Claude Sonnet 4.5
+**Date:** 2026-01-05
+
+### Objective: Simplify architecture from canon/working dual-branch to single active branch model, create incremental implementation plan
+
+### Completed:
+
+✅ **SPEC.md Complete Rewrite**
+- Removed canon/working dual-branch architecture (overengineered)
+- Simplified to 4-axis state model: `(WorkingTree, Timeline, Operation, Remote)`
+- Removed `BranchContext` axis entirely
+- TIT operates on current branch only (like old TIT)
+- Added branch switching capability (new feature)
+- No config tracking, no branch classification
+- State always reflects actual Git state
+
+✅ **Time Travel Redesign**
+- Changed from "orphaned commits + attach HEAD" to read-only exploration
+- Cannot commit while in detached HEAD
+- To keep changes: merge back to original branch using dirty op pattern
+- Same stash-based safety as dirty pull/merge
+- User can view, build, test old commits without consequences
+
+✅ **Merge Assistance**
+- Generic operation: merge any branch into current
+- Shows branch selection menu
+- Handles conflicts with existing conflict resolution component
+- No special canon/working merge workflow
+
+✅ **User-Friendly Language**
+- Rewrote all user-facing messages with clear explanations
+- Less Git jargon, more context about what will happen
+- Examples: "To keep changes, merge them back to your branch" instead of "Attach HEAD as new working"
+
+✅ **IMPLEMENTATION_PLAN.md Created**
+- 8-phase incremental porting strategy from old TIT to new TIT
+- Each phase tested before moving to next
+- Phase 1: Simplify state model (remove BranchContext, config tracking)
+- Phase 2: Core git ops (commit, push, pull)
+- Phase 3: Branch ops (switch, create, merge)
+- Phase 4: Dirty operation protocol
+- Phase 5: History browsers (2-pane commit, 3-pane file)
+- Phase 6: Time travel (read-only + merge-back)
+- Phase 7: Conflict resolution
+- Phase 8: Polish (add remote, force ops, edge cases)
+
+✅ **Design Philosophy Validation**
+- Confirmed old TIT's single-branch model was correct
+- Dual-branch model rejected as overengineered
+- Trunk-based development encouraged naturally (easy commits to main, optional feature branches)
+- Simplicity over complexity: "never overcomplicate, never overengineer, always simplify"
+
+### Key Architectural Decisions:
+
+1. **Single Active Branch** - TIT operates on current branch only, switch changes entire context
+2. **No Configuration Files** - Removed `repo.toml`, state always from actual Git
+3. **Time Travel Safety** - Read-only detached HEAD, dirty op pattern for merge-back
+4. **Branch Switching** - User responsibility, TIT just shows where we are and what's safe to do
+5. **Menu = Contract** - Only show operations guaranteed to succeed
+6. **Dirty Op Pattern Reuse** - Same stash-based approach for pull, merge, time travel
+
+### Workflow Comparison:
+
+| Old TIT (v1.0) | Rejected Canon/Working | New TIT (v2.0) |
+|----------------|------------------------|----------------|
+| Single branch (main) | Dual branch (canon + working) | Single active branch |
+| Work on main | Work on working → merge to canon | Work on any branch |
+| Can commit anywhere | Canon read-only, working full ops | Can commit anywhere |
+| 4-axis state | 5-axis state (added BranchContext) | 4-axis state (back to simple) |
+| Time travel not implemented | Time travel with orphaned commits | Time travel read-only + merge-back |
+
+### Files Created:
+
+- `IMPLEMENTATION_PLAN.md` - 8-phase incremental porting plan with test criteria
+
+### Files Modified:
+
+- `SPEC.md` - Complete rewrite to single active branch model
+
+### Build Status: N/A (Documentation only)
+
+### Testing Status: N/A (No code changes)
+
+### Next Steps:
+
+1. Begin Phase 1: Simplify state model
+2. Remove BranchContext from types.go
+3. Remove config file tracking
+4. Update menu generation to single-branch model
+5. Test that state detection works correctly
+
+---
+
 ## Session 14: Codebase Refactoring (COMPLETE) ✅
 
 **Agent:** Gemini
@@ -12,8 +172,8 @@
 
 ✅ **Pattern 5: Async Operation Template**
 - Implemented a builder pattern for async operations (`NewAsyncOp`).
-- Refactored `executeInitWorkflow` to use the new builder, simplifying error handling and making the operation steps declarative.
 - Resolved an import cycle by moving the builder from `internal/patterns` to `internal/app`.
+- Refactored `executeInitWorkflow` to use the new builder, simplifying error handling and making the operation steps declarative.
 
 ✅ **Pattern 4: Mode Transition Boilerplate**
 - Created a `transitionTo` method with a `ModeTransition` config struct to centralize and simplify mode switching logic.
@@ -163,7 +323,7 @@ git checkout <default-branch>
 - Created `internal/git/execute.go` with `ExecuteWithStreaming()` function
 - Runs `git clone --progress <url> .` in worker goroutine
 - Streams stdout/stderr to OutputBuffer in real-time (not character-by-character)
-- Handles progress lines with `` carriage returns correctly (takes final segment)
+- Handles progress lines with `\r` carriage returns correctly (takes final segment)
 - Waits for all output to be captured before completion message
 - Properly reports exit codes and handles command failures
 
@@ -373,70 +533,6 @@ Pre-size to exact dimensions (SSOT)
 2. Implement branch query after clone (detect single vs multiple branches)
 3. If single branch: auto-advance to text input with canon pre-filled
 4. If multi-branch: show dynamic menu for branch selection
-
----
-
-## ⚠️ CRITICAL AGENT RULES
-
-**AGENTS BUILD APP FOR USER TO TEST**
-- run script ./build.sh
-- USER tests
-- Agent waits for feedback
-
-**AGENTS CAN RUN GIT ONLY IF USER EXPLICITLY ASKS**
-- Code changes without git commands
-- Agent runs git ONLY when user explicitly requests
-- Never autonomous git operations
-- **When committing:** Always stage ALL changes with `git add -A` before commit
-  - ❌ DON'T selectively stage files (agents forget/miss files)
-  - ✅ DO `git add -A` to capture every modified file
-  - This ensures complete commits with nothing accidentally left unstaged
-
-**EMOJI WIDTH RULE (CRITICAL)**
-- ❌ NEVER use small/narrow width emojis - they break layout alignment
-- ✅ ONLY use wide/double-width emojis (🔗 📡 ⬆️ 💥 etc.) or text symbols (✓ ✗)
-- Test emoji width before using: wide emojis take 2 character cells, narrow take 1
-- When in doubt, use text-based symbols instead of emojis
-
-**LOG MAINTENANCE RULE**
-- Agents must identify itself as session log author
-```
-**Agent:** Sonnet 3.5, Sonnet 4.5, Mistral Vibe
-**Date:** 2025-12-31
-```
-- Session could be executed parallel with multiple agents.
-- Keep only the last 5 sessions in active log
-- Remove older sessions from active log (git history serves as permanent archive)
-- This keeps log focused on recent work
-- **Agent NEVER updates log without explicit user request**
-- **During active sessions, only user decides whether to log**
-- **All changes must be tested/verified, or marked UNTESTED**
-- If rule not in this section, agent must ADD it (don't erase old rules)
-
-**NAMING RULE (CODE VOCABULARY)**
-- All identifiers must obey: `___user-modules___/codebase-for-dummies/docs/How to choose your words wisely.md`
-- Variable names: semantic + precise (not `temp`, `data`, `x`)
-- Function names: verb-noun pattern (initRepository, detectCanonBranch)
-- Struct fields: domain-specific terminology (not generic `value`, `item`, `entry`)
-- Type names: PascalCase, clear intent (CanonBranchConfig, not BranchData)
-
-**PATTERN FOR PORTING A COMPONENT (IMMUTABLE)**
-- When porting UI components from old-tit to new-tit:
-  1. **Read source** - Study old component structure and logic in old-tit
-  2. **Identify SSOT** - Find sizing constants and use new-tit SSOT (ContentInnerWidth, ContentHeight, etc.)
-  3. **Update colors** - Replace old hardcoded colors with semantic theme names
-  4. **Extract abstractions** - Use existing utilities (RenderBox, RenderInputField, formatters)
-  5. **Test structure** - Verify component compiles and renders within bounds
-  6. **Verify dimensions** - Ensure component respects content box boundaries (never double-border)
-  7. **Document pattern** - Add comments for thread context (AUDIO/UI THREAD) if applicable
-  8. **Port is NOT refactor** - Move old code first, refactor after in separate session
-  9. **Keep git history clean** - Port + refactor in separate commits if doing both
-
-**⚠️ NEVER EVER REMOVE THESE RULES**
-- Rules at top of SESSION-LOG.md are immutable
-- If rules need update: ADD new rules, don't erase old ones
-- Any agent that removes or modifies these rules has failed
-- Rules protect the integrity of the development log
 
 ---
 

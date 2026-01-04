@@ -1,8 +1,8 @@
-# TIT — Core Specification v2.0 (Canon/Working Branch Architecture)
+# TIT — Core Specification v2.0 (Single Active Branch)
 
 **TIT:** Terminal UI for Git
 **Target:** Go + Bubble Tea + Lip Gloss
-**Philosophy:** Deterministic state machine. Canon/Working branch separation. Zero surprises. Beautiful rendering.
+**Philosophy:** Deterministic state machine. Single active branch. Zero surprises. Beautiful rendering.
 
 ---
 
@@ -15,41 +15,28 @@
 
 ---
 
-## 2. Foundational Principles
+## 2. Foundational Principle
 
-### 2.1 Core Philosophy
-
-**TIT's UI is a pure function of Git state + Branch context.**
+**TIT's UI is a pure function of Git state.**
 
 ```
-(Git State, Branch Context) → Allowed Actions → Menu
+Git State → Allowed Actions → Menu
 ```
 
 If Git would reject an action, it must not appear in the menu.
 
-### 2.2 Dual-Branch Architecture
-
-**Canon Branch (e.g., "main")**
-- Read-only locally (no commits allowed)
-- Clean history, production-ready
-- **Allowed operations:** Push, Pull, Replace Local, Replace Remote
-- **Workflow role:** Publishing channel to remote
-
-**Working Branch (e.g., "dev")**
-- Full operations (commit, merge, rebase, cherry-pick, time travel)
-- Messy operations allowed (stash, amend, force push)
-- **Workflow role:** Development sandbox
-
-**Development Workflow:**
-```
-Work on working branch → Commit changes → Merge to canon → Push canon to remote
-```
+**Key philosophy:**
+- TIT operates on the **current active branch only**
+- Users can switch branches anytime
+- No branch tracking, no configuration files
+- State always reflects actual Git state
+- Destructive operations always require confirmation
 
 ---
 
 ## 3. State Model
 
-Every decision in TIT derives from **five axes**:
+Every decision in TIT derives from **four axes**:
 
 ### WorkingTree — Local file changes
 | Code | Meaning |
@@ -66,6 +53,7 @@ Every decision in TIT derives from **five axes**:
 | `Ahead` | Local ahead (unpushed commits) |
 | `Behind` | Local behind (unpulled commits) |
 | `Diverged` | Both have unique commits |
+| `NoRemote` | No remote configured |
 
 ### Operation — Git operation state
 | Code | Meaning |
@@ -74,8 +62,8 @@ Every decision in TIT derives from **five axes**:
 | `Merging` | Merge in progress |
 | `Rebasing` | Rebase in progress |
 | `Conflicted` | Operation stopped due to conflicts |
-| `TimeTraveling` | Detached HEAD (exploring history) |
-| `DirtyOperation` | Executing dirty pull/cherry-pick |
+| `TimeTraveling` | Detached HEAD (exploring history, read-only) |
+| `DirtyOperation` | Executing dirty pull/merge with stashed work |
 
 ### Remote — Remote repository presence
 | Code | Meaning |
@@ -83,15 +71,7 @@ Every decision in TIT derives from **five axes**:
 | `NoRemote` | No remote configured |
 | `HasRemote` | Remote exists |
 
-### BranchContext — Current branch classification
-| Code | Meaning |
-|------|---------|
-| `Canon` | On canon branch (restricted operations) |
-| `Working` | On working branch (full operations) |
-| `Other` | On other branch (feature branches, full operations) |
-| `None` | No branch context (detached HEAD, no repo) |
-
-**State Tuple:** `(WorkingTree, Timeline, Operation, Remote, BranchContext)`
+**State Tuple:** `(WorkingTree, Timeline, Operation, Remote)`
 
 ---
 
@@ -101,20 +81,14 @@ Every decision in TIT derives from **five axes**:
 - `Conflicted` → Show ONLY conflict resolution menu
 - `Merging/Rebasing` → Show ONLY operation control menu
 - `DirtyOperation` → Show ONLY dirty operation control menu
-- `TimeTraveling` → Show ONLY time travel menu (working branch only)
-- `Normal` → Proceed to check Branch Context
+- `TimeTraveling` → Show ONLY time travel menu
+- `Normal` → Proceed to check other axes
 
-**Priority 2: Branch Context** (Determines Available Operations)
-- `Canon` → Show ONLY canon branch operations (push, pull, replace, switch)
-- `Working` → Show ALL operations (commit, merge, rebase, history, time travel)
-- `Other` → Show ALL operations (treat as working branch)
-- `None` → Show error state or init/clone options
-
-**Priority 3: Remote Presence**
+**Priority 2: Remote Presence**
 - `NoRemote` → Hide sync actions, show "Add remote"
 - `HasRemote` → Enable sync menus based on Timeline
 
-**Priority 4: Timeline + WorkingTree**
+**Priority 3: Timeline + WorkingTree**
 - Determines which action menus appear
 
 ---
@@ -124,9 +98,9 @@ Every decision in TIT derives from **five axes**:
 ### When Operation = Conflicted
 **Show ONLY:**
 - 🧩 View conflicted files
-- ✏️ Resolve conflicts externally
-- ▶️ Continue operation
-- ⛔ Abort operation
+- ✏️ Resolve conflicts externally (opens $EDITOR)
+- ▶️ Continue operation (after resolving)
+- ⛔ Abort operation (safe rollback)
 
 ### When Operation = Merging/Rebasing (no conflicts)
 **Show ONLY:**
@@ -140,43 +114,21 @@ Every decision in TIT derives from **five axes**:
 - ⛔ Abort dirty operation (restores exact original state)
 
 ### When Operation = TimeTraveling
+
 **Show ONLY:**
 - 🕒 Jump to different commit
-- 👁️ View diff (vs working branch)
-- ✅ Commit changes (creates orphaned commit)
-- ⚠️ **Attach HEAD as new working** (destructive)
-- ⬅️ Return to working branch
+- 👁️ View diff (vs original branch)
+- 📦 Merge changes back to [branch]
+- ⬅️ Return to [branch] (discard changes)
 
-**Note:** Time travel ONLY available on working/other branches, NEVER on canon.
+**Note:** Time travel is **read-only exploration**. You can:
+- View code at any point in history
+- Build and test old commits
+- Make changes locally (tracked in working tree)
 
-### When Operation = Normal + BranchContext = Canon
+**You CANNOT commit while in time travel.** To keep changes, merge them back to your active branch.
 
-**Canon branch operations are RESTRICTED to sync only.**
-
-#### Timeline Sync Actions
-
-**When Timeline = InSync:**
-- 📥 Pull from remote
-
-**When Timeline = Ahead:**
-- 📤 Push to remote
-- ⚠️ Replace remote with local (force push)
-
-**When Timeline = Behind:**
-- 📥 Pull from remote
-- ⚠️ Replace local with remote (hard reset)
-
-**When Timeline = Diverged:**
-- ⬇️ **Keep remote** (discard local commits)
-- ⬆️ **Keep local** (overwrite remote)
-
-#### Always Available
-- 🔀 Switch to working branch
-- 📜 Browse commit history (read-only, no time travel)
-
-### When Operation = Normal + BranchContext = Working
-
-**Working branch has FULL operations.**
+### When Operation = Normal
 
 #### Working Tree Actions
 | State | Menu Items |
@@ -186,164 +138,71 @@ Every decision in TIT derives from **five axes**:
 
 #### Timeline Sync Actions
 
-**When Remote = NoRemote:**
+**When Timeline = NoRemote:**
 - 🌐 Add remote
 
-**When Remote = HasRemote:**
-- All sync actions (push, pull, merge, rebase) based on Timeline state
-- Same as old TIT spec (full operations)
+**When Timeline = InSync:**
+- 📥 Pull from remote (refresh)
 
-#### Working → Canon Operations
-- 🔀 **Merge to canon branch** (key new operation)
-  - Merges working branch into canon
-  - Handles conflicts
-  - Optionally pushes after merge
+**When Timeline = Ahead:**
+- 📤 Push to remote
+- ⚠️ Force push (overwrite remote)
 
-#### Branch Management
-- 🔀 Switch to canon branch
+**When Timeline = Behind:**
+- 📥 Pull (merge)
+- 📥 Pull (rebase)
+- ⚠️ Replace local with remote (discard local commits)
 
-#### History Actions (full operations)
-- 🕒 Commit History (browse timeline, time travel enabled)
-- 📁 File(s) History (browse file changes, cherry-pick enabled)
+**When Timeline = Diverged:**
+- 🔀 Sync: Merge remote into local
+- 🔀 Sync: Rebase local onto remote
+- ⬇️ Keep remote (discard local commits)
+- ⬆️ Keep local (overwrite remote)
 
-### When Operation = Normal + BranchContext = Other
+#### Branch Operations (always available)
+- 🔀 Switch branch (shows list of local branches)
+- ➕ Create new branch
+- 🔗 Merge another branch into current
 
-**Feature branches treated as working branches** (full operations).
-
-Same menu as working branch, but hints clarify this is a feature branch.
-
----
-
-## 6. Merge Working → Canon Operation
-
-**Purpose:** Merge working branch changes into canon branch for publishing.
-
-**Pre-conditions:**
-- Currently on working branch (or feature branch)
-- Working tree must be clean (no uncommitted changes)
-- Canon branch must exist
-
-**User sees:**
-```
-🔀 MERGE TO CANON
-
-Merge: dev → main
-
-This will:
-✓ Checkout canon branch (main)
-✓ Merge working branch (dev) into canon
-✓ Handle conflicts if any
-✓ Optionally push to remote after merge
-
-[Proceed] [Cancel]
-```
-
-**Implementation steps:**
-
-1. **Checkout canon branch**
-   ```bash
-   git checkout <canon-branch>
-   ```
-
-2. **Merge working branch**
-   ```bash
-   git merge <working-branch>
-   ```
-   - If conflicts → Operation = Conflicted
-   - User resolves → Continue merge
-   - If success → Proceed to step 3
-
-3. **Post-merge (optional)**
-   - Show menu on canon branch
-   - User can push to remote
-   - Or switch back to working branch
-
-**Abort (if conflicts):**
-```bash
-git merge --abort
-git checkout <working-branch>
-```
-→ Restores working branch, canon unchanged
-
-**Key properties:**
-- Safe (conflicts handled immediately)
-- Transparent (user sees exactly what's merging)
-- Flexible (push is optional after merge)
+#### History Actions (always available)
+- 🕒 Browse commit history (optional: time travel to old commit)
+- 📁 Browse file history (view file changes over time)
 
 ---
 
-## 7. Canon Branch Restrictions
+## 6. Dirty Operation Protocol
 
-**What Canon Branch CANNOT Do:**
-
-❌ Commit changes
-❌ Amend commits
-❌ Create branches
-❌ Rebase
-❌ Cherry-pick
-❌ Time travel
-❌ Merge other branches (except via "Merge working → canon")
-
-**What Canon Branch CAN Do:**
-
-✅ Pull from remote (fast-forward or merge)
-✅ Push to remote
-✅ Replace local with remote (hard reset)
-✅ Replace remote with local (force push)
-✅ Switch to working branch
-✅ Browse history (read-only)
-
-**Enforcement:**
-
-Menu generation filters operations:
-```go
-if gitState.BranchContext == Canon {
-    // ONLY sync operations allowed
-    return menuCanonBranch()
-}
-```
-
-If user somehow commits on canon (outside TIT), TIT will detect it and:
-- Show Timeline = Ahead
-- Show "Push to remote" option
-- But NEVER show "Commit" option again
-
----
-
-## 8. Dirty Operation Protocol
-
-**Purpose:** Apply any change-set (pull, cherry-pick, time travel) while preserving uncommitted work.
+**Purpose:** Apply any change-set (pull, merge, time travel) while preserving uncommitted work.
 
 **Used when:**
 - Pull with WorkingTree = Modified
-- Cherry-pick with WorkingTree = Modified
+- Merge with WorkingTree = Modified
 - Time travel with WorkingTree = Modified
 
 **User sees:**
 ```
 ⚠️ You have uncommitted changes
 
-Choose:
-1. Save changes and [operation]
-   → Your work is preserved
-   → May cause conflicts
+To proceed, your changes will be temporarily saved (stashed).
+After the operation completes, they'll be reapplied.
 
-2. Discard changes and [operation]
-   → Your changes will be LOST
+This may cause conflicts if the operation changes the same files.
 
-[Save and proceed] [Discard and proceed] [Cancel]
+[Save changes and proceed] [Discard changes and proceed] [Cancel]
 ```
 
 **Implementation steps:**
 
 1. **Snapshot**
    ```bash
+   ORIGINAL_BRANCH=$(git symbolic-ref --short HEAD)
    ORIGINAL_HEAD=$(git rev-parse HEAD)
    git stash push -u -m "TIT DIRTY-OP SNAPSHOT"
-   echo "$ORIGINAL_HEAD" > .git/TIT_DIRTY_OP
+   echo "$ORIGINAL_BRANCH" > .git/TIT_DIRTY_OP
+   echo "$ORIGINAL_HEAD" >> .git/TIT_DIRTY_OP
    ```
 
-2. **Apply change-set** (pull, cherry-pick, checkout, etc.)
+2. **Apply change-set** (pull, merge, checkout, etc.)
    - If conflicts → Operation = Conflicted
    - User resolves → Continue
 
@@ -362,7 +221,9 @@ Choose:
 
 **Abort (at any step):**
 ```bash
-ORIGINAL_HEAD=$(cat .git/TIT_DIRTY_OP)
+ORIGINAL_BRANCH=$(head -n 1 .git/TIT_DIRTY_OP)
+ORIGINAL_HEAD=$(tail -n 1 .git/TIT_DIRTY_OP)
+git checkout $ORIGINAL_BRANCH
 git reset --hard $ORIGINAL_HEAD
 git stash apply
 git stash drop
@@ -378,13 +239,280 @@ rm .git/TIT_DIRTY_OP
 
 ---
 
-## 9. Commit History Browser (2-Column)
+## 7. Branch Switching
 
-**Purpose:** Browse commit timeline, optionally time travel
+**Available from Normal state.**
 
-**Availability:**
-- Canon branch: Read-only (no time travel)
-- Working branch: Full access (time travel enabled)
+### Switch to Existing Branch
+
+**Pre-condition:** Working tree must be clean
+
+**If WorkingTree = Modified:**
+```
+⚠️ Cannot switch branches
+
+You have uncommitted changes.
+
+Options:
+[Commit changes] [Stash changes] [Cancel]
+```
+
+**If WorkingTree = Clean:**
+- Show list of all local branches
+- Highlight current branch
+- User selects target branch
+- Execute: `git checkout <branch>`
+
+After switch:
+- Menu regenerates based on new branch state
+- Header shows new branch name
+
+### Create New Branch
+
+**Pre-condition:** Working tree must be clean
+
+**Prompt:**
+```
+Create new branch
+
+New branch will be created from current HEAD.
+
+Branch name: [_____________]
+
+[Create and switch] [Cancel]
+```
+
+**Validates:**
+- Branch name not empty
+- Branch name doesn't already exist
+- Valid git ref name
+
+**Execute:**
+```bash
+git checkout -b <new-branch>
+```
+
+---
+
+## 8. Merge Branch Assistance
+
+**Purpose:** Merge another branch into current branch with safety and clarity.
+
+**Pre-conditions:**
+- Operation = Normal
+- Working tree must be clean (uses dirty protocol if Modified)
+
+**User sees:**
+```
+🔀 MERGE BRANCH
+
+Select branch to merge into current branch (main):
+
+  > dev
+    feature/auth
+    experimental
+
+This will merge the selected branch into main.
+Conflicts will be handled if they occur.
+
+[Select] [Cancel]
+```
+
+**After selection:**
+```
+Merge: dev → main
+
+This will:
+✓ Merge dev into main
+✓ Handle conflicts if any
+✓ Keep both branches intact
+
+[Proceed] [Cancel]
+```
+
+**Implementation:**
+```bash
+git merge <selected-branch>
+```
+- If conflicts → Operation = Conflicted
+- User resolves → Continue merge
+- If success → Back to Normal state
+
+**Abort (if conflicts):**
+```bash
+git merge --abort
+```
+→ Current branch unchanged
+
+---
+
+## 9. Time Travel Specification
+
+### 9.1 Entering Time Travel
+
+**Available from:** Commit History browser, press Enter on a commit.
+
+**If WorkingTree = Modified:**
+- Show Dirty Operation Protocol dialog first
+- Stash changes before entering time travel
+
+**If WorkingTree = Clean:**
+- Show time travel confirmation:
+
+```
+⚠️ ENTERING TIME TRAVEL MODE
+
+You are about to view commit abc123 from the past.
+
+This is READ-ONLY exploration:
+✓ You can view code at this point in history
+✓ You can build and test this old version
+✓ You can make local changes (not committed)
+
+You CANNOT commit while exploring the past.
+
+To keep changes, merge them back to your branch.
+
+[Continue] [Cancel]
+```
+
+**Executes:**
+```bash
+ORIGINAL_BRANCH=$(git symbolic-ref --short HEAD)
+echo "$ORIGINAL_BRANCH" > .git/TIT_TIME_TRAVEL
+git checkout <commit-hash>
+```
+
+**New state:** Operation = TimeTraveling
+
+### 9.2 While Time Traveling
+
+**Status display:**
+```
+⚠️ TIME TRAVEL MODE (Read-only)
+
+Viewing: commit abc123 (3 commits behind main)
+Your branch: main (commit xyz789)
+
+Timeline: ●━━━━━━━◉━━━━━━━◉━━━━━━━◉
+                You      ...      main
+```
+
+**Available actions:**
+- 🕒 Jump to different commit
+- 👁️ View diff (vs your branch)
+- 📦 Merge changes back to main
+- ⬅️ Return to main (discard changes)
+
+**Behavior:**
+- Working tree changes allowed (tracked as Modified)
+- CANNOT commit (no menu option for commit)
+- Can build, test, experiment freely
+- Changes stay local until merge-back or discard
+
+### 9.3 Merge Changes Back to Branch
+
+**Purpose:** Keep changes made during time travel by merging them into original branch.
+
+**Pre-conditions:**
+- Currently in time travel mode
+- May have Modified working tree OR Clean
+
+**User sees:**
+```
+📦 MERGE TIME TRAVEL CHANGES
+
+Merge changes from detached HEAD back to main.
+
+Current state:
+- Viewing: commit abc123
+- Your branch: main
+- Working tree: Modified (you have local changes)
+
+This will:
+1. Save your current changes (if any)
+2. Return to main branch
+3. Merge this commit + your changes into main
+4. Handle conflicts if they occur
+
+[Merge back to main] [Cancel]
+```
+
+**Implementation (using dirty op pattern):**
+
+1. **If WorkingTree = Modified:**
+   ```bash
+   git stash push -u -m "TIT TIME-TRAVEL WIP"
+   ```
+
+2. **Save detached HEAD commit:**
+   ```bash
+   DETACHED_COMMIT=$(git rev-parse HEAD)
+   ```
+
+3. **Checkout original branch:**
+   ```bash
+   ORIGINAL_BRANCH=$(cat .git/TIT_TIME_TRAVEL)
+   git checkout $ORIGINAL_BRANCH
+   ```
+
+4. **Merge detached commit:**
+   ```bash
+   git merge $DETACHED_COMMIT
+   ```
+   - If conflicts → Operation = Conflicted
+   - User resolves → Continue
+
+5. **If stash exists, apply back:**
+   ```bash
+   git stash apply
+   ```
+   - If conflicts → Operation = Conflicted
+   - User resolves → Continue
+
+6. **Cleanup:**
+   ```bash
+   git stash drop
+   rm .git/TIT_TIME_TRAVEL
+   ```
+
+**Abort (ESC at any step):**
+```bash
+ORIGINAL_BRANCH=$(cat .git/TIT_TIME_TRAVEL)
+ORIGINAL_HEAD=$(tail -n 1 .git/TIT_DIRTY_OP)
+git checkout $ORIGINAL_BRANCH
+git reset --hard $ORIGINAL_HEAD
+git stash apply  # If stash exists
+git stash drop
+rm .git/TIT_TIME_TRAVEL
+```
+
+**New state:** Operation = Normal (back on original branch)
+
+### 9.4 Return to Branch (Discard Changes)
+
+**Simple return:**
+```bash
+ORIGINAL_BRANCH=$(cat .git/TIT_TIME_TRAVEL)
+git checkout $ORIGINAL_BRANCH
+rm .git/TIT_TIME_TRAVEL
+```
+
+**If WorkingTree = Modified:**
+```
+⚠️ Discard changes?
+
+You have uncommitted changes in time travel mode.
+Returning to main will DISCARD these changes.
+
+[Discard and return] [Cancel]
+```
+
+---
+
+## 10. Commit History Browser (2-Column)
+
+**Purpose:** Browse commit timeline, optionally time travel to old commits.
 
 ```
 ┌─────────────────────────┬─────────────────────────┐
@@ -402,22 +530,19 @@ rm .git/TIT_DIRTY_OP
 
 **Navigation:**
 - ↑↓: Navigate commits
-- Enter: Time travel confirmation (ONLY on working/other branches)
+- Enter: Time travel to selected commit (read-only exploration)
 - ESC: Return to main menu
 
-**On Canon Branch:**
-- Enter key disabled
-- Footer shows: "Time travel not available on canon branch"
+**Footer hint:**
+```
+Press Enter to explore this commit (time travel mode)
+```
 
 ---
 
-## 10. File(s) History Browser (3-Pane)
+## 11. File(s) History Browser (3-Pane)
 
-**Purpose:** Browse file changes over time, optionally cherry-pick
-
-**Availability:**
-- Canon branch: Read-only (no cherry-pick)
-- Working branch: Full access (cherry-pick enabled)
+**Purpose:** Browse file changes over time.
 
 ```
 ┌─────────────────────────┬─────────────────────────┐
@@ -445,7 +570,7 @@ rm .git/TIT_DIRTY_OP
 **When WorkingTree = Modified:**
 - Diff shows: Working tree vs selected commit
 - Command: `git diff <commit> -- <file>`
-- Use case: "How do my WIP changes compare to commit X?"
+- Use case: "How do my current changes compare to commit X?"
 
 **When WorkingTree = Clean:**
 - Diff shows: Selected commit vs its parent
@@ -455,164 +580,21 @@ rm .git/TIT_DIRTY_OP
 **Navigation:**
 - Tab: Cycle panes (Commits → Files → Diff)
 - ↑↓: Scroll within active pane
-- Enter: Cherry-pick confirmation (uses Dirty Operation Protocol if Modified)
 - ESC: Return to main menu
 
-**On Canon Branch:**
-- Enter key disabled in commits/files panes
-- Footer shows: "Cherry-pick not available on canon branch"
+**Note:** Cherry-pick not implemented (not wired to interface).
 
 ---
 
-## 11. Time Travel Specification
+## 12. First-Time Setup
 
-### 11.1 Entering Time Travel
-
-**ONLY available on working/other branches.**
-
-From Commit History browser, press Enter on a commit.
-
-**If WorkingTree = Modified:**
-Show Dirty Operation Protocol dialog first.
-
-**If WorkingTree = Clean:**
-Show time travel confirmation:
-```
-⚠️ ENTERING TIME TRAVEL MODE
-
-You are checking out commit abc123
-
-You will be in DETACHED HEAD state.
-Nothing is permanent until you attach HEAD to working branch.
-
-[Continue] [Cancel]
-```
-
-Executes:
-```bash
-echo "abc123" > .git/TIT_TIME_TRAVEL
-git checkout abc123
-```
-
-**New state:** Operation = TimeTraveling
-
-### 11.2 While Time Traveling
-
-**Status display:**
-```
-⚠️ DETACHED HEAD - TIME TRAVEL MODE
-
-You: commit abc123 (3 commits behind working)
-Working: commit xyz789 (dev)
-
-Timeline: ●━━━━━━━◉━━━━━━━◉━━━━━━━◉
-                You      ...    Working
-```
-
-**Available actions:**
-- 🕒 Jump to different commit
-- 👁️ View diff (vs working branch)
-- ✅ Commit changes (creates orphaned commit)
-- ⚠️ **Attach HEAD as new working** (destructive)
-- ⬅️ Return to working branch
-
-### 11.3 Attaching HEAD As New Working
-
-**Requires typed confirmation: 'ATTACH'**
-
-```
-⚠️⚠️⚠️ DESTRUCTIVE ACTION ⚠️⚠️⚠️
-
-You are about to make this commit the new working branch (dev).
-
-What will happen:
-✓ Your detached commit becomes working branch tip
-✗ Later commits on dev will be ORPHANED
-
-Type 'ATTACH' to confirm:
-[_____________]
-
-[Cancel]
-```
-
-Executes:
-```bash
-git checkout -B <working-branch>
-rm .git/TIT_TIME_TRAVEL
-```
-
-**New state:** Operation = Normal, BranchContext = Working
-
-### 11.4 Prevention on Canon Branch
-
-**If user tries to time travel from canon branch history:**
-
-```
-❌ TIME TRAVEL NOT AVAILABLE
-
-Time travel is only available on working branches.
-
-Switch to working branch first:
-[Switch to dev] [Cancel]
-```
-
----
-
-## 12. Branch Switching
-
-**Available from any Normal state.**
-
-### 12.1 Switch to Canon Branch
-
-**Pre-condition:** Working tree must be clean
-
-**If Modified:**
-```
-⚠️ Cannot switch branches
-
-You have uncommitted changes.
-
-Options:
-[Commit changes] [Stash changes] [Cancel]
-```
-
-**If Clean:**
-```bash
-git checkout <canon-branch>
-```
-
-After switch:
-- Menu regenerates with canon branch restrictions
-- Footer shows: "On canon branch (read-only)"
-
-### 12.2 Switch to Working Branch
-
-**Pre-condition:** Working tree must be clean (same as above)
-
-**If Clean:**
-```bash
-git checkout <working-branch>
-```
-
-After switch:
-- Menu regenerates with full operations
-- Footer shows: "On working branch (full operations)"
-
-### 12.3 Keyboard Shortcut
-
-**Proposed:** `b` key toggles between canon and working
-
----
-
-## 13. First-Time Setup
-
-### 13.1 Check Git Installation
+### 12.1 Check Git Installation
 ```bash
 git --version
 ```
 If not found → Error
 
-### 13.2 Check Git Configuration
+### 12.2 Check Git Configuration
 ```bash
 git config user.name
 git config user.email
@@ -620,45 +602,60 @@ git config user.email
 
 If either empty → Setup wizard
 
-### 13.3 Check Repository
+### 12.3 Check Repository
 ```bash
 git rev-parse --git-dir
 ```
 
 If fails → Show init/clone options
 
-**Init:** `git init`
-- Prompt for canon branch name (default: "main")
-- Prompt for working branch name (default: "dev")
-- Create both branches
-- Save to `~/.config/tit/repo.toml`
-
-**Clone:** Prompt for URL, then `git clone <url> .`
-- Detect remote branches
-- Prompt for canon branch selection
-- Prompt for working branch name (create locally)
-- Save to config
-
-### 13.4 Branch Configuration Storage
-
-**File:** `~/.config/tit/repo.toml`
-
-```toml
-[repository]
-initialized = true
-repositoryPath = "/path/to/repo"
-canonBranch = "main"
-lastWorkingBranch = "dev"
+**Init:**
+```bash
+git init
+git checkout -b main
 ```
 
-### 13.5 Fatal Errors
+**Clone:**
+- Prompt for URL
+- Clone to current directory or subdirectory
+- Detect default branch
+- Checkout default branch
+
+### 12.4 Branch Mismatch on Remote Add
+
+When adding first remote, if local branch ≠ remote default:
+
+```
+⚠️ Branch name mismatch
+
+Your local branch: master
+Remote default branch: main
+
+This may cause confusion. Would you like to switch?
+
+[Switch to main] [Stay on master]
+```
+
+**Switch:**
+```bash
+git checkout -b main origin/main
+```
+
+**Stay:**
+- Remote added normally
+- User stays on current branch
+
+### 12.5 Fatal Errors
 
 **Detached HEAD (not from time travel):**
 ```
 ⚠️ Detached HEAD detected
 
-Not a TIT time travel session.
-Run: git checkout <branch>
+You are not on a branch.
+TIT requires you to be on a branch.
+
+Please checkout a branch:
+git checkout main
 
 [Exit TIT]
 ```
@@ -672,26 +669,16 @@ TIT requires a working tree.
 [Exit TIT]
 ```
 
-**Canon/Working branch not found:**
-```
-⚠️ Configuration Error
-
-Canon branch 'main' not found.
-Working branch 'dev' not found.
-
-[Re-run init workflow] [Exit TIT]
-```
-
 ---
 
-## 14. UI Layout
+## 13. UI Layout
 
 ```
 ┌────────────────────────────────────────┐
 │  ⣿⣿⣿ TIT v2.0.0 ⣿⣿⣿               │ ← Banner
 ├────────────────────────────────────────┤
 │  CWD: /path/to/repo                   │ ← Header
-│  Branch: dev (working) | Clean | Sync │
+│  Branch: main | Clean | In sync       │
 ├────────────────────────────────────────┤
 │           Content Area (24 lines)      │
 ├────────────────────────────────────────┤
@@ -702,17 +689,17 @@ Working branch 'dev' not found.
 **Minimum terminal size:** 80×30 characters
 
 **Header format:**
-- Canon branch: `Branch: main (canon) | Clean | Ahead 2`
-- Working branch: `Branch: dev (working) | Modified | Behind 1`
-- Other branch: `Branch: feature-x (other) | Clean | Sync`
+- Shows current branch name
+- Working tree status (Clean/Modified)
+- Timeline status (In sync/Ahead/Behind/Diverged)
 
 **All rendering via Lip Gloss:** borders, spacing, colors, alignment
 
 ---
 
-## 15. Keyboard Shortcuts
+## 14. Keyboard Shortcuts
 
-### 15.1 Global Keys
+### 14.1 Global Keys
 
 **Ctrl+C (Exit)**
 - First press: Show "Press Ctrl+C again to exit (3s timeout)"
@@ -729,11 +716,7 @@ Working branch 'dev' not found.
 **Tab (In browsers)**
 - Cycle focus between panes
 
-### 15.2 Branch Switching
-
-**b key:** Toggle between canon and working branch (proposed)
-
-### 15.3 Menu Navigation
+### 14.2 Menu Navigation
 
 **↑/k:** Move selection up
 **↓/j:** Move selection down
@@ -742,7 +725,7 @@ Working branch 'dev' not found.
 
 ---
 
-## 16. Color Theme
+## 15. Color Theme
 
 **Theme file:** `~/.config/tit/themes/default.toml`
 
@@ -756,205 +739,28 @@ timeline_ahead = "#3498DB"
 timeline_diverged = "#E74C3C"
 menu_selected = "#3498DB"
 border = "#34495E"
-
-# New: Branch context colors
-branch_canon = "#27AE60"      # Green (read-only)
-branch_working = "#3498DB"    # Blue (full ops)
-branch_other = "#9B59B6"      # Purple (feature)
 ```
 
 ---
 
-## 17. Design Invariants
+## 16. Design Invariants
 
 1. **Menu = Contract:** If action appears, it must succeed
-2. **State Machine:** UI is pure function of (Git state, Branch context)
+2. **State Machine:** UI is pure function of Git state
 3. **No Staging:** All changes commit together
-4. **Dual Timeline:** Canon (clean) + Working (messy)
-5. **Canon Read-Only:** No local commits on canon branch
-6. **Safe Exploration:** Time travel non-destructive until attach (working only)
+4. **Single Active Branch:** TIT operates on current branch only
+5. **Branch Switching:** Users can switch branches anytime (when clean)
+6. **Safe Exploration:** Time travel is read-only until merge-back
 7. **Dirty Operations:** Always preservable with abort
 8. **Beautiful:** Lip Gloss rendering, themed colors
 9. **Guaranteed Success:** TIT never shows operations that could fail
+10. **No Configuration:** State always reflects actual Git state
 
 ---
 
-## 18. Comparison: Old vs New TIT
+## 17. Implementation Plan
 
-| Feature | Old TIT (v1.0) | New TIT (v2.0) |
-|---------|----------------|----------------|
-| **Branch Model** | Single branch (main) | Dual branch (canon + working) |
-| **Commit on Main** | ✅ Allowed | ❌ Not allowed (canon read-only) |
-| **Time Travel** | On main branch | ONLY on working branches |
-| **Attach HEAD** | "Attach as new main" | "Attach as new working" |
-| **Workflow** | Work on main | Work on working → merge to canon |
-| **State Axes** | 4 (WT, TL, Op, Remote) | 5 (WT, TL, Op, Remote, **BranchContext**) |
-| **Menu Generation** | Operation-based | Operation + **Branch context** |
-| **History Browser** | Full on main | Canon: read-only, Working: full |
-| **Philosophy** | Single timeline | Canon (publish) + Working (develop) |
-
----
-
-## 19. Workflow Examples
-
-### 19.1 Standard Development Flow
-
-```
-1. Start on working branch (dev)
-   Status: Branch: dev (working) | Clean | InSync
-
-2. Make changes, commit
-   Action: ✅ Commit changes
-   Status: Branch: dev (working) | Clean | Ahead 1
-
-3. Merge to canon
-   Action: 🔀 Merge to canon branch
-   → Switches to main, merges dev
-   Status: Branch: main (canon) | Clean | Ahead 1
-
-4. Push to remote
-   Action: 📤 Push to remote
-   Status: Branch: main (canon) | Clean | InSync
-
-5. Switch back to working
-   Action: 🔀 Switch to working branch
-   Status: Branch: dev (working) | Clean | InSync
-```
-
-### 19.2 Pull Updates on Canon
-
-```
-1. On canon branch (main)
-   Status: Branch: main (canon) | Clean | Behind 2
-
-2. Pull from remote
-   Action: 📥 Pull from remote
-   → Fast-forward or merge
-   Status: Branch: main (canon) | Clean | InSync
-
-3. Switch to working branch
-   Action: 🔀 Switch to working branch
-   Status: Branch: dev (working) | Clean | Behind 2
-
-4. Merge canon into working (optional)
-   Action: (use git merge main, or pull if tracking)
-```
-
-### 19.3 Time Travel Exploration (Working Branch Only)
-
-```
-1. On working branch (dev)
-   Status: Branch: dev (working) | Clean | InSync
-
-2. Browse commit history
-   Action: 📜 Browse commit history
-   → Select old commit, press Enter
-
-3. Enter time travel mode
-   Status: Operation: TimeTraveling
-
-4. Explore, make changes
-   Action: ✅ Commit changes (orphaned commit)
-
-5. Decide: Keep or discard
-   Option A: ⚠️ Attach HEAD as new working (destructive)
-   Option B: ⬅️ Return to working branch (discard)
-```
-
-### 19.4 Merge Conflict Resolution
-
-```
-1. On working branch (dev)
-   Status: Branch: dev (working) | Clean | Ahead 1
-
-2. Merge to canon
-   Action: 🔀 Merge to canon branch
-   → Conflict detected
-   Status: Branch: main (canon) | Modified | Operation: Conflicted
-
-3. Resolve conflicts
-   Action: 🧩 View conflicted files
-   → Edit files externally
-   Action: ▶️ Continue operation
-
-4. Merge completes
-   Status: Branch: main (canon) | Clean | Ahead 1
-
-5. Push to remote
-   Action: 📤 Push to remote
-```
-
----
-
-## 20. Implementation Notes
-
-### 20.1 BranchContext Detection
-
-**In `DetectState()`:**
-```go
-state.IsCanonBranch = (state.CurrentBranch == state.CanonBranch)
-state.IsWorkingBranch = (state.CurrentBranch == state.WorkingBranch)
-
-if state.IsCanonBranch {
-    state.BranchContext = BranchContextCanon
-} else if state.IsWorkingBranch {
-    state.BranchContext = BranchContextWorking
-} else if state.CurrentBranch != "" {
-    state.BranchContext = BranchContextOther
-} else {
-    state.BranchContext = BranchContextNone
-}
-```
-
-### 20.2 Menu Generation Priority
-
-```go
-func GenerateMenu() []MenuItem {
-    // Priority 1: Operation state
-    switch gitState.Operation {
-    case Conflicted: return menuConflicted()
-    case Merging, Rebasing: return menuOperation()
-    case DirtyOperation: return menuDirtyOperation()
-    case TimeTraveling: return menuTimeTraveling()
-    case Normal: break // Continue to branch context
-    }
-
-    // Priority 2: Branch context
-    switch gitState.BranchContext {
-    case Canon: return menuCanonBranch()
-    case Working, Other: return menuWorkingBranch()
-    case None: return menuNotRepo()
-    }
-}
-```
-
-### 20.3 Time Travel Prevention
-
-**In `dispatchHistory()`:**
-```go
-if gitState.BranchContext == Canon {
-    // Disable time travel on canon branch
-    historyAllowTimeTravel = false
-    footerHint = "Browse history (time travel not available on canon)"
-} else {
-    historyAllowTimeTravel = true
-    footerHint = "Browse history (press Enter to time travel)"
-}
-```
-
-### 20.4 State Machine Guarantees
-
-**Every menu item maps to pre-validated state:**
-
-| Menu Item | Pre-conditions Checked |
-|-----------|------------------------|
-| Commit | BranchContext != Canon, WorkingTree = Modified |
-| Push | Remote = HasRemote, Timeline = Ahead |
-| Merge to canon | BranchContext = Working/Other, WorkingTree = Clean |
-| Switch branch | WorkingTree = Clean |
-| Time travel | BranchContext != Canon, Operation = Normal |
-
-**Result:** Menu only shows operations guaranteed to succeed.
+See `IMPLEMENTATION_PLAN.md` for step-by-step porting strategy from old TIT to new TIT.
 
 ---
 
