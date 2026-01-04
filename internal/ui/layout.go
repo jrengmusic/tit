@@ -50,35 +50,22 @@ func RenderBanner(s Sizing) string {
 }
 
 // RenderHeader renders header section with border (height = HeaderHeight)
-// canonBranch and workingBranch are displayed right-aligned at top and bottom
-func RenderHeader(s Sizing, theme Theme, canonBranch string, workingBranch string) string {
-	// Header layout: 2 lines of branches (right-aligned, all caps, bold)
+// currentBranch is displayed right-aligned, all caps, bold
+func RenderHeader(s Sizing, theme Theme, currentBranch string) string {
+	// Header layout: current branch right-aligned, all caps, bold
 	
-	canonLine := Line{
+	branchLine := Line{
 		Content: StyledContent{
-			Text:    strings.ToUpper(canonBranch),
+			Text:    strings.ToUpper(currentBranch),
 			FgColor: theme.LabelTextColor,
 			Bold:    true,
 		},
 		Alignment: "right",
 		Width:     ContentInnerWidth,
 	}
-
-	workingLine := Line{
-		Content: StyledContent{
-			Text:    strings.ToUpper(workingBranch),
-			FgColor: theme.LabelTextColor,
-			Bold:    true,
-		},
-		Alignment: "right",
-		Width:     ContentInnerWidth,
-	}
-
-	// Combine branches
-	content := canonLine.Render() + "\n" + workingLine.Render()
 
 	// Pad to fill HeaderHeight-2 (border adds 2 for total)
-	padded := PadTextToHeight(content, HeaderHeight-2)
+	padded := PadTextToHeight(branchLine.Render(), HeaderHeight-2)
 
 	// Render with border
 	return RenderBox(BoxConfig{
@@ -125,9 +112,9 @@ func RenderFooter(s Sizing, theme Theme, app interface{ GetFooterHint() string }
 }
 
 // RenderLayout combines all 4 sections into centered view (horizontally and vertically)
-func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, canonBranch string, workingBranch string, app interface{ GetFooterHint() string }) string {
+func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, currentBranch string, app interface{ GetFooterHint() string }) string {
 	banner := RenderBanner(s)
-	header := RenderHeader(s, theme, canonBranch, workingBranch)
+	header := RenderHeader(s, theme, currentBranch)
 	content := RenderContent(s, contentText, theme)
 	footer := RenderFooter(s, theme, app)
 

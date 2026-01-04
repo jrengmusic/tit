@@ -36,9 +36,6 @@ type Application struct {
 
 	// Initialization workflow state
 	initRepositoryPath   string // Path to repository being initialized
-	initCanonBranch      string // Canon branch name chosen during init
-	initWorkingBranch    string // Working branch name chosen during init
-	initActiveField      string // "canon" or "working" - which field is active in ModeInitializeBranches
 
 	// Clone workflow state
 	cloneURL             string   // URL to clone from
@@ -97,16 +94,12 @@ func (a *Application) transitionTo(config ModeTransition) {
             a.cloneBranches = nil
         case "init":
             a.initRepositoryPath = ""
-            a.initCanonBranch = ""
-            a.initWorkingBranch = ""
         case "all":
             // Reset all workflow states
             a.cloneURL = ""
             a.clonePath = ""
             a.cloneBranches = nil
             a.initRepositoryPath = ""
-            a.initCanonBranch = ""
-            a.initWorkingBranch = ""
         }
     }
 }
@@ -163,18 +156,8 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Paste && a.isInputMode() {
 			text := strings.TrimSpace(string(msg.Runes))
 			if len(text) > 0 {
-				a.inputValue = a.inputValue[:a.inputCursorPosition] + text + a.inputValue[a.inputCursorPosition:]
-				a.inputCursorPosition += len(text)
-				
-				if a.inputAction == "clone_url" {
-					if a.inputValue == "" {
-						a.inputValidationMsg = ""
-					} else if ui.ValidateRemoteURL(a.inputValue) {
-						a.inputValidationMsg = ""
-					} else {
-						a.inputValidationMsg = "Invalid URL format"
-					}
-				}
+				a.insertTextAtCursor(text)
+				a.updateInputValidation()
 			}
 			return a, nil
 		}
@@ -189,64 +172,15 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle character input in input modes
 		if a.isInputMode() && len(keyStr) == 1 && keyStr[0] >= 32 && keyStr[0] <= 126 {
-			// Insert character at cursor position
-			if a.mode == ModeInitializeBranches {
-				// Insert into active field
-				if a.initActiveField == "canon" {
-					a.initCanonBranch = a.initCanonBranch[:a.inputCursorPosition] + keyStr + a.initCanonBranch[a.inputCursorPosition:]
-				} else {
-					a.initWorkingBranch = a.initWorkingBranch[:a.inputCursorPosition] + keyStr + a.initWorkingBranch[a.inputCursorPosition:]
-				}
-				a.inputCursorPosition++
-			} else {
-				// Generic input mode
-				a.inputValue = a.inputValue[:a.inputCursorPosition] + keyStr + a.inputValue[a.inputCursorPosition:]
-				a.inputCursorPosition++
-				
-				// Real-time validation for clone URL input
-				if a.inputAction == "clone_url" {
-					if a.inputValue == "" {
-						a.inputValidationMsg = ""
-					} else if ui.ValidateRemoteURL(a.inputValue) {
-						a.inputValidationMsg = "" // Valid - no error message
-					} else {
-						a.inputValidationMsg = "Invalid URL format"
-					}
-				}
-			}
+			a.insertTextAtCursor(keyStr)
+			a.updateInputValidation()
 			return a, nil
 		}
 
 		// Handle backspace in input modes
 		if a.isInputMode() && keyStr == "backspace" {
-			if a.mode == ModeInitializeBranches {
-				// Delete from active field
-				if a.inputCursorPosition > 0 {
-					if a.initActiveField == "canon" {
-						a.initCanonBranch = a.initCanonBranch[:a.inputCursorPosition-1] + a.initCanonBranch[a.inputCursorPosition:]
-					} else {
-						a.initWorkingBranch = a.initWorkingBranch[:a.inputCursorPosition-1] + a.initWorkingBranch[a.inputCursorPosition:]
-					}
-					a.inputCursorPosition--
-				}
-			} else {
-				// Generic input mode
-				if a.inputCursorPosition > 0 {
-					a.inputValue = a.inputValue[:a.inputCursorPosition-1] + a.inputValue[a.inputCursorPosition:]
-					a.inputCursorPosition--
-					
-					// Real-time validation for clone URL input
-					if a.inputAction == "clone_url" {
-						if a.inputValue == "" {
-							a.inputValidationMsg = ""
-						} else if ui.ValidateRemoteURL(a.inputValue) {
-							a.inputValidationMsg = "" // Valid - no error message
-						} else {
-							a.inputValidationMsg = "Invalid URL format"
-						}
-					}
-				}
-			}
+			a.deleteAtCursor()
+			a.updateInputValidation()
 			return a, nil
 		}
 
@@ -267,31 +201,31 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Step {
 		case "init":
 			if msg.Success {
+				// Change to the initialized repository directory
+				if msg.Path != "" {
+					os.Chdir(msg.Path)
+				}
+				
 				// Reload git state after successful initialization
 				if state, err := git.DetectState(); err == nil {
 					a.gitState = state
 				}
 				
-				// Reset init state and return to menu
+				// STAY in console mode (contract: user dismisses with ESC)
+				// DO NOT set asyncOperationActive = false yet
+				// Mark operation complete so footer changes
+				a.asyncOperationActive = false
+				a.footerHint = msg.Output // Show success message
+				
+				// Clean up init-specific state
 				a.initRepositoryPath = ""
-				a.initCanonBranch = ""
-				a.initWorkingBranch = ""
 				a.inputValue = ""
 				a.inputCursorPosition = 0
 				a.inputPrompt = ""
 				a.inputAction = ""
-				
-				// Regenerate menu and switch to menu mode
-				a.mode = ModeMenu
-				a.selectedIndex = 0
-				menu := a.GenerateMenu()
-				a.menuItems = menu
-				if len(menu) > 0 {
-					a.footerHint = menu[0].Hint
-				}
-				a.footerHint = msg.Output // Show success message
 			} else {
-				// Show error message, stay in current mode
+				// Show error message, mark operation complete
+				a.asyncOperationActive = false
 				a.footerHint = msg.Error
 			}
 		case "clone":
@@ -299,12 +233,9 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Clone succeeded - STAY in console mode (contract: user dismisses with ESC)
 				// DO NOT set asyncOperationActive = false yet
 
-				// Change to cloned directory if subdir was created
-				if a.clonePath != "" {
-					cwd, _ := os.Getwd()
-					if a.clonePath != cwd {
-						os.Chdir(a.clonePath)
-					}
+				// Change to cloned directory
+				if msg.Path != "" {
+					os.Chdir(msg.Path)
 				}
 
 				// Reload git state after successful clone
@@ -512,27 +443,7 @@ func (a *Application) View() string {
 			},
 		}
 		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
-	case ModeInitializeBranches:
-		// Both canon and working branch inputs displayed simultaneously
-		// Pass correct cursor position based on active field
-		canonCursorPos := 0
-		workingCursorPos := 0
-		if a.initActiveField == "canon" {
-			canonCursorPos = a.inputCursorPosition
-		} else {
-			workingCursorPos = a.inputCursorPosition
-		}
 
-		contentText = ui.RenderBranchInputs(
-			"Canon:",
-			a.initCanonBranch,
-			canonCursorPos,
-			"Working:",
-			a.initWorkingBranch,
-			workingCursorPos,
-			a.initActiveField, // "canon" or "working"
-			a.theme,
-		)
 	case ModeConfirmation:
 		contentText = "[Confirmation mode - TODO]"
 	case ModeHistory:
@@ -543,15 +454,13 @@ func (a *Application) View() string {
 		contentText = ""
 	}
 	
-	// Get branch names from git state
-	canonBranch := ""
-	workingBranch := ""
+	// Get current branch from git state
+	currentBranch := ""
 	if a.gitState != nil {
-		canonBranch = a.gitState.CanonBranch
-		workingBranch = a.gitState.WorkingBranch
+		currentBranch = a.gitState.CurrentBranch
 	}
 
-	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, canonBranch, workingBranch, a)
+	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, currentBranch, a)
 }
 
 // Init initializes the application
@@ -567,7 +476,6 @@ func (a *Application) GetFooterHint() string {
 // isInputMode checks if current mode accepts text input
 func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
-		a.mode == ModeInitializeBranches ||
 		a.mode == ModeCloneURL
 }
 
@@ -594,18 +502,6 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 		func(a *Application, pos int) { a.inputCursorPosition = pos },
 	)
 
-	// Branch input cursor handlers for dual-field input
-	branchInputNav := cursorNavMixin.CreateHandlers(
-		func(a *Application) string {
-			if a.initActiveField == "canon" {
-				return a.initCanonBranch
-			}
-			return a.initWorkingBranch
-		},
-		func(a *Application) int { return a.inputCursorPosition },
-		func(a *Application, pos int) { a.inputCursorPosition = pos },
-	)
-
 	// Mode-specific handlers (global merged in after)
 	modeHandlers := map[AppMode]map[string]KeyHandler{
 		ModeMenu: NewModeHandlers().
@@ -622,11 +518,6 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("enter", a.handleInitLocationSelection).
 			On("1", a.handleInitLocationChoice1).
 			On("2", a.handleInitLocationChoice2).
-			Build(),
-		ModeInitializeBranches: NewModeHandlers().
-			WithCursorNav(branchInputNav).
-			On("tab", a.handleInitBranchesTab).
-			On("enter", a.handleInitBranchesSubmit).
 			Build(),
 		ModeCloneURL: NewModeHandlers().
 			WithCursorNav(genericInputNav).
@@ -709,6 +600,40 @@ func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
 	return app, app.dispatchAction(item.ID)
 }
 
+// Input mode helpers
+
+// insertTextAtCursor inserts text at current cursor position
+func (a *Application) insertTextAtCursor(text string) {
+	a.inputValue = a.inputValue[:a.inputCursorPosition] + text + a.inputValue[a.inputCursorPosition:]
+	a.inputCursorPosition += len(text)
+}
+
+// deleteAtCursor deletes character before cursor
+func (a *Application) deleteAtCursor() {
+	if a.inputCursorPosition == 0 {
+		return
+	}
+	a.inputValue = a.inputValue[:a.inputCursorPosition-1] + a.inputValue[a.inputCursorPosition:]
+	a.inputCursorPosition--
+}
+
+// updateInputValidation updates validation message for current input
+func (a *Application) updateInputValidation() {
+	if a.inputAction == "clone_url" {
+		currentValue := a.inputValue
+		if a.mode == ModeInitializeBranches {
+			return // No validation in branch mode
+		}
+		if currentValue == "" {
+			a.inputValidationMsg = ""
+		} else if ui.ValidateRemoteURL(currentValue) {
+			a.inputValidationMsg = ""
+		} else {
+			a.inputValidationMsg = "Invalid URL format"
+		}
+	}
+}
+
 // Input mode handlers
 
 // handleInputSubmit handles enter in generic input mode
@@ -717,11 +642,36 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	switch app.inputAction {
 	case "init_subdir_name":
 		return app.handleInputSubmitSubdirName(app)
+	case "init_branch_name":
+		return app.handleInputSubmitInitBranchName(app)
 	case "clone_subdir_name":
 		return app.handleInputSubmitCloneSubdirName(app)
 	default:
 		return app, nil
 	}
+}
+
+// handleInputSubmitInitBranchName handles enter after entering initial branch name
+func (a *Application) handleInputSubmitInitBranchName(app *Application) (tea.Model, tea.Cmd) {
+	// Validate branch name
+	branchName := app.inputValue
+	if branchName == "" {
+		app.footerHint = "Branch name cannot be empty"
+		return app, nil
+	}
+
+	// If no path set, use current directory
+	if app.initRepositoryPath == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			app.footerHint = "Failed to get current directory"
+			return app, nil
+		}
+		app.initRepositoryPath = cwd
+	}
+
+	// Execute git operations asynchronously
+	return app, app.executeInitWorkflow(branchName)
 }
 
 

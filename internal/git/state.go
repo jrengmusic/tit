@@ -87,12 +87,6 @@ func DetectState() (*State, error) {
 		state.LocalBranchOnRemote = CurrentBranchExistsOnRemote()
 	}
 
-	// Load canon and working branches from repo config
-	if config, err := LoadRepoConfig(); err == nil {
-		state.CanonBranch = config.Repo.CanonBranch
-		state.WorkingBranch = config.Repo.LastWorkingBranch
-	}
-
 	return state, nil
 }
 

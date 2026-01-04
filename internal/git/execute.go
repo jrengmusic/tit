@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"tit/internal/ui"
@@ -140,4 +141,23 @@ func ExecuteWithStreaming(args ...string) CommandResult {
 		ExitCode: exitCode,
 		Success:  exitCode == 0,
 	}
+}
+
+// ExtractRepoName extracts repository name from a git URL
+// Handles: https://github.com/user/repo.git, git@github.com:user/repo.git, etc.
+// Returns just "repo" (without .git extension)
+func ExtractRepoName(gitURL string) string {
+	// Remove trailing .git if present
+	name := strings.TrimSuffix(gitURL, ".git")
+	
+	// Get the last path component (repo name)
+	name = filepath.Base(name)
+	
+	// Handle SSH URLs like git@github.com:user/repo
+	if strings.Contains(name, "@") {
+		parts := strings.Split(name, "@")
+		name = parts[len(parts)-1]
+	}
+	
+	return name
 }

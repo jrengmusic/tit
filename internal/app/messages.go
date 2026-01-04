@@ -16,6 +16,7 @@ type GitOperationMsg struct {
 	Success bool
 	Output  string
 	Error   string
+	Path    string // Working directory to change to after operation
 }
 
 // GitOperationCompleteMsg signals that a git operation completed

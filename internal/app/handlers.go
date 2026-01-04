@@ -138,12 +138,15 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 var initLocationConfig = LocationChoiceConfig{
 	PathSetter: func(a *Application, path string) { a.initRepositoryPath = path },
 	OnCurrentDir: func(a *Application) (tea.Model, tea.Cmd) {
-		a.mode = ModeInitializeBranches
-		a.initCanonBranch = "main"
-		a.initWorkingBranch = "dev"
-		a.initActiveField = "working"
-		a.inputCursorPosition = len("dev")
-		a.footerHint = "Tab to switch fields, Enter to submit, ESC to cancel"
+		// Transition to single branch input mode
+		a.transitionTo(ModeTransition{
+			Mode:        ModeInput,
+			InputPrompt: "Initial branch name:",
+			InputAction: "init_branch_name",
+			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
+		})
+		a.inputValue = "main"
+		a.inputCursorPosition = len("main")
 		return a, nil
 	},
 	SubdirPrompt: "Repository name:",
@@ -180,7 +183,7 @@ func (a *Application) handleInitLocationChoice2(app *Application) (tea.Model, te
 	return app.handleLocationChoice(2, initLocationConfig)
 }
 
-// handleInputSubmitSubdirName handles enter when creating subdirectory
+// handleInputSubmitSubdirName handles enter when creating subdirectory for init
 func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["directory"], func(app *Application) (tea.Model, tea.Cmd) {
 		cwd, err := os.Getwd()
@@ -191,102 +194,65 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 
 		app.initRepositoryPath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
 
+		// Transition to single branch input mode
 		app.transitionTo(ModeTransition{
-			Mode:       ModeInitializeBranches,
-			FooterHint: "Tab to switch fields, Enter to submit, ESC to cancel",
+			Mode:        ModeInput,
+			InputPrompt: "Initial branch name:",
+			InputAction: "init_branch_name",
+			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
 		})
-		app.initCanonBranch = "main"
-		app.initWorkingBranch = "dev"
-		app.initActiveField = "working"
-		app.inputCursorPosition = len("dev")
+		app.inputValue = "main"
+		app.inputCursorPosition = len("main")
 
 		return app, nil
 	})
 }
 
-// handleInitBranchesTab cycles between canon and working branch fields
-func (a *Application) handleInitBranchesTab(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Toggle active field
-	if app.initActiveField == "working" {
-		app.initActiveField = "canon"
-		// Move cursor to end of canon branch name
-		app.inputCursorPosition = len(app.initCanonBranch)
-	} else {
-		app.initActiveField = "working"
-		// Move cursor to end of working branch name
-		app.inputCursorPosition = len(app.initWorkingBranch)
-	}
-	return app, nil
-}
 
-// handleInitBranchesSubmit handles enter - only submit if on working field
-func (a *Application) handleInitBranchesSubmit(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Enter only submits from working field
-	if app.initActiveField != "working" {
-		// On canon field, just move to working
-		app.initActiveField = "working"
-		app.inputCursorPosition = len(app.initWorkingBranch)
-		return app, nil
-	}
-
-	// Validate working branch name
-	if app.initWorkingBranch == "" {
-		app.footerHint = "Working branch name cannot be empty"
-		return app, nil
-	}
-
-	// Validate canon branch name
-	if app.initCanonBranch == "" {
-		app.footerHint = "Canon branch name cannot be empty"
-		return app, nil
-	}
-
-	// Execute git operations asynchronously
-	return app, app.executeInitWorkflow()
-}
 
 // handleInitBranchesCancel is now handled by global ESC handler
 // Keeping as comment for reference of old behavior
 // func (a *Application) handleInitBranchesCancel(app *Application) (tea.Model, tea.Cmd) { ... }
 
 // executeInitWorkflow launches git operations in a worker and returns a command
-func (a *Application) executeInitWorkflow() tea.Cmd {
+func (a *Application) executeInitWorkflow(branchName string) tea.Cmd {
 	// UI THREAD - Launching worker goroutine for git operations
 	repoPath := a.initRepositoryPath
-	canonBranch := a.initCanonBranch
-	workingBranch := a.initWorkingBranch
 
-	return NewAsyncOp("init").
-		AddStep(func() error {
-			return git.InitializeRepository(repoPath)
-		}).
-		AddStep(func() error {
-			originalCwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			if err := os.Chdir(repoPath); err != nil {
-				return err
-			}
-			defer os.Chdir(originalCwd)
+	// Set up async state for console display
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+	a.mode = ModeClone
+	a.consoleState = ui.NewConsoleOutState()
+	a.outputBuffer.Clear()
+	a.footerHint = "Initializing repository... (ESC to abort)"
 
-			if err := git.CreateBranch(canonBranch); err != nil {
-				return err
-			}
-			if err := git.CreateBranch(workingBranch); err != nil {
-				return err
-			}
+	return func() tea.Msg {
+		result := git.ExecuteWithStreaming("init", repoPath)
+		if !result.Success {
+			return GitOperationMsg{Step: "init", Success: false, Error: "git init failed", Path: repoPath}
+		}
 
-			cfg := git.RepoConfig{}
-			cfg.Repo.Initialized = true
-			cfg.Repo.RepositoryPath = repoPath
-			cfg.Repo.CanonBranch = canonBranch
-			cfg.Repo.LastWorkingBranch = workingBranch
+		// Change to repo directory for branch creation
+		if err := os.Chdir(repoPath); err != nil {
+			return GitOperationMsg{Step: "init", Success: false, Error: "Failed to change to repository directory", Path: repoPath}
+		}
 
-			return git.SaveRepoConfig(cfg)
-		}).
-		SuccessMessage(fmt.Sprintf("Repository initialized: %s (canon: %s, working: %s)", repoPath, canonBranch, workingBranch)).
-		Execute()
+		// Create initial branch
+		result = git.ExecuteWithStreaming("checkout", "-b", branchName)
+		if !result.Success {
+			return GitOperationMsg{Step: "init", Success: false, Error: fmt.Sprintf("Failed to create branch '%s'", branchName), Path: repoPath}
+		}
+
+		return GitOperationMsg{
+			Step:    "init",
+			Success: true,
+			Output:  fmt.Sprintf("Repository initialized with branch '%s'", branchName),
+			Path:    repoPath,
+		}
+	}
 }
 
 // Paste handler
@@ -366,15 +332,22 @@ func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cm
 
 // Clone workflow handlers
 
-// handleCloneURLSubmit validates URL and moves to location choice
+// handleCloneURLSubmit validates URL and auto-creates subdir with repo name
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
 		app.cloneURL = app.inputValue
-		app.transitionTo(ModeTransition{
-			Mode:       ModeCloneLocation,
-			FooterHint: "Choose where to clone the repository",
-		})
-		return app, nil
+		
+		// Extract repo name from URL and set clone path
+		repoName := git.ExtractRepoName(app.cloneURL)
+		cwd, err := os.Getwd()
+		if err != nil {
+			app.footerHint = "Failed to get current directory"
+			return app, nil
+		}
+		app.clonePath = fmt.Sprintf("%s/%s", cwd, repoName)
+		
+		// Start clone operation immediately (no location choice menu)
+		return app.startCloneOperation()
 	})
 }
 
@@ -437,32 +410,34 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 	}
 
 	return func() tea.Msg {
+		effectivePath := cwd // Default to current working directory
+		
 		if cloneToCwd {
 			// Clone to cwd: use git init + remote add + pull (works with hidden files)
 			result := git.ExecuteWithStreaming("init")
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git init failed"}
+				return GitOperationMsg{Step: "clone", Success: false, Error: "git init failed", Path: effectivePath}
 			}
 
 			// Create .gitignore for common garbage files BEFORE checkout
 			if err := git.CreateDefaultGitignore(); err != nil {
-				return GitOperationMsg{Step: "clone", Success: false, Error: fmt.Sprintf("Failed to create .gitignore: %v", err)}
+				return GitOperationMsg{Step: "clone", Success: false, Error: fmt.Sprintf("Failed to create .gitignore: %v", err), Path: effectivePath}
 			}
 
 			result = git.ExecuteWithStreaming("remote", "add", "origin", cloneURL)
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote add failed"}
+				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote add failed", Path: effectivePath}
 			}
 
 			result = git.ExecuteWithStreaming("fetch", "--all", "--progress")
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git fetch failed"}
+				return GitOperationMsg{Step: "clone", Success: false, Error: "git fetch failed", Path: effectivePath}
 			}
 
 			// Set remote HEAD to auto-detect default branch
 			result = git.ExecuteWithStreaming("remote", "set-head", "origin", "-a")
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote set-head failed"}
+				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote set-head failed", Path: effectivePath}
 			}
 
 			// Get default branch from remote
@@ -474,16 +449,18 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 			// Checkout default branch (untracked files are now ignored)
 			result = git.ExecuteWithStreaming("checkout", defaultBranch)
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git checkout failed"}
+				return GitOperationMsg{Step: "clone", Success: false, Error: "git checkout failed", Path: effectivePath}
 			}
 		} else {
 			// Clone to subdir: standard git clone
+			effectivePath = clonePath
 			result := git.ExecuteWithStreaming("clone", "--progress", cloneURL, clonePath)
 			if !result.Success {
 				return GitOperationMsg{
 					Step:    "clone",
 					Success: false,
 					Error:   fmt.Sprintf("Clone failed with exit code %d", result.ExitCode),
+					Path:    effectivePath,
 				}
 			}
 		}
@@ -491,6 +468,7 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 		return GitOperationMsg{
 			Step:    "clone",
 			Success: true,
+			Path:    effectivePath,
 		}
 	}
 }
