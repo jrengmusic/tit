@@ -181,10 +181,6 @@ func (a *Application) menuWorkingTree() []MenuItem {
 			Hint:     "Create a new commit with staged changes",
 			Enabled:  isModified,
 		},
-		{
-			ID:       "separator_working",
-			Separator: true,
-		},
 	}
 }
 
@@ -245,11 +241,6 @@ func (a *Application) menuTimeline() []MenuItem {
 			Enabled:  a.gitState.Remote == git.HasRemote,
 		})
 	}
-
-	items = append(items, MenuItem{
-		ID:        "separator_timeline",
-		Separator: true,
-	})
 
 	return items
 }

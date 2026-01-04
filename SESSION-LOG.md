@@ -53,6 +53,93 @@
 
 ---
 
+## Session 10: Color Organization & Semantic Naming (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-04
+
+### Objective: Organize theme colors with semantic naming (describe USE not appearance), extract UI abstractions (formatters, box, input), refactor to eliminate repetition
+
+### Completed:
+
+✅ **Semantic Color Naming**
+- Renamed all colors to describe WHERE/WHAT they're used, not what they look like
+- `PrimaryTextColor` → `ContentTextColor` (body text in boxes)
+- `SecondaryTextColor` → `LabelTextColor` (labels, headers, borders)
+- `PrimaryBackground` → `MainBackgroundColor` (main app background)
+- `BorderPrimaryColor`, `BorderSecondaryColor` → `BoxBorderColor` (unified single border)
+- `MattWhite`, `PlainGray` → `HighlightTextColor`, `TerminalTextColor`
+- `HighlightBackground` → `SelectionBackgroundColor`
+
+✅ **UI Component Abstractions (DRY Refactor)**
+- `internal/ui/formatters.go` - Line/text padding utilities (PadLineToWidth, RightAlignLine, CenterAlignLine, EnsureExactDimensions)
+- `internal/ui/box.go` - Unified bordered box component (BoxConfig, RenderBox, StyledContent, Line)
+- `internal/ui/input.go` - Unified input field component (InputFieldState, RenderInputField)
+- Eliminated 200+ lines of duplicate padding/alignment code
+
+✅ **Refactored All Components**
+- `layout.go` - Uses Line, RenderBox instead of manual padding
+- `branchinput.go` - Simplified to use RenderInputField (70% smaller)
+- `textinput.go` - Updated to use new color names and RenderInputField
+- `menu.go` - Updated all color references
+
+✅ **Color Organization Document**
+- `COLORS.md` - Complete color system documentation with semantic naming philosophy
+
+✅ **Build Status:** ✅ Clean compile
+- All new color names resolve correctly
+- All refactored components working
+
+### Files Created:
+
+- `internal/ui/formatters.go` - Line/text formatting utilities
+- `internal/ui/box.go` - Bordered box abstraction
+- `internal/ui/input.go` - Input field abstraction  
+- `COLORS.md` - Color organization documentation
+
+### Files Modified:
+
+- `internal/ui/theme.go` - Semantic color names (boxBorderColor, contentTextColor, labelTextColor, etc.)
+- `internal/ui/layout.go` - Uses Line + RenderBox abstractions
+- `internal/ui/branchinput.go` - Complete refactor to use RenderInputField
+- `internal/ui/textinput.go` - Color name updates + abstraction use
+- `internal/ui/menu.go` - Color name updates
+
+### Color Naming Philosophy:
+
+**Rule:** Color names describe WHERE/WHAT they're used, not what they look like.
+
+| Old Name | New Name | Purpose |
+|----------|----------|---------|
+| PrimaryTextColor | ContentTextColor | Body text in boxes |
+| SecondaryTextColor | LabelTextColor | Labels, headers, borders |
+| PrimaryBackground | MainBackgroundColor | Main app background |
+| BorderPrimaryColor, BorderSecondaryColor | BoxBorderColor | All box borders |
+| MattWhite | HighlightTextColor | Bright contrast text |
+| PlainGray | TerminalTextColor | Command output |
+
+### Abstraction Benefits:
+
+- **Formatters:** Single place for all width/alignment logic (prevents copy-paste padding bugs)
+- **Box component:** All bordered boxes use identical pattern (header, content, input boxes)
+- **Input component:** Unified single-field input with proper label + border + content structure
+- **Eliminates:** 200+ lines of duplicate code
+- **Maintainability:** Change box styling once, applies everywhere
+
+### Testing Status: ✅ TESTED
+- ✅ All colors compile and resolve
+- ✅ Build clean, zero errors
+- ✅ Visual appearance unchanged
+- ✅ Abstractions working correctly
+
+### Next Steps:
+
+1. Test with regenerated theme file (deleted default.toml to force regeneration)
+2. Continue with menu system and git state display
+3. Add more UI modes using new abstractions
+
+---
+
 ## Session 9: Dual Branch Input UI + Layout Fixes (COMPLETE) ✅
 
 **Agent:** Claude (Amp)

@@ -50,34 +50,59 @@ func RenderBanner(s Sizing) string {
 }
 
 // RenderHeader renders header section with border (height = HeaderHeight)
-func RenderHeader(s Sizing, theme Theme) string {
-	content := "Branch: main | Status: clean"
+// canonBranch and workingBranch are displayed right-aligned at top and bottom
+func RenderHeader(s Sizing, theme Theme, canonBranch string, workingBranch string) string {
+	// Header layout: 2 lines of branches (right-aligned, all caps, bold)
+	
+	canonLine := Line{
+		Content: StyledContent{
+			Text:    strings.ToUpper(canonBranch),
+			FgColor: theme.LabelTextColor,
+			Bold:    true,
+		},
+		Alignment: "right",
+		Width:     ContentInnerWidth,
+	}
 
-	// Pad content to HeaderHeight-2 (border adds 2 for total HeaderHeight)
-	padded := PadContent(content, HeaderHeight-2)
+	workingLine := Line{
+		Content: StyledContent{
+			Text:    strings.ToUpper(workingBranch),
+			FgColor: theme.LabelTextColor,
+			Bold:    true,
+		},
+		Alignment: "right",
+		Width:     ContentInnerWidth,
+	}
 
-	style := lipgloss.NewStyle().
-		Width(ContentInnerWidth).
-		Foreground(lipgloss.Color(theme.SecondaryTextColor)).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.BorderSecondaryColor))
+	// Combine branches
+	content := canonLine.Render() + "\n" + workingLine.Render()
 
-	return style.Render(padded)
+	// Pad to fill HeaderHeight-2 (border adds 2 for total)
+	padded := PadTextToHeight(content, HeaderHeight-2)
+
+	// Render with border
+	return RenderBox(BoxConfig{
+		Content:     padded,
+		InnerWidth:  ContentInnerWidth,
+		InnerHeight: HeaderHeight - 2,
+		BorderColor: theme.BoxBorderColor,
+		TextColor:   theme.LabelTextColor,
+		Theme:       theme,
+	})
 }
 
 // RenderContent renders main content area with border (height = ContentHeight)
-// IMPORTANT: text must be pre-padded to ContentHeight-2 lines (border adds 2 for total ContentHeight)
-// Do NOT set Height() on style - let border wrap pre-sized content
 func RenderContent(s Sizing, text string, theme Theme) string {
-	padded := PadContent(text, ContentHeight-2)
+	padded := PadTextToHeight(text, ContentHeight-2)
 
-	style := lipgloss.NewStyle().
-		Width(ContentInnerWidth).
-		Foreground(lipgloss.Color(theme.PrimaryTextColor)).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.BorderSecondaryColor))
-
-	return style.Render(padded)
+	return RenderBox(BoxConfig{
+		Content:     padded,
+		InnerWidth:  ContentInnerWidth,
+		InnerHeight: ContentHeight - 2,
+		BorderColor: theme.BoxBorderColor,
+		TextColor:   theme.ContentTextColor,
+		Theme:       theme,
+	})
 }
 
 // RenderFooter renders footer section without border (height = FooterHeight)
@@ -100,9 +125,9 @@ func RenderFooter(s Sizing, theme Theme, app interface{ GetFooterHint() string }
 }
 
 // RenderLayout combines all 4 sections into centered view (horizontally and vertically)
-func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, app interface{ GetFooterHint() string }) string {
+func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, canonBranch string, workingBranch string, app interface{ GetFooterHint() string }) string {
 	banner := RenderBanner(s)
-	header := RenderHeader(s, theme)
+	header := RenderHeader(s, theme, canonBranch, workingBranch)
 	content := RenderContent(s, contentText, theme)
 	footer := RenderFooter(s, theme, app)
 
@@ -125,19 +150,3 @@ func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, t
 	return centeredStyle.Render(stack)
 }
 
-// PadContent ensures content text fills remaining height
-func PadContent(text string, height int) string {
-	lines := strings.Split(text, "\n")
-
-	// Pad with empty lines to fill height
-	for len(lines) < height {
-		lines = append(lines, "")
-	}
-
-	// Truncate if too many lines
-	if len(lines) > height {
-		lines = lines[:height]
-	}
-
-	return strings.Join(lines, "\n")
-}

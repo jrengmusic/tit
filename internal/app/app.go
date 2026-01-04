@@ -246,10 +246,10 @@ func (a *Application) View() string {
 		}
 
 		contentText = ui.RenderBranchInputs(
-			"Canon branch:",
+			"Canon:",
 			a.initCanonBranch,
 			canonCursorPos,
-			"Working branch:",
+			"Working:",
 			a.initWorkingBranch,
 			workingCursorPos,
 			a.initActiveField, // "canon" or "working"
@@ -265,7 +265,15 @@ func (a *Application) View() string {
 		contentText = ""
 	}
 	
-	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, a)
+	// Get branch names from git state
+	canonBranch := ""
+	workingBranch := ""
+	if a.gitState != nil {
+		canonBranch = a.gitState.CanonBranch
+		workingBranch = a.gitState.WorkingBranch
+	}
+
+	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, canonBranch, workingBranch, a)
 }
 
 // Init initializes the application

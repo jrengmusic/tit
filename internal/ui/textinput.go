@@ -26,7 +26,7 @@ func RenderTextInput(
 ) string {
 	// Label style - pad to maxWidth
 	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.SecondaryTextColor)).
+		Foreground(lipgloss.Color(theme.LabelTextColor)).
 		Bold(true)
 
 	// Render label and pad to full width
@@ -38,9 +38,9 @@ func RenderTextInput(
 	}
 
 	// Border color based on confirmation state
-	borderColor := theme.BorderSecondaryColor
+	borderColor := theme.BoxBorderColor
 	if state.ShowClearConfirmation {
-		borderColor = theme.SecondaryTextColor // Error-like color
+		borderColor = theme.AccentTextColor // Warning/error-like color (bright accent)
 	}
 
 	// Calculate box height from totalHeight
@@ -112,7 +112,7 @@ func RenderTextInput(
 	boxStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Foreground(lipgloss.Color(theme.PrimaryTextColor))
+		Foreground(lipgloss.Color(theme.ContentTextColor))
 
 	box := boxStyle.Render(constrainedText)
 

@@ -104,24 +104,24 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 		} else if i == selectedIndex {
 			// Selected: highlight background
 			emojiStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.SecondaryTextColor))
+				Foreground(lipgloss.Color(theme.LabelTextColor))
 			keyStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.AccentTextColor)).
 				Bold(true)
 			labelStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.PrimaryBackground)).
+				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
 				Background(lipgloss.Color(theme.MenuSelectionBackground)).
 				Bold(true)
 			styledLine = emojiStyle.Render(emojiCol) + keyStyle.Render(keyCol) + labelStyle.Render(labelCol)
 		} else {
 			// Normal
 			emojiStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.SecondaryTextColor))
+				Foreground(lipgloss.Color(theme.LabelTextColor))
 			keyStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.AccentTextColor)).
 				Bold(true)
 			labelStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.SecondaryTextColor))
+				Foreground(lipgloss.Color(theme.LabelTextColor))
 			styledLine = emojiStyle.Render(emojiCol) + keyStyle.Render(keyCol) + labelStyle.Render(labelCol)
 		}
 

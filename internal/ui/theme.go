@@ -13,23 +13,24 @@ const DefaultThemeTOML = `name = "Default (TIT)"
 description = "TIT color scheme"
 
 [palette]
-primaryBackground = "#090D12"        # bunker
-secondaryBackground = "#1B2A31"      # dark
-highlightBackground = "#0D141C"      # corbeau
+mainBackgroundColor = "#090D12"       # bunker (main app background)
+inlineBackgroundColor = "#1B2A31"     # dark (secondary areas)
+selectionBackgroundColor = "#0D141C"  # corbeau (highlight areas)
 
-# Text & Foreground
-primaryTextColor = "#4E8C93"          # paradiso
-secondaryTextColor = "#8CC9D9"        # dolphin (bright line)
-dimmedTextColor = "#33535B"           # mediterranea
-accentTextColor = "#01C2D2"           # caribbeanBlue (bright text)
-cwdTextColor = "#67DFEF"              # poseidonJr (cyan)
-footerTextColor = "#519299"           # lagoon (muted cyan)
-mattWhite = "#D1D5DA"                 # off-white
-plainGray = "#999999"                 # neutral gray for plain text output
+# Text - Content & Body
+contentTextColor = "#4E8C93"           # paradiso (body text in boxes)
+labelTextColor = "#8CC9D9"             # dolphin (labels, headers, borders)
+dimmedTextColor = "#33535B"            # mediterranea (disabled/muted)
+accentTextColor = "#01C2D2"            # caribbeanBlue (keyboard shortcuts)
+highlightTextColor = "#D1D5DA"         # off-white (bright contrast text)
+terminalTextColor = "#999999"          # neutral gray (command output)
 
-# UI Elements
-borderPrimaryColor = "#2C4144"        # littleMermaid (dark line)
-borderSecondaryColor = "#8CC9D9"      # dolphin (bright line)
+# Special Text
+cwdTextColor = "#67DFEF"               # poseidonJr (current working directory)
+footerTextColor = "#519299"            # lagoon (footer hints)
+
+# Borders
+boxBorderColor = "#8CC9D9"             # dolphin (borders for all boxes)
 
 # Status & State
 statusClean = "#01C2D2"               # caribbeanBlue
@@ -47,44 +48,72 @@ type ThemeDefinition struct {
 	Name        string `toml:"name"`
 	Description string `toml:"description"`
 	Palette     struct {
-		PrimaryBackground   string `toml:"primaryBackground"`
-		SecondaryBackground string `toml:"secondaryBackground"`
-		HighlightBackground string `toml:"highlightBackground"`
-		PrimaryTextColor    string `toml:"primaryTextColor"`
-		SecondaryTextColor  string `toml:"secondaryTextColor"`
-		DimmedTextColor     string `toml:"dimmedTextColor"`
-		AccentTextColor     string `toml:"accentTextColor"`
-		CwdTextColor        string `toml:"cwdTextColor"`
-		FooterTextColor     string `toml:"footerTextColor"`
-		BorderPrimaryColor  string `toml:"borderPrimaryColor"`
-		BorderSecondaryColor string `toml:"borderSecondaryColor"`
-		StatusClean              string `toml:"statusClean"`
-		StatusModified           string `toml:"statusModified"`
-		TimelineSynchronized     string `toml:"timelineSynchronized"`
-		TimelineLocalAhead       string `toml:"timelineLocalAhead"`
-		TimelineLocalBehind      string `toml:"timelineLocalBehind"`
-		MenuSelectionBackground  string `toml:"menuSelectionBackground"`
+		// Backgrounds
+		MainBackgroundColor      string `toml:"mainBackgroundColor"`
+		InlineBackgroundColor    string `toml:"inlineBackgroundColor"`
+		SelectionBackgroundColor string `toml:"selectionBackgroundColor"`
+
+		// Text - Content & Body
+		ContentTextColor   string `toml:"contentTextColor"`
+		LabelTextColor     string `toml:"labelTextColor"`
+		DimmedTextColor    string `toml:"dimmedTextColor"`
+		AccentTextColor    string `toml:"accentTextColor"`
+		HighlightTextColor string `toml:"highlightTextColor"`
+		TerminalTextColor  string `toml:"terminalTextColor"`
+
+		// Special Text
+		CwdTextColor    string `toml:"cwdTextColor"`
+		FooterTextColor string `toml:"footerTextColor"`
+
+		// Borders
+		BoxBorderColor string `toml:"boxBorderColor"`
+
+		// Status Colors
+		StatusClean    string `toml:"statusClean"`
+		StatusModified string `toml:"statusModified"`
+
+		// Timeline Colors
+		TimelineSynchronized string `toml:"timelineSynchronized"`
+		TimelineLocalAhead   string `toml:"timelineLocalAhead"`
+		TimelineLocalBehind  string `toml:"timelineLocalBehind"`
+
+		// UI Elements
+		MenuSelectionBackground string `toml:"menuSelectionBackground"`
 	} `toml:"palette"`
 }
 
 // Theme defines all semantic colors from the active theme
 type Theme struct {
-	PrimaryBackground       string
-	SecondaryBackground     string
-	HighlightBackground     string
-	PrimaryTextColor        string
-	SecondaryTextColor      string
-	DimmedTextColor         string
-	AccentTextColor         string
-	CwdTextColor            string
-	FooterTextColor         string
-	BorderPrimaryColor      string
-	BorderSecondaryColor    string
-	StatusClean             string
-	StatusModified          string
-	TimelineSynchronized    string
-	TimelineLocalAhead      string
-	TimelineLocalBehind     string
+	// Backgrounds
+	MainBackgroundColor      string
+	InlineBackgroundColor    string
+	SelectionBackgroundColor string
+
+	// Text - Content & Body
+	ContentTextColor   string
+	LabelTextColor     string
+	DimmedTextColor    string
+	AccentTextColor    string
+	HighlightTextColor string
+	TerminalTextColor  string
+
+	// Special Text
+	CwdTextColor    string
+	FooterTextColor string
+
+	// Borders
+	BoxBorderColor string
+
+	// Status Colors
+	StatusClean    string
+	StatusModified string
+
+	// Timeline Colors
+	TimelineSynchronized string
+	TimelineLocalAhead   string
+	TimelineLocalBehind  string
+
+	// UI Elements
 	MenuSelectionBackground string
 }
 
@@ -101,22 +130,36 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 	}
 
 	theme := Theme{
-		PrimaryBackground:       themeDef.Palette.PrimaryBackground,
-		SecondaryBackground:     themeDef.Palette.SecondaryBackground,
-		HighlightBackground:     themeDef.Palette.HighlightBackground,
-		PrimaryTextColor:        themeDef.Palette.PrimaryTextColor,
-		SecondaryTextColor:      themeDef.Palette.SecondaryTextColor,
-		DimmedTextColor:         themeDef.Palette.DimmedTextColor,
-		AccentTextColor:         themeDef.Palette.AccentTextColor,
-		CwdTextColor:            themeDef.Palette.CwdTextColor,
-		FooterTextColor:         themeDef.Palette.FooterTextColor,
-		BorderPrimaryColor:      themeDef.Palette.BorderPrimaryColor,
-		BorderSecondaryColor:    themeDef.Palette.BorderSecondaryColor,
-		StatusClean:             themeDef.Palette.StatusClean,
-		StatusModified:          themeDef.Palette.StatusModified,
-		TimelineSynchronized:    themeDef.Palette.TimelineSynchronized,
-		TimelineLocalAhead:      themeDef.Palette.TimelineLocalAhead,
-		TimelineLocalBehind:     themeDef.Palette.TimelineLocalBehind,
+		// Backgrounds
+		MainBackgroundColor:      themeDef.Palette.MainBackgroundColor,
+		InlineBackgroundColor:    themeDef.Palette.InlineBackgroundColor,
+		SelectionBackgroundColor: themeDef.Palette.SelectionBackgroundColor,
+
+		// Text - Content & Body
+		ContentTextColor:   themeDef.Palette.ContentTextColor,
+		LabelTextColor:     themeDef.Palette.LabelTextColor,
+		DimmedTextColor:    themeDef.Palette.DimmedTextColor,
+		AccentTextColor:    themeDef.Palette.AccentTextColor,
+		HighlightTextColor: themeDef.Palette.HighlightTextColor,
+		TerminalTextColor:  themeDef.Palette.TerminalTextColor,
+
+		// Special Text
+		CwdTextColor:    themeDef.Palette.CwdTextColor,
+		FooterTextColor: themeDef.Palette.FooterTextColor,
+
+		// Borders
+		BoxBorderColor: themeDef.Palette.BoxBorderColor,
+
+		// Status Colors
+		StatusClean:    themeDef.Palette.StatusClean,
+		StatusModified: themeDef.Palette.StatusModified,
+
+		// Timeline Colors
+		TimelineSynchronized: themeDef.Palette.TimelineSynchronized,
+		TimelineLocalAhead:   themeDef.Palette.TimelineLocalAhead,
+		TimelineLocalBehind:  themeDef.Palette.TimelineLocalBehind,
+
+		// UI Elements
 		MenuSelectionBackground: themeDef.Palette.MenuSelectionBackground,
 	}
 

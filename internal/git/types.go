@@ -46,4 +46,6 @@ type State struct {
 	CommitsAhead        int
 	CommitsBehind       int
 	LocalBranchOnRemote bool // Whether current branch exists on remote
+	CanonBranch         string // Canon branch name from repo config
+	WorkingBranch       string // Working branch name from repo config
 }
