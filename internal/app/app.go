@@ -33,6 +33,7 @@ type Application struct {
 	initRepositoryPath   string // Path to repository being initialized
 	initCanonBranch      string // Canon branch name chosen during init
 	initWorkingBranch    string // Working branch name chosen during init
+	initActiveField      string // "canon" or "working" - which field is active in ModeInitializeBranches
 }
 
 // NewApplication creates a new application instance
@@ -90,16 +91,40 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle character input in input modes
 		if a.isInputMode() && len(keyStr) == 1 && keyStr[0] >= 32 && keyStr[0] <= 126 {
 			// Insert character at cursor position
-			a.inputValue = a.inputValue[:a.inputCursorPosition] + keyStr + a.inputValue[a.inputCursorPosition:]
-			a.inputCursorPosition++
+			if a.mode == ModeInitializeBranches {
+				// Insert into active field
+				if a.initActiveField == "canon" {
+					a.initCanonBranch = a.initCanonBranch[:a.inputCursorPosition] + keyStr + a.initCanonBranch[a.inputCursorPosition:]
+				} else {
+					a.initWorkingBranch = a.initWorkingBranch[:a.inputCursorPosition] + keyStr + a.initWorkingBranch[a.inputCursorPosition:]
+				}
+				a.inputCursorPosition++
+			} else {
+				// Generic input mode
+				a.inputValue = a.inputValue[:a.inputCursorPosition] + keyStr + a.inputValue[a.inputCursorPosition:]
+				a.inputCursorPosition++
+			}
 			return a, nil
 		}
 
 		// Handle backspace in input modes
 		if a.isInputMode() && keyStr == "backspace" {
-			if a.inputCursorPosition > 0 {
-				a.inputValue = a.inputValue[:a.inputCursorPosition-1] + a.inputValue[a.inputCursorPosition:]
-				a.inputCursorPosition--
+			if a.mode == ModeInitializeBranches {
+				// Delete from active field
+				if a.inputCursorPosition > 0 {
+					if a.initActiveField == "canon" {
+						a.initCanonBranch = a.initCanonBranch[:a.inputCursorPosition-1] + a.initCanonBranch[a.inputCursorPosition:]
+					} else {
+						a.initWorkingBranch = a.initWorkingBranch[:a.inputCursorPosition-1] + a.initWorkingBranch[a.inputCursorPosition:]
+					}
+					a.inputCursorPosition--
+				}
+			} else {
+				// Generic input mode
+				if a.inputCursorPosition > 0 {
+					a.inputValue = a.inputValue[:a.inputCursorPosition-1] + a.inputValue[a.inputCursorPosition:]
+					a.inputCursorPosition--
+				}
 			}
 			return a, nil
 		}
@@ -108,6 +133,40 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.quitConfirmActive {
 			a.quitConfirmActive = false
 			a.footerHint = "" // Clear confirmation message
+		}
+
+	case GitOperationMsg:
+		// AUDIO THREAD - Worker returned git operation result
+		switch msg.Step {
+		case "init":
+			if msg.Success {
+				// Reload git state after successful initialization
+				if state, err := git.DetectState(); err == nil {
+					a.gitState = state
+				}
+				
+				// Reset init state and return to menu
+				a.initRepositoryPath = ""
+				a.initCanonBranch = ""
+				a.initWorkingBranch = ""
+				a.inputValue = ""
+				a.inputCursorPosition = 0
+				a.inputPrompt = ""
+				a.inputAction = ""
+				
+				// Regenerate menu and switch to menu mode
+				a.mode = ModeMenu
+				a.selectedIndex = 0
+				menu := a.GenerateMenu()
+				a.menuItems = menu
+				if len(menu) > 0 {
+					a.footerHint = menu[0].Hint
+				}
+				a.footerHint = msg.Output // Show success message
+			} else {
+				// Show error message, stay in current mode
+				a.footerHint = msg.Error
+			}
 		}
 	}
 
@@ -175,31 +234,26 @@ func (a *Application) View() string {
 			},
 		}
 		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
-	case ModeInitializeCanonBranch:
-		textInputState := ui.TextInputState{
-			Value:      a.inputValue,
-			CursorPos:  a.inputCursorPosition,
-			Height:     1,
+	case ModeInitializeBranches:
+		// Both canon and working branch inputs displayed simultaneously
+		// Pass correct cursor position based on active field
+		canonCursorPos := 0
+		workingCursorPos := 0
+		if a.initActiveField == "canon" {
+			canonCursorPos = a.inputCursorPosition
+		} else {
+			workingCursorPos = a.inputCursorPosition
 		}
-		contentText = ui.RenderTextInput(
-			a.inputPrompt,
-			textInputState,
+
+		contentText = ui.RenderBranchInputs(
+			"Canon branch:",
+			a.initCanonBranch,
+			canonCursorPos,
+			"Working branch:",
+			a.initWorkingBranch,
+			workingCursorPos,
+			a.initActiveField, // "canon" or "working"
 			a.theme,
-			ui.ContentInnerWidth,
-			ui.ContentHeight-2,
-		)
-	case ModeInitializeWorkingBranch:
-		textInputState := ui.TextInputState{
-			Value:      a.inputValue,
-			CursorPos:  a.inputCursorPosition,
-			Height:     1,
-		}
-		contentText = ui.RenderTextInput(
-			a.inputPrompt,
-			textInputState,
-			a.theme,
-			ui.ContentInnerWidth,
-			ui.ContentHeight-2,
 		)
 	case ModeConfirmation:
 		contentText = "[Confirmation mode - TODO]"
@@ -227,8 +281,7 @@ func (a *Application) GetFooterHint() string {
 // isInputMode checks if current mode accepts text input
 func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
-		a.mode == ModeInitializeCanonBranch ||
-		a.mode == ModeInitializeWorkingBranch
+		a.mode == ModeInitializeBranches
 }
 
 // buildKeyHandlers builds the complete handler registry for all modes
@@ -266,19 +319,14 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]func(*Applicatio
 			"1":     a.handleInitLocationChoice1,
 			"2":     a.handleInitLocationChoice2,
 		},
-		ModeInitializeCanonBranch: {
-			"enter": a.handleCanonBranchSubmit,
-			"left":  a.handleInputLeft,
-			"right": a.handleInputRight,
-			"home":  a.handleInputHome,
-			"end":   a.handleInputEnd,
-		},
-		ModeInitializeWorkingBranch: {
-			"enter": a.handleWorkingBranchSubmit,
-			"left":  a.handleInputLeft,
-			"right": a.handleInputRight,
-			"home":  a.handleInputHome,
-			"end":   a.handleInputEnd,
+		ModeInitializeBranches: {
+			"tab":   a.handleInitBranchesTab,      // Tab to cycle between fields
+			"enter": a.handleInitBranchesSubmit,   // Enter only works on working field
+			"left":  a.handleInitBranchesLeft,     // Cursor left in active field
+			"right": a.handleInitBranchesRight,    // Cursor right in active field
+			"home":  a.handleInitBranchesHome,     // Home in active field
+			"end":   a.handleInitBranchesEnd,      // End in active field
+			"esc":   a.handleInitBranchesCancel,   // ESC to cancel
 		},
 		ModeConfirmation: {},
 		ModeHistory: {},
@@ -345,8 +393,13 @@ func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
 
 // handleInputSubmit handles enter in generic input mode
 func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
-	// Generic input submit - dispatch based on inputAction
-	return app, nil
+	// UI THREAD - Route input submission based on action type
+	switch app.inputAction {
+	case "init_subdir_name":
+		return app.handleInputSubmitSubdirName(app)
+	default:
+		return app, nil
+	}
 }
 
 // handleInputLeft moves cursor left
@@ -377,34 +430,4 @@ func (a *Application) handleInputEnd(app *Application) (tea.Model, tea.Cmd) {
 	return app, nil
 }
 
-// Init workflow handlers
 
-// handleInitLocationSelection handles enter on init location menu
-func (a *Application) handleInitLocationSelection(app *Application) (tea.Model, tea.Cmd) {
-	// TODO: Implement - dispatch based on selectedIndex
-	return app, nil
-}
-
-// handleInitLocationChoice1 handles "1" key (init current directory)
-func (a *Application) handleInitLocationChoice1(app *Application) (tea.Model, tea.Cmd) {
-	// TODO: Implement - init current directory
-	return app, nil
-}
-
-// handleInitLocationChoice2 handles "2" key (create subdirectory)
-func (a *Application) handleInitLocationChoice2(app *Application) (tea.Model, tea.Cmd) {
-	// TODO: Implement - ask for repo name
-	return app, nil
-}
-
-// handleCanonBranchSubmit handles enter on canon branch input
-func (a *Application) handleCanonBranchSubmit(app *Application) (tea.Model, tea.Cmd) {
-	// TODO: Implement
-	return app, nil
-}
-
-// handleWorkingBranchSubmit handles enter on working branch input
-func (a *Application) handleWorkingBranchSubmit(app *Application) (tea.Model, tea.Cmd) {
-	// TODO: Implement
-	return app, nil
-}

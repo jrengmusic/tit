@@ -10,9 +10,8 @@ const (
 	ModeConfirmation
 	ModeHistory
 	ModeConflictResolve
-	ModeInitializeLocation      // Choose: init current dir or create subdir
-	ModeInitializeCanonBranch   // Input: canon branch name
-	ModeInitializeWorkingBranch // Input: working branch name
+	ModeInitializeLocation    // Choose: init current dir or create subdir
+	ModeInitializeBranches    // Both canon + working branch inputs (canon pre-filled with "main")
 )
 
 // ModeString returns string representation of AppMode

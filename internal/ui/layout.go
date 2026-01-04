@@ -53,32 +53,29 @@ func RenderBanner(s Sizing) string {
 func RenderHeader(s Sizing, theme Theme) string {
 	content := "Branch: main | Status: clean"
 
+	// Pad content to HeaderHeight-2 (border adds 2 for total HeaderHeight)
+	padded := PadContent(content, HeaderHeight-2)
+
 	style := lipgloss.NewStyle().
-		Width(InterfaceWidth - 2).
-		Height(HeaderHeight - 2).
-		Align(lipgloss.Left).
-		AlignVertical(lipgloss.Center).
+		Width(ContentInnerWidth).
 		Foreground(lipgloss.Color(theme.SecondaryTextColor)).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.BorderSecondaryColor)).
-		Padding(0, 1)
+		BorderForeground(lipgloss.Color(theme.BorderSecondaryColor))
 
-	return style.Render(content)
+	return style.Render(padded)
 }
 
 // RenderContent renders main content area with border (height = ContentHeight)
+// IMPORTANT: text must be pre-padded to ContentHeight-2 lines (border adds 2 for total ContentHeight)
+// Do NOT set Height() on style - let border wrap pre-sized content
 func RenderContent(s Sizing, text string, theme Theme) string {
 	padded := PadContent(text, ContentHeight-2)
 
 	style := lipgloss.NewStyle().
-		Width(InterfaceWidth - 2).
-		Height(ContentHeight - 2).
-		Align(lipgloss.Left).
-		AlignVertical(lipgloss.Top).
+		Width(ContentInnerWidth).
 		Foreground(lipgloss.Color(theme.PrimaryTextColor)).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(theme.BorderSecondaryColor)).
-		Padding(0, 1)
+		BorderForeground(lipgloss.Color(theme.BorderSecondaryColor))
 
 	return style.Render(padded)
 }
