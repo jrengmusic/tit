@@ -1,6 +1,9 @@
 package app
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,12 +31,30 @@ type Application struct {
 	inputValue           string
 	inputCursorPosition  int // Cursor byte position in inputValue
 	inputAction          string // Action being performed (e.g., "init_location", "canon_branch")
+	inputValidationMsg   string // Validation feedback message (empty = valid, shows message otherwise)
+	clearConfirmActive   bool   // True when waiting for second ESC to clear input
 
 	// Initialization workflow state
 	initRepositoryPath   string // Path to repository being initialized
 	initCanonBranch      string // Canon branch name chosen during init
 	initWorkingBranch    string // Working branch name chosen during init
 	initActiveField      string // "canon" or "working" - which field is active in ModeInitializeBranches
+
+	// Clone workflow state
+	cloneURL             string   // URL to clone from
+	clonePath            string   // Path to clone into (cwd or subdir)
+	cloneBranches        []string // Available branches after clone
+
+	// Async operation state
+	asyncOperationActive bool // True while git operation (clone, init, etc) is running
+	asyncOperationAborted bool // True if user pressed ESC to abort during operation
+	previousMode         AppMode // Mode before async operation started (for restoration on ESC)
+	previousMenuIndex    int // Menu selection before async (for restoration)
+
+	// Console output state (for clone, init, etc)
+	consoleState         ui.ConsoleOutState
+	outputBuffer         *ui.OutputBuffer
+	
 }
 
 // NewApplication creates a new application instance
@@ -50,11 +71,15 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	}
 
 	app := &Application{
-		sizing:        sizing,
-		theme:         theme,
-		mode:          ModeMenu,
-		gitState:      gitState,
-		selectedIndex: 0,
+		sizing:               sizing,
+		theme:                theme,
+		mode:                 ModeMenu,
+		gitState:             gitState,
+		selectedIndex:        0,
+		asyncOperationActive: false,
+		asyncOperationAborted: false,
+		consoleState:         ui.NewConsoleOutState(),
+		outputBuffer:         ui.GetBuffer(),
 	}
 
 	// Build and cache key handler registry once
@@ -79,6 +104,25 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
+		// Handle bracketed paste - entire paste comes as single KeyMsg with Paste=true
+		if msg.Paste && a.isInputMode() {
+			text := strings.TrimSpace(string(msg.Runes))
+			if len(text) > 0 {
+				a.inputValue = a.inputValue[:a.inputCursorPosition] + text + a.inputValue[a.inputCursorPosition:]
+				a.inputCursorPosition += len(text)
+				
+				if a.inputAction == "clone_url" {
+					if a.inputValue == "" {
+						a.inputValidationMsg = ""
+					} else if ui.ValidateRemoteURL(a.inputValue) {
+						a.inputValidationMsg = ""
+					} else {
+						a.inputValidationMsg = "Invalid URL format"
+					}
+				}
+			}
+			return a, nil
+		}
 		keyStr := msg.String()
 		
 		// Look up handler in cached registry
@@ -103,6 +147,17 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Generic input mode
 				a.inputValue = a.inputValue[:a.inputCursorPosition] + keyStr + a.inputValue[a.inputCursorPosition:]
 				a.inputCursorPosition++
+				
+				// Real-time validation for clone URL input
+				if a.inputAction == "clone_url" {
+					if a.inputValue == "" {
+						a.inputValidationMsg = ""
+					} else if ui.ValidateRemoteURL(a.inputValue) {
+						a.inputValidationMsg = "" // Valid - no error message
+					} else {
+						a.inputValidationMsg = "Invalid URL format"
+					}
+				}
 			}
 			return a, nil
 		}
@@ -124,6 +179,17 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if a.inputCursorPosition > 0 {
 					a.inputValue = a.inputValue[:a.inputCursorPosition-1] + a.inputValue[a.inputCursorPosition:]
 					a.inputCursorPosition--
+					
+					// Real-time validation for clone URL input
+					if a.inputAction == "clone_url" {
+						if a.inputValue == "" {
+							a.inputValidationMsg = ""
+						} else if ui.ValidateRemoteURL(a.inputValue) {
+							a.inputValidationMsg = "" // Valid - no error message
+						} else {
+							a.inputValidationMsg = "Invalid URL format"
+						}
+					}
 				}
 			}
 			return a, nil
@@ -132,6 +198,12 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		if a.quitConfirmActive {
 			a.quitConfirmActive = false
+			a.footerHint = "" // Clear confirmation message
+		}
+
+	case ClearTickMsg:
+		if a.clearConfirmActive {
+			a.clearConfirmActive = false
 			a.footerHint = "" // Clear confirmation message
 		}
 
@@ -167,6 +239,51 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Show error message, stay in current mode
 				a.footerHint = msg.Error
 			}
+		case "clone":
+			a.asyncOperationActive = false
+			a.asyncOperationAborted = false
+			
+			if msg.Success {
+				// Change to cloned directory if subdir was created
+				if a.clonePath != "" {
+					cwd, _ := os.Getwd()
+					if a.clonePath != cwd {
+						os.Chdir(a.clonePath)
+					}
+				}
+				
+				// Detect branches
+				branches, err := git.ListRemoteBranches()
+				if err != nil || len(branches) == 0 {
+					// Fallback to local branches
+					branches, _ = git.ListBranches()
+				}
+				
+				if len(branches) == 0 {
+					// No branches found - use default
+					a.footerHint = "Clone completed. No branches detected."
+					a.mode = ModeMenu
+					a.selectedIndex = 0
+					menu := a.GenerateMenu()
+					a.menuItems = menu
+				} else if len(branches) == 1 {
+					// Single branch - auto-set as canon
+					a.footerHint = fmt.Sprintf("Clone completed. Canon branch set to: %s", branches[0])
+					// TODO: Save config with canon branch
+					a.mode = ModeMenu
+					a.selectedIndex = 0
+					menu := a.GenerateMenu()
+					a.menuItems = menu
+				} else {
+					// Multiple branches - show selection menu
+					a.cloneBranches = branches
+					a.mode = ModeSelectBranch
+					a.selectedIndex = 0
+					a.footerHint = "Select canon branch"
+				}
+			} else {
+				a.footerHint = fmt.Sprintf("Clone failed: %s. Press ESC to return.", msg.Error)
+			}
 		}
 	}
 
@@ -197,20 +314,108 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithHeight(menuMaps, a.selectedIndex, a.theme, ui.ContentHeight)
 	
 	case ModeConsole:
-		contentText = "[Console mode - TODO]"
+		// Rendering clone console output
+		contentText = ui.RenderConsoleOutput(
+			a.consoleState,
+			a.outputBuffer,
+			a.theme,
+			ui.ContentInnerWidth,
+			ui.ContentHeight,
+			a.asyncOperationActive && !a.asyncOperationAborted,
+			a.asyncOperationAborted,
+			a.asyncOperationActive && !a.asyncOperationAborted, // autoScroll while operation running
+		)
+	case ModeClone:
+		// Clone operation in progress - show console
+		contentText = ui.RenderConsoleOutput(
+			a.consoleState,
+			a.outputBuffer,
+			a.theme,
+			ui.ContentInnerWidth,
+			ui.ContentHeight,
+			a.asyncOperationActive && !a.asyncOperationAborted,
+			a.asyncOperationAborted,
+			a.asyncOperationActive && !a.asyncOperationAborted, // autoScroll while operation running
+		)
+	case ModeSelectBranch:
+		// Dynamic menu from cloneBranches
+		items := make([]map[string]interface{}, len(a.cloneBranches))
+		for i, branch := range a.cloneBranches {
+			items[i] = map[string]interface{}{
+				"ID":        branch,
+				"Shortcut":  "",
+				"Emoji":     "🌿",
+				"Label":     branch,
+				"Hint":      fmt.Sprintf("Set %s as canon branch", branch),
+				"Enabled":   true,
+				"Separator": false,
+			}
+		}
+		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
 	case ModeInput:
 		textInputState := ui.TextInputState{
 			Value:      a.inputValue,
 			CursorPos:  a.inputCursorPosition,
 			Height:     1,
 		}
-		contentText = ui.RenderTextInput(
+		
+		// Render text input with optional validation message
+		inputContent := ui.RenderTextInput(
 			a.inputPrompt,
 			textInputState,
 			a.theme,
 			ui.ContentInnerWidth,
 			ui.ContentHeight-2,
 		)
+		
+		// Append validation message if present
+		if a.inputValidationMsg != "" {
+			inputContent += "\n\n" + a.inputValidationMsg
+		}
+		
+		contentText = inputContent
+	case ModeCloneURL:
+		textInputState := ui.TextInputState{
+			Value:     a.inputValue,
+			CursorPos: a.inputCursorPosition,
+			Height:    1,
+		}
+		
+		inputContent := ui.RenderTextInput(
+			a.inputPrompt,
+			textInputState,
+			a.theme,
+			ui.ContentInnerWidth,
+			ui.ContentHeight-2,
+		)
+		
+		if a.inputValidationMsg != "" {
+			inputContent += "\n\n" + a.inputValidationMsg
+		}
+		
+		contentText = inputContent
+	case ModeCloneLocation:
+		items := []map[string]interface{}{
+			{
+				"ID":        "clone_here",
+				"Shortcut":  "1",
+				"Emoji":     "📍",
+				"Label":     "Clone to current directory",
+				"Hint":      "Clone repository here",
+				"Enabled":   true,
+				"Separator": false,
+			},
+			{
+				"ID":        "clone_subdir",
+				"Shortcut":  "2",
+				"Emoji":     "📁",
+				"Label":     "Create subdirectory",
+				"Hint":      "Create new folder and clone there",
+				"Enabled":   true,
+				"Separator": false,
+			},
+		}
+		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
 	case ModeInitializeLocation:
 		// Show two options: initialize current directory or create subdirectory
 		items := []map[string]interface{}{
@@ -278,7 +483,7 @@ func (a *Application) View() string {
 
 // Init initializes the application
 func (a *Application) Init() tea.Cmd {
-	return nil
+	return tea.EnableBracketedPaste
 }
 
 // GetFooterHint returns the footer hint text
@@ -289,7 +494,8 @@ func (a *Application) GetFooterHint() string {
 // isInputMode checks if current mode accepts text input
 func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
-		a.mode == ModeInitializeBranches
+		a.mode == ModeInitializeBranches ||
+		a.mode == ModeCloneURL
 }
 
 // buildKeyHandlers builds the complete handler registry for all modes
@@ -299,6 +505,11 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]func(*Applicatio
 	globalHandlers := map[string]func(*Application) (tea.Model, tea.Cmd){
 		"ctrl+c": a.handleKeyCtrlC,
 		"q":      a.handleKeyCtrlC,
+		"esc":    a.handleKeyESC,
+		"ctrl+v": a.handleKeyPaste,  // Linux/Windows/macOS
+		"cmd+v":  a.handleKeyPaste,  // macOS cmd+v
+		"meta+v": a.handleKeyPaste,  // macOS meta (cmd) - Bubble Tea may send this
+		"alt+v":  a.handleKeyPaste,  // Fallback
 	}
 
 	// Mode-specific handlers (global merged in after)
@@ -334,11 +545,39 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]func(*Applicatio
 			"right": a.handleInitBranchesRight,    // Cursor right in active field
 			"home":  a.handleInitBranchesHome,     // Home in active field
 			"end":   a.handleInitBranchesEnd,      // End in active field
-			"esc":   a.handleInitBranchesCancel,   // ESC to cancel
+		},
+		ModeCloneURL: {
+			"enter": a.handleCloneURLSubmit,
+			"left":  a.handleInputLeft,
+			"right": a.handleInputRight,
+			"home":  a.handleInputHome,
+			"end":   a.handleInputEnd,
+		},
+		ModeCloneLocation: {
+			"up":    a.handleMenuUp,
+			"k":     a.handleMenuUp,
+			"down":  a.handleMenuDown,
+			"j":     a.handleMenuDown,
+			"enter": a.handleCloneLocationSelection,
+			"1":     a.handleCloneLocationChoice1,
+			"2":     a.handleCloneLocationChoice2,
 		},
 		ModeConfirmation: {},
 		ModeHistory: {},
 		ModeConflictResolve: {},
+		ModeClone: {
+			"up":    a.handleConsoleUp,    // Scroll up in console
+			"down":  a.handleConsoleDown,  // Scroll down in console
+			"pageup": a.handleConsolePageUp,     // Page up
+			"pagedown": a.handleConsolePageDown, // Page down
+		},
+		ModeSelectBranch: {
+			"up":    a.handleMenuUp,    // Navigate menu
+			"k":     a.handleMenuUp,
+			"down":  a.handleMenuDown,
+			"j":     a.handleMenuDown,
+			"enter": a.handleSelectBranchEnter,
+		},
 	}
 
 	// Merge global handlers into each mode (global takes priority)
@@ -405,6 +644,8 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	switch app.inputAction {
 	case "init_subdir_name":
 		return app.handleInputSubmitSubdirName(app)
+	case "clone_subdir_name":
+		return app.handleInputSubmitCloneSubdirName(app)
 	default:
 		return app, nil
 	}

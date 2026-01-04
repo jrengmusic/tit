@@ -18,7 +18,6 @@ type BoxConfig struct {
 // Content should already be properly sized to InnerWidth × InnerHeight
 // Returns a box that's exactly (InnerWidth + 2) × (InnerHeight + 2) lines
 func RenderBox(cfg BoxConfig) string {
-	// Ensure content is properly sized
 	content := EnsureExactDimensions(cfg.Content, cfg.InnerWidth, cfg.InnerHeight)
 
 	style := lipgloss.NewStyle().

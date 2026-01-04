@@ -12,6 +12,10 @@ const (
 	ModeConflictResolve
 	ModeInitializeLocation    // Choose: init current dir or create subdir
 	ModeInitializeBranches    // Both canon + working branch inputs (canon pre-filled with "main")
+	ModeCloneURL              // Input clone URL
+	ModeCloneLocation         // Choose: clone to current dir or create subdir
+	ModeClone                 // Clone operation with console output
+	ModeSelectBranch          // Dynamic menu to select canon branch from cloned repo
 )
 
 // ModeString returns string representation of AppMode

@@ -4,8 +4,11 @@ import (
 	"time"
 )
 
-// TickMsg is a custom message for timeout handling
+// TickMsg is a custom message for quit confirmation timeout
 type TickMsg time.Time
+
+// ClearTickMsg is a custom message for input clear confirmation timeout
+type ClearTickMsg time.Time
 
 // GitOperationMsg represents the result of a git operation
 type GitOperationMsg struct {
@@ -34,6 +37,7 @@ type FooterMessageType int
 const (
 	MessageNone FooterMessageType = iota
 	MessageCtrlCConfirm
+	MessageEscClearConfirm
 	MessageInit
 	MessageClone
 	MessageCommit
@@ -47,6 +51,7 @@ func GetFooterMessageText(msgType FooterMessageType) string {
 	messages := map[FooterMessageType]string{
 		MessageNone:              "",
 		MessageCtrlCConfirm:      "Press Ctrl+C again to quit (3s timeout)",
+		MessageEscClearConfirm:   "Press ESC again to clear input (3s timeout)",
 		MessageInit:              "Initializing repository...",
 		MessageClone:             "Cloning repository...",
 		MessageCommit:            "Creating commit...",

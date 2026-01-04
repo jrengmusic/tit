@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // InitializeRepository initializes a git repository in the given directory
@@ -64,4 +65,62 @@ func CheckoutBranch(branchName string) error {
 		return fmt.Errorf("failed to checkout branch %s: %w\n%s", branchName, err, string(output))
 	}
 	return nil
+}
+
+// ListBranches returns all local branches
+func ListBranches() ([]string, error) {
+	cmd := exec.Command("git", "branch", "--format=%(refname:short)")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list branches: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var branches []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			branches = append(branches, line)
+		}
+	}
+	return branches, nil
+}
+
+// GetRemoteDefaultBranch returns the default branch from origin
+func GetRemoteDefaultBranch() string {
+	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	// Output is like "refs/remotes/origin/main"
+	ref := strings.TrimSpace(string(output))
+	parts := strings.Split(ref, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return ""
+}
+
+// ListRemoteBranches returns all remote branches (without remote prefix)
+func ListRemoteBranches() ([]string, error) {
+	cmd := exec.Command("git", "branch", "-r", "--format=%(refname:short)")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list remote branches: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var branches []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.Contains(line, "HEAD") {
+			// Remove origin/ prefix
+			if strings.HasPrefix(line, "origin/") {
+				line = strings.TrimPrefix(line, "origin/")
+			}
+			branches = append(branches, line)
+		}
+	}
+	return branches, nil
 }

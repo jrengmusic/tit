@@ -41,6 +41,14 @@ timelineLocalBehind = "#F2AB53"       # safflower
 
 # Menu
 menuSelectionBackground = "#7EB8C5"    # brighter muted teal (background when highlighted)
+
+# Console Output (semantic colors for different output types)
+outputStdoutColor = "#999999"           # TerminalTextColor - regular command output
+outputStderrColor = "#FC704C"           # ErrorTextColor - stderr/error messages
+outputStatusColor = "#01C2D2"           # SuccessTextColor - status/success messages
+outputWarningColor = "#F2AB53"          # WarningTextColor - warning messages
+outputDebugColor = "#33535B"            # DimmedTextColor - debug/info messages
+outputInfoColor = "#01C2D2"             # InfoTextColor - TIT-generated info
 `
 
 // ThemeDefinition represents a theme file structure
@@ -79,6 +87,14 @@ type ThemeDefinition struct {
 
 		// UI Elements
 		MenuSelectionBackground string `toml:"menuSelectionBackground"`
+
+		// Console Output Colors
+		OutputStdoutColor string `toml:"outputStdoutColor"`
+		OutputStderrColor string `toml:"outputStderrColor"`
+		OutputStatusColor string `toml:"outputStatusColor"`
+		OutputWarningColor string `toml:"outputWarningColor"`
+		OutputDebugColor  string `toml:"outputDebugColor"`
+		OutputInfoColor   string `toml:"outputInfoColor"`
 	} `toml:"palette"`
 }
 
@@ -115,6 +131,14 @@ type Theme struct {
 
 	// UI Elements
 	MenuSelectionBackground string
+
+	// Console Output Colors
+	OutputStdoutColor  string
+	OutputStderrColor  string
+	OutputStatusColor  string
+	OutputWarningColor string
+	OutputDebugColor   string
+	OutputInfoColor    string
 }
 
 // LoadTheme loads a theme from a TOML file
@@ -161,6 +185,14 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 
 		// UI Elements
 		MenuSelectionBackground: themeDef.Palette.MenuSelectionBackground,
+
+		// Console Output Colors
+		OutputStdoutColor:  themeDef.Palette.OutputStdoutColor,
+		OutputStderrColor:  themeDef.Palette.OutputStderrColor,
+		OutputStatusColor:  themeDef.Palette.OutputStatusColor,
+		OutputWarningColor: themeDef.Palette.OutputWarningColor,
+		OutputDebugColor:   themeDef.Palette.OutputDebugColor,
+		OutputInfoColor:    themeDef.Palette.OutputInfoColor,
 	}
 
 	return theme, nil

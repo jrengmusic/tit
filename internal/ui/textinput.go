@@ -61,9 +61,9 @@ func RenderTextInput(
 	}
 	textWithCaret := state.Value[:state.CursorPos] + "█" + state.Value[state.CursorPos:]
 
-	// Wrap width accounts for inner box border
-	// maxWidth = 76, inner box has border (2), so wrap to 74
-	wrapWidth := maxWidth - 2
+	// Wrap width accounts for inner box border (2) + padding (2)
+	// maxWidth = 76, inner box has border (2) + padding (2), so wrap to 72
+	wrapWidth := maxWidth - 4
 	if wrapWidth < 1 {
 		wrapWidth = 1
 	}
@@ -107,12 +107,12 @@ func RenderTextInput(
 
 	constrainedText := strings.Join(visibleLines, "\n")
 
-	// Inner bordered box - just adds border, NO width/height constraints
-	// Content is already sized correctly
+	// Inner bordered box with padding
 	boxStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Foreground(lipgloss.Color(theme.ContentTextColor))
+		Foreground(lipgloss.Color(theme.ContentTextColor)).
+		Padding(0, 1) // Horizontal padding inside box
 
 	box := boxStyle.Render(constrainedText)
 

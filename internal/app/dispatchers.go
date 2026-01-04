@@ -38,9 +38,20 @@ func (a *Application) dispatchInit(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchClone clones a repository
+// dispatchClone starts the clone workflow by asking for repository URL
 func (a *Application) dispatchClone(app *Application) tea.Cmd {
-	// TODO: Implement
+	// Reset clone state and switch to URL input mode
+	app.mode = ModeCloneURL
+	app.selectedIndex = 0
+	app.inputValue = ""
+	app.inputCursorPosition = 0
+	app.inputValidationMsg = ""
+	app.inputPrompt = "Repository URL:"
+	app.inputAction = "clone_url"
+	app.cloneURL = ""
+	app.clonePath = ""
+	app.cloneBranches = nil
+	app.footerHint = "Enter git repository URL (https or git+ssh)"
 	return nil
 }
 

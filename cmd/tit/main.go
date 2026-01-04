@@ -18,5 +18,7 @@ func main() {
 	sizing := ui.CalculateSizing()
 	application := app.NewApplication(sizing, theme)
 
-	tea.NewProgram(application, tea.WithAltScreen()).Run()
+	tea.NewProgram(application, 
+		tea.WithAltScreen(),
+	).Run()
 }
