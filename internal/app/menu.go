@@ -247,3 +247,39 @@ func (a *Application) menuHistory() []MenuItem {
 			Build(),
 	}
 }
+
+// menuInitializeLocation returns options for where to initialize repository
+func (a *Application) menuInitializeLocation() []MenuItem {
+	return []MenuItem{
+		Item("init_here").
+			Shortcut("1").
+			Emoji("📍").
+			Label("Initialize current directory").
+			Hint("Create repository here").
+			Build(),
+		Item("init_subdir").
+			Shortcut("2").
+			Emoji("📁").
+			Label("Create subdirectory").
+			Hint("Create new folder and initialize there").
+			Build(),
+	}
+}
+
+// menuCloneLocation returns options for where to clone repository
+func (a *Application) menuCloneLocation() []MenuItem {
+	return []MenuItem{
+		Item("clone_here").
+			Shortcut("1").
+			Emoji("📍").
+			Label("Clone to current directory").
+			Hint("Clone repository here").
+			Build(),
+		Item("clone_subdir").
+			Shortcut("2").
+			Emoji("📁").
+			Label("Create subdirectory").
+			Hint("Create new folder and clone there").
+			Build(),
+	}
+}

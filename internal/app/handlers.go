@@ -507,3 +507,74 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 
 	return app, nil
 }
+
+// Commit workflow handlers
+
+// handleCommitSubmit validates commit message and executes commit
+func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) {
+	// UI THREAD - Validate commit message
+	message := app.inputValue
+	if message == "" {
+		app.footerHint = "Commit message cannot be empty"
+		return app, nil
+	}
+
+	// Set up async state for console display
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeMenu
+	app.previousMenuIndex = 0
+	app.mode = ModeConsole
+	app.consoleState = ui.NewConsoleOutState()
+	app.outputBuffer.Clear()
+	app.footerHint = "Committing changes... (ESC to abort)"
+
+	// Execute commit asynchronously
+	return app, app.executeCommitWorkflow(message)
+}
+
+// executeCommitWorkflow launches git commit in a worker and returns a command
+func (a *Application) executeCommitWorkflow(message string) tea.Cmd {
+	// UI THREAD - Capturing state before spawning worker
+	commitMessage := message
+
+	return func() tea.Msg {
+		// WORKER THREAD - Never touch Application
+		// Stage all changes first
+		result := git.ExecuteWithStreaming("add", "-A")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "commit",
+				Success: false,
+				Error:   "Failed to stage changes",
+			}
+		}
+
+		// Create commit
+		result = git.ExecuteWithStreaming("commit", "-m", commitMessage)
+		if !result.Success {
+			// Could be nothing to commit, or actual error
+			// Check if working tree is clean
+			checkResult := git.Execute("status", "--porcelain")
+			if checkResult.Stdout == "" {
+				// Nothing to commit - this is OK
+				return GitOperationMsg{
+					Step:    "commit",
+					Success: true,
+					Output:  "Nothing to commit (working tree clean)",
+				}
+			}
+			return GitOperationMsg{
+				Step:    "commit",
+				Success: false,
+				Error:   "Failed to create commit",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "commit",
+			Success: true,
+			Output:  "Commit created successfully",
+		}
+	}
+}

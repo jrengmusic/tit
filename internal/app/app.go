@@ -301,21 +301,7 @@ func (a *Application) View() string {
 	// Render based on current mode
 	switch a.mode {
 	case ModeMenu:
-		// Convert cached MenuItem to map for rendering
-		menuMaps := make([]map[string]interface{}, len(a.menuItems))
-		for i, item := range a.menuItems {
-			menuMaps[i] = map[string]interface{}{
-				"ID":        item.ID,
-				"Shortcut":  item.Shortcut,
-				"Emoji":     item.Emoji,
-				"Label":     item.Label,
-				"Hint":      item.Hint,
-				"Enabled":   item.Enabled,
-				"Separator": item.Separator,
-			}
-		}
-		
-		contentText = ui.RenderMenuWithHeight(menuMaps, a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
 	
 	case ModeConsole:
 		// Rendering clone console output
@@ -399,50 +385,9 @@ func (a *Application) View() string {
 		
 		contentText = inputContent
 	case ModeCloneLocation:
-		items := []map[string]interface{}{
-			{
-				"ID":        "clone_here",
-				"Shortcut":  "1",
-				"Emoji":     "📍",
-				"Label":     "Clone to current directory",
-				"Hint":      "Clone repository here",
-				"Enabled":   true,
-				"Separator": false,
-			},
-			{
-				"ID":        "clone_subdir",
-				"Shortcut":  "2",
-				"Emoji":     "📁",
-				"Label":     "Create subdirectory",
-				"Hint":      "Create new folder and clone there",
-				"Enabled":   true,
-				"Separator": false,
-			},
-		}
-		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuCloneLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
 	case ModeInitializeLocation:
-		// Show two options: initialize current directory or create subdirectory
-		items := []map[string]interface{}{
-			{
-				"ID":        "init_here",
-				"Shortcut":  "1",
-				"Emoji":     "📍",
-				"Label":     "Initialize current directory",
-				"Hint":      "Create repository here",
-				"Enabled":   true,
-				"Separator": false,
-			},
-			{
-				"ID":        "init_subdir",
-				"Shortcut":  "2",
-				"Emoji":     "📁",
-				"Label":     "Create subdirectory",
-				"Hint":      "Create new folder and initialize there",
-				"Enabled":   true,
-				"Separator": false,
-			},
-		}
-		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
 
 	case ModeConfirmation:
 		contentText = "[Confirmation mode - TODO]"
@@ -477,6 +422,23 @@ func (a *Application) GetFooterHint() string {
 func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
 		a.mode == ModeCloneURL
+}
+
+// menuItemsToMaps converts MenuItem slice to map slice for rendering
+func (a *Application) menuItemsToMaps(items []MenuItem) []map[string]interface{} {
+	maps := make([]map[string]interface{}, len(items))
+	for i, item := range items {
+		maps[i] = map[string]interface{}{
+			"ID":        item.ID,
+			"Shortcut":  item.Shortcut,
+			"Emoji":     item.Emoji,
+			"Label":     item.Label,
+			"Hint":      item.Hint,
+			"Enabled":   item.Enabled,
+			"Separator": item.Separator,
+		}
+	}
+	return maps
 }
 
 // buildKeyHandlers builds the complete handler registry for all modes
@@ -646,6 +608,8 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 		return app.handleInputSubmitInitBranchName(app)
 	case "clone_subdir_name":
 		return app.handleInputSubmitCloneSubdirName(app)
+	case "commit_message":
+		return app.handleCommitSubmit(app)
 	default:
 		return app, nil
 	}

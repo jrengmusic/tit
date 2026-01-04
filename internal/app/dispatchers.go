@@ -49,9 +49,15 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchCommit commits staged changes
+// dispatchCommit starts the commit workflow by asking for message
 func (a *Application) dispatchCommit(app *Application) tea.Cmd {
-	// TODO: Implement
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInput,
+		InputPrompt: "Commit message:",
+		InputAction: "commit_message",
+		FooterHint:  "Enter commit message, press Enter to commit",
+		ResetFields: []string{},
+	})
 	return nil
 }
 
