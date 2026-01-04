@@ -45,22 +45,18 @@ func (a *Application) GenerateMenu() []MenuItem {
 // menuNotRepo returns menu for NotRepo state
 func (a *Application) menuNotRepo() []MenuItem {
 	return []MenuItem{
-		{
-			ID:       "init",
-			Shortcut: "i",
-			Emoji:    "🔨",
-			Label:    "Initialize repository",
-			Hint:     "Create a new git repository in current directory",
-			Enabled:  true,
-		},
-		{
-			ID:       "clone",
-			Shortcut: "c",
-			Emoji:    "📥",
-			Label:    "Clone repository",
-			Hint:     "Clone an existing repository from remote URL",
-			Enabled:  true,
-		},
+		Item("init").
+			Shortcut("i").
+			Emoji("🔨").
+			Label("Initialize repository").
+			Hint("Create a new git repository in current directory").
+			Build(),
+		Item("clone").
+			Shortcut("c").
+			Emoji("📥").
+			Label("Clone repository").
+			Hint("Clone an existing repository from remote URL").
+			Build(),
 	}
 }
 
@@ -85,22 +81,18 @@ func (a *Application) menuConflicted() []MenuItem {
 	}
 
 	return []MenuItem{
-		{
-			ID:       "resolve_conflicts",
-			Shortcut: "r",
-			Emoji:    "🔧",
-			Label:    "Resolve conflicts",
-			Hint:     "Open conflict resolution UI (3-way view)",
-			Enabled:  true,
-		},
-		{
-			ID:       "abort_operation",
-			Shortcut: "a",
-			Emoji:    "⛔",
-			Label:    abortLabel,
-			Hint:     abortHint,
-			Enabled:  true,
-		},
+		Item("resolve_conflicts").
+			Shortcut("r").
+			Emoji("🔧").
+			Label("Resolve conflicts").
+			Hint("Open conflict resolution UI (3-way view)").
+			Build(),
+		Item("abort_operation").
+			Shortcut("a").
+			Emoji("⛔").
+			Label(abortLabel).
+			Hint(abortHint).
+			Build(),
 	}
 }
 
@@ -129,22 +121,18 @@ func (a *Application) menuOperation() []MenuItem {
 	}
 
 	return []MenuItem{
-		{
-			ID:       "continue_operation",
-			Shortcut: "c",
-			Emoji:    "⏩",
-			Label:    "Continue " + operationType,
-			Hint:     "Resume the operation in progress",
-			Enabled:  true,
-		},
-		{
-			ID:       "abort_operation",
-			Shortcut: "a",
-			Emoji:    "⛔",
-			Label:    "Abort " + operationType,
-			Hint:     "Stop the operation and return to previous state",
-			Enabled:  true,
-		},
+		Item("continue_operation").
+			Shortcut("c").
+			Emoji("⏩").
+			Label("Continue " + operationType).
+			Hint("Resume the operation in progress").
+			Build(),
+		Item("abort_operation").
+			Shortcut("a").
+			Emoji("⛔").
+			Label("Abort " + operationType).
+			Hint("Stop the operation and return to previous state").
+			Build(),
 	}
 }
 
@@ -173,14 +161,13 @@ func (a *Application) menuWorkingTree() []MenuItem {
 	isModified := a.gitState.WorkingTree == git.Modified
 
 	return []MenuItem{
-		{
-			ID:       "commit",
-			Shortcut: "m",
-			Emoji:    "📝",
-			Label:    "Commit changes",
-			Hint:     "Create a new commit with staged changes",
-			Enabled:  isModified,
-		},
+		Item("commit").
+			Shortcut("m").
+			Emoji("📝").
+			Label("Commit changes").
+			Hint("Create a new commit with staged changes").
+			When(isModified).
+			Build(),
 	}
 }
 
@@ -191,55 +178,59 @@ func (a *Application) menuTimeline() []MenuItem {
 	}
 
 	var items []MenuItem
+	hasRemote := a.gitState.Remote == git.HasRemote
 
 	switch a.gitState.Timeline {
 	case git.InSync:
-		items = append(items, MenuItem{
-			ID:       "pull_merge",
-			Shortcut: "p",
-			Emoji:    "📥",
-			Label:    "Pull (fetch + merge)",
-			Hint:     "Fetch latest from remote and merge into local branch",
-			Enabled:  a.gitState.Remote == git.HasRemote,
-		})
+		items = append(items,
+			Item("pull_merge").
+				Shortcut("p").
+				Emoji("📥").
+				Label("Pull (fetch + merge)").
+				Hint("Fetch latest from remote and merge into local branch").
+				When(hasRemote).
+				Build(),
+		)
 
 	case git.Ahead:
-		items = append(items, MenuItem{
-			ID:       "push",
-			Shortcut: "h",
-			Emoji:    "📤",
-			Label:    "Push to remote",
-			Hint:     "Send local commits to remote branch",
-			Enabled:  a.gitState.Remote == git.HasRemote,
-		})
+		items = append(items,
+			Item("push").
+				Shortcut("h").
+				Emoji("📤").
+				Label("Push to remote").
+				Hint("Send local commits to remote branch").
+				When(hasRemote).
+				Build(),
+		)
 
 	case git.Behind:
-		items = append(items, MenuItem{
-			ID:       "pull_merge",
-			Shortcut: "p",
-			Emoji:    "📥",
-			Label:    "Pull (fetch + merge)",
-			Hint:     "Fetch latest from remote and merge into local branch",
-			Enabled:  a.gitState.Remote == git.HasRemote,
-		})
+		items = append(items,
+			Item("pull_merge").
+				Shortcut("p").
+				Emoji("📥").
+				Label("Pull (fetch + merge)").
+				Hint("Fetch latest from remote and merge into local branch").
+				When(hasRemote).
+				Build(),
+		)
 
 	case git.Diverged:
-		items = append(items, MenuItem{
-			ID:       "pull_merge",
-			Shortcut: "p",
-			Emoji:    "📥",
-			Label:    "Pull (merge strategy)",
-			Hint:     "Fetch remote and merge diverged branches",
-			Enabled:  a.gitState.Remote == git.HasRemote,
-		})
-		items = append(items, MenuItem{
-			ID:       "pull_rebase",
-			Shortcut: "r",
-			Emoji:    "📥",
-			Label:    "Pull (rebase strategy)",
-			Hint:     "Fetch remote and rebase local commits on top",
-			Enabled:  a.gitState.Remote == git.HasRemote,
-		})
+		items = append(items,
+			Item("pull_merge").
+				Shortcut("p").
+				Emoji("📥").
+				Label("Pull (merge strategy)").
+				Hint("Fetch remote and merge diverged branches").
+				When(hasRemote).
+				Build(),
+			Item("pull_rebase").
+				Shortcut("r").
+				Emoji("📥").
+				Label("Pull (rebase strategy)").
+				Hint("Fetch remote and rebase local commits on top").
+				When(hasRemote).
+				Build(),
+		)
 	}
 
 	return items
@@ -248,13 +239,11 @@ func (a *Application) menuTimeline() []MenuItem {
 // menuHistory returns history actions
 func (a *Application) menuHistory() []MenuItem {
 	return []MenuItem{
-		{
-			ID:       "history",
-			Shortcut: "l",
-			Emoji:    "📜",
-			Label:    "Browse commit history",
-			Hint:     "View and navigate through commit history",
-			Enabled:  true,
-		},
+		Item("history").
+			Shortcut("l").
+			Emoji("📜").
+			Label("Browse commit history").
+			Hint("View and navigate through commit history").
+			Build(),
 	}
 }

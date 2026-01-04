@@ -12,6 +12,19 @@ import (
 	"tit/internal/ui"
 )
 
+// validateAndProceed is a generic input validation handler.
+// It uses a validator function and proceeds with onSuccess if validation passes.
+func (a *Application) validateAndProceed(
+    validator ui.InputValidator,
+    onSuccess func(*Application) (tea.Model, tea.Cmd),
+) (tea.Model, tea.Cmd) {
+    if valid, msg := validator(a.inputValue); !valid {
+        a.footerHint = msg
+        return a, nil
+    }
+    return onSuccess(a)
+}
+
 // handleKeyCtrlC handles Ctrl+C globally
 // During async operations: shows "operation in progress" message
 // Otherwise: prompts for confirmation before quitting
@@ -122,80 +135,73 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 
 // Init workflow handlers
 
+var initLocationConfig = LocationChoiceConfig{
+	PathSetter: func(a *Application, path string) { a.initRepositoryPath = path },
+	OnCurrentDir: func(a *Application) (tea.Model, tea.Cmd) {
+		a.mode = ModeInitializeBranches
+		a.initCanonBranch = "main"
+		a.initWorkingBranch = "dev"
+		a.initActiveField = "working"
+		a.inputCursorPosition = len("dev")
+		a.footerHint = "Tab to switch fields, Enter to submit, ESC to cancel"
+		return a, nil
+	},
+	SubdirPrompt: "Repository name:",
+	SubdirAction: "init_subdir_name",
+}
+
+var cloneLocationConfig = LocationChoiceConfig{
+	PathSetter: func(a *Application, path string) { a.clonePath = path },
+	OnCurrentDir: func(a *Application) (tea.Model, tea.Cmd) {
+		return a.startCloneOperation()
+	},
+	SubdirPrompt: "Directory name:",
+	SubdirAction: "clone_subdir_name",
+}
+
 // handleInitLocationSelection handles enter on init location menu
 func (a *Application) handleInitLocationSelection(app *Application) (tea.Model, tea.Cmd) {
 	// Route to choice 1 or 2 based on selectedIndex
 	if app.selectedIndex == 0 {
-		return app.handleInitLocationChoice1(app)
+		return app.handleLocationChoice(1, initLocationConfig)
 	} else if app.selectedIndex == 1 {
-		return app.handleInitLocationChoice2(app)
+		return app.handleLocationChoice(2, initLocationConfig)
 	}
 	return app, nil
 }
 
 // handleInitLocationChoice1 handles "1" key (init current directory)
 func (a *Application) handleInitLocationChoice1(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Setting up input mode for user interaction
-	cwd, err := os.Getwd()
-	if err != nil {
-		app.footerHint = "Failed to get current directory"
-		return app, nil
-	}
-
-	// Store the repository path
-	app.initRepositoryPath = cwd
-
-	// Transition to branch input mode (both canon + working)
-	app.mode = ModeInitializeBranches
-	app.initCanonBranch = "main"                           // Pre-fill canon with default
-	app.initWorkingBranch = "dev"                          // Pre-fill working with default
-	app.initActiveField = "working"                        // Start on working branch (canonical is pre-filled)
-	app.inputCursorPosition = len("dev")                   // Cursor at end of working branch
-	app.footerHint = "Tab to switch fields, Enter to submit, ESC to cancel"
-
-	return app, nil
+	return app.handleLocationChoice(1, initLocationConfig)
 }
 
 // handleInitLocationChoice2 handles "2" key (create subdirectory)
 func (a *Application) handleInitLocationChoice2(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Switching to input mode to ask for directory name
-	app.mode = ModeInput
-	app.selectedIndex = 0
-	app.inputValue = ""
-	app.inputCursorPosition = 0
-	app.inputPrompt = "Repository name:"
-	app.inputAction = "init_subdir_name"
-	app.footerHint = "Enter new directory name"
-
-	return app, nil
+	return app.handleLocationChoice(2, initLocationConfig)
 }
 
 // handleInputSubmitSubdirName handles enter when creating subdirectory
 func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Validating subdirectory name
-	if app.inputValue == "" {
-		app.footerHint = "Directory name cannot be empty"
+	return app.validateAndProceed(ui.Validators["directory"], func(app *Application) (tea.Model, tea.Cmd) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			app.footerHint = "Failed to get current directory"
+			return app, nil
+		}
+
+		app.initRepositoryPath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
+
+		app.transitionTo(ModeTransition{
+			Mode:       ModeInitializeBranches,
+			FooterHint: "Tab to switch fields, Enter to submit, ESC to cancel",
+		})
+		app.initCanonBranch = "main"
+		app.initWorkingBranch = "dev"
+		app.initActiveField = "working"
+		app.inputCursorPosition = len("dev")
+
 		return app, nil
-	}
-
-	// Get current working directory and construct repo path
-	cwd, err := os.Getwd()
-	if err != nil {
-		app.footerHint = "Failed to get current directory"
-		return app, nil
-	}
-
-	app.initRepositoryPath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
-
-	// Transition to branch input mode (both canon + working)
-	app.mode = ModeInitializeBranches
-	app.initCanonBranch = "main"                    // Pre-fill canon with default
-	app.initWorkingBranch = "dev"                   // Pre-fill working with default
-	app.initActiveField = "working"                 // Start on working branch
-	app.inputCursorPosition = len("dev")            // Cursor at end of working branch
-	app.footerHint = "Tab to switch fields, Enter to submit, ESC to cancel"
-
-	return app, nil
+	})
 }
 
 // handleInitBranchesTab cycles between canon and working branch fields
@@ -239,54 +245,6 @@ func (a *Application) handleInitBranchesSubmit(app *Application) (tea.Model, tea
 	return app, app.executeInitWorkflow()
 }
 
-// handleInitBranchesLeft moves cursor left in active field
-func (a *Application) handleInitBranchesLeft(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Move cursor left in active field
-	if app.initActiveField == "canon" {
-		if app.inputCursorPosition > 0 {
-			app.inputCursorPosition--
-		}
-	} else if app.initActiveField == "working" {
-		if app.inputCursorPosition > 0 {
-			app.inputCursorPosition--
-		}
-	}
-	return app, nil
-}
-
-// handleInitBranchesRight moves cursor right in active field
-func (a *Application) handleInitBranchesRight(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Move cursor right in active field
-	if app.initActiveField == "canon" {
-		if app.inputCursorPosition < len(app.initCanonBranch) {
-			app.inputCursorPosition++
-		}
-	} else if app.initActiveField == "working" {
-		if app.inputCursorPosition < len(app.initWorkingBranch) {
-			app.inputCursorPosition++
-		}
-	}
-	return app, nil
-}
-
-// handleInitBranchesHome moves cursor to start of active field
-func (a *Application) handleInitBranchesHome(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Move cursor to start in active field
-	app.inputCursorPosition = 0
-	return app, nil
-}
-
-// handleInitBranchesEnd moves cursor to end of active field
-func (a *Application) handleInitBranchesEnd(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Move cursor to end in active field
-	if app.initActiveField == "canon" {
-		app.inputCursorPosition = len(app.initCanonBranch)
-	} else if app.initActiveField == "working" {
-		app.inputCursorPosition = len(app.initWorkingBranch)
-	}
-	return app, nil
-}
-
 // handleInitBranchesCancel is now handled by global ESC handler
 // Keeping as comment for reference of old behavior
 // func (a *Application) handleInitBranchesCancel(app *Application) (tea.Model, tea.Cmd) { ... }
@@ -294,66 +252,41 @@ func (a *Application) handleInitBranchesEnd(app *Application) (tea.Model, tea.Cm
 // executeInitWorkflow launches git operations in a worker and returns a command
 func (a *Application) executeInitWorkflow() tea.Cmd {
 	// UI THREAD - Launching worker goroutine for git operations
-	return func() tea.Msg {
-		// WORKER THREAD - Execute all git operations
-		if err := git.InitializeRepository(a.initRepositoryPath); err != nil {
-			return GitOperationMsg{
-				Step:    "init",
-				Success: false,
-				Error:   fmt.Sprintf("Failed to initialize repository: %v", err),
+	repoPath := a.initRepositoryPath
+	canonBranch := a.initCanonBranch
+	workingBranch := a.initWorkingBranch
+
+	return NewAsyncOp("init").
+		AddStep(func() error {
+			return git.InitializeRepository(repoPath)
+		}).
+		AddStep(func() error {
+			originalCwd, err := os.Getwd()
+			if err != nil {
+				return err
 			}
-		}
-
-		// Change to repository directory for branch operations
-		originalCwd, _ := os.Getwd()
-		if err := os.Chdir(a.initRepositoryPath); err != nil {
-			return GitOperationMsg{
-				Step:    "init",
-				Success: false,
-				Error:   fmt.Sprintf("Failed to change directory: %v", err),
+			if err := os.Chdir(repoPath); err != nil {
+				return err
 			}
-		}
-		defer os.Chdir(originalCwd)
+			defer os.Chdir(originalCwd)
 
-		// Create canon branch
-		if err := git.CreateBranch(a.initCanonBranch); err != nil {
-			return GitOperationMsg{
-				Step:    "init",
-				Success: false,
-				Error:   fmt.Sprintf("Failed to create canon branch: %v", err),
+			if err := git.CreateBranch(canonBranch); err != nil {
+				return err
 			}
-		}
-
-		// Create working branch
-		if err := git.CreateBranch(a.initWorkingBranch); err != nil {
-			return GitOperationMsg{
-				Step:    "init",
-				Success: false,
-				Error:   fmt.Sprintf("Failed to create working branch: %v", err),
+			if err := git.CreateBranch(workingBranch); err != nil {
+				return err
 			}
-		}
 
-		// Save repository config
-		cfg := git.RepoConfig{}
-		cfg.Repo.Initialized = true
-		cfg.Repo.RepositoryPath = a.initRepositoryPath
-		cfg.Repo.CanonBranch = a.initCanonBranch
-		cfg.Repo.LastWorkingBranch = a.initWorkingBranch
+			cfg := git.RepoConfig{}
+			cfg.Repo.Initialized = true
+			cfg.Repo.RepositoryPath = repoPath
+			cfg.Repo.CanonBranch = canonBranch
+			cfg.Repo.LastWorkingBranch = workingBranch
 
-		if err := git.SaveRepoConfig(cfg); err != nil {
-			return GitOperationMsg{
-				Step:    "init",
-				Success: false,
-				Error:   fmt.Sprintf("Failed to save repository config: %v", err),
-			}
-		}
-
-		return GitOperationMsg{
-			Step:    "init",
-			Success: true,
-			Output:  fmt.Sprintf("Repository initialized: %s (canon: %s, working: %s)", a.initRepositoryPath, a.initCanonBranch, a.initWorkingBranch),
-		}
-	}
+			return git.SaveRepoConfig(cfg)
+		}).
+		SuccessMessage(fmt.Sprintf("Repository initialized: %s (canon: %s, working: %s)", repoPath, canonBranch, workingBranch)).
+		Execute()
 }
 
 // Paste handler
@@ -435,75 +368,47 @@ func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cm
 
 // handleCloneURLSubmit validates URL and moves to location choice
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
-	if app.inputValue == "" {
-		app.footerHint = "Repository URL cannot be empty"
+	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
+		app.cloneURL = app.inputValue
+		app.transitionTo(ModeTransition{
+			Mode:       ModeCloneLocation,
+			FooterHint: "Choose where to clone the repository",
+		})
 		return app, nil
-	}
-
-	if !ui.ValidateRemoteURL(app.inputValue) {
-		app.footerHint = "Invalid URL format. Try: git@github.com:user/repo.git or https://github.com/user/repo.git"
-		return app, nil
-	}
-
-	// Store URL and move to location choice
-	app.cloneURL = app.inputValue
-	app.mode = ModeCloneLocation
-	app.selectedIndex = 0
-	app.inputValue = ""
-	app.inputCursorPosition = 0
-	app.inputValidationMsg = ""
-	app.footerHint = "Choose where to clone the repository"
-	return app, nil
+	})
 }
 
 // handleCloneLocationSelection handles enter on clone location menu
 func (a *Application) handleCloneLocationSelection(app *Application) (tea.Model, tea.Cmd) {
 	if app.selectedIndex == 0 {
-		return app.handleCloneLocationChoice1(app)
+		return app.handleLocationChoice(1, cloneLocationConfig)
 	} else if app.selectedIndex == 1 {
-		return app.handleCloneLocationChoice2(app)
+		return app.handleLocationChoice(2, cloneLocationConfig)
 	}
 	return app, nil
 }
 
 // handleCloneLocationChoice1 handles "1" key (clone to current directory)
 func (a *Application) handleCloneLocationChoice1(app *Application) (tea.Model, tea.Cmd) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		app.footerHint = "Failed to get current directory"
-		return app, nil
-	}
-
-	app.clonePath = cwd
-	return app.startCloneOperation()
+	return app.handleLocationChoice(1, cloneLocationConfig)
 }
 
 // handleCloneLocationChoice2 handles "2" key (create subdirectory)
 func (a *Application) handleCloneLocationChoice2(app *Application) (tea.Model, tea.Cmd) {
-	app.mode = ModeInput
-	app.inputValue = ""
-	app.inputCursorPosition = 0
-	app.inputPrompt = "Directory name:"
-	app.inputAction = "clone_subdir_name"
-	app.footerHint = "Enter new directory name"
-	return app, nil
+	return app.handleLocationChoice(2, cloneLocationConfig)
 }
 
 // handleInputSubmitCloneSubdirName handles enter when creating subdirectory for clone
 func (a *Application) handleInputSubmitCloneSubdirName(app *Application) (tea.Model, tea.Cmd) {
-	if app.inputValue == "" {
-		app.footerHint = "Directory name cannot be empty"
-		return app, nil
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		app.footerHint = "Failed to get current directory"
-		return app, nil
-	}
-
-	app.clonePath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
-	return app.startCloneOperation()
+	return app.validateAndProceed(ui.Validators["directory"], func(app *Application) (tea.Model, tea.Cmd) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			app.footerHint = "Failed to get current directory"
+			return app, nil
+		}
+		app.clonePath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
+		return app.startCloneOperation()
+	})
 }
 
 // startCloneOperation sets up async state and executes clone

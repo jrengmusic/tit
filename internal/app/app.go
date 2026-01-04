@@ -24,7 +24,7 @@ type Application struct {
 	gitState             *git.State
 	selectedIndex        int // Current menu item selection
 	menuItems            []MenuItem // Cached menu items
-	keyHandlers          map[AppMode]map[string]func(*Application) (tea.Model, tea.Cmd) // Cached key handlers
+	keyHandlers          map[AppMode]map[string]KeyHandler // Cached key handlers
 
 	// Input mode state
 	inputPrompt          string // e.g., "Repository name:"
@@ -56,6 +56,61 @@ type Application struct {
 	outputBuffer         *ui.OutputBuffer
 	
 }
+
+// ModeTransition configuration for streamlined mode changes
+type ModeTransition struct {
+    Mode            AppMode
+    InputPrompt     string
+    InputAction     string
+    FooterHint      string
+    ResetFields     []string // Field names to reset: "clone", "init", "all"
+}
+
+// transitionTo handles standardized mode transitions and state resets.
+func (a *Application) transitionTo(config ModeTransition) {
+    a.mode = config.Mode
+
+    // Always reset common input state
+    a.selectedIndex = 0
+    a.inputValue = ""
+    a.inputCursorPosition = 0
+    a.inputValidationMsg = ""
+	a.clearConfirmActive = false
+
+    // Set new input config from the transition configuration
+    if config.InputPrompt != "" {
+        a.inputPrompt = config.InputPrompt
+    }
+    if config.InputAction != "" {
+        a.inputAction = config.InputAction
+    }
+    if config.FooterHint != "" {
+        a.footerHint = config.FooterHint
+    }
+
+    // Reset workflow-specific fields based on the configuration
+    for _, field := range config.ResetFields {
+        switch field {
+        case "clone":
+            a.cloneURL = ""
+            a.clonePath = ""
+            a.cloneBranches = nil
+        case "init":
+            a.initRepositoryPath = ""
+            a.initCanonBranch = ""
+            a.initWorkingBranch = ""
+        case "all":
+            // Reset all workflow states
+            a.cloneURL = ""
+            a.clonePath = ""
+            a.cloneBranches = nil
+            a.initRepositoryPath = ""
+            a.initCanonBranch = ""
+            a.initWorkingBranch = ""
+        }
+    }
+}
+
 
 // NewApplication creates a new application instance
 func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
@@ -500,9 +555,9 @@ func (a *Application) isInputMode() bool {
 
 // buildKeyHandlers builds the complete handler registry for all modes
 // Global handlers take priority and are merged into each mode
-func (a *Application) buildKeyHandlers() map[AppMode]map[string]func(*Application) (tea.Model, tea.Cmd) {
+func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 	// Global handlers - highest priority, applied to all modes
-	globalHandlers := map[string]func(*Application) (tea.Model, tea.Cmd){
+	globalHandlers := map[string]KeyHandler{
 		"ctrl+c": a.handleKeyCtrlC,
 		"q":      a.handleKeyCtrlC,
 		"esc":    a.handleKeyESC,
@@ -512,72 +567,72 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]func(*Applicatio
 		"alt+v":  a.handleKeyPaste,  // Fallback
 	}
 
+	cursorNavMixin := CursorNavigationMixin{}
+
+	// Generic input cursor handlers for single-field inputs
+	genericInputNav := cursorNavMixin.CreateHandlers(
+		func(a *Application) string { return a.inputValue },
+		func(a *Application) int { return a.inputCursorPosition },
+		func(a *Application, pos int) { a.inputCursorPosition = pos },
+	)
+
+	// Branch input cursor handlers for dual-field input
+	branchInputNav := cursorNavMixin.CreateHandlers(
+		func(a *Application) string {
+			if a.initActiveField == "canon" {
+				return a.initCanonBranch
+			}
+			return a.initWorkingBranch
+		},
+		func(a *Application) int { return a.inputCursorPosition },
+		func(a *Application, pos int) { a.inputCursorPosition = pos },
+	)
+
 	// Mode-specific handlers (global merged in after)
-	modeHandlers := map[AppMode]map[string]func(*Application) (tea.Model, tea.Cmd){
-		ModeMenu: {
-			"up":    a.handleMenuUp,
-			"k":     a.handleMenuUp,
-			"down":  a.handleMenuDown,
-			"j":     a.handleMenuDown,
-			"enter": a.handleMenuEnter,
-		},
-		ModeConsole: {},
-		ModeInput: {
-			"enter": a.handleInputSubmit,
-			"left":  a.handleInputLeft,
-			"right": a.handleInputRight,
-			"home":  a.handleInputHome,
-			"end":   a.handleInputEnd,
-		},
-		ModeInitializeLocation: {
-			"up":    a.handleMenuUp,
-			"k":     a.handleMenuUp,
-			"down":  a.handleMenuDown,
-			"j":     a.handleMenuDown,
-			"enter": a.handleInitLocationSelection,
-			"1":     a.handleInitLocationChoice1,
-			"2":     a.handleInitLocationChoice2,
-		},
-		ModeInitializeBranches: {
-			"tab":   a.handleInitBranchesTab,      // Tab to cycle between fields
-			"enter": a.handleInitBranchesSubmit,   // Enter only works on working field
-			"left":  a.handleInitBranchesLeft,     // Cursor left in active field
-			"right": a.handleInitBranchesRight,    // Cursor right in active field
-			"home":  a.handleInitBranchesHome,     // Home in active field
-			"end":   a.handleInitBranchesEnd,      // End in active field
-		},
-		ModeCloneURL: {
-			"enter": a.handleCloneURLSubmit,
-			"left":  a.handleInputLeft,
-			"right": a.handleInputRight,
-			"home":  a.handleInputHome,
-			"end":   a.handleInputEnd,
-		},
-		ModeCloneLocation: {
-			"up":    a.handleMenuUp,
-			"k":     a.handleMenuUp,
-			"down":  a.handleMenuDown,
-			"j":     a.handleMenuDown,
-			"enter": a.handleCloneLocationSelection,
-			"1":     a.handleCloneLocationChoice1,
-			"2":     a.handleCloneLocationChoice2,
-		},
-		ModeConfirmation: {},
-		ModeHistory: {},
-		ModeConflictResolve: {},
-		ModeClone: {
-			"up":    a.handleConsoleUp,    // Scroll up in console
-			"down":  a.handleConsoleDown,  // Scroll down in console
-			"pageup": a.handleConsolePageUp,     // Page up
-			"pagedown": a.handleConsolePageDown, // Page down
-		},
-		ModeSelectBranch: {
-			"up":    a.handleMenuUp,    // Navigate menu
-			"k":     a.handleMenuUp,
-			"down":  a.handleMenuDown,
-			"j":     a.handleMenuDown,
-			"enter": a.handleSelectBranchEnter,
-		},
+	modeHandlers := map[AppMode]map[string]KeyHandler{
+		ModeMenu: NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleMenuEnter).
+			Build(),
+		ModeConsole: NewModeHandlers().Build(),
+		ModeInput: NewModeHandlers().
+			WithCursorNav(genericInputNav).
+			On("enter", a.handleInputSubmit).
+			Build(),
+		ModeInitializeLocation: NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleInitLocationSelection).
+			On("1", a.handleInitLocationChoice1).
+			On("2", a.handleInitLocationChoice2).
+			Build(),
+		ModeInitializeBranches: NewModeHandlers().
+			WithCursorNav(branchInputNav).
+			On("tab", a.handleInitBranchesTab).
+			On("enter", a.handleInitBranchesSubmit).
+			Build(),
+		ModeCloneURL: NewModeHandlers().
+			WithCursorNav(genericInputNav).
+			On("enter", a.handleCloneURLSubmit).
+			Build(),
+		ModeCloneLocation: NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleCloneLocationSelection).
+			On("1", a.handleCloneLocationChoice1).
+			On("2", a.handleCloneLocationChoice2).
+			Build(),
+		ModeConfirmation:    NewModeHandlers().Build(),
+		ModeHistory:         NewModeHandlers().Build(),
+		ModeConflictResolve: NewModeHandlers().Build(),
+		ModeClone: NewModeHandlers().
+			On("up", a.handleConsoleUp).
+			On("down", a.handleConsoleDown).
+			On("pageup", a.handleConsolePageUp).
+			On("pagedown", a.handleConsolePageDown).
+			Build(),
+		ModeSelectBranch: NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleSelectBranchEnter).
+			Build(),
 	}
 
 	// Merge global handlers into each mode (global takes priority)
@@ -649,34 +704,6 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	default:
 		return app, nil
 	}
-}
-
-// handleInputLeft moves cursor left
-func (a *Application) handleInputLeft(app *Application) (tea.Model, tea.Cmd) {
-	if app.inputCursorPosition > 0 {
-		app.inputCursorPosition--
-	}
-	return app, nil
-}
-
-// handleInputRight moves cursor right
-func (a *Application) handleInputRight(app *Application) (tea.Model, tea.Cmd) {
-	if app.inputCursorPosition < len(app.inputValue) {
-		app.inputCursorPosition++
-	}
-	return app, nil
-}
-
-// handleInputHome moves cursor to start
-func (a *Application) handleInputHome(app *Application) (tea.Model, tea.Cmd) {
-	app.inputCursorPosition = 0
-	return app, nil
-}
-
-// handleInputEnd moves cursor to end
-func (a *Application) handleInputEnd(app *Application) (tea.Model, tea.Cmd) {
-	app.inputCursorPosition = len(app.inputValue)
-	return app, nil
 }
 
 

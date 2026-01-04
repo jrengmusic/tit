@@ -30,28 +30,22 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 
 // dispatchInit starts the repository initialization workflow
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
-	// Reset input state and switch to init location mode
-	app.mode = ModeInitializeLocation
-	app.selectedIndex = 0
-	app.inputValue = ""
-	app.inputCursorPosition = 0
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInitializeLocation,
+		ResetFields: []string{"init"},
+	})
 	return nil
 }
 
 // dispatchClone starts the clone workflow by asking for repository URL
 func (a *Application) dispatchClone(app *Application) tea.Cmd {
-	// Reset clone state and switch to URL input mode
-	app.mode = ModeCloneURL
-	app.selectedIndex = 0
-	app.inputValue = ""
-	app.inputCursorPosition = 0
-	app.inputValidationMsg = ""
-	app.inputPrompt = "Repository URL:"
-	app.inputAction = "clone_url"
-	app.cloneURL = ""
-	app.clonePath = ""
-	app.cloneBranches = nil
-	app.footerHint = "Enter git repository URL (https or git+ssh)"
+	app.transitionTo(ModeTransition{
+		Mode:        ModeCloneURL,
+		InputPrompt: "Repository URL:",
+		InputAction: "clone_url",
+		FooterHint:  "Enter git repository URL (https or git+ssh)",
+		ResetFields: []string{"clone"},
+	})
 	return nil
 }
 

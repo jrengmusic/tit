@@ -38,3 +38,35 @@ func GetRemoteURLError() string {
 		"  • HTTPS: https://github.com/user/repo.git\n" +
 		"  • Local: /path/to/repo or ~/path/to/repo"
 }
+
+// InputValidator defines a function type for input validation.
+// It returns true if the input is valid, and a message if it's not.
+type InputValidator func(string) (bool, string)
+
+// Validators provides a registry of reusable validation functions.
+var Validators = map[string]InputValidator{
+	"url": func(s string) (bool, string) {
+		if s == "" {
+			return false, "Repository URL cannot be empty"
+		}
+		if !ValidateRemoteURL(s) {
+			return false, "Invalid URL format. Try: git@github.com:user/repo.git"
+		}
+		return true, ""
+	},
+	"branch_name": func(s string) (bool, string) {
+		if s == "" {
+			return false, "Branch name cannot be empty"
+		}
+		if strings.Contains(s, " ") {
+			return false, "Branch name cannot contain spaces"
+		}
+		return true, ""
+	},
+	"directory": func(s string) (bool, string) {
+		if s == "" {
+			return false, "Directory name cannot be empty"
+		}
+		return true, ""
+	},
+}
