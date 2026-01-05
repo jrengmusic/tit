@@ -527,7 +527,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	app.mode = ModeConsole
 	app.consoleState = ui.NewConsoleOutState()
 	app.outputBuffer.Clear()
-	app.footerHint = "Committing changes... (ESC to abort)"
+	app.footerHint = GetFooterMessageText(MessageCommit)
 
 	// Execute commit asynchronously
 	return app, app.executeCommitWorkflow(message)
@@ -575,6 +575,156 @@ func (a *Application) executeCommitWorkflow(message string) tea.Cmd {
 			Step:    "commit",
 			Success: true,
 			Output:  "Commit created successfully",
+		}
+	}
+}
+
+// executePushWorkflow launches git push in a worker and returns a command
+func (a *Application) executePushWorkflow() tea.Cmd {
+	return func() tea.Msg {
+		// WORKER THREAD - Never touch Application
+		result := git.ExecuteWithStreaming("push")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "push",
+				Success: false,
+				Error:   "Failed to push to remote",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "push",
+			Success: true,
+			Output:  "Push completed successfully",
+		}
+	}
+}
+
+// executePullMergeWorkflow launches git pull (merge) in a worker and returns a command
+func (a *Application) executePullMergeWorkflow() tea.Cmd {
+	return func() tea.Msg {
+		// WORKER THREAD - Never touch Application
+		result := git.ExecuteWithStreaming("pull")
+		if !result.Success {
+			// Check if conflict occurred
+			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stdout, "CONFLICT") {
+				return GitOperationMsg{
+					Step:    "pull_merge",
+					Success: false,
+					Error:   "Merge conflict detected - resolve manually",
+				}
+			}
+			return GitOperationMsg{
+				Step:    "pull_merge",
+				Success: false,
+				Error:   "Failed to pull from remote",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "pull_merge",
+			Success: true,
+			Output:  "Pull completed successfully",
+		}
+	}
+}
+
+// executePullRebaseWorkflow launches git pull --rebase in a worker and returns a command
+func (a *Application) executePullRebaseWorkflow() tea.Cmd {
+	return func() tea.Msg {
+		// WORKER THREAD - Never touch Application
+		result := git.ExecuteWithStreaming("pull", "--rebase")
+		if !result.Success {
+			// Check if conflict occurred
+			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stdout, "CONFLICT") {
+				return GitOperationMsg{
+					Step:    "pull_rebase",
+					Success: false,
+					Error:   "Rebase conflict detected - resolve manually",
+				}
+			}
+			return GitOperationMsg{
+				Step:    "pull_rebase",
+				Success: false,
+				Error:   "Failed to pull from remote",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "pull_rebase",
+			Success: true,
+			Output:  "Pull completed successfully",
+		}
+	}
+}
+
+// handleAddRemoteSubmit validates URL and executes add remote + fetch
+func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cmd) {
+	// UI THREAD - Validate remote URL
+	url := app.inputValue
+	if url == "" {
+		app.footerHint = "Remote URL cannot be empty"
+		return app, nil
+	}
+
+	// Validate URL format
+	if !ui.ValidateRemoteURL(url) {
+		app.footerHint = ui.GetRemoteURLError()
+		return app, nil
+	}
+
+	// Check if remote already exists
+	result := git.Execute("remote", "get-url", "origin")
+	if result.Success {
+		app.footerHint = "Remote 'origin' already exists"
+		return app, nil
+	}
+
+	// Set up async state for console display
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeMenu
+	app.previousMenuIndex = 0
+	app.mode = ModeConsole
+	app.consoleState = ui.NewConsoleOutState()
+	app.outputBuffer.Clear()
+	app.footerHint = GetFooterMessageText(MessageAddRemote)
+
+	// Execute add remote + fetch asynchronously
+	return app, app.executeAddRemoteWorkflow(url)
+}
+
+// executeAddRemoteWorkflow launches git remote add + fetch in a worker and returns a command
+func (a *Application) executeAddRemoteWorkflow(remoteURL string) tea.Cmd {
+	// UI THREAD - Capturing URL before spawning worker
+	url := remoteURL
+
+	return func() tea.Msg {
+		// WORKER THREAD - Never touch Application
+		// Add remote
+		result := git.ExecuteWithStreaming("remote", "add", "origin", url)
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "add_remote",
+				Success: false,
+				Error:   "Failed to add remote",
+			}
+		}
+
+		// Fetch from remote
+		result = git.ExecuteWithStreaming("fetch", "--all")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "add_remote",
+				Success: false,
+				Error:   "Failed to fetch from remote",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "add_remote",
+			Success: true,
+			Output:  "Remote added and fetched successfully",
 		}
 	}
 }

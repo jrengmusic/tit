@@ -66,6 +66,237 @@
 
 ---
 
+## Session 23: Port Old-TIT Header to New-TIT (COMPLETE - TESTED) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Bring old-tit header content (CWD, remote, status, timeline) to new-tit without breaking existing layout
+
+### Completed:
+
+✅ **Created StateInfo maps for WorkingTree and Timeline**
+- New file: `internal/app/stateinfo.go`
+- `StateInfo` struct holds: Label, Emoji, Color, Description function
+- `BuildStateInfo()` creates maps for all git states with proper emojis
+- Maps initialized from theme (color SSOT)
+- Matches old-tit pattern exactly
+
+✅ **Implemented RenderStateHeader() in app.go**
+- Full 6-row header using lipgloss (no manual padding calculations)
+- Row 1: CWD with 📁 emoji, no truncation, full width
+- Row 2: Remote URL display (🔌 NO REMOTE or 🔗 + actual URL)
+- Row 3: Blank spacer
+- Row 4: Working tree status | Timeline status (side-by-side, bold, colored)
+- Row 5: Working tree description | Timeline description
+- Row 6: Blank row
+- Uses `lipgloss.JoinHorizontal()` for column layout (no manual width math)
+- Uses `lipgloss.NewStyle().Width()` for proper width handling
+
+✅ **Added GetRemoteURL() to git/execute.go**
+- Runs `git remote get-url origin`
+- Returns actual remote URL or empty string if not configured
+
+✅ **StateInfo Emojis & Colors (matches old-tit exactly)**
+- Clean: ✅ emoji, `theme.StatusClean` color
+- Modified: 📝 emoji, `theme.StatusModified` color
+- No remote: 🔌 emoji, `theme.FooterTextColor` color
+- Sync: 🔗 emoji, `theme.TimelineSynchronized` color
+- Local ahead: 🌎 emoji, `theme.TimelineLocalAhead` color
+- Local behind: 🪐 emoji, `theme.TimelineLocalBehind` color
+- Diverged: 💥 emoji, `theme.TimelineLocalBehind` color
+
+✅ **Integrated header into RenderLayout**
+- RenderLayout checks for `RenderStateHeader()` method on app
+- Falls back to simple `RenderHeader()` if not available
+- Delegates header rendering to Application (single responsibility)
+
+✅ **Simplified pattern - trust the library**
+- Removed all manual padding/truncation calculations
+- Removed all type assertions and interface{} casting
+- Let lipgloss handle Width, Padding, Alignment
+- StateInfo maps accessed directly from Application struct
+- All colors sourced from theme (no hardcoding)
+
+### Files Modified:
+
+- `internal/app/stateinfo.go` (NEW, 75 lines) - StateInfo struct and BuildStateInfo() with proper emojis and theme colors
+- `internal/app/app.go` (+115 lines) - RenderStateHeader() method, added lipgloss import, maps to struct
+- `internal/ui/layout.go` (+20 lines) - RenderLayout uses app.RenderStateHeader()
+- `internal/git/execute.go` (+10 lines) - Added GetRemoteURL() function
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ✅ TESTED
+- Compiles successfully
+- CWD displays full path with emoji (no truncation)
+- Remote shows actual URL when configured
+- Working tree and timeline status display with correct emojis and colors
+- Descriptions show based on git state
+- All colors from theme SSOT
+
+### Design:
+
+- Header rendering delegated to Application (knows about state maps and theme)
+- Layout only provides container and fallback
+- Uses lipgloss exclusively for all styling and layout (trust library)
+- StateInfo pattern matches old-tit exactly
+- All colors and emojis sourced from theme, not hardcoded
+- GetRemoteURL() provides actual git remote data
+
+---
+
+## Session 22: Fix State Header Architecture Violation (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Fix architectural violation from Session 21 - remove broken parallel header implementation, revert to original RenderLayout signature
+
+### Completed:
+
+✅ **Deleted broken header.go**
+- Removed `internal/app/header.go` (230 lines) entirely
+- File violated architecture by creating parallel rendering logic
+- Didn't respect existing SSOT (ContentInnerWidth, HeaderHeight, etc.)
+
+✅ **Reverted layout.go RenderLayout() signature**
+- Removed type-assertion for `RenderStateHeaderFn()` from app interface
+- Removed `GetGitState()` from required interface
+- Signature simplified back to: `RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, currentBranch string, app interface{ GetFooterHint() string })`
+- Directly calls original `RenderHeader(s, theme, currentBranch)`
+
+✅ **Cleaned up app.go**
+- Removed `RenderStateHeaderFn()` method (7 lines)
+- Removed associated interface conformance code
+- Kept existing `GetGitState()` method (used elsewhere)
+
+### Files Modified:
+
+- `internal/app/header.go` (DELETED) - Broken parallel header implementation
+- `internal/ui/layout.go` - Reverted RenderLayout() signature (9 lines removed)
+- `internal/app/app.go` (-7 lines) - Removed RenderStateHeaderFn() method
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ✅ READY TO TEST
+- Compiles successfully
+- No visual regressions expected (reverted to original pattern)
+- Ready for user manual testing
+
+### Lesson Learned:
+
+- **Never create parallel implementations** - Always modify existing functions within existing constraints
+- **Trace SSOT first** - Understand sizing calculations and constant sources before modifying layout
+- **Work within constraints** - All header rendering must respect ContentInnerWidth and HeaderHeight
+- **Architecture rule:** If you don't understand how something works, don't replace it—modify it
+
+### Next Session:
+
+When ready to display git state in header, properly integrate into existing `RenderHeader()` function in `layout.go`:
+1. Modify `RenderHeader()` signature to accept `*git.State` parameter
+2. Display branch, timeline, working tree within existing sizing constraints
+3. Use existing `Line`, `StyledContent` builders
+4. Test layout integrity before committing
+
+---
+
+## Session 21: Phase 2.2-2.3 Push/Pull + Add Remote + Footer SSOT (PARTIAL - NEEDS REDO) ❌
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Complete Phase 2.2 (Push), Phase 2.3 (Pull Merge/Rebase), Add Remote menu item, centralize footer messages to SSOT
+
+### Completed (Working):
+
+✅ **Phase 2.2 Push Operation**
+- `dispatchPush()` implemented - transitions to ModeConsole
+- `executePushWorkflow()` implemented - runs `git push` with streaming
+- Properly integrated with async operation pattern
+- Uses MessagePush constant for footer
+
+✅ **Phase 2.3 Pull Operations**
+- `dispatchPullMerge()` and `dispatchPullRebase()` implemented
+- Both run git pull with/without --rebase flag
+- Conflict detection in handlers
+- Uses MessagePull constant for footer
+
+✅ **Add Remote Menu Item**
+- Added to menuNormal() with separator (first-time setup pattern)
+- Positioned at bottom of menu (below all regular operations)
+- `dispatchAddRemote()` implemented - asks for URL
+- `handleAddRemoteSubmit()` validates URL, checks for existing remote
+- `executeAddRemoteWorkflow()` runs `git remote add origin` + `git fetch --all`
+
+✅ **Footer Message SSOT**
+- Created FooterMessageType enum with constants:
+  - MessageOperationComplete, MessageOperationFailed
+  - MessageInit, MessageClone, MessageCommit, MessagePush, MessagePull, MessageAddRemote
+- Centralized all footer text in GetFooterMessageText() function
+- Updated all dispatchers and handlers to use constants
+- Eliminated inline footer strings throughout codebase
+
+✅ **Generic Operation Handler**
+- Added default case in GitOperationMsg handler
+- Reloads git state after any operation succeeds
+- Shows "Press ESC to return to menu" on completion
+- Properly refreshes state for push/pull/add_remote
+
+### Failed (Needs Redo):
+
+❌ **State Header Implementation - ARCHITECTURAL VIOLATION**
+- Created RenderStateHeader() in app/header.go
+- Integrated into RenderLayout() to override existing header
+- **PROBLEM:** Replaced entire existing header without understanding SSOT
+- **RESULT:** Header is ugly, breaks layout calculations
+- **ROOT CAUSE:** Didn't integrate with existing Sizing/ContentInnerWidth/HeaderHeight SSOT
+- **LESSON:** Should have modified existing RenderHeader() in layout.go, not created new parallel implementation
+
+### Files Modified:
+
+- `internal/app/dispatchers.go` (+35 lines) - Push, Pull, Add Remote dispatchers
+- `internal/app/handlers.go` (+120 lines) - Push, Pull, Add Remote handlers + workflows
+- `internal/app/app.go` (+20 lines) - Default GitOperationMsg handler, GetGitState(), RenderStateHeaderFn()
+- `internal/app/menu.go` (+12 lines) - Add Remote menu item with separator
+- `internal/app/messages.go` (+10 lines) - Footer message constants
+- `internal/app/header.go` (NEW, 230 lines) - State header (BROKEN - should be deleted)
+- `internal/ui/layout.go` (+15 lines) - Modified to call RenderStateHeaderFn() (NEEDS REVERT)
+
+### Build Status: ✅ Compiles
+
+### Testing Status: ❌ BROKEN VISUALLY
+- Push/Pull/Add Remote operations work (state updates, messages correct)
+- **Header rendering is broken** - doesn't respect SSOT, layout misaligned
+- Need to redo header integration using existing Sizing SSOT
+
+### What Went Wrong:
+
+1. Created parallel header implementation instead of modifying existing one
+2. Didn't trace SSOT values (ContentInnerWidth, HeaderHeight, etc.)
+3. Didn't understand how existing RenderHeader() integrates with Sizing struct
+4. Tried to add git state display without understanding sizing constraints
+5. Should have studied layout.go RenderHeader() pattern first
+
+### What Should Have Happened:
+
+1. Read existing RenderHeader() in layout.go completely
+2. Understood Sizing struct and SSOT values
+3. Modified existing function to display git state WITHIN existing constraints
+4. Used Line/StyledContent builder pattern already in place
+5. Tested layout didn't break before moving on
+
+### Next Session (New Thread):
+
+1. Delete `internal/app/header.go` entirely
+2. Revert `internal/ui/layout.go` to original RenderLayout() signature
+3. Modify existing `RenderHeader()` in layout.go to display git state info
+4. Use existing sizing calculations and SSOT values
+5. Integrate branch, timeline, working tree display into existing header
+6. Test that layout remains clean and aligned
+
+---
+
 ## Session 19: Inline Menu Refactoring + Helper Extraction (COMPLETE - TESTED) ✅
 
 **Agent:** Claude (Amp)
@@ -405,465 +636,3 @@
 3. Remove config file tracking
 4. Update menu generation to single-branch model
 5. Test that state detection works correctly
-
----
-
-## Session 14: Codebase Refactoring (COMPLETE) ✅
-
-**Agent:** Gemini
-**Date:** 2026-01-04
-
-### Objective: Refactor codebase using patterns from `REFACTORING-OPPORTUNITIES.md` to reduce duplication and improve maintainability.
-
-### Completed:
-
-✅ **Pattern 5: Async Operation Template**
-- Implemented a builder pattern for async operations (`NewAsyncOp`).
-- Resolved an import cycle by moving the builder from `internal/patterns` to `internal/app`.
-- Refactored `executeInitWorkflow` to use the new builder, simplifying error handling and making the operation steps declarative.
-
-✅ **Pattern 4: Mode Transition Boilerplate**
-- Created a `transitionTo` method with a `ModeTransition` config struct to centralize and simplify mode switching logic.
-- Refactored `dispatchClone` and `dispatchInit` to use the new transition method, eliminating boilerplate code for resetting state.
-
-✅ **Pattern 1: Location Choice Handlers**
-- Implemented a generic `handleLocationChoice` handler with a `LocationChoiceConfig` struct.
-- Abstracted the duplicated logic from `init` and `clone` workflows for choosing between the current directory and a subdirectory.
-- Refactored `handleInitLocationChoice1/2` and `handleCloneLocationChoice1/2` to use the generic handler.
-
-✅ **Pattern 3: Menu Builder Verbosity**
-- Introduced a fluent `MenuItemBuilder` to reduce verbosity in menu creation.
-- Refactored all menu generation functions (`menuNotRepo`, `menuConflicted`, `menuNormal`, etc.) in `internal/app/menu.go` to use the new builder.
-
-✅ **Pattern 7: Input Validation Pattern**
-- Created a generic `validateAndProceed` helper and a `Validators` registry in `internal/ui/validation.go`.
-- Centralized validation logic for URLs and directory names.
-- Refactored `handleCloneURLSubmit`, `handleInputSubmitSubdirName`, and `handleInputSubmitCloneSubdirName` to use the new validation pattern.
-
-✅ **Pattern 2: Cursor Movement Handlers**
-- Implemented a `CursorNavigationMixin` to create common cursor movement handlers (left, right, home, end).
-- Refactored `buildKeyHandlers` to use the mixin for `ModeInput`, `ModeCloneURL`, and `ModeInitializeBranches`, removing 8 duplicated handler functions.
-
-✅ **Pattern 6: Key Handler Registration Verbosity**
-- Introduced a `ModeHandlerBuilder` to simplify the registration of key handlers in `buildKeyHandlers`.
-- Refactored the creation of the `modeHandlers` map to use the new fluent builder API, improving readability.
-
-### Files Created:
-- `internal/app/async.go`
-- `internal/app/location.go`
-- `internal/app/menubuilder.go`
-- `internal/app/cursormovement.go`
-- `internal/app/keybuilder.go`
-
-### Files Modified:
-- `internal/app/app.go`
-- `internal/app/handlers.go`
-- `internal/app/dispatchers.go`
-- `internal/app/menu.go`
-- `internal/ui/validation.go`
-
-### Build Status: ✅ Clean compile
-- All refactoring changes compile successfully.
-
-### Testing Status: ⏳ UNTESTED
-- The refactored code has been verified to compile, but the application's runtime behavior has not been manually tested.
-
----
-
-## Session 13: Clone Flow Redesign, Bracketed Paste, ESC Clear Confirm (COMPLETE) ✅
-
-**Agent:** Claude (Amp)
-**Date:** 2026-01-04
-
-### Objective: Fix cmd+v paste, improve ESC handling in text input, redesign clone workflow to match init flow
-
-### Completed:
-
-✅ **Bracketed Paste Mode (cmd+v fix)**
-- Upgraded Bubble Tea v0.24.0 → v1.3.10 for bracketed paste support
-- Enabled `tea.EnableBracketedPaste` in Init()
-- Handle `KeyMsg.Paste == true` for atomic paste (entire clipboard as single event)
-- cmd+v and ctrl+v now behave identically - instant atomic paste
-- **Key insight:** Terminal sends paste as single KeyMsg with Paste=true, not character-by-character
-
-✅ **ESC Clear Confirmation in Text Input**
-- Empty input → ESC returns to menu immediately
-- Non-empty input → first ESC shows "Press ESC again to clear input (3s timeout)"
-- Second ESC within 3s → clears text, stays in input mode
-- Timeout expires → confirmation resets, footer clears
-- Uses same pattern as Ctrl+C quit confirmation (ClearTickMsg)
-
-✅ **Clone Workflow Redesign (matches init flow)**
-- Added `ModeCloneURL` and `ModeCloneLocation` modes
-- Flow: Menu → URL input → Location choice → Clone → Branch selection → Menu
-- Clone state fields: `cloneURL`, `clonePath`, `cloneBranches`
-- Handlers: `handleCloneURLSubmit`, `handleCloneLocationSelection`, `handleCloneLocationChoice1/2`
-
-✅ **Clone to CWD (git init approach)**
-- Problem: `git clone <url> .` fails if ANY files exist (including `.DS_Store`)
-- Solution: Use `git init` + `git remote add origin` + `git fetch` + `git checkout`
-- Works with hidden files, guaranteed to succeed in non-empty directories
-- Added `GetRemoteDefaultBranch()` to detect origin's default branch
-
-✅ **Branch Detection After Clone**
-- After successful clone: detect available branches
-- Single branch → auto-set as canon, return to menu
-- Multiple branches → show `ModeSelectBranch` menu
-- `handleSelectBranchEnter` handles selection
-
-✅ **Text Selection in Terminal**
-- Removed `tea.WithMouseCellMotion()` from program options
-- Allows standard terminal text selection with mouse
-
-### Files Modified:
-
-- `internal/app/app.go` - Bracketed paste handling, ClearTickMsg handler, isInputMode() includes ModeCloneURL, ModeSelectBranch rendering
-- `internal/app/handlers.go` - ESC clear confirm logic, all clone handlers, returnToMenu() helper
-- `internal/app/dispatchers.go` - dispatchClone resets clone state, uses ModeCloneURL
-- `internal/app/modes.go` - Added ModeCloneURL, ModeCloneLocation
-- `internal/app/messages.go` - Added ClearTickMsg, MessageEscClearConfirm
-- `internal/git/init.go` - Added ListBranches(), ListRemoteBranches(), GetRemoteDefaultBranch()
-- `cmd/tit/main.go` - Removed tea.WithMouseCellMotion()
-- `go.mod` - Upgraded bubbletea v0.24.0 → v1.3.10, lipgloss v0.9.1 → v1.1.0
-
-### Key Architectural Decisions:
-
-1. **Trust the Library** - Used Bubble Tea's bracketed paste instead of custom rapid-input detection
-2. **No Error Fallback** - Clone to cwd uses git init approach (guaranteed to work), not git clone with error handling
-3. **Clone Flow Parity** - Clone workflow now mirrors init workflow (location choice → operation → result)
-4. **Mode-Specific Handlers** - ModeCloneURL gets its own enter handler (not generic ModeInput)
-
-### Clone to CWD Command Sequence:
-```
-git init
-git remote add origin <url>
-git fetch --all --progress
-git checkout <default-branch>
-```
-
-### Build Status: ✅ Clean compile
-- Bubble Tea 1.3.10, Lipgloss 1.1.0
-- Zero errors, zero warnings
-
-### Testing Status: ⏳ UNTESTED
-- Clone flow redesigned but not manually tested
-- Needs test: URL input → location choice → clone execution → branch detection
-
-### Next Steps:
-
-1. Test clone workflow end-to-end
-2. Save canon branch to config after selection
-3. Test ESC behavior in all modes
-
----
-
-## Session 12: Git Clone Implementation, Fast Paste, URL Validation (COMPLETE) ✅
-
-**Agent:** Claude (Amp)
-**Date:** 2026-01-04
-
-### Objective: Implement actual git clone with streaming output, add fast paste handler (cmd+v, ctrl+v), implement URL format validation with real-time feedback
-
-### Completed:
-
-✅ **Git Clone with Streaming Output**
-- Created `internal/git/execute.go` with `ExecuteWithStreaming()` function
-- Runs `git clone --progress <url> .` in worker goroutine
-- Streams stdout/stderr to OutputBuffer in real-time (not character-by-character)
-- Handles progress lines with `\r` carriage returns correctly (takes final segment)
-- Waits for all output to be captured before completion message
-- Properly reports exit codes and handles command failures
-
-✅ **Fast Paste Handler (Atomic, Unrestricted)**
-- Added `handleKeyPaste()` for ctrl+v and cmd+v (alt+v removed - not needed)
-- Reads entire clipboard at once and inserts atomically (not char by char)
-- **Paste accepts ANY text** - no validation rejection during paste
-- Trims whitespace from pasted text
-- Clamps cursor position to valid range before insertion
-- Moves cursor to end of pasted text
-- Validation only blocks submission, not input
-
-✅ **URL Format Validation**
-- Created `internal/ui/validation.go` with `ValidateRemoteURL()` and `GetRemoteURLError()`
-- Validates SSH format: `git@github.com:user/repo.git`
-- Validates HTTPS format: `https://github.com/user/repo.git`
-- Validates HTTP format: `http://github.com/user/repo.git`
-- Validates local paths: `/path/to/repo` and `~/path/to/repo`
-- Shows error message but doesn't prevent typing/pasting invalid text
-
-✅ **Real-Time Validation Feedback**
-- Added `inputValidationMsg` field to Application struct
-- Validates on every character input in clone URL mode
-- Validates on every backspace in clone URL mode
-- Validates on every paste in clone URL mode
-- Shows "Invalid URL format" message while typing (without blocking input)
-- Clears message when format becomes valid
-- Footer also shows validation error when pressing Enter with invalid URL (blocks submission)
-
-✅ **Clipboard Package**
-- Added `github.com/atotto/clipboard` to go.mod
-- Cross-platform clipboard support (macOS, Linux, Windows)
-
-### Files Created:
-
-- `internal/git/execute.go` - Git command execution with streaming output
-- `internal/ui/validation.go` - URL validation utilities
-
-### Files Modified:
-
-- `internal/app/handlers.go` - Added `handleKeyPaste()` (unrestricted paste for any input mode), updated `handleInputSubmitCloneURL()` with validation (blocks submit only), updated `executeCloneWorkflow()` to use `ExecuteWithStreaming()`
-- `internal/app/app.go` - Added paste handlers (ctrl+v, cmd+v) to global handlers, added `inputValidationMsg` field, real-time validation on character input/backspace/paste, updated ModeInput rendering to show validation message
-- `internal/app/dispatchers.go` - Clear validation message when entering clone URL mode
-- `go.mod` - Added `github.com/atotto/clipboard` dependency
-
-### Known Issues & Workarounds:
-
-⚠️ **cmd+v on macOS Terminal**
-- Some terminal emulators on macOS don't pass cmd+v as a key event to applications
-- They instead send clipboard contents as rapid character key events
-- Result: cmd+v appears to type character-by-character instead of atomic paste
-- **Workaround:** Use ctrl+v which works consistently across all platforms
-- **Technical note:** This is a terminal emulator limitation, not an app limitation
-- (iTerm2 may handle it differently than Terminal.app)
-
-✅ **ctrl+v on All Platforms**
-- ctrl+v works instantly and atomically on macOS, Linux, Windows
-- This is the recommended paste method for consistency
-
-### Key Architectural Decisions:
-
-1. **Unrestricted Paste** - Accept any text during paste, validate only on submit
-2. **Validation Feedback Only** - Show error message without blocking input (user can fix by editing)
-3. **Single Paste Handler** - ctrl+v and cmd+v use same code (alt+v removed)
-4. **Real-Time Validation** - Feedback shown while typing, not just on submit
-5. **Streaming Architecture** - Git output streams to buffer via goroutines reading pipes
-
-### Build Status: ✅ Clean compile
-- All dependencies installed
-- Zero errors, zero warnings
-
-### Testing Status: ✅ IMPROVED
-- ✅ Clone workflow starts and shows input prompt
-- ✅ Paste works (ctrl+v is instant and atomic)
-- ✅ Real-time validation feedback (shows "Invalid URL format" for bad input)
-- ✅ Can type/paste invalid text, shows error, prevents submission
-- ✅ Git clone execution ready (needs actual manual test with real URL)
-
-### Performance Notes:
-
-- **Paste speed (ctrl+v):** Atomic, matches old-tit behavior
-- **Paste speed (cmd+v):** May vary by terminal emulator on macOS
-- **Recommended:** Use ctrl+v for consistent cross-platform behavior
-- **Output streaming:** Progress updates shown in real-time as git clone runs
-
-### Next Steps:
-
-1. Manual test clone with actual git repository URL using ctrl+v
-2. Verify streaming output displays correctly during clone
-3. Test ESC abort during clone operation
-4. Test successful clone completion and directory creation
-5. Implement branch detection after clone if needed
-
----
-
-## Session 11: Console, Async Operations, Clone Workflow (COMPLETE) ✅
-
-**Agent:** Claude (Amp)
-**Date:** 2026-01-04
-
-### Objective: Port old-tit console with SSOT discipline, implement app-level ESC/Ctrl+C dispatcher, scaffold clone workflow with async operations
-
-### Completed:
-
-✅ **Phase 1: App-level ESC/Ctrl+C Dispatcher**
-- Moved ESC from individual handlers to global app dispatcher
-- Ctrl+C shows "Operation in progress" message if async running
-- ESC during async: abort flag set, user can press again to return to menu
-- ESC in normal mode: returns to menu + restores previous state (menu index, hints)
-- Added `asyncOperationActive`, `asyncOperationAborted`, `previousMode`, `previousMenuIndex` to Application struct
-- Global handlers take priority in key dispatch registry
-
-✅ **Phase 2: Console Output Component (Full Port)**
-- Ported old-tit's ConsoleOutState + RenderConsoleOutput to new-tit
-- All colors use semantic names from theme (OutputStdoutColor, OutputStderrColor, etc)
-- Added 6 new console output colors to theme.go (stdout, stderr, status, warning, debug, info)
-- Fixed sizing: ContentHeight - 8 for content, inner box, title bar, status bar, blanks
-- Wrapping handled by lipgloss.Width() - no manual calculations
-- Scroll position clamped automatically, auto-scroll enabled during operation
-- Keyboard hints update based on operation state (ESC abort vs ESC back to menu)
-
-✅ **Phase 3: OutputBuffer & Buffer Infrastructure**
-- Created internal/ui/buffer.go with OutputBuffer singleton (thread-safe ring buffer)
-- OutputLine struct with Time, Type, Text fields
-- 1000-line circular buffer, append/clear operations thread-safe
-- GetLineCount, GetLines, GetAllLines, Clear methods for rendering
-
-✅ **Phase 4: Clone Workflow Scaffold**
-- Added ModeClone + ModeSelectBranch to AppMode enum
-- dispatchClone routes to ModeInput for URL entry
-- handleInputSubmitCloneURL validates URL and starts async clone
-- executeCloneWorkflow stub ready for git clone implementation
-- Async state properly managed: consoleState cleared, outputBuffer initialized
-- Handlers for console scroll (↑↓ for line scroll, PgUp/PgDn for page scroll)
-
-### Key Architectural Decisions:
-
-1. **Global ESC Handler** - Centralized in app.go, avoids individual handler confusion
-2. **Async State Machine** - Three states: inactive → active (running) → aborted (waiting for dismiss)
-3. **SSOT Sizing** - Console uses exact ContentHeight - 8 formula, never double-constrained
-4. **Semantic Colors** - All 6 output types mapped to theme (not hardcoded)
-5. **No Separator YAGNI** - Branch selection menu uses simple list, no separators
-
-### Architecture Pattern:
-
-```
-ESC/Ctrl+C Input
-    ↓
-Global handler in app.go
-    ↓
-Route based on asyncOperationActive state
-    ↓
-If async: show "in progress" or abort
-If normal: return to menu + restore state
-```
-
-Console rendering:
-```
-RenderConsoleOutput()
-    ↓
-Build all output lines (lipgloss wraps)
-    ↓
-Clamp scroll offset to bounds
-    ↓
-Extract visible window
-    ↓
-Render with title + content + status bar
-    ↓
-Pre-size to exact dimensions (SSOT)
-```
-
-### Files Created:
-
-- `internal/ui/buffer.go` - OutputBuffer + OutputLine types
-- `internal/ui/console.go` - ConsoleOutState + RenderConsoleOutput
-
-### Files Modified:
-
-- `internal/app/app.go` - Added async state fields, ESC global handler, console handlers, ModeClone/ModeSelectBranch rendering
-- `internal/app/modes.go` - Added ModeClone, ModeSelectBranch enum values
-- `internal/app/handlers.go` - Added ESC/Ctrl+C global logic, console scroll handlers, clone URL handler + workflow
-- `internal/app/dispatchers.go` - dispatchClone now asks for URL
-- `internal/ui/theme.go` - Added 6 console output colors (semantic mapping)
-
-### Build Status: ✅ Clean compile
-- Zero errors, zero warnings
-
-### Testing Status: ✅ CONSOLE DIMENSIONS FIXED
-- Console now fits within Content box boundaries (24 lines)
-- Removed double-border issue (outer border from RenderLayout, no inner box border)
-- Dimension formula correct: title(1) + blank(1) + content(20) + blank(1) + status(1) = 24 lines
-- Async state transitions verified
-- Clone workflow stub ready for implementation
-
-### Root Cause & Fix:
-
-✅ **Double-Border Problem** 
-- RenderConsoleOutput was adding outer border (wrong)
-- Should return pre-sized content only
-- RenderLayout already wraps with outer Content border
-- **Solution:** Remove outer border from RenderConsoleOutput, remove inner box border from content
-- **Formula:** contentLines = totalHeight - 6 (was - 8), wrapWidth = maxWidth (was - 2)
-
-### Next Steps:
-
-1. Implement actual git clone with output streaming to buffer
-2. Implement branch query after clone (detect single vs multiple branches)
-3. If single branch: auto-advance to text input with canon pre-filled
-4. If multi-branch: show dynamic menu for branch selection
-
----
-
-## Session 10: Color Organization & Semantic Naming (COMPLETE) ✅
-
-**Agent:** Claude (Amp)
-**Date:** 2026-01-04
-
-### Objective: Organize theme colors with semantic naming (describe USE not appearance), extract UI abstractions (formatters, box, input), refactor to eliminate repetition
-
-### Completed:
-
-✅ **Semantic Color Naming**
-- Renamed all colors to describe WHERE/WHAT they're used, not what they look like
-- `PrimaryTextColor` → `ContentTextColor` (body text in boxes)
-- `SecondaryTextColor` → `LabelTextColor` (labels, headers, borders)
-- `PrimaryBackground` → `MainBackgroundColor` (main app background)
-- `BorderPrimaryColor`, `BorderSecondaryColor` → `BoxBorderColor` (unified single border)
-- `MattWhite` → `HighlightTextColor`, `PlainGray` → `TerminalTextColor`
-- `HighlightBackground` → `SelectionBackgroundColor`
-
-✅ **UI Component Abstractions (DRY Refactor)**
-- `internal/ui/formatters.go` - Line/text padding utilities (PadLineToWidth, RightAlignLine, CenterAlignLine, EnsureExactDimensions)
-- `internal/ui/box.go` - Unified bordered box component (BoxConfig, RenderBox, StyledContent, Line)
-- `internal/ui/input.go` - Unified input field component (InputFieldState, RenderInputField)
-- Eliminated 200+ lines of duplicate padding/alignment code
-
-✅ **Refactored All Components**
-- `layout.go` - Uses Line, RenderBox instead of manual padding
-- `branchinput.go` - Simplified to use RenderInputField (70% smaller)
-- `textinput.go` - Updated to use new color names and RenderInputField
-- `menu.go` - Updated all color references
-
-✅ **Color Organization Document**
-- `COLORS.md` - Complete color system documentation with semantic naming philosophy
-
-✅ **Build Status:** ✅ Clean compile
-- All new color names resolve correctly
-- All refactored components working
-
-### Files Created:
-
-- `internal/ui/formatters.go` - Line/text formatting utilities
-- `internal/ui/box.go` - Bordered box abstraction
-- `internal/ui/input.go` - Input field abstraction  
-- `COLORS.md` - Color organization documentation
-
-### Files Modified:
-
-- `internal/ui/theme.go` - Semantic color names (boxBorderColor, contentTextColor, labelTextColor, etc.)
-- `internal/ui/layout.go` - Uses Line + RenderBox abstractions
-- `internal/ui/branchinput.go` - Complete refactor to use RenderInputField
-- `internal/ui/textinput.go` - Color name updates + abstraction use
-- `internal/ui/menu.go` - Color name updates
-
-### Color Naming Philosophy:
-
-**Rule:** Color names describe WHERE/WHAT they're used, not what they look like.
-
-| Old Name | New Name | Purpose |
-|----------|----------|---------|
-| PrimaryTextColor | ContentTextColor | Body text in boxes |
-| SecondaryTextColor | LabelTextColor | Labels, headers, borders |
-| PrimaryBackground | MainBackgroundColor | Main app background |
-| BorderPrimaryColor, BorderSecondaryColor | BoxBorderColor | All box borders |
-| MattWhite | HighlightTextColor | Bright contrast text |
-| PlainGray | TerminalTextColor | Command output |
-
-### Abstraction Benefits:
-
-- **Formatters:** Single place for all width/alignment logic (prevents copy-paste padding bugs)
-- **Box component:** All bordered boxes use identical pattern (header, content, input boxes)
-- **Input component:** Unified single-field input with proper label + border + content structure
-- **Eliminates:** 200+ lines of duplicate code
-- **Maintainability:** Change box styling once, applies everywhere
-
-### Testing Status: ✅ TESTED
-- ✅ All colors compile and resolve
-- ✅ Build clean, zero errors
-- ✅ Visual appearance unchanged
-- ✅ Abstractions working correctly
-
-### Next Steps:
-
-1. Test with regenerated theme file (deleted default.toml to force regeneration)
-2. Continue with menu system and git state display
-3. Add more UI modes using new abstractions

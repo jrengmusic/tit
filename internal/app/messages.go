@@ -44,21 +44,27 @@ const (
 	MessageCommit
 	MessagePush
 	MessagePull
+	MessageAddRemote
 	MessageResolveConflicts
+	MessageOperationComplete
+	MessageOperationFailed
 )
 
 // GetFooterMessageText returns display text for a message type
 func GetFooterMessageText(msgType FooterMessageType) string {
 	messages := map[FooterMessageType]string{
-		MessageNone:              "",
-		MessageCtrlCConfirm:      "Press Ctrl+C again to quit (3s timeout)",
-		MessageEscClearConfirm:   "Press ESC again to clear input (3s timeout)",
-		MessageInit:              "Initializing repository...",
-		MessageClone:             "Cloning repository...",
-		MessageCommit:            "Creating commit...",
-		MessagePush:              "Pushing to remote...",
-		MessagePull:              "Pulling from remote...",
-		MessageResolveConflicts:  "Resolving conflicts...",
+		MessageNone:             "",
+		MessageCtrlCConfirm:     "Press Ctrl+C again to quit (3s timeout)",
+		MessageEscClearConfirm:  "Press ESC again to clear input (3s timeout)",
+		MessageInit:             "Initializing repository... (ESC to abort)",
+		MessageClone:            "Cloning repository... (ESC to abort)",
+		MessageCommit:           "Committing changes... (ESC to abort)",
+		MessagePush:             "Pushing to remote... (ESC to abort)",
+		MessagePull:             "Pulling from remote... (ESC to abort)",
+		MessageAddRemote:        "Adding remote and fetching... (ESC to abort)",
+		MessageResolveConflicts: "Resolving conflicts...",
+		MessageOperationComplete: "Press ESC to return to menu",
+		MessageOperationFailed:   "Failed. Press ESC to return.",
 	}
 
 	if msg, exists := messages[msgType]; exists {

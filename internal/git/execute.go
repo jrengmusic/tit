@@ -161,3 +161,13 @@ func ExtractRepoName(gitURL string) string {
 	
 	return name
 }
+
+// GetRemoteURL returns the URL for the 'origin' remote
+// Returns empty string if no remote configured
+func GetRemoteURL() string {
+	result := Execute("remote", "get-url", "origin")
+	if result.Success {
+		return strings.TrimSpace(result.Stdout)
+	}
+	return ""
+}

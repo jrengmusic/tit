@@ -149,6 +149,21 @@ func (a *Application) menuNormal() []MenuItem {
 	// History section
 	items = append(items, a.menuHistory()...)
 
+	// First-time setup (always at bottom)
+	if a.gitState.Remote == git.NoRemote {
+		items = append(items,
+			Item("").
+				Separator().
+				Build(),
+			Item("add_remote").
+				Shortcut("a").
+				Emoji("🔗").
+				Label("Add remote").
+				Hint("Configure a remote repository URL").
+				Build(),
+		)
+	}
+
 	return items
 }
 

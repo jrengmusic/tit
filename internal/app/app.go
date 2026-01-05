@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -52,6 +53,9 @@ type Application struct {
 	consoleState         ui.ConsoleOutState
 	outputBuffer         *ui.OutputBuffer
 	
+	// State display info maps
+	workingTreeInfo      map[git.WorkingTree]StateInfo
+	timelineInfo         map[git.Timeline]StateInfo
 }
 
 // ModeTransition configuration for streamlined mode changes
@@ -118,6 +122,9 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		}
 	}
 
+	// Build state info maps
+	workingTreeInfo, timelineInfo := BuildStateInfo(theme)
+
 	app := &Application{
 		sizing:               sizing,
 		theme:                theme,
@@ -128,6 +135,8 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		asyncOperationAborted: false,
 		consoleState:         ui.NewConsoleOutState(),
 		outputBuffer:         ui.GetBuffer(),
+		workingTreeInfo:      workingTreeInfo,
+		timelineInfo:         timelineInfo,
 	}
 
 	// Build and cache key handler registry once
@@ -288,6 +297,21 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.asyncOperationAborted = false
 				a.footerHint = fmt.Sprintf("Clone failed: %s. Press ESC to return.", msg.Error)
 			}
+		default:
+			// Generic handler for push, pull, add_remote, commit, etc.
+			a.asyncOperationActive = false
+			if msg.Success {
+				// Reload git state after successful operation
+				if state, err := git.DetectState(); err == nil {
+					a.gitState = state
+				}
+				a.footerHint = GetFooterMessageText(MessageOperationComplete)
+			} else {
+				a.footerHint = GetFooterMessageText(MessageOperationFailed)
+				if msg.Error != "" {
+					a.footerHint = fmt.Sprintf("%s (%s)", a.footerHint, msg.Error)
+				}
+			}
 		}
 	}
 
@@ -405,7 +429,10 @@ func (a *Application) View() string {
 		currentBranch = a.gitState.CurrentBranch
 	}
 
-	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, currentBranch, a)
+	// Get current working directory
+	cwd, _ := os.Getwd()
+
+	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, currentBranch, cwd, a.gitState, a)
 }
 
 // Init initializes the application
@@ -416,6 +443,97 @@ func (a *Application) Init() tea.Cmd {
 // GetFooterHint returns the footer hint text
 func (a *Application) GetFooterHint() string {
 	return a.footerHint
+}
+
+// GetGitState returns the current git state
+func (a *Application) GetGitState() interface{} {
+	return a.gitState
+}
+
+// RenderStateHeader renders the full git state header (6 rows) using lipgloss
+func (a *Application) RenderStateHeader() string {
+	cwd, _ := os.Getwd()
+	state := a.gitState
+	if state == nil {
+		return ""
+	}
+
+	// Row 1: CWD with emoji, no truncation, full width
+	cwdRow := lipgloss.NewStyle().
+		Width(ui.ContentInnerWidth).
+		Padding(0, 0).
+		Bold(true).
+		Foreground(lipgloss.Color(a.theme.LabelTextColor)).
+		Render("📁 " + cwd)
+
+	// Row 2: Remote URL
+	remoteLabel := "🔌 NO REMOTE"
+	remoteColor := a.theme.DimmedTextColor
+	if state.Remote == git.HasRemote {
+		url := git.GetRemoteURL()
+		if url != "" {
+			remoteLabel = "🔗 " + url
+			remoteColor = a.theme.AccentTextColor
+		}
+	}
+	remoteRow := lipgloss.NewStyle().
+		Width(ui.ContentInnerWidth).
+		Padding(0, 0).
+		Foreground(lipgloss.Color(remoteColor)).
+		Render("╚ " + remoteLabel)
+
+	// Row 3: Blank spacer
+	spacerRow := ""
+
+	// Row 4: Working tree and timeline status
+	wtInfo := a.workingTreeInfo[state.WorkingTree]
+	tlInfo := a.timelineInfo[state.Timeline]
+
+	wtLabel := wtInfo.Emoji + " " + wtInfo.Label
+	tlLabel := tlInfo.Emoji + " " + tlInfo.Label
+
+	statusRow := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		lipgloss.NewStyle().
+			Width(ui.ContentInnerWidth/2).
+			Bold(true).
+			Foreground(lipgloss.Color(wtInfo.Color)).
+			Render(wtLabel),
+		lipgloss.NewStyle().
+			Width(ui.ContentInnerWidth/2).
+			Bold(true).
+			Foreground(lipgloss.Color(tlInfo.Color)).
+			Render(tlLabel),
+	)
+
+	// Row 5: Descriptions
+	wtDesc := wtInfo.Description(state.CommitsAhead, state.CommitsBehind)
+	tlDesc := tlInfo.Description(state.CommitsAhead, state.CommitsBehind)
+
+	descRow := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		lipgloss.NewStyle().
+			Width(ui.ContentInnerWidth/2).
+			Render(wtDesc),
+		lipgloss.NewStyle().
+			Width(ui.ContentInnerWidth/2).
+			Render(tlDesc),
+	)
+
+	// Row 6: Blank
+	blankRow := ""
+
+	// Combine all rows
+	headerContent := cwdRow + "\n" + remoteRow + "\n" + spacerRow + "\n" + statusRow + "\n" + descRow + "\n" + blankRow
+
+	return ui.RenderBox(ui.BoxConfig{
+		Content:     headerContent,
+		InnerWidth:  ui.ContentInnerWidth,
+		InnerHeight: ui.HeaderHeight,
+		BorderColor: a.theme.BoxBorderColor,
+		TextColor:   a.theme.LabelTextColor,
+		Theme:       a.theme,
+	})
 }
 
 // isInputMode checks if current mode accepts text input
@@ -608,6 +726,8 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 		return app.handleInputSubmitInitBranchName(app)
 	case "clone_subdir_name":
 		return app.handleInputSubmitCloneSubdirName(app)
+	case "add_remote_url":
+		return app.handleAddRemoteSubmit(app)
 	case "commit_message":
 		return app.handleCommitSubmit(app)
 	default:

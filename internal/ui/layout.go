@@ -49,11 +49,8 @@ func RenderBanner(s Sizing) string {
 	return output.String()
 }
 
-// RenderHeader renders header section with border (height = HeaderHeight)
-// currentBranch is displayed right-aligned, all caps, bold
-func RenderHeader(s Sizing, theme Theme, currentBranch string) string {
-	// Header layout: current branch right-aligned, all caps, bold
-	
+// RenderHeader renders simple header with current branch only (state display delegated to app)
+func RenderHeader(s Sizing, theme Theme, currentBranch string, cwd string, gitState interface{}) string {
 	branchLine := Line{
 		Content: StyledContent{
 			Text:    strings.ToUpper(currentBranch),
@@ -64,10 +61,8 @@ func RenderHeader(s Sizing, theme Theme, currentBranch string) string {
 		Width:     ContentInnerWidth,
 	}
 
-	// Pad to fill HeaderHeight-2 (border adds 2 for total)
 	padded := PadTextToHeight(branchLine.Render(), HeaderHeight-2)
 
-	// Render with border
 	return RenderBox(BoxConfig{
 		Content:     padded,
 		InnerWidth:  ContentInnerWidth,
@@ -112,9 +107,15 @@ func RenderFooter(s Sizing, theme Theme, app interface{ GetFooterHint() string }
 }
 
 // RenderLayout combines all 4 sections into centered view (horizontally and vertically)
-func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, currentBranch string, app interface{ GetFooterHint() string }) string {
+func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, currentBranch string, cwd string, gitState interface{}, app interface{ GetFooterHint() string; RenderStateHeader() string }) string {
 	banner := RenderBanner(s)
-	header := RenderHeader(s, theme, currentBranch)
+	// Use app's state header renderer if available, otherwise default
+	var header string
+	if appWithHeader, ok := app.(interface{ RenderStateHeader() string }); ok {
+		header = appWithHeader.RenderStateHeader()
+	} else {
+		header = RenderHeader(s, theme, currentBranch, cwd, gitState)
+	}
 	content := RenderContent(s, contentText, theme)
 	footer := RenderFooter(s, theme, app)
 

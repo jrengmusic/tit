@@ -2,6 +2,7 @@ package app
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/ui"
 )
 
 // ActionHandler is a function type for action dispatchers
@@ -12,6 +13,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 	actionDispatchers := map[string]ActionHandler{
 		"init":               a.dispatchInit,
 		"clone":              a.dispatchClone,
+		"add_remote":         a.dispatchAddRemote,
 		"commit":             a.dispatchCommit,
 		"push":               a.dispatchPush,
 		"pull_merge":         a.dispatchPullMerge,
@@ -49,13 +51,25 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 	return nil
 }
 
+// dispatchAddRemote starts the add remote workflow by asking for URL
+func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInput,
+		InputPrompt: "Remote URL:",
+		InputAction: "add_remote_url",
+		FooterHint:  "Enter git repository URL and press Enter",
+		ResetFields: []string{},
+	})
+	return nil
+}
+
 // dispatchCommit starts the commit workflow by asking for message
 func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
 		InputPrompt: "Commit message:",
 		InputAction: "commit_message",
-		FooterHint:  "Enter commit message, press Enter to commit",
+		FooterHint:  "Enter message and press Enter",
 		ResetFields: []string{},
 	})
 	return nil
@@ -63,20 +77,50 @@ func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 
 // dispatchPush pushes to remote
 func (a *Application) dispatchPush(app *Application) tea.Cmd {
-	// TODO: Implement
-	return nil
+	// Set up async state for console display
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeMenu
+	app.previousMenuIndex = 0
+	app.mode = ModeConsole
+	app.consoleState = ui.NewConsoleOutState()
+	app.outputBuffer.Clear()
+	app.footerHint = GetFooterMessageText(MessagePush)
+
+	// Execute push asynchronously
+	return app.executePushWorkflow()
 }
 
 // dispatchPullMerge pulls with merge strategy
 func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
-	// TODO: Implement
-	return nil
+	// Set up async state for console display
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeMenu
+	app.previousMenuIndex = 0
+	app.mode = ModeConsole
+	app.consoleState = ui.NewConsoleOutState()
+	app.outputBuffer.Clear()
+	app.footerHint = GetFooterMessageText(MessagePull)
+
+	// Execute pull with merge asynchronously
+	return app.executePullMergeWorkflow()
 }
 
 // dispatchPullRebase pulls with rebase strategy
 func (a *Application) dispatchPullRebase(app *Application) tea.Cmd {
-	// TODO: Implement
-	return nil
+	// Set up async state for console display
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeMenu
+	app.previousMenuIndex = 0
+	app.mode = ModeConsole
+	app.consoleState = ui.NewConsoleOutState()
+	app.outputBuffer.Clear()
+	app.footerHint = GetFooterMessageText(MessagePull)
+
+	// Execute pull with rebase asynchronously
+	return app.executePullRebaseWorkflow()
 }
 
 // dispatchResolveConflicts opens conflict resolution UI
