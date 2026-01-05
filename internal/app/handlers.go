@@ -68,7 +68,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		a.asyncOperationAborted = false
 		a.mode = a.previousMode
 		a.selectedIndex = a.previousMenuIndex
-		a.consoleState = ui.NewConsoleOutState()
+		a.consoleState.Reset()
 		a.outputBuffer.Clear()
 		a.footerHint = ""
 		
@@ -116,7 +116,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.mode = ModeMenu
 	a.selectedIndex = 0
-	a.consoleState = ui.NewConsoleOutState()
+	a.consoleState.Reset()
 	a.outputBuffer.Clear()
 	a.footerHint = ""
 	a.inputValue = ""
@@ -300,31 +300,51 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 
 // handleConsoleUp scrolls console up one line
 func (a *Application) handleConsoleUp(app *Application) (tea.Model, tea.Cmd) {
+	// Block scrolling during async operations
+	if app.asyncOperationActive {
+		return app, nil
+	}
 	app.consoleState.ScrollUp()
+	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
 // handleConsoleDown scrolls console down one line
 func (a *Application) handleConsoleDown(app *Application) (tea.Model, tea.Cmd) {
+	// Block scrolling during async operations
+	if app.asyncOperationActive {
+		return app, nil
+	}
 	app.consoleState.ScrollDown()
+	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
 // handleConsolePageUp scrolls console up one page
 func (a *Application) handleConsolePageUp(app *Application) (tea.Model, tea.Cmd) {
+	// Block scrolling during async operations
+	if app.asyncOperationActive {
+		return app, nil
+	}
 	// UI THREAD - Scroll console up by page (10 lines)
 	for i := 0; i < 10; i++ {
 		app.consoleState.ScrollUp()
 	}
+	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
 // handleConsolePageDown scrolls console down one page
 func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cmd) {
+	// Block scrolling during async operations
+	if app.asyncOperationActive {
+		return app, nil
+	}
 	// UI THREAD - Scroll console down by page (10 lines)
 	for i := 0; i < 10; i++ {
 		app.consoleState.ScrollDown()
 	}
+	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
@@ -391,7 +411,7 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.previousMode = ModeMenu
 	a.previousMenuIndex = 0
 	a.mode = ModeClone
-	a.consoleState = ui.NewConsoleOutState()
+	a.consoleState.Reset()
 	a.outputBuffer.Clear()
 	a.footerHint = GetFooterMessageText(MessageClone)
 
@@ -522,11 +542,33 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
-	app.consoleState = ui.NewConsoleOutState()
+	app.consoleState.Reset()
 	app.inputValue = ""
 
 	// Execute commit asynchronously using operations pattern
 	return app, app.cmdCommit(message)
+}
+
+// handleCommitPushSubmit validates commit message and executes commit+push
+func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.Cmd) {
+	// UI THREAD - Validate commit message
+	message := app.inputValue
+	if message == "" {
+		app.footerHint = ErrorMessages["commit_message_empty"]
+		return app, nil
+	}
+
+	// Set up async state for console display
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeMenu
+	app.previousMenuIndex = 0
+	app.mode = ModeConsole
+	app.consoleState.Reset()
+	app.inputValue = ""
+
+	// Execute commit+push asynchronously
+	return app, app.cmdCommitPush(message)
 }
 
 // executeCommitWorkflow launches git commit in a worker and returns a command
@@ -682,7 +724,7 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
-	app.consoleState = ui.NewConsoleOutState()
+	app.consoleState.Reset()
 	app.inputValue = ""
 
 	// Execute add remote + fetch asynchronously using operations pattern

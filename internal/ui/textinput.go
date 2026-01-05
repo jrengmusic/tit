@@ -45,12 +45,11 @@ func RenderTextInput(
 
 	// Calculate box height from totalHeight
 	// Structure: label (1) + blank (1) + box (remaining)
-	// We want: label + blank + box = totalHeight
-	// So box height = totalHeight - 2 lines
-	// Box content = box height - 2 (border) = totalHeight - 4
-	// But we use MINIMAL box: just 1 line for input
-	// So: label (1) + blank (1) + box with 1 line content = 3 lines total minimum
-	boxContentHeight := 1 // Single-line input for branch names
+	// Box content height from state.Height
+	boxContentHeight := state.Height
+	if boxContentHeight < 1 {
+		boxContentHeight = 1 // Minimum 1 line
+	}
 
 	// Insert caret at cursor position
 	if state.CursorPos < 0 {

@@ -148,7 +148,12 @@ func (a *Application) menuNormal() []MenuItem {
 	// Timeline section
 	items = append(items, a.menuTimeline()...)
 
-	// History section
+	// Separator before History section (if there are items above)
+	if len(items) > 0 {
+		items = append(items, Item("").Separator().Build())
+	}
+
+	// History section (always shown)
 	items = append(items, a.menuHistory()...)
 
 	// First-time setup (always at bottom)
@@ -166,19 +171,6 @@ func (a *Application) menuNormal() []MenuItem {
 		)
 	}
 
-	// TEST: Confirmation dialog demo (temporary - will remove after testing)
-	items = append(items,
-		Item("").
-			Separator().
-			Build(),
-		Item("test_confirm").
-			Shortcut("t").
-			Emoji("🧪").
-			Label("Test confirmation").
-			Hint("Demo confirmation dialog (temporary test item)").
-			Build(),
-	)
-
 	return items
 }
 
@@ -188,17 +180,37 @@ func (a *Application) menuWorkingTree() []MenuItem {
 		return []MenuItem{}
 	}
 
-	isModified := a.gitState.WorkingTree == git.Modified
+	// Only show commit when Modified - HIDDEN when Clean
+	switch a.gitState.WorkingTree {
+	case git.Clean:
+		return []MenuItem{} // No working tree actions when Clean
 
-	return []MenuItem{
-		Item("commit").
-			Shortcut("m").
-			Emoji("📝").
-			Label("Commit changes").
-			Hint("Create a new commit with staged changes").
-			When(isModified).
-			Build(),
+	case git.Modified:
+		items := []MenuItem{
+			Item("commit").
+				Shortcut("m").
+				Emoji("📝").
+				Label("Commit changes").
+				Hint("Create a new commit with staged changes").
+				Build(),
+		}
+
+		// Show "Commit and push" only if remote exists
+		if a.gitState.Remote == git.HasRemote {
+			items = append(items, MenuItem{
+				ID:       "commit_push",
+				Shortcut: "p",
+				Emoji:    "🚀",
+				Label:    "Commit and push",
+				Hint:     "Stage, commit, and push changes in one action",
+				Enabled:  true,
+			})
+		}
+
+		return items
 	}
+
+	return []MenuItem{}
 }
 
 // menuTimeline returns timeline sync actions
@@ -207,58 +219,57 @@ func (a *Application) menuTimeline() []MenuItem {
 		return []MenuItem{}
 	}
 
+	// No remote → no timeline operations (add_remote shown at bottom of menuNormal)
+	if a.gitState.Remote == git.NoRemote {
+		return []MenuItem{}
+	}
+
 	var items []MenuItem
-	hasRemote := a.gitState.Remote == git.HasRemote
 
 	switch a.gitState.Timeline {
 	case git.InSync:
-		items = append(items,
-			Item("pull_merge").
-				Shortcut("p").
-				Emoji("📥").
-				Label("Pull (fetch + merge)").
-				Hint("Fetch latest from remote and merge into local branch").
-				When(hasRemote).
-				Build(),
-		)
+		// No sync actions needed when in sync
+		return []MenuItem{}
 
 	case git.Ahead:
-		items = append(items,
-			Item("push").
-				Shortcut("h").
-				Emoji("📤").
-				Label("Push to remote").
-				Hint("Send local commits to remote branch").
-				When(hasRemote).
-				Build(),
-		)
+		// Local ahead → show push ONLY if working tree is Clean
+		// Can't push uncommitted changes
+		if a.gitState.WorkingTree == git.Clean {
+			items = append(items,
+				Item("push").
+					Shortcut("h").
+					Emoji("📤").
+					Label("Push to remote").
+					Hint("Send local commits to remote branch").
+					Build(),
+			)
+		}
 
 	case git.Behind:
+		// Remote ahead → show pull
 		items = append(items,
 			Item("pull_merge").
 				Shortcut("p").
 				Emoji("📥").
 				Label("Pull (fetch + merge)").
 				Hint("Fetch latest from remote and merge into local branch").
-				When(hasRemote).
 				Build(),
 		)
 
 	case git.Diverged:
+		// Diverged → show both merge and rebase strategies
 		items = append(items,
 			Item("pull_merge").
 				Shortcut("p").
 				Emoji("📥").
 				Label("Pull (merge strategy)").
 				Hint("Fetch remote and merge diverged branches").
-				When(hasRemote).
 				Build(),
 			Item("pull_rebase").
 				Shortcut("r").
 				Emoji("📥").
 				Label("Pull (rebase strategy)").
 				Hint("Fetch remote and rebase local commits on top").
-				When(hasRemote).
 				Build(),
 		)
 	}
@@ -272,8 +283,14 @@ func (a *Application) menuHistory() []MenuItem {
 		Item("history").
 			Shortcut("l").
 			Emoji("📜").
-			Label("Browse commit history").
+			Label("Commit history").
 			Hint("View and navigate through commit history").
+			Build(),
+		Item("file_history").
+			Shortcut("f").
+			Emoji("📄").
+			Label("File(s) history").
+			Hint("View history of specific files").
 			Build(),
 	}
 }

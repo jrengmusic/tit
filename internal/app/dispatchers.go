@@ -4,7 +4,6 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"tit/internal/ui"
 )
 
 // ActionHandler is a function type for action dispatchers
@@ -43,6 +42,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"clone":              a.dispatchClone,
 		"add_remote":         a.dispatchAddRemote,
 		"commit":             a.dispatchCommit,
+		"commit_push":        a.dispatchCommitPush,
 		"push":               a.dispatchPush,
 		"pull_merge":         a.dispatchPullMerge,
 		"pull_rebase":        a.dispatchPullRebase,
@@ -50,7 +50,6 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"abort_operation":    a.dispatchAbortOperation,
 		"continue_operation": a.dispatchContinueOperation,
 		"history":            a.dispatchHistory,
-		"test_confirm":       a.dispatchTestConfirm, // TEST: temporary
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -126,6 +125,20 @@ func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 		FooterHint:  InputHints["commit_message"],
 		ResetFields: []string{},
 	})
+	app.inputHeight = 16 // Multiline for commit message
+	return nil
+}
+
+// dispatchCommitPush starts commit+push workflow by asking for message
+func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInput,
+		InputPrompt: InputPrompts["commit_message"],
+		InputAction: "commit_push_message",
+		FooterHint:  "Enter commit message (will commit and push)",
+		ResetFields: []string{},
+	})
+	app.inputHeight = 16 // Multiline for commit message
 	return nil
 }
 
@@ -137,7 +150,7 @@ func (a *Application) dispatchPush(app *Application) tea.Cmd {
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
-	app.consoleState = ui.NewConsoleOutState()
+	app.consoleState.Reset()
 
 	// Execute push asynchronously using operations pattern
 	return app.cmdPush()
@@ -151,7 +164,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
-	app.consoleState = ui.NewConsoleOutState()
+	app.consoleState.Reset()
 
 	// Execute pull with merge asynchronously using operations pattern
 	return app.cmdPull()
@@ -165,7 +178,7 @@ func (a *Application) dispatchPullRebase(app *Application) tea.Cmd {
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
-	app.consoleState = ui.NewConsoleOutState()
+	app.consoleState.Reset()
 
 	// Execute pull with rebase asynchronously using operations pattern
 	return app.cmdPullRebase()
@@ -192,15 +205,5 @@ func (a *Application) dispatchContinueOperation(app *Application) tea.Cmd {
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 	// TODO: Implement
-	return nil
-}
-
-// dispatchTestConfirm shows a test confirmation dialog
-// TEST: temporary function to demo confirmation system
-func (a *Application) dispatchTestConfirm(app *Application) tea.Cmd {
-	app.showAlert(
-		"Test Alert Dialog",
-		"This is a test confirmation dialog. Press any key to dismiss. Left/Right or H/L to toggle between buttons. Enter to confirm.",
-	)
 	return nil
 }

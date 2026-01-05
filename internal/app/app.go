@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,6 +30,7 @@ type Application struct {
 	inputPrompt          string // e.g., "Repository name:"
 	inputValue           string
 	inputCursorPosition  int // Cursor byte position in inputValue
+	inputHeight          int // Input height: 1 for single-line, 16 for multiline commit message
 	inputAction          string // Action being performed (e.g., "init_location", "canon_branch")
 	inputValidationMsg   string // Validation feedback message (empty = valid, shows message otherwise)
 	clearConfirmActive   bool   // True when waiting for second ESC to clear input
@@ -53,6 +53,7 @@ type Application struct {
 	// Console output state (for clone, init, etc)
 	consoleState         ui.ConsoleOutState
 	outputBuffer         *ui.OutputBuffer
+	consoleAutoScroll    bool // Auto-scroll console to bottom (like old-tit)
 	
 	// Confirmation dialog state
 	confirmationDialog   *ui.ConfirmationDialog
@@ -152,6 +153,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		asyncOperationAborted: false,
 		consoleState:         ui.NewConsoleOutState(),
 		outputBuffer:         ui.GetBuffer(),
+		consoleAutoScroll:    true, // Start with auto-scroll enabled
 		workingTreeInfo:      workingTreeInfo,
 		timelineInfo:         timelineInfo,
 	}
@@ -180,7 +182,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// Handle bracketed paste - entire paste comes as single KeyMsg with Paste=true
 		if msg.Paste && a.isInputMode() {
-			text := strings.TrimSpace(string(msg.Runes))
+			text := string(msg.Runes) // Don't trim - preserve formatting
 			if len(text) > 0 {
 				a.insertTextAtCursor(text)
 				a.updateInputValidation()
@@ -188,6 +190,12 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		keyStr := msg.String()
+		
+		// Handle ctrl+j (shift+enter equivalent) for newline in multiline input
+		if a.isInputMode() && (keyStr == "ctrl+j" || keyStr == "shift+enter") {
+			a.insertTextAtCursor("\n")
+			return a, nil
+		}
 		
 		// Look up handler in cached registry
 		if modeHandlers, modeExists := a.keyHandlers[a.mode]; modeExists {
@@ -241,8 +249,6 @@ func (a *Application) View() string {
 	
 	case ModeConsole, ModeClone:
 		// Console output (both during and after operation)
-		// Auto-scroll while operation is running
-		autoScroll := a.asyncOperationActive && !a.asyncOperationAborted
 		contentText = ui.RenderConsoleOutput(
 			&a.consoleState,
 			a.outputBuffer,
@@ -251,7 +257,7 @@ func (a *Application) View() string {
 			ui.ContentHeight,
 			a.asyncOperationActive && !a.asyncOperationAborted,
 			a.asyncOperationAborted,
-			autoScroll,
+			a.consoleAutoScroll,
 		)
 	
 	case ModeConfirmation:
@@ -283,7 +289,7 @@ func (a *Application) View() string {
 		textInputState := ui.TextInputState{
 			Value:      a.inputValue,
 			CursorPos:  a.inputCursorPosition,
-			Height:     1,
+			Height:     a.inputHeight, // Use configured height
 		}
 		
 		// Render text input with optional validation message
@@ -607,18 +613,38 @@ func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
 
 // Input mode helpers
 
-// insertTextAtCursor inserts text at current cursor position
+// insertTextAtCursor inserts text at current cursor position (UTF-8 safe)
 func (a *Application) insertTextAtCursor(text string) {
-	a.inputValue = a.inputValue[:a.inputCursorPosition] + text + a.inputValue[a.inputCursorPosition:]
+	// Defensive bounds checking
+	valueLen := len(a.inputValue)
+	if a.inputCursorPosition < 0 {
+		a.inputCursorPosition = 0
+	}
+	if a.inputCursorPosition > valueLen {
+		a.inputCursorPosition = valueLen
+	}
+	
+	// Safe slice operation
+	before := a.inputValue[:a.inputCursorPosition]
+	after := a.inputValue[a.inputCursorPosition:]
+	a.inputValue = before + text + after
 	a.inputCursorPosition += len(text)
 }
 
-// deleteAtCursor deletes character before cursor
+// deleteAtCursor deletes character before cursor (UTF-8 safe)
 func (a *Application) deleteAtCursor() {
-	if a.inputCursorPosition == 0 {
+	valueLen := len(a.inputValue)
+	if a.inputCursorPosition <= 0 || valueLen == 0 {
 		return
 	}
-	a.inputValue = a.inputValue[:a.inputCursorPosition-1] + a.inputValue[a.inputCursorPosition:]
+	if a.inputCursorPosition > valueLen {
+		a.inputCursorPosition = valueLen
+	}
+	
+	// Safe slice operation
+	before := a.inputValue[:a.inputCursorPosition-1]
+	after := a.inputValue[a.inputCursorPosition:]
+	a.inputValue = before + after
 	a.inputCursorPosition--
 }
 
@@ -653,6 +679,8 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 		return app.handleAddRemoteSubmit(app)
 	case "commit_message":
 		return app.handleCommitSubmit(app)
+	case "commit_push_message":
+		return app.handleCommitPushSubmit(app)
 	default:
 		return app, nil
 	}

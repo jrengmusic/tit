@@ -22,22 +22,24 @@ func NewConsoleOutState() ConsoleOutState {
 	}
 }
 
-// ScrollToBottom positions viewport to show the last line at the bottom
-func (s *ConsoleOutState) ScrollToBottom(totalOutputLines int) {
-	// Set scroll offset so last lines are visible
-	// maxScroll = total output lines - content height
-	// We don't have contentHeight here, so set a large number and renderer will clamp
-	s.ScrollOffset = max(0, totalOutputLines-1)
+// Reset resets the scroll state
+func (s *ConsoleOutState) Reset() {
+	s.ScrollOffset = 0
+	s.MaxScroll = 0
 }
 
 // ScrollUp moves the viewport up by one line
 func (s *ConsoleOutState) ScrollUp() {
-	s.ScrollOffset--
+	if s.ScrollOffset > 0 {
+		s.ScrollOffset--
+	}
 }
 
 // ScrollDown moves the viewport down by one line
 func (s *ConsoleOutState) ScrollDown() {
-	s.ScrollOffset++
+	if s.ScrollOffset < s.MaxScroll {
+		s.ScrollOffset++
+	}
 }
 
 // RenderConsoleOutput renders the console output panel with scrolling
@@ -122,21 +124,23 @@ func RenderConsoleOutput(
 	// Store maxScroll in state
 	state.MaxScroll = maxScroll
 
-	// Auto-scroll: force ScrollOffset to maxScroll
+	// Auto-scroll: if enabled, stay at bottom
 	if autoScroll {
-		state.ScrollOffset = state.MaxScroll
+		state.ScrollOffset = maxScroll
+	} else {
+		// Manual scroll: clamp to valid range
+		if state.ScrollOffset > maxScroll {
+			state.ScrollOffset = maxScroll
+		}
+		if state.ScrollOffset < 0 {
+			state.ScrollOffset = 0
+		}
 	}
 	
-	// Always clamp to valid range
-	if state.ScrollOffset < 0 {
-		state.ScrollOffset = 0
-	}
-	if state.ScrollOffset > state.MaxScroll {
-		state.ScrollOffset = state.MaxScroll
-	}
+	scrollOffset := int(state.ScrollOffset)
 
 	// Step 3: Extract visible window
-	start := state.ScrollOffset
+	start := scrollOffset
 	end := start + contentLines
 	if start < 0 {
 		start = 0
@@ -190,8 +194,8 @@ func RenderConsoleOutput(
 	sepStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(palette.DimmedTextColor))
 
-	atBottom := state.ScrollOffset >= maxScroll
-	remainingLines := totalOutputLines - (state.ScrollOffset + contentLines)
+	atBottom := scrollOffset >= maxScroll
+	remainingLines := totalOutputLines - (scrollOffset + contentLines)
 	if remainingLines < 0 {
 		remainingLines = 0
 	}

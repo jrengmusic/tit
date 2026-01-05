@@ -240,6 +240,51 @@ func (a *Application) cmdCommit(message string) tea.Cmd {
 	}
 }
 
+// cmdCommitPush stages, commits, and pushes in one operation
+func (a *Application) cmdCommitPush(message string) tea.Cmd {
+	msg := message // Capture in closure
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+
+		// Stage all changes
+		result := git.ExecuteWithStreaming("add", "-A")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "commit_push",
+				Success: false,
+				Error:   "Failed to stage changes",
+			}
+		}
+
+		// Commit
+		result = git.ExecuteWithStreaming("commit", "-m", msg)
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "commit_push",
+				Success: false,
+				Error:   "Failed to commit",
+			}
+		}
+
+		// Push
+		result = git.ExecuteWithStreaming("push")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "commit_push",
+				Success: false,
+				Error:   "Failed to push",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "commit_push",
+			Success: true,
+			Output:  "Committed and pushed successfully",
+		}
+	}
+}
+
 // cmdPush pushes current branch to remote
 func (a *Application) cmdPush() tea.Cmd {
 	return func() tea.Msg {

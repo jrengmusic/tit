@@ -693,3 +693,75 @@ Session ended with incomplete work and no verification. Next session must:
 2. Verify NewApplication() cwd detection fix works
 3. Test ConfirmationDialog rendering (already ported, just needs testing)
 4. Complete Phase 2.1 properly with tested working code
+
+---
+
+## Session 35: Console Auto-Scroll Fixed
+**Date:** 2025-01-05  
+**Agent:** Claude Sonnet 4.5 (GitHub Copilot CLI)  
+**Duration:** ~45 minutes  
+**Status:** ✅ COMPLETED
+
+### Issue Description
+Console output was stuck at top during async git operations (commit, push, pull, etc.) despite implementing atomic scroll offset. User confirmed operations work but scroll doesn't follow output.
+
+### Root Cause Analysis
+The agent initially overcomplicated the solution by implementing atomic operations, worker thread calculations, and render tickers. However, the real issue was much simpler:
+
+1. **Wrong autoScroll logic**: New-tit derived autoScroll from `asyncOperationActive && !asyncOperationAborted`
+2. **Wrong timing**: This flag becomes `false` immediately when operation completes, leaving console at wrong scroll position
+3. **Missing old-tit pattern**: Old-tit uses separate `consoleAutoScroll` field that persists until user manually scrolls
+
+### Failed Approaches
+1. **Atomic operations**: Tried `atomic.StoreInt32()` for scroll offset with worker thread updates
+2. **Render tickers**: Attempted to add `tea.Tick()` to trigger renders during operations
+3. **Buffer-calculated maxScroll**: Moved scroll calculation to buffer thread (wrong - renderer needs wrapped line count)
+4. **Complex state management**: Added contentHeight tracking, scroll state pointers, etc.
+
+### Successful Solution
+Copied **exact pattern from old-tit**:
+
+1. **Added `consoleAutoScroll` field** to Application struct (starts `true`)
+2. **Pass field directly** to `RenderConsoleOutput()` instead of derived value
+3. **Disable on manual scroll**: Set `consoleAutoScroll = false` in keyboard handlers
+4. **Simple renderer logic**: `if autoScroll { state.ScrollOffset = maxScroll }`
+
+### Code Changes
+
+#### `internal/app/app.go`
+- Added `consoleAutoScroll bool` field to Application struct
+- Initialize to `true` in NewApplication()
+- Pass `a.consoleAutoScroll` to RenderConsoleOutput() instead of derived autoScroll
+
+#### `internal/app/handlers.go`
+- Set `app.consoleAutoScroll = false` in all scroll handlers:
+  - `handleConsoleUp()`
+  - `handleConsoleDown()` 
+  - `handleConsolePageUp()`
+  - `handleConsolePageDown()`
+
+#### `internal/ui/console.go`
+- Changed `ScrollOffset` from `int32` back to `int` (match old-tit)
+- Simplified renderer: `if autoScroll { state.ScrollOffset = maxScroll }`
+- Removed all atomic operations, worker calculations, content height tracking
+
+#### Removed Complexity
+- All `atomic.StoreInt32()` / `atomic.LoadInt32()` operations
+- Buffer scroll state pointer linking (`SetScrollState()`, `SetContentHeight()`)
+- Render ticker message types (`RenderTickMsg`)
+- Worker thread maxScroll calculation
+
+### Verification
+- Console auto-scrolls to bottom during operations ✅
+- Manual keyboard scroll disables auto-scroll ✅  
+- Operations complete at correct scroll position ✅
+- No more "stuck at top" issue ✅
+
+### Key Lessons
+1. **Don't reinvent working patterns** - Old-tit's approach was already correct
+2. **Simple > Complex** - Separate boolean field much cleaner than derived flags
+3. **Understand timing** - `operationInProgress` != "should auto-scroll" after completion
+4. **Copy working code exactly** - Including data types (`int` vs `int32`)
+
+### Status
+Console auto-scroll **fully implemented and working**. Ready to continue with Phase 2 testing and remaining features.

@@ -60,10 +60,6 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
 		a.mode = ModeConsole
-		
-		// Force scroll to bottom: update offset after MaxScroll is calculated
-		// MaxScroll will be correct on next render, so set offset high and let clamp handle it
-		a.consoleState.ScrollOffset = 999999
 
 	case "add_remote":
 		// Chain: add_remote → fetch_remote
