@@ -358,22 +358,30 @@ func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cm
 
 // Clone workflow handlers
 
-// handleCloneURLSubmit validates URL and auto-creates subdir with repo name
+// handleCloneURLSubmit validates URL and routes based on inputAction
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
 		app.cloneURL = app.inputValue
 		
-		// Extract repo name from URL and set clone path
-		repoName := git.ExtractRepoName(app.cloneURL)
-		cwd, err := os.Getwd()
-		if err != nil {
-			app.footerHint = "Failed to get current directory"
-			return app, nil
+		// Route based on inputAction
+		if app.inputAction == "clone_url_subdir" {
+			// CWD not empty: clone to subdir directly
+			repoName := git.ExtractRepoName(app.cloneURL)
+			cwd, err := os.Getwd()
+			if err != nil {
+				app.footerHint = "Failed to get current directory"
+				return app, nil
+			}
+			app.clonePath = fmt.Sprintf("%s/%s", cwd, repoName)
+			return app.startCloneOperation()
 		}
-		app.clonePath = fmt.Sprintf("%s/%s", cwd, repoName)
 		
-		// Start clone operation immediately (no location choice menu)
-		return app.startCloneOperation()
+		// CWD empty: show location menu (clone here or subdir)
+		app.transitionTo(ModeTransition{
+			Mode:        ModeCloneLocation,
+			ResetFields: []string{"clone"},
+		})
+		return app, nil
 	})
 }
 

@@ -44,31 +44,14 @@ func (a *Application) GenerateMenu() []MenuItem {
 }
 
 // menuNotRepo returns menu for NotRepo state
-// Smart dispatch: if CWD not empty, skip to subdir-only option
+// Always shows both options; smart dispatch happens in dispatchInit/dispatchClone
 func (a *Application) menuNotRepo() []MenuItem {
-	cwdEmpty := isCwdEmpty()
-
-	if !cwdEmpty {
-		// CWD not empty: only clone as subdir is allowed
-		// Auto-dispatch instead of showing single-item menu
-		// Return clone menu directly (no init option)
-		return []MenuItem{
-			Item("clone").
-				Shortcut("c").
-				Emoji("📥").
-				Label("Clone repository").
-				Hint("Clone an existing repository into a subdirectory").
-				Build(),
-		}
-	}
-
-	// CWD is empty: show both options
 	return []MenuItem{
 		Item("init").
 			Shortcut("i").
 			Emoji("🔨").
 			Label("Initialize repository").
-			Hint("Create a new git repository in current directory").
+			Hint("Create a new git repository").
 			Build(),
 		Item("clone").
 			Shortcut("c").

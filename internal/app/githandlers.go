@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -35,18 +36,30 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	// Handle step-specific post-processing and chaining
 	switch msg.Step {
 	case "init", "clone":
-		// Init/clone: reload state and return to menu
+		// Init/clone: reload state, keep console visible
+		// User presses ESC to return to menu
 		if msg.Path != "" {
 			// Change to the path if specified
-			if err := os.Chdir(msg.Path); err == nil {
-				a.gitState, _ = git.DetectState()
+			if err := os.Chdir(msg.Path); err != nil {
+				buffer.Append(fmt.Sprintf("Failed to cd into %s: %v", msg.Path, err), ui.TypeStderr)
+				a.asyncOperationActive = false
+				return a, nil
 			}
-		} else {
-			a.gitState, _ = git.DetectState()
 		}
+		
+		// Detect new state after init/clone
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf("Failed to detect git state: %v", err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
+		
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
+		// Stay in ModeConsole, ESC handler will return to menu
 
 	case "add_remote":
 		// Chain: add_remote → fetch_remote

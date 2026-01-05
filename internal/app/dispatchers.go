@@ -11,6 +11,7 @@ import (
 type ActionHandler func(*Application) tea.Cmd
 
 // isCwdEmpty checks if current working directory is empty
+// Ignores macOS metadata files (.DS_Store)
 // Used for smart dispatch in init/clone workflows
 func isCwdEmpty() bool {
 	cwd, err := os.Getwd()
@@ -23,7 +24,16 @@ func isCwdEmpty() bool {
 		return false // If we can't read dir, assume not empty (safe)
 	}
 
-	return len(entries) == 0
+	// Count entries, ignoring macOS metadata
+	count := 0
+	for _, entry := range entries {
+		name := entry.Name()
+		if name != ".DS_Store" && name != ".AppleDouble" {
+			count++
+		}
+	}
+
+	return count == 0
 }
 
 // dispatchAction routes menu item selections to appropriate handlers
@@ -76,9 +86,12 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 
 	if !cwdEmpty {
 		// CWD not empty: must clone into subdirectory
-		// Go directly to location menu (subdir only)
+		// Ask for URL, then clone to subdir (git creates the dir with repo name)
 		app.transitionTo(ModeTransition{
-			Mode:        ModeCloneLocation,
+			Mode:        ModeCloneURL,
+			InputPrompt: InputPrompts["clone_url"],
+			InputAction: "clone_url_subdir",
+			FooterHint:  InputHints["clone_url"],
 			ResetFields: []string{"clone"},
 		})
 		return nil

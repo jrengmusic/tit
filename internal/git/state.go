@@ -93,9 +93,11 @@ func DetectState() (*State, error) {
 
 	hash, err := executeGitCommand("rev-parse", "HEAD")
 	if err != nil {
-		return nil, fmt.Errorf("detecting current hash: %w", err)
+		// No commits yet (empty repo after init) - this is normal
+		state.CurrentHash = ""
+	} else {
+		state.CurrentHash = hash
 	}
-	state.CurrentHash = hash
 
 	if state.Remote == HasRemote {
 		remoteHash, err := executeGitCommand("rev-parse", "@{u}")
