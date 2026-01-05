@@ -130,20 +130,25 @@ func (c *ConfirmationDialog) colorizeCommitHashes(text string) string {
 	return output.String()
 }
 
-// Render renders the confirmation dialog
+// Render renders the confirmation dialog centered within ContentHeight bounds using SSOT
 func (c *ConfirmationDialog) Render() string {
 	// Always render when in confirmation mode
 	config := c.ApplyContext()
 
 	// Button colors from active theme
-	yesButtonBg := lipgloss.Color(c.Theme.MenuSelectionBackground)
-	yesButtonFg := lipgloss.Color(c.Theme.HighlightTextColor)
-	noBg := lipgloss.Color(c.Theme.InlineBackgroundColor)
-	noFg := lipgloss.Color(c.Theme.ContentTextColor)
+	// Selected button: MenuSelectionBackground + HighlightTextColor
+	// Unselected button: InlineBackgroundColor + ContentTextColor
+	selectedBg := lipgloss.Color(c.Theme.MenuSelectionBackground)
+	selectedFg := lipgloss.Color(c.Theme.HighlightTextColor)
+	unselectedBg := lipgloss.Color(c.Theme.InlineBackgroundColor)
+	unselectedFg := lipgloss.Color(c.Theme.ContentTextColor)
+
+	// Dialog width uses ContentInnerWidth from SSOT (76 = 80 - 4 for outer content box)
+	dialogWidth := ContentInnerWidth - 10 // Leave padding for visual centering
 
 	// Create styles
 	dialogStyle := lipgloss.NewStyle().
-		Width(c.Width).
+		Width(dialogWidth).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(c.Theme.BoxBorderColor)).
 		Padding(1, 2).
@@ -151,7 +156,7 @@ func (c *ConfirmationDialog) Render() string {
 
 	explanationStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(c.Theme.ContentTextColor)).
-		Width(c.Width - 4).
+		Width(dialogWidth - 4). // Account for dialog padding
 		Align(lipgloss.Left)
 
 	// Button styles (no borders, use theme colors)
@@ -159,14 +164,14 @@ func (c *ConfirmationDialog) Render() string {
 	var yesButtonStyle lipgloss.Style
 	if c.SelectedButton == ButtonYes {
 		yesButtonStyle = lipgloss.NewStyle().
-			Foreground(yesButtonFg).
-			Background(yesButtonBg).
+			Foreground(selectedFg).
+			Background(selectedBg).
 			Bold(true).
 			Padding(0, 2)
 	} else {
 		yesButtonStyle = lipgloss.NewStyle().
-			Foreground(noFg).
-			Background(noBg).
+			Foreground(unselectedFg).
+			Background(unselectedBg).
 			Bold(true).
 			Padding(0, 2)
 	}
@@ -175,14 +180,14 @@ func (c *ConfirmationDialog) Render() string {
 	var noButtonStyle lipgloss.Style
 	if c.SelectedButton == ButtonNo {
 		noButtonStyle = lipgloss.NewStyle().
-			Foreground(yesButtonFg).
-			Background(yesButtonBg).
+			Foreground(selectedFg).
+			Background(selectedBg).
 			Bold(true).
 			Padding(0, 2)
 	} else {
 		noButtonStyle = lipgloss.NewStyle().
-			Foreground(noFg).
-			Background(noBg).
+			Foreground(unselectedFg).
+			Background(unselectedBg).
 			Bold(true).
 			Padding(0, 2)
 	}
@@ -220,5 +225,18 @@ func (c *ConfirmationDialog) Render() string {
 
 	content.WriteString(buttonContainer.Render(buttonRow))
 
-	return dialogStyle.Render(content.String())
+	// Build the dialog
+	dialog := dialogStyle.Render(content.String())
+
+	// Center the dialog vertically and horizontally within ContentHeight
+	// Use lipgloss.Place to center within the content box area
+	centeredDialog := lipgloss.Place(
+		ContentInnerWidth,
+		ContentHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		dialog,
+	)
+
+	return centeredDialog
 }

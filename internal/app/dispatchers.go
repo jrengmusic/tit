@@ -50,6 +50,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"abort_operation":    a.dispatchAbortOperation,
 		"continue_operation": a.dispatchContinueOperation,
 		"history":            a.dispatchHistory,
+		"test_confirm":       a.dispatchTestConfirm, // TEST: temporary
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -191,5 +192,15 @@ func (a *Application) dispatchContinueOperation(app *Application) tea.Cmd {
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 	// TODO: Implement
+	return nil
+}
+
+// dispatchTestConfirm shows a test confirmation dialog
+// TEST: temporary function to demo confirmation system
+func (a *Application) dispatchTestConfirm(app *Application) tea.Cmd {
+	app.showAlert(
+		"Test Alert Dialog",
+		"This is a test confirmation dialog. Press any key to dismiss. Left/Right or H/L to toggle between buttons. Enter to confirm.",
+	)
 	return nil
 }

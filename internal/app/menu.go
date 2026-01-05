@@ -166,6 +166,19 @@ func (a *Application) menuNormal() []MenuItem {
 		)
 	}
 
+	// TEST: Confirmation dialog demo (temporary - will remove after testing)
+	items = append(items,
+		Item("").
+			Separator().
+			Build(),
+		Item("test_confirm").
+			Shortcut("t").
+			Emoji("🧪").
+			Label("Test confirmation").
+			Hint("Demo confirmation dialog (temporary test item)").
+			Build(),
+	)
+
 	return items
 }
 

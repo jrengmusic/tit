@@ -97,14 +97,14 @@ Terminal displays result
 | Mode | Purpose | Input Handler |
 |------|---------|---|
 | ModeMenu | Main action menu | Menu navigation (j/k/enter) |
-| ModeInput | Generic text input | Cursor nav + character input |
+| ModeInput | Generic text input (deprecated) | Cursor nav + character input |
 | ModeInitializeLocation | Choose init location (cwd/subdir) | Menu selection |
-| ModeInitializeBranches | Input canon + working branch | Dual text input |
 | ModeCloneURL | Input clone URL | Single text input with validation |
 | ModeCloneLocation | Choose clone location (cwd/subdir) | Menu selection |
 | ModeConsole | Show streaming git output | Console scroll (↑↓/PgUp/PgDn) |
+| ModeClone | Clone operation streaming output | Same as ModeConsole |
 | ModeSelectBranch | Choose branch after clone | Menu selection |
-| ModeConfirmation | Confirm destructive operation ✅ | left/right/y/n/enter |
+| ModeConfirmation | Confirm destructive operation | left/right/h/l/y/n/enter |
 | ModeConflictResolve | 3-way conflict resolution | (TBD - Phase 7) |
 | ModeHistory | Commit/file history browser | (TBD - Phase 5) |
 
@@ -357,12 +357,16 @@ Handler executes operation or returns to menu
 
 ### Styling
 
+Dialog uses lipgloss.Place() to center both horizontally and vertically within ContentHeight.
+
 Button colors from theme:
-- Yes button (selected): MenuSelectionBackground + HighlightTextColor
-- No button (selected): MenuSelectionBackground + HighlightTextColor
-- Button (unselected): InlineBackgroundColor + ContentTextColor
+- Selected button: MenuSelectionBackground + HighlightTextColor
+- Unselected button: InlineBackgroundColor + ContentTextColor
 - Dialog border: BoxBorderColor
-- Text: ContentTextColor + AccentTextColor (for highlights)
+- Text: ContentTextColor
+- Highlighted text (commit hashes): AccentTextColor
+
+Dialog width: `ContentInnerWidth - 10` (leaves padding for visual centering)
 
 ---
 
@@ -370,18 +374,22 @@ Button colors from theme:
 
 ### Per-Repository State
 
-Git state is **always detected from actual git commands.** No tracking file.
+Git state is **always detected from actual git commands.** No config file, no tracking.
 
 ```go
 state, err := git.DetectState()
 // Queries: git status, git rev-parse, git remote, git log, etc.
 ```
 
+**Single-branch model:** TIT operates on the currently checked-out branch only. No canon/working branch tracking. User can switch branches anytime with normal git commands.
+
+**Fresh repository auto-setup:** When detecting a repo with no commits, TIT automatically creates and commits `.gitignore` to ensure Clean working tree state.
+
 ### User Configuration
 
 Theme colors: `~/.config/tit/themes/default.toml`
 - Loaded once at app start
-- All UI uses semantic color names
+- All UI uses semantic color names (SSOT in `internal/ui/theme.go`)
 - User can customize without code changes
 
 ---
@@ -447,12 +455,14 @@ func executeOperation() tea.Cmd {
 | `internal/app/handlers.go` | Input handlers (enter, ESC, text input, etc) |
 | `internal/app/keyboard.go` | Key handler registry construction |
 | `internal/app/messages.go` | Custom tea.Msg types |
+| `internal/app/confirmationhandlers.go` | Confirmation dialog system and handlers |
 | `internal/git/state.go` | State detection from git commands |
 | `internal/git/execute.go` | Command execution with streaming |
 | `internal/ui/layout.go` | RenderLayout() main view composer |
 | `internal/ui/theme.go` | Color system with semantic names |
 | `internal/ui/buffer.go` | OutputBuffer thread-safe ring buffer |
 | `internal/ui/console.go` | RenderConsoleOutput() component |
+| `internal/ui/confirmation.go` | ConfirmationDialog component |
 | `internal/ui/menu.go` | RenderMenuWithHeight() component |
 | `internal/ui/validation.go` | Input validation (URLs, directory names) |
 

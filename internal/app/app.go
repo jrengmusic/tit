@@ -253,6 +253,17 @@ func (a *Application) View() string {
 			a.asyncOperationAborted,
 			autoScroll,
 		)
+	
+	case ModeConfirmation:
+		// Confirmation dialog (centered in content area)
+		if a.confirmationDialog != nil {
+			contentText = a.confirmationDialog.Render()
+		} else {
+			// Fallback if no dialog - return to menu
+			a.mode = ModeMenu
+			contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
+		}
+	
 	case ModeSelectBranch:
 		// Dynamic menu from cloneBranches
 		items := make([]map[string]interface{}, len(a.cloneBranches))
@@ -315,12 +326,6 @@ func (a *Application) View() string {
 	case ModeInitializeLocation:
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
 
-	case ModeConfirmation:
-		if a.confirmationDialog != nil {
-			contentText = a.confirmationDialog.Render()
-		} else {
-			panic("ModeConfirmation: confirmationDialog is nil - not initialized")
-		}
 	case ModeHistory:
 		panic("ModeHistory: not yet implemented")
 	case ModeConflictResolve:
