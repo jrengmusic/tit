@@ -104,16 +104,29 @@ var InputHints = map[string]string{
 
 // ErrorMessages centralizes error messages
 var ErrorMessages = map[string]string{
-	"cwd_read_failed":    "Failed to get current directory",
-	"operation_failed":   "Operation failed",
+	"cwd_read_failed":        "Failed to get current directory",
+	"operation_failed":       "Operation failed",
+	"branch_name_empty":      "Branch name cannot be empty",
+	"commit_message_empty":   "Commit message cannot be empty",
+	"remote_url_empty":       "Remote URL cannot be empty",
+	"remote_already_exists":  "Remote 'origin' already exists",
+	"failed_create_dir":      "Failed to create directory: %v",
+	"failed_change_dir":      "Failed to change to directory: %v",
+	"failed_detect_state":    "Failed to detect git state: %v",
+	"failed_cd_into":         "Failed to cd into %s: %v",
+	"failed_checkout_branch": "Failed to checkout branch '%s'",
 }
 
 // OutputMessages centralizes operation success messages
 var OutputMessages = map[string]string{
-	"remote_added":       "Remote added",
-	"fetch_completed":    "Fetch completed",
-	"pushed_successfully": "Pushed successfully",
-	"pulled_successfully": "Pulled successfully",
+	"remote_added":         "Remote added",
+	"fetch_completed":      "Fetch completed",
+	"pushed_successfully":  "Pushed successfully",
+	"pulled_successfully":  "Pulled successfully",
+	"initializing_repo":    "Initializing repository...",
+	"fetching_remote":      "Fetching from remote...",
+	"setting_upstream":     "Setting upstream tracking...",
+	"checking_out_branch":  "Checking out branch '%s'...",
 }
 
 // ButtonLabels centralizes confirmation dialog button text

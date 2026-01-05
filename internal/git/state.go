@@ -49,6 +49,21 @@ func HasParentRepo() (bool, string) {
 func DetectState() (*State, error) {
 	state := &State{}
 
+	// Check if repo has any commits yet
+	hash, err := executeGitCommand("rev-parse", "HEAD")
+	hasCommits := err == nil && hash != ""
+
+	// If repo exists but has NO commits, auto-setup with .gitignore
+	if !hasCommits {
+		isRepo, _ := IsInitializedRepo()
+		if isRepo {
+			if err := setupFreshRepo(); err != nil {
+				// Log error but continue - state detection should still work
+				fmt.Fprintf(os.Stderr, "Warning: Failed to setup fresh repo: %v\n", err)
+			}
+		}
+	}
+
 	// Detect working tree state
 	workingTree, err := detectWorkingTree()
 	if err != nil {
@@ -91,7 +106,7 @@ func DetectState() (*State, error) {
 	}
 	state.CurrentBranch = branch
 
-	hash, err := executeGitCommand("rev-parse", "HEAD")
+	hash, err = executeGitCommand("rev-parse", "HEAD")
 	if err != nil {
 		// No commits yet (empty repo after init) - this is normal
 		state.CurrentHash = ""
@@ -110,6 +125,42 @@ func DetectState() (*State, error) {
 	}
 
 	return state, nil
+}
+
+// setupFreshRepo creates and commits .gitignore in a fresh repo with no commits
+func setupFreshRepo() error {
+	// Check if .gitignore already exists
+	if _, err := os.Stat(".gitignore"); err == nil {
+		// .gitignore exists, add and commit it
+		cmd := exec.Command("git", "add", ".gitignore")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to add existing .gitignore: %w", err)
+		}
+		cmd = exec.Command("git", "commit", "-m", "Initialize repository")
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to commit .gitignore: %w", err)
+		}
+		return nil
+	}
+
+	// Create default .gitignore
+	if err := CreateDefaultGitignore(); err != nil {
+		return err
+	}
+
+	// Stage .gitignore
+	cmd := exec.Command("git", "add", ".gitignore")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to stage .gitignore: %w", err)
+	}
+
+	// Commit .gitignore
+	cmd = exec.Command("git", "commit", "-m", "Initialize repository with .gitignore")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to commit .gitignore: %w", err)
+	}
+
+	return nil
 }
 
 // detectWorkingTree checks for staged/unstaged changes or untracked files

@@ -35,22 +35,22 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	// Handle step-specific post-processing and chaining
 	switch msg.Step {
-	case "init", "clone":
-		// Init/clone: reload state, keep console visible
+	case "init", "clone", "checkout":
+		// Init/clone/checkout: reload state, keep console visible
 		// User presses ESC to return to menu
 		if msg.Path != "" {
 			// Change to the path if specified
 			if err := os.Chdir(msg.Path); err != nil {
-				buffer.Append(fmt.Sprintf("Failed to cd into %s: %v", msg.Path, err), ui.TypeStderr)
+				buffer.Append(fmt.Sprintf(ErrorMessages["failed_cd_into"], msg.Path, err), ui.TypeStderr)
 				a.asyncOperationActive = false
 				return a, nil
 			}
 		}
 		
-		// Detect new state after init/clone
+		// Detect new state after init/clone/checkout
 		state, err := git.DetectState()
 		if err != nil {
-			buffer.Append(fmt.Sprintf("Failed to detect git state: %v", err), ui.TypeStderr)
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
@@ -59,7 +59,11 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
-		// Stay in ModeConsole, ESC handler will return to menu
+		a.mode = ModeConsole
+		
+		// Force scroll to bottom: update offset after MaxScroll is calculated
+		// MaxScroll will be correct on next render, so set offset high and let clamp handle it
+		a.consoleState.ScrollOffset = 999999
 
 	case "add_remote":
 		// Chain: add_remote → fetch_remote

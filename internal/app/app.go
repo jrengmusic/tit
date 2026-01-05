@@ -35,9 +35,6 @@ type Application struct {
 	inputValidationMsg   string // Validation feedback message (empty = valid, shows message otherwise)
 	clearConfirmActive   bool   // True when waiting for second ESC to clear input
 
-	// Initialization workflow state
-	initRepositoryPath   string // Path to repository being initialized
-
 	// Clone workflow state
 	cloneURL             string   // URL to clone from
 	clonePath            string   // Path to clone into (cwd or subdir)
@@ -103,14 +100,11 @@ func (a *Application) transitionTo(config ModeTransition) {
             a.cloneURL = ""
             a.clonePath = ""
             a.cloneBranches = nil
-        case "init":
-            a.initRepositoryPath = ""
         case "all":
             // Reset all workflow states
             a.cloneURL = ""
             a.clonePath = ""
             a.cloneBranches = nil
-            a.initRepositoryPath = ""
         }
     }
 }
@@ -245,29 +239,19 @@ func (a *Application) View() string {
 	case ModeMenu:
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
 	
-	case ModeConsole:
-		// Rendering clone console output
+	case ModeConsole, ModeClone:
+		// Console output (both during and after operation)
+		// Auto-scroll while operation is running
+		autoScroll := a.asyncOperationActive && !a.asyncOperationAborted
 		contentText = ui.RenderConsoleOutput(
-			a.consoleState,
+			&a.consoleState,
 			a.outputBuffer,
 			a.theme,
 			ui.ContentInnerWidth,
 			ui.ContentHeight,
 			a.asyncOperationActive && !a.asyncOperationAborted,
 			a.asyncOperationAborted,
-			a.asyncOperationActive && !a.asyncOperationAborted, // autoScroll while operation running
-		)
-	case ModeClone:
-		// Clone operation in progress - show console
-		contentText = ui.RenderConsoleOutput(
-			a.consoleState,
-			a.outputBuffer,
-			a.theme,
-			ui.ContentInnerWidth,
-			ui.ContentHeight,
-			a.asyncOperationActive && !a.asyncOperationAborted,
-			a.asyncOperationAborted,
-			a.asyncOperationActive && !a.asyncOperationAborted, // autoScroll while operation running
+			autoScroll,
 		)
 	case ModeSelectBranch:
 		// Dynamic menu from cloneBranches
@@ -511,7 +495,12 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			WithMenuNav(a).
 			On("enter", a.handleMenuEnter).
 			Build(),
-		ModeConsole: NewModeHandlers().Build(),
+		ModeConsole: NewModeHandlers().
+			On("up", a.handleConsoleUp).
+			On("down", a.handleConsoleDown).
+			On("pageup", a.handleConsolePageUp).
+			On("pagedown", a.handleConsolePageDown).
+			Build(),
 		ModeInput: NewModeHandlers().
 			WithCursorNav(genericInputNav).
 			On("enter", a.handleInputSubmit).
@@ -651,10 +640,10 @@ func (a *Application) updateInputValidation() {
 func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Route input submission based on action type
 	switch app.inputAction {
+	case "init_branch_name":
+		return app.handleInitBranchNameSubmit()
 	case "init_subdir_name":
 		return app.handleInputSubmitSubdirName(app)
-	case "init_branch_name":
-		return app.handleInputSubmitInitBranchName(app)
 	case "add_remote_url":
 		return app.handleAddRemoteSubmit(app)
 	case "commit_message":
@@ -662,29 +651,6 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	default:
 		return app, nil
 	}
-}
-
-// handleInputSubmitInitBranchName handles enter after entering initial branch name
-func (a *Application) handleInputSubmitInitBranchName(app *Application) (tea.Model, tea.Cmd) {
-	// Validate branch name
-	branchName := app.inputValue
-	if branchName == "" {
-		app.footerHint = "Branch name cannot be empty"
-		return app, nil
-	}
-
-	// If no path set, use current directory
-	if app.initRepositoryPath == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			app.footerHint = "Failed to get current directory"
-			return app, nil
-		}
-		app.initRepositoryPath = cwd
-	}
-
-	// Execute git operations asynchronously
-	return app, app.executeInitWorkflow(branchName)
 }
 
 

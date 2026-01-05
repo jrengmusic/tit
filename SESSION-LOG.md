@@ -96,6 +96,50 @@
 
 ---
 
+## Session 33: Console Auto-Scroll Investigation (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Fix console scroll not auto-scrolling to bottom during async git operations
+
+### Investigation:
+
+❓ **Initial assumption: Renders don't happen during async operations**
+- Thought: Buffer updates in goroutines don't trigger Update() calls
+- Considered solutions: Buffer update messages, listeners, channels
+- Started implementing notification system with channels
+
+❌ **Overcomplication caught early**
+- User stopped implementation and asked to verify assumptions first
+- Reverted all buffer update message code before testing
+
+✅ **Reality check: Auto-scroll already works**
+- `ConsoleOutState` passed as pointer (fixed in Session 32)
+- `autoScroll = asyncOperationActive && !asyncOperationAborted` 
+- Renderer sets `ScrollOffset = MaxScroll` when autoScroll is true
+- Bubble Tea continuously renders during async operations
+- **No problem to solve - code already correct**
+
+### Lesson Learned:
+
+**Test assumptions before implementing solutions**
+- Don't assume there's a problem without verifying
+- Simple fixes (pointer vs value) often solve what seem like complex issues
+- If it seems too complicated, you probably missed something simple
+
+### Files Modified:
+- None (reverted all speculative changes)
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ✅ VERIFIED WORKING
+- Console auto-scrolls to bottom during clone operations
+- ScrollOffset correctly follows MaxScroll during async ops
+- Manual scroll works after operation completes
+
+---
+
 ## Session 32: Clone Flow Refactor + Working Tree State Detection Fix (IN PROGRESS) 🔧
 
 **Agent:** Claude (Amp)

@@ -9,16 +9,15 @@ import (
 
 // ConsoleOutState holds the scrolling state for console output
 type ConsoleOutState struct {
-	// ScrollOffset: scroll position in OUTPUT LINES (after wrapping)
-	// Like Details pane - this is the number of lines to skip from top
 	ScrollOffset int
 	LinesPerPage int
+	MaxScroll    int // Cached max scroll position
 }
 
 // NewConsoleOutState creates a new console output state with default values
 func NewConsoleOutState() ConsoleOutState {
 	return ConsoleOutState{
-		ScrollOffset: 0,  // Start at top
+		ScrollOffset: 0,
 		LinesPerPage: 18, // Default for content area
 	}
 }
@@ -33,14 +32,11 @@ func (s *ConsoleOutState) ScrollToBottom(totalOutputLines int) {
 
 // ScrollUp moves the viewport up by one line
 func (s *ConsoleOutState) ScrollUp() {
-	if s.ScrollOffset > 0 {
-		s.ScrollOffset--
-	}
+	s.ScrollOffset--
 }
 
 // ScrollDown moves the viewport down by one line
 func (s *ConsoleOutState) ScrollDown() {
-	// Renderer will clamp to maxScroll, just increment
 	s.ScrollOffset++
 }
 
@@ -48,7 +44,7 @@ func (s *ConsoleOutState) ScrollDown() {
 // Pattern: pre-size content exactly, pad to dimensions, border wraps pre-sized content
 // Returns exactly maxWidth x height output (matches TextInput pattern)
 func RenderConsoleOutput(
-	state ConsoleOutState,
+	state *ConsoleOutState,
 	buffer *OutputBuffer,
 	palette Theme,
 	maxWidth int,
@@ -122,12 +118,21 @@ func RenderConsoleOutput(
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
+	
+	// Store maxScroll in state
+	state.MaxScroll = maxScroll
 
-	// Auto-scroll stays at bottom
+	// Auto-scroll: force ScrollOffset to maxScroll
 	if autoScroll {
-		state.ScrollOffset = maxScroll
-	} else if state.ScrollOffset > maxScroll {
-		state.ScrollOffset = maxScroll
+		state.ScrollOffset = state.MaxScroll
+	}
+	
+	// Always clamp to valid range
+	if state.ScrollOffset < 0 {
+		state.ScrollOffset = 0
+	}
+	if state.ScrollOffset > state.MaxScroll {
+		state.ScrollOffset = state.MaxScroll
 	}
 
 	// Step 3: Extract visible window
@@ -168,7 +173,8 @@ func RenderConsoleOutput(
 		Foreground(lipgloss.Color(palette.OutputInfoColor)).
 		Bold(true)
 
-	titleText := fmt.Sprintf("OUTPUT [%d/%d]", state.ScrollOffset, maxScroll)
+	titleText := fmt.Sprintf("OUTPUT [offset=%d max=%d auto=%v lines=%d]", 
+		state.ScrollOffset, state.MaxScroll, autoScroll, totalOutputLines)
 	title := titleStyle.Render(titleText)
 	titleWidth := lipgloss.Width(title)
 	if titleWidth < maxWidth {

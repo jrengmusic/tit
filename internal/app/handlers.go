@@ -136,7 +136,7 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 // Init workflow handlers
 
 var initLocationConfig = LocationChoiceConfig{
-	PathSetter: func(a *Application, path string) { a.initRepositoryPath = path },
+	PathSetter: func(a *Application, path string) {}, // No-op, init always happens in CWD
 	OnCurrentDir: func(a *Application) (tea.Model, tea.Cmd) {
 		// Transition to single branch input mode
 		a.transitionTo(ModeTransition{
@@ -191,23 +191,35 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 	return app.validateAndProceed(ui.Validators["directory"], func(app *Application) (tea.Model, tea.Cmd) {
 		cwd, err := os.Getwd()
 		if err != nil {
-			app.footerHint = "Failed to get current directory"
+			app.footerHint = ErrorMessages["cwd_read_failed"]
 			return app, nil
 		}
 
-		app.initRepositoryPath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
+		subdirPath := fmt.Sprintf("%s/%s", cwd, app.inputValue)
+		
+		// Create subdirectory
+		if err := os.MkdirAll(subdirPath, 0755); err != nil {
+			app.footerHint = fmt.Sprintf(ErrorMessages["failed_create_dir"], err)
+			return app, nil
+		}
 
-		// Transition to single branch input mode
-		app.transitionTo(ModeTransition{
-			Mode:        ModeInput,
-			InputPrompt: "Initial branch name:",
-			InputAction: "init_branch_name",
-			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
-		})
-		app.inputValue = "main"
-		app.inputCursorPosition = len("main")
+		// Change to subdirectory
+		if err := os.Chdir(subdirPath); err != nil {
+			app.footerHint = fmt.Sprintf(ErrorMessages["failed_change_dir"], err)
+			return app, nil
+		}
 
-		return app, nil
+		// Set up console for streaming output
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+		buffer.Append(OutputMessages["initializing_repo"], ui.TypeStatus)
+
+		app.mode = ModeConsole
+		app.asyncOperationActive = true
+		app.inputValue = ""
+
+		// Use cmdInit to create repo with .gitignore
+		return app, app.cmdInit("main")
 	})
 }
 
@@ -221,60 +233,19 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
 	branchName := strings.TrimSpace(a.inputValue)
 	if branchName == "" {
-		a.footerHint = "Branch name cannot be empty"
+		a.footerHint = ErrorMessages["branch_name_empty"]
 		return a, nil
 	}
 
 	buffer := ui.GetBuffer()
 	buffer.Clear()
-	buffer.Append("Initializing repository...", ui.TypeStatus)
+	buffer.Append(OutputMessages["initializing_repo"], ui.TypeStatus)
 
 	a.mode = ModeConsole
 	a.asyncOperationActive = true
 	a.inputValue = ""
 
 	return a, a.cmdInit(branchName)
-}
-
-// executeInitWorkflow DEPRECATED - use cmdInit instead
-func (a *Application) executeInitWorkflow(branchName string) tea.Cmd {
-	// UI THREAD - Launching worker goroutine for git operations
-	repoPath := a.initRepositoryPath
-
-	// Set up async state for console display
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
-	a.mode = ModeClone
-	a.consoleState = ui.NewConsoleOutState()
-	a.outputBuffer.Clear()
-	a.footerHint = GetFooterMessageText(MessageInit)
-
-	return func() tea.Msg {
-		result := git.ExecuteWithStreaming("init", repoPath)
-		if !result.Success {
-			return GitOperationMsg{Step: "init", Success: false, Error: "git init failed", Path: repoPath}
-		}
-
-		// Change to repo directory for branch creation
-		if err := os.Chdir(repoPath); err != nil {
-			return GitOperationMsg{Step: "init", Success: false, Error: "Failed to change to repository directory", Path: repoPath}
-		}
-
-		// Create initial branch
-		result = git.ExecuteWithStreaming("checkout", "-b", branchName)
-		if !result.Success {
-			return GitOperationMsg{Step: "init", Success: false, Error: fmt.Sprintf("Failed to create branch '%s'", branchName), Path: repoPath}
-		}
-
-		return GitOperationMsg{
-			Step:    "init",
-			Success: true,
-			Output:  fmt.Sprintf("Repository initialized with branch '%s'", branchName),
-			Path:    repoPath,
-		}
-	}
 }
 
 // Paste handler
@@ -329,14 +300,12 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 
 // handleConsoleUp scrolls console up one line
 func (a *Application) handleConsoleUp(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Scroll console output up
 	app.consoleState.ScrollUp()
 	return app, nil
 }
 
 // handleConsoleDown scrolls console down one line
 func (a *Application) handleConsoleDown(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Scroll console output down
 	app.consoleState.ScrollDown()
 	return app, nil
 }
@@ -383,7 +352,7 @@ func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd
 			// CWD not empty: start clone to subdir operation
 			cwd, err := os.Getwd()
 			if err != nil {
-				app.footerHint = "Failed to get current directory"
+				app.footerHint = ErrorMessages["cwd_read_failed"]
 				return app, nil
 			}
 			app.clonePath = cwd // git clone will create subdir automatically
@@ -510,31 +479,30 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 
 	selectedBranch := app.cloneBranches[app.selectedIndex]
 
-	// Save canon branch to config
-	cfg := git.RepoConfig{}
-	cfg.Repo.Initialized = true
-	cfg.Repo.RepositoryPath, _ = os.Getwd()
-	cfg.Repo.CanonBranch = selectedBranch
-	cfg.Repo.LastWorkingBranch = "dev" // Default working branch
-	git.SaveRepoConfig(cfg)
+	// Checkout selected branch
+	buffer := ui.GetBuffer()
+	buffer.Clear()
+	buffer.Append(fmt.Sprintf(OutputMessages["checking_out_branch"], selectedBranch), ui.TypeStatus)
 
-	// Reload git state with new config
-	if state, err := git.DetectState(); err == nil {
-		app.gitState = state
+	app.mode = ModeConsole
+	app.asyncOperationActive = true
+
+	return app, func() tea.Msg {
+		result := git.ExecuteWithStreaming("checkout", selectedBranch)
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "checkout",
+				Success: false,
+				Error:   fmt.Sprintf(ErrorMessages["failed_checkout_branch"], selectedBranch),
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "checkout",
+			Success: true,
+			Output:  fmt.Sprintf("Checked out branch '%s'", selectedBranch),
+		}
 	}
-
-	app.footerHint = fmt.Sprintf("Canon branch set to: %s", selectedBranch)
-
-	// Clean up clone state and return to menu
-	app.cloneBranches = nil
-	app.cloneURL = ""
-	app.clonePath = ""
-	app.mode = ModeMenu
-	app.selectedIndex = 0
-	menu := app.GenerateMenu()
-	app.menuItems = menu
-
-	return app, nil
 }
 
 // Commit workflow handlers
@@ -544,7 +512,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	// UI THREAD - Validate commit message
 	message := app.inputValue
 	if message == "" {
-		app.footerHint = "Commit message cannot be empty"
+		app.footerHint = ErrorMessages["commit_message_empty"]
 		return app, nil
 	}
 
@@ -786,3 +754,4 @@ func (a *Application) handleConfirmationEnter(app *Application) (tea.Model, tea.
 	}
 	return a, nil
 }
+
