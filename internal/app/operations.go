@@ -45,7 +45,32 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 			}
 		}
 
-		// Done. Just init + branch. No commits.
+		// Create .gitignore and commit it so tree is clean
+		if err := git.CreateDefaultGitignore(); err != nil {
+			return GitOperationMsg{
+				Step:    "init",
+				Success: false,
+				Error:   fmt.Sprintf("Failed to create .gitignore: %v", err),
+			}
+		}
+
+		result = git.ExecuteWithStreaming("add", ".gitignore")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "init",
+				Success: false,
+				Error:   "Failed to add .gitignore",
+			}
+		}
+
+		result = git.ExecuteWithStreaming("commit", "-m", "Initialize repository with .gitignore")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "init",
+				Success: false,
+				Error:   "Failed to commit .gitignore",
+			}
+		}
 
 		return GitOperationMsg{
 			Step:    "init",
@@ -319,17 +344,4 @@ func (a *Application) cmdInitSubdirectory() tea.Cmd {
 	}
 }
 
-// cmdCloneSubdirectory transitions directly to subdirectory name input when CWD is not empty
-// Flow: ask for subdir name → ask for URL → clone into subdir
-// Used when CWD is not empty (can't clone here, must use subdir)
-func (a *Application) cmdCloneSubdirectory() tea.Cmd {
-	return func() tea.Msg {
-		a.mode = ModeInput
-		a.inputPrompt = InputPrompts["clone_subdir_name"]
-		a.inputAction = "clone_subdir_name"
-		a.footerHint = InputHints["clone_subdir_name"]
-		a.inputValue = ""
-		a.inputCursorPosition = 0
-		return nil
-	}
-}
+

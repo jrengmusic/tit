@@ -84,22 +84,22 @@ func GetFooterMessageText(msgType FooterMessageType) string {
 
 // InputPrompts centralizes all user-facing input prompts
 var InputPrompts = map[string]string{
-	"clone_url":          "Repository URL:",
-	"remote_url":         "Remote URL:",
-	"commit_message":     "Commit message:",
-	"subdir_name":        "Subdirectory name:",
-	"init_branch_name":   "Initial branch name:",
-	"init_subdir_name":   "Subdirectory name:",
+	"clone_url":        "Repository URL:",
+	"remote_url":       "Remote URL:",
+	"commit_message":   "Commit message:",
+	"subdir_name":      "Subdirectory name:",
+	"init_branch_name": "Initial branch name:",
+	"init_subdir_name": "Subdirectory name:",
 }
 
 // InputHints centralizes all user-facing input hints
 var InputHints = map[string]string{
-	"clone_url":          "Enter git repository URL (https or git+ssh)",
-	"remote_url":         "Enter git repository URL and press Enter",
-	"commit_message":     "Enter message and press Enter",
-	"subdir_name":        "Enter new directory name",
-	"init_branch_name":   "Enter branch name (default: main), press Enter to initialize",
-	"init_subdir_name":   "Enter subdirectory name for new repository",
+	"clone_url":        "Enter git repository URL (https or git+ssh)",
+	"remote_url":       "Enter git repository URL and press Enter",
+	"commit_message":   "Enter message and press Enter",
+	"subdir_name":      "Enter new directory name",
+	"init_branch_name": "Enter branch name (default: main), press Enter to initialize",
+	"init_subdir_name": "Enter subdirectory name for new repository",
 }
 
 // ErrorMessages centralizes error messages

@@ -78,33 +78,29 @@ func (a *Application) dispatchInit(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchClone starts the clone workflow by asking for repository URL
-// Smart dispatch: if CWD not empty, auto-transition to location choice
+// dispatchClone starts the clone workflow
+// If CWD empty: show location menu first (user chooses mode), then ask URL
+// If CWD not empty: ask URL, then clone to subdir directly
 func (a *Application) dispatchClone(app *Application) tea.Cmd {
-	// Check if CWD is empty
 	cwdEmpty := isCwdEmpty()
 
-	if !cwdEmpty {
-		// CWD not empty: must clone into subdirectory
-		// Ask for URL, then clone to subdir (git creates the dir with repo name)
+	if cwdEmpty {
+		// CWD empty: show location menu first (user decides: clone here or subdir)
+		app.transitionTo(ModeTransition{
+			Mode:        ModeCloneLocation,
+			ResetFields: []string{"clone"},
+		})
+	} else {
+		// CWD not empty: ask URL, then clone to subdir
+		app.cloneMode = "subdir"
 		app.transitionTo(ModeTransition{
 			Mode:        ModeCloneURL,
 			InputPrompt: InputPrompts["clone_url"],
-			InputAction: "clone_url_subdir",
+			InputAction: "clone_url",
 			FooterHint:  InputHints["clone_url"],
 			ResetFields: []string{"clone"},
 		})
-		return nil
 	}
-
-	// CWD is empty: ask for URL first
-	app.transitionTo(ModeTransition{
-		Mode:        ModeCloneURL,
-		InputPrompt: InputPrompts["clone_url"],
-		InputAction: "clone_url",
-		FooterHint:  InputHints["clone_url"],
-		ResetFields: []string{"clone"},
-	})
 	return nil
 }
 

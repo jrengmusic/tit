@@ -41,6 +41,7 @@ type Application struct {
 	// Clone workflow state
 	cloneURL             string   // URL to clone from
 	clonePath            string   // Path to clone into (cwd or subdir)
+	cloneMode            string   // "here" (init+remote+fetch) or "subdir" (git clone)
 	cloneBranches        []string // Available branches after clone
 
 	// Remote operation state
@@ -654,8 +655,6 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 		return app.handleInputSubmitSubdirName(app)
 	case "init_branch_name":
 		return app.handleInputSubmitInitBranchName(app)
-	case "clone_subdir_name":
-		return app.handleInputSubmitCloneSubdirName(app)
 	case "add_remote_url":
 		return app.handleAddRemoteSubmit(app)
 	case "commit_message":

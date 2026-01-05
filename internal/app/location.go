@@ -28,6 +28,19 @@ func (a *Application) handleLocationChoice(choice int, config LocationChoiceConf
 	}
 
 	// Corresponds to "create subdirectory"
+	// If SubdirPrompt is empty, skip input and ask for clone URL
+	if config.SubdirPrompt == "" {
+		// For clone to subdir: ask URL, then git clone creates subdir with repo name
+		cwd, err := os.Getwd()
+		if err != nil {
+			a.footerHint = ErrorMessages["cwd_read_failed"]
+			return a, nil
+		}
+		config.PathSetter(a, cwd)
+		a.cloneMode = "subdir"
+		return a.transitionToCloneURL("clone_to_subdir")
+	}
+	
 	a.transitionTo(ModeTransition{
 		Mode:        ModeInput,
 		InputPrompt: config.SubdirPrompt,

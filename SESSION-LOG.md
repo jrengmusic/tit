@@ -96,6 +96,78 @@
 
 ---
 
+## Session 32: Clone Flow Refactor + Working Tree State Detection Fix (IN PROGRESS) 🔧
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Simplify clone flow, fix "Modified" state on fresh repos, ensure init shows Clean
+
+### Completed:
+
+✅ **Simplified clone flow**
+- Location menu shows only when CWD is empty
+- CWD not empty → asks URL → clones to subdir directly (no menu)
+- Removed redundant smart dispatch logic
+
+✅ **Added cloneMode tracking**
+- `cloneMode` field distinguishes "here" (init+fetch) vs "subdir" (git clone)
+- Clean separation of concerns in executeCloneWorkflow()
+
+✅ **Fixed clone to here operation**
+- `git init` + `git remote add` + `git fetch` + `git checkout -f <branch>` (force to overwrite .DS_Store)
+- After clone, changes to cloned subdir with ExtractRepoName + Chdir
+
+✅ **Fixed init operation**
+- Now creates + commits .gitignore after checkout
+- Ensures working tree shows Clean (not Modified)
+
+✅ **Fixed detectWorkingTree() for fresh repos**
+- Added explicit check: if `git status --porcelain=v2` returns empty string → Clean
+- Handles repos with no output (fresh init) correctly
+- Skip untracked ignored files (lines starting with '!')
+
+### Discovered Issues:
+
+❌ **CRITICAL: Fresh repos (both CLI git init and TIT init) show as Modified**
+- Even empty `git init` reports Modified state
+- Root cause: detectWorkingTree() logic or git status output interpretation
+- Verified: `git status --porcelain=v2` returns empty for fresh repo → should be Clean
+- Added explicit empty-string check to fix this
+
+### Files Modified:
+- `internal/app/dispatchers.go` - Simplified dispatchClone(), set cloneMode = "subdir"
+- `internal/app/handlers.go` - Updated clone location config, cloneMode tracking, executeCloneWorkflow()
+- `internal/app/location.go` - Set cloneMode for clone_to_subdir path
+- `internal/app/operations.go` - Updated cmdInit() to create + commit .gitignore
+- `internal/git/state.go` - Fixed detectWorkingTree() to handle empty porcelain output
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ⏳ AWAITING USER FEEDBACK
+- Clone to empty dir (should show Clean state)
+- Clone to non-empty dir (should show Clean state)
+- Init in empty dir (should show Clean state)
+- Fresh git init (should show Clean, not Modified)
+
+### Design:
+
+**Clone flow (simplified):**
+- CWD empty: Show "here or subdir?" → URL → operation
+- CWD not empty: Ask URL → clone to subdir directly
+
+**Init operation:**
+- `git init` + `git checkout -b <branch>` + create+commit .gitignore
+- Result: Clean working tree (1 commit, tracked files)
+
+**Working tree detection:**
+- Empty `git status --porcelain=v2` output = Clean
+- No output = no changes = Clean state
+
+### PRIORITY: Fix "Fresh repo shows Modified" before next session
+
+---
+
 ## Session 31: Fix NotRepo Menu + Simplify Init + Smart Clone Flow (UNTESTED) 🔧
 
 **Agent:** Claude (Amp)

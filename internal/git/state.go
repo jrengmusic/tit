@@ -120,9 +120,19 @@ func detectWorkingTree() (WorkingTree, error) {
 		return "", fmt.Errorf("git status failed: %w", err)
 	}
 
-	lines := strings.Split(string(output), "\n")
+	outputStr := string(output)
+	if outputStr == "" {
+		// Empty output = clean working tree
+		return Clean, nil
+	}
+
+	lines := strings.Split(outputStr, "\n")
 	for _, line := range lines {
 		if len(line) == 0 {
+			continue
+		}
+		// Skip untracked ignored files (.DS_Store, etc)
+		if line[0] == '!' {
 			continue
 		}
 		// Lines starting with '1', '2' (changes) or '?' (untracked) indicate modifications

@@ -156,10 +156,13 @@ var initLocationConfig = LocationChoiceConfig{
 var cloneLocationConfig = LocationChoiceConfig{
 	PathSetter: func(a *Application, path string) { a.clonePath = path },
 	OnCurrentDir: func(a *Application) (tea.Model, tea.Cmd) {
-		return a.startCloneOperation()
+		// Clone here: clonePath is already set by PathSetter to cwd
+		// Ask for URL, then init + remote add + fetch + checkout
+		a.cloneMode = "here"
+		return a.transitionToCloneURL("clone_here")
 	},
-	SubdirPrompt: "Directory name:",
-	SubdirAction: "clone_subdir_name",
+	SubdirPrompt: "",
+	SubdirAction: "clone_to_subdir",
 }
 
 // handleInitLocationSelection handles enter on init location menu
@@ -358,30 +361,37 @@ func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cm
 
 // Clone workflow handlers
 
-// handleCloneURLSubmit validates URL and routes based on inputAction
+// transitionToCloneURL transitions to clone URL input with specified action
+func (a *Application) transitionToCloneURL(action string) (tea.Model, tea.Cmd) {
+	a.transitionTo(ModeTransition{
+		Mode:        ModeCloneURL,
+		InputPrompt: InputPrompts["clone_url"],
+		InputAction: action,
+		FooterHint:  InputHints["clone_url"],
+		ResetFields: []string{},
+	})
+	return a, nil
+}
+
+// handleCloneURLSubmit validates URL and routes based on input action
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
 		app.cloneURL = app.inputValue
 		
-		// Route based on inputAction
-		if app.inputAction == "clone_url_subdir" {
-			// CWD not empty: clone to subdir directly
-			repoName := git.ExtractRepoName(app.cloneURL)
+		// Route based on how we got here
+		if app.inputAction == "clone_url" {
+			// CWD not empty: start clone to subdir operation
 			cwd, err := os.Getwd()
 			if err != nil {
 				app.footerHint = "Failed to get current directory"
 				return app, nil
 			}
-			app.clonePath = fmt.Sprintf("%s/%s", cwd, repoName)
+			app.clonePath = cwd // git clone will create subdir automatically
 			return app.startCloneOperation()
 		}
 		
-		// CWD empty: show location menu (clone here or subdir)
-		app.transitionTo(ModeTransition{
-			Mode:        ModeCloneLocation,
-			ResetFields: []string{"clone"},
-		})
-		return app, nil
+		// CWD empty: either clone_here or clone_to_subdir
+		return app.startCloneOperation()
 	})
 }
 
@@ -405,19 +415,6 @@ func (a *Application) handleCloneLocationChoice2(app *Application) (tea.Model, t
 	return app.handleLocationChoice(2, cloneLocationConfig)
 }
 
-// handleInputSubmitCloneSubdirName handles enter when creating subdirectory for clone
-func (a *Application) handleInputSubmitCloneSubdirName(app *Application) (tea.Model, tea.Cmd) {
-	return app.validateAndProceed(ui.Validators["directory"], func(app *Application) (tea.Model, tea.Cmd) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			app.footerHint = "Failed to get current directory"
-			return app, nil
-		}
-		app.clonePath = fmt.Sprintf("%s/%s", cwd, app.inputValue)
-		return app.startCloneOperation()
-	})
-}
-
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.asyncOperationActive = true
@@ -435,27 +432,18 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 // executeCloneWorkflow launches git clone in a worker and returns a command
 func (a *Application) executeCloneWorkflow() tea.Cmd {
 	cloneURL := a.cloneURL
-	clonePath := a.clonePath
-	cloneToCwd := false
+	cloneMode := a.cloneMode
 
 	cwd, _ := os.Getwd()
-	if clonePath == "" || clonePath == cwd {
-		cloneToCwd = true
-	}
 
 	return func() tea.Msg {
 		effectivePath := cwd // Default to current working directory
 		
-		if cloneToCwd {
-			// Clone to cwd: use git init + remote add + pull (works with hidden files)
+		if cloneMode == "here" {
+			// Clone here: init + remote add + fetch + force checkout
 			result := git.ExecuteWithStreaming("init")
 			if !result.Success {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git init failed", Path: effectivePath}
-			}
-
-			// Create .gitignore for common garbage files BEFORE checkout
-			if err := git.CreateDefaultGitignore(); err != nil {
-				return GitOperationMsg{Step: "clone", Success: false, Error: fmt.Sprintf("Failed to create .gitignore: %v", err), Path: effectivePath}
 			}
 
 			result = git.ExecuteWithStreaming("remote", "add", "origin", cloneURL)
@@ -468,27 +456,21 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git fetch failed", Path: effectivePath}
 			}
 
-			// Set remote HEAD to auto-detect default branch
-			result = git.ExecuteWithStreaming("remote", "set-head", "origin", "-a")
-			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote set-head failed", Path: effectivePath}
-			}
-
 			// Get default branch from remote
 			defaultBranch := git.GetRemoteDefaultBranch()
 			if defaultBranch == "" {
 				defaultBranch = "main"
 			}
 
-			// Checkout default branch (untracked files are now ignored)
-			result = git.ExecuteWithStreaming("checkout", defaultBranch)
+			// Force checkout to overwrite untracked files (like .DS_Store)
+			result = git.ExecuteWithStreaming("checkout", "-f", defaultBranch)
 			if !result.Success {
 				return GitOperationMsg{Step: "clone", Success: false, Error: "git checkout failed", Path: effectivePath}
 			}
 		} else {
-			// Clone to subdir: standard git clone
-			effectivePath = clonePath
-			result := git.ExecuteWithStreaming("clone", "--progress", cloneURL, clonePath)
+			// Clone to subdir: git clone creates subdir with repo name automatically
+			// Don't specify a path - git will create it from the repo name
+			result := git.ExecuteWithStreaming("clone", "--progress", cloneURL)
 			if !result.Success {
 				return GitOperationMsg{
 					Step:    "clone",
@@ -497,6 +479,19 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 					Path:    effectivePath,
 				}
 			}
+
+			// Extract repo name and change to that directory
+			repoName := git.ExtractRepoName(cloneURL)
+			newPath := fmt.Sprintf("%s/%s", cwd, repoName)
+			if err := os.Chdir(newPath); err != nil {
+				return GitOperationMsg{
+					Step:    "clone",
+					Success: false,
+					Error:   fmt.Sprintf("Failed to change to cloned directory: %v", err),
+					Path:    effectivePath,
+				}
+			}
+			effectivePath = newPath
 		}
 
 		return GitOperationMsg{
