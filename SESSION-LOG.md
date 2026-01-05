@@ -96,6 +96,77 @@
 
 ---
 
+## Session 34: Confirmation Dialog System - Port and Wire (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Port confirmation dialog system from old-tit, update to use SSOT, wire into new-tit
+
+### Completed:
+
+✅ **Updated confirmation.go to use SSOT**
+- Changed dialog width from hardcoded `c.Width` to `ContentInnerWidth - 10`
+- Updated theme colors to semantic names:
+  - `MenuSelectionBackground` + `HighlightTextColor` for selected button
+  - `InlineBackgroundColor` + `ContentTextColor` for unselected button
+  - `BoxBorderColor` for dialog border
+- Added `lipgloss.Place()` to center dialog both horizontally and vertically
+
+✅ **Wired ModeConfirmation into View()**
+- Added rendering case for `ModeConfirmation` in `app.go`
+- Removed duplicate case that caused compile error
+- Dialog renders centered in ContentHeight area
+
+✅ **Added test menu item**
+- `test_confirm` menu item with `t` shortcut (temporary for testing)
+- Triggers alert dialog with instructions
+- Allows testing: button navigation (left/right, h/l), enter to confirm
+
+✅ **Verified existing implementation**
+- `ModeConfirmation` mode already exists in `modes.go`
+- Keyboard handlers already registered (left/right/h/l/y/n/enter)
+- Handler implementations already in `handlers.go`
+- Confirmation routing already in `confirmationhandlers.go`
+- Helper methods already exist (`showConfirmation`, `showAlert`, etc.)
+
+✅ **Updated ARCHITECTURE.md**
+- Removed obsolete `ModeInitializeBranches` (no longer exists)
+- Added `ModeClone` (separate from ModeConsole)
+- Marked `ModeInput` as deprecated (being phased out)
+- Updated Configuration section: single-branch model, no config files
+- Added fresh repo auto-setup note (.gitignore creation)
+- Updated dialog styling docs (lipgloss.Place, SSOT sizing)
+- Added `confirmationhandlers.go` and `confirmation.go` to file list
+
+### Files Modified:
+- `internal/ui/confirmation.go` - SSOT sizing, semantic colors, lipgloss.Place centering
+- `internal/app/app.go` - Added ModeConfirmation rendering case
+- `internal/app/menu.go` - Added test_confirm menu item (temporary)
+- `internal/app/dispatchers.go` - Added dispatchTestConfirm()
+- `ARCHITECTURE.md` - Updated modes table, configuration section, styling docs
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ✅ VERIFIED WORKING
+- Dialog displays centered in content area
+- Button navigation works (left/right, h/l)
+- Direct selection works (y/n)
+- Enter confirms current selection
+- ESC dismisses dialog (global handler)
+
+### Design:
+
+**Confirmation system ready for Phase 2 operations:**
+- Force push warnings
+- Hard reset confirmations
+- Nested repository warnings
+- Any destructive operation that needs user confirmation
+
+**Next Priority:** Remove test menu item and implement Phase 2.1 (Commit Operation)
+
+---
+
 ## Session 33: Console Auto-Scroll Investigation (COMPLETE) ✅
 
 **Agent:** Claude (Amp)
