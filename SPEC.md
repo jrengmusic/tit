@@ -58,6 +58,7 @@ Every decision in TIT derives from **four axes**:
 ### Operation — Git operation state
 | Code | Meaning |
 |------|---------|
+| `NotRepo` | Not in a git repository |
 | `Normal` | No operation in progress |
 | `Merging` | Merge in progress |
 | `Rebasing` | Rebase in progress |
@@ -94,6 +95,23 @@ Every decision in TIT derives from **four axes**:
 ---
 
 ## 5. State → Menu Mapping
+
+### When Operation = NotRepo
+
+**Purpose:** User is not in a git repository. Show initialization options.
+
+**Smart location dispatch:**
+- **If CWD is empty** → Show two options:
+  - 🔨 Initialize here
+  - 📥 Clone repository
+- **If CWD not empty** → Skip menu, directly dispatch to:
+  - 📥 Clone as subdirectory (only option for init/clone)
+
+**Why:** Can't init in non-empty directory. No single-option menus.
+
+**Menu items (CWD empty):**
+- ✅ Initialize repository (CWD must be empty)
+- 📥 Clone repository
 
 ### When Operation = Conflicted
 **Show ONLY:**

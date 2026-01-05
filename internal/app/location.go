@@ -20,7 +20,7 @@ func (a *Application) handleLocationChoice(choice int, config LocationChoiceConf
 	if choice == 1 { // Corresponds to "current directory"
 		cwd, err := os.Getwd()
 		if err != nil {
-			a.footerHint = "Failed to get current directory"
+			a.footerHint = ErrorMessages["cwd_read_failed"]
 			return a, nil
 		}
 		config.PathSetter(a, cwd)
@@ -32,7 +32,7 @@ func (a *Application) handleLocationChoice(choice int, config LocationChoiceConf
 		Mode:        ModeInput,
 		InputPrompt: config.SubdirPrompt,
 		InputAction: config.SubdirAction,
-		FooterHint:  "Enter new directory name",
+		FooterHint:  InputHints["subdir_name"],
 	})
 	return a, nil
 }

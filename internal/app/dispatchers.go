@@ -1,12 +1,30 @@
 package app
 
 import (
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/ui"
 )
 
 // ActionHandler is a function type for action dispatchers
 type ActionHandler func(*Application) tea.Cmd
+
+// isCwdEmpty checks if current working directory is empty
+// Used for smart dispatch in init/clone workflows
+func isCwdEmpty() bool {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false // If we can't read dir, assume not empty (safe)
+	}
+
+	entries, err := os.ReadDir(cwd)
+	if err != nil {
+		return false // If we can't read dir, assume not empty (safe)
+	}
+
+	return len(entries) == 0
+}
 
 // dispatchAction routes menu item selections to appropriate handlers
 func (a *Application) dispatchAction(actionID string) tea.Cmd {
@@ -31,7 +49,18 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 }
 
 // dispatchInit starts the repository initialization workflow
+// Smart dispatch: if CWD not empty, skip to subdir initialization
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
+	// Check if CWD is empty (can only init in empty directories)
+	cwdEmpty := isCwdEmpty()
+
+	if !cwdEmpty {
+		// CWD not empty: can't init here, must use subdir
+		// Auto-dispatch to subdir init (skip location menu)
+		return a.cmdInitSubdirectory()
+	}
+
+	// CWD is empty: show location choice menu
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInitializeLocation,
 		ResetFields: []string{"init"},
@@ -40,12 +69,27 @@ func (a *Application) dispatchInit(app *Application) tea.Cmd {
 }
 
 // dispatchClone starts the clone workflow by asking for repository URL
+// Smart dispatch: if CWD not empty, auto-transition to location choice
 func (a *Application) dispatchClone(app *Application) tea.Cmd {
+	// Check if CWD is empty
+	cwdEmpty := isCwdEmpty()
+
+	if !cwdEmpty {
+		// CWD not empty: must clone into subdirectory
+		// Go directly to location menu (subdir only)
+		app.transitionTo(ModeTransition{
+			Mode:        ModeCloneLocation,
+			ResetFields: []string{"clone"},
+		})
+		return nil
+	}
+
+	// CWD is empty: ask for URL first
 	app.transitionTo(ModeTransition{
 		Mode:        ModeCloneURL,
-		InputPrompt: "Repository URL:",
+		InputPrompt: InputPrompts["clone_url"],
 		InputAction: "clone_url",
-		FooterHint:  "Enter git repository URL (https or git+ssh)",
+		FooterHint:  InputHints["clone_url"],
 		ResetFields: []string{"clone"},
 	})
 	return nil
@@ -55,9 +99,9 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
-		InputPrompt: "Remote URL:",
+		InputPrompt: InputPrompts["remote_url"],
 		InputAction: "add_remote_url",
-		FooterHint:  "Enter git repository URL and press Enter",
+		FooterHint:  InputHints["remote_url"],
 		ResetFields: []string{},
 	})
 	return nil
@@ -67,9 +111,9 @@ func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
 func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
-		InputPrompt: "Commit message:",
+		InputPrompt: InputPrompts["commit_message"],
 		InputAction: "commit_message",
-		FooterHint:  "Enter message and press Enter",
+		FooterHint:  InputHints["commit_message"],
 		ResetFields: []string{},
 	})
 	return nil

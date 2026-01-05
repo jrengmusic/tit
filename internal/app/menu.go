@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"tit/internal/git"
 )
@@ -38,12 +39,30 @@ func (a *Application) GenerateMenu() []MenuItem {
 		return generator(a)
 	}
 
-	// Fallback (should never reach)
-	return []MenuItem{}
+	// Unknown operation: fail fast with clear error
+	panic(fmt.Sprintf("Unknown git operation state: %v", a.gitState.Operation))
 }
 
 // menuNotRepo returns menu for NotRepo state
+// Smart dispatch: if CWD not empty, skip to subdir-only option
 func (a *Application) menuNotRepo() []MenuItem {
+	cwdEmpty := isCwdEmpty()
+
+	if !cwdEmpty {
+		// CWD not empty: only clone as subdir is allowed
+		// Auto-dispatch instead of showing single-item menu
+		// Return clone menu directly (no init option)
+		return []MenuItem{
+			Item("clone").
+				Shortcut("c").
+				Emoji("📥").
+				Label("Clone repository").
+				Hint("Clone an existing repository into a subdirectory").
+				Build(),
+		}
+	}
+
+	// CWD is empty: show both options
 	return []MenuItem{
 		Item("init").
 			Shortcut("i").

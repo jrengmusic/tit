@@ -18,10 +18,11 @@ import (
 func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
 
-	// Handle success/failure
+	// Handle failure
 	if !msg.Success {
 		buffer.Append(msg.Error, ui.TypeStderr)
-		buffer.Append("Press ESC to return to menu", ui.TypeInfo)
+		buffer.Append(GetFooterMessageText(MessageOperationFailed), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationFailed)
 		a.asyncOperationActive = false
 		return a, nil
 	}
@@ -31,7 +32,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		buffer.Append(msg.Output, ui.TypeStatus)
 	}
 
-	// Handle step-specific post-processing
+	// Handle step-specific post-processing and chaining
 	switch msg.Step {
 	case "init", "clone":
 		// Init/clone: reload state and return to menu
@@ -43,18 +44,32 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		} else {
 			a.gitState, _ = git.DetectState()
 		}
-		buffer.Append("Press ESC to return to menu", ui.TypeInfo)
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
 
-	case "add_remote", "commit", "push", "pull":
-		// All these operations: reload state
+	case "add_remote":
+		// Chain: add_remote → fetch_remote
+		buffer.Append("Fetching from remote...", ui.TypeInfo)
+		return a, a.cmdFetchRemote()
+
+	case "fetch_remote":
+		// Fetch complete: set upstream tracking
+		buffer.Append("Setting upstream tracking...", ui.TypeInfo)
 		a.gitState, _ = git.DetectState()
-		buffer.Append("Press ESC to return to menu", ui.TypeInfo)
+		return a, a.cmdSetUpstream(a.gitState.CurrentBranch)
+
+	case "commit", "push", "pull":
+		// Simple operations: reload state
+		a.gitState, _ = git.DetectState()
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
 
 	default:
 		// Default: just cleanup
-		buffer.Append("Press ESC to return to menu", ui.TypeInfo)
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
 	}
 

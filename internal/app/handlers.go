@@ -31,7 +31,7 @@ func (a *Application) validateAndProceed(
 func (a *Application) handleKeyCtrlC(app *Application) (tea.Model, tea.Cmd) {
 	// If async operation is running, show "in progress" message
 	if a.asyncOperationActive && !a.asyncOperationAborted {
-		a.footerHint = "Operation in progress. Please wait for completion."
+		a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 		return a, nil
 	}
 
@@ -58,7 +58,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 	// If async operation is running: abort it
 	if a.asyncOperationActive && !a.asyncOperationAborted {
 		a.asyncOperationAborted = true
-		a.footerHint = "Aborting operation. Please wait..."
+		a.footerHint = GetFooterMessageText(MessageOperationAborting)
 		return a, nil
 	}
 
@@ -246,7 +246,7 @@ func (a *Application) executeInitWorkflow(branchName string) tea.Cmd {
 	a.mode = ModeClone
 	a.consoleState = ui.NewConsoleOutState()
 	a.outputBuffer.Clear()
-	a.footerHint = "Initializing repository... (ESC to abort)"
+	a.footerHint = GetFooterMessageText(MessageInit)
 
 	return func() tea.Msg {
 		result := git.ExecuteWithStreaming("init", repoPath)
@@ -283,31 +283,38 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Handle paste in input modes only
 	if a.isInputMode() {
 		text, err := clipboard.ReadAll()
-		if err == nil && len(text) > 0 {
-			// Trim whitespace from pasted text
-			text = strings.TrimSpace(text)
+		if err != nil {
+			// Clipboard read failed - silently ignore and continue
+			// (user may have cancelled, or clipboard unavailable)
+			return app, nil
+		}
+		if len(text) == 0 {
+			return app, nil
+		}
 
-			// Clamp cursor position to valid range
-			if app.inputCursorPosition < 0 {
-				app.inputCursorPosition = 0
-			}
-			if app.inputCursorPosition > len(app.inputValue) {
-				app.inputCursorPosition = len(app.inputValue)
-			}
+		// Trim whitespace from pasted text
+		text = strings.TrimSpace(text)
 
-			// Insert pasted text at cursor position (atomically, not character by character)
-			app.inputValue = app.inputValue[:app.inputCursorPosition] + text + app.inputValue[app.inputCursorPosition:]
-			app.inputCursorPosition += len(text)
-			
-			// Update real-time validation if in clone URL mode
-			if app.inputAction == "clone_url" {
-				if app.inputValue == "" {
-					app.inputValidationMsg = ""
-				} else if ui.ValidateRemoteURL(app.inputValue) {
-					app.inputValidationMsg = "" // Valid - no error message
-				} else {
-					app.inputValidationMsg = "Invalid URL format"
-				}
+		// Clamp cursor position to valid range
+		if app.inputCursorPosition < 0 {
+			app.inputCursorPosition = 0
+		}
+		if app.inputCursorPosition > len(app.inputValue) {
+			app.inputCursorPosition = len(app.inputValue)
+		}
+
+		// Insert pasted text at cursor position (atomically, not character by character)
+		app.inputValue = app.inputValue[:app.inputCursorPosition] + text + app.inputValue[app.inputCursorPosition:]
+		app.inputCursorPosition += len(text)
+		
+		// Update real-time validation if in clone URL mode
+		if app.inputAction == "clone_url" {
+			if app.inputValue == "" {
+				app.inputValidationMsg = ""
+			} else if ui.ValidateRemoteURL(app.inputValue) {
+				app.inputValidationMsg = "" // Valid - no error message
+			} else {
+				app.inputValidationMsg = "Invalid URL format"
 			}
 		}
 	}
@@ -412,7 +419,7 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.mode = ModeClone
 	a.consoleState = ui.NewConsoleOutState()
 	a.outputBuffer.Clear()
-	a.footerHint = "Cloning repository... (ESC to abort)"
+	a.footerHint = GetFooterMessageText(MessageClone)
 
 	return a, a.executeCloneWorkflow()
 }
@@ -711,14 +718,11 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	return app, app.cmdAddRemote(url)
 }
 
-// executeAddRemoteWorkflow launches git remote add + fetch + set upstream in a worker and returns a command
+// executeAddRemoteWorkflow just does the add remote step
+// Rest handled by three-step chain in githandlers.go (add_remote → fetch_remote → complete)
 func (a *Application) executeAddRemoteWorkflow(remoteURL string) tea.Cmd {
-	// UI THREAD - Capturing URL before spawning worker
 	url := remoteURL
-
 	return func() tea.Msg {
-		// WORKER THREAD - Never touch Application
-		// Add remote
 		result := git.ExecuteWithStreaming("remote", "add", "origin", url)
 		if !result.Success {
 			return GitOperationMsg{
@@ -727,33 +731,55 @@ func (a *Application) executeAddRemoteWorkflow(remoteURL string) tea.Cmd {
 				Error:   "Failed to add remote",
 			}
 		}
-
-		// Fetch from remote
-		result = git.ExecuteWithStreaming("fetch", "--all")
-		if !result.Success {
-			return GitOperationMsg{
-				Step:    "add_remote",
-				Success: false,
-				Error:   "Failed to fetch from remote",
-			}
-		}
-
-		// Set upstream tracking for current branch
-		result = git.SetUpstreamTracking()
-		if !result.Success {
-			// Non-fatal: remote was added and fetched, just tracking setup failed
-			// This can happen in detached HEAD state
-			return GitOperationMsg{
-				Step:    "add_remote",
-				Success: true,
-				Output:  "Remote added and fetched, but could not set upstream tracking (may be in detached HEAD)",
-			}
-		}
-
 		return GitOperationMsg{
 			Step:    "add_remote",
 			Success: true,
-			Output:  "Remote added, fetched, and tracking configured successfully",
+			Output:  "Remote added",
 		}
 	}
+}
+
+// ========================================
+// Confirmation Mode Handlers
+// ========================================
+
+// handleConfirmationLeft moves selection to Yes button
+func (a *Application) handleConfirmationLeft(app *Application) (tea.Model, tea.Cmd) {
+	if a.confirmationDialog != nil {
+		a.confirmationDialog.SelectYes()
+	}
+	return a, nil
+}
+
+// handleConfirmationRight moves selection to No button
+func (a *Application) handleConfirmationRight(app *Application) (tea.Model, tea.Cmd) {
+	if a.confirmationDialog != nil {
+		a.confirmationDialog.SelectNo()
+	}
+	return a, nil
+}
+
+// handleConfirmationYes selects Yes button
+func (a *Application) handleConfirmationYes(app *Application) (tea.Model, tea.Cmd) {
+	if a.confirmationDialog != nil {
+		a.confirmationDialog.SelectYes()
+	}
+	return a, nil
+}
+
+// handleConfirmationNo selects No button
+func (a *Application) handleConfirmationNo(app *Application) (tea.Model, tea.Cmd) {
+	if a.confirmationDialog != nil {
+		a.confirmationDialog.SelectNo()
+	}
+	return a, nil
+}
+
+// handleConfirmationEnter confirms the current selection
+func (a *Application) handleConfirmationEnter(app *Application) (tea.Model, tea.Cmd) {
+	if a.confirmationDialog != nil {
+		confirmed := a.confirmationDialog.GetSelectedButton() == ui.ButtonYes
+		return a.handleConfirmationResponse(confirmed)
+	}
+	return a, nil
 }

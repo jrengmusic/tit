@@ -43,6 +43,9 @@ type Application struct {
 	clonePath            string   // Path to clone into (cwd or subdir)
 	cloneBranches        []string // Available branches after clone
 
+	// Remote operation state
+	remoteBranchName     string   // Current branch name during remote operations
+
 	// Async operation state
 	asyncOperationActive bool // True while git operation (clone, init, etc) is running
 	asyncOperationAborted bool // True if user pressed ESC to abort during operation
@@ -52,6 +55,9 @@ type Application struct {
 	// Console output state (for clone, init, etc)
 	consoleState         ui.ConsoleOutState
 	outputBuffer         *ui.OutputBuffer
+	
+	// Confirmation dialog state
+	confirmationDialog   *ui.ConfirmationDialog
 	
 	// State display info maps
 	workingTreeInfo      map[git.WorkingTree]StateInfo
@@ -111,12 +117,28 @@ func (a *Application) transitionTo(config ModeTransition) {
 
 // NewApplication creates a new application instance
 func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
-	// Detect git state (nil if not in repo)
+	// Try to find and cd into git repository
+	isRepo, repoPath := git.IsInitializedRepo()
+	if !isRepo {
+		// Check parent directories
+		isRepo, repoPath = git.HasParentRepo()
+	}
+	
 	var gitState *git.State
-	if state, err := git.DetectState(); err == nil {
+	if isRepo && repoPath != "" {
+		// Found a repo, cd into it and detect state
+		if err := os.Chdir(repoPath); err != nil {
+			// Can't cd into repo - this is a fatal error
+			panic(fmt.Sprintf("Cannot cd into repository at %s: %v", repoPath, err))
+		}
+		state, err := git.DetectState()
+		if err != nil {
+			// In a repo but state detection failed - this should not happen
+			panic(fmt.Sprintf("Failed to detect git state in repo %s: %v", repoPath, err))
+		}
 		gitState = state
 	} else {
-		// Not in a repo: create NotRepo state
+		// Not in a repo - use NotRepo operation state to show init/clone menu
 		gitState = &git.State{
 			Operation: git.NotRepo,
 		}
@@ -309,13 +331,17 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
 
 	case ModeConfirmation:
-		contentText = "[Confirmation mode - TODO]"
+		if a.confirmationDialog != nil {
+			contentText = a.confirmationDialog.Render()
+		} else {
+			panic("ModeConfirmation: confirmationDialog is nil - not initialized")
+		}
 	case ModeHistory:
-		contentText = "[History mode - TODO]"
+		panic("ModeHistory: not yet implemented")
 	case ModeConflictResolve:
-		contentText = "[Conflict Resolve mode - TODO]"
+		panic("ModeConflictResolve: not yet implemented")
 	default:
-		contentText = ""
+		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
 	
 	// Get current branch from git state
@@ -349,7 +375,8 @@ func (a *Application) GetGitState() interface{} {
 func (a *Application) RenderStateHeader() string {
 	cwd, _ := os.Getwd()
 	state := a.gitState
-	if state == nil {
+	if state == nil || state.Operation == git.NotRepo {
+		// Don't render state header if not in a repo
 		return ""
 	}
 
@@ -504,7 +531,15 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("1", a.handleCloneLocationChoice1).
 			On("2", a.handleCloneLocationChoice2).
 			Build(),
-		ModeConfirmation:    NewModeHandlers().Build(),
+		ModeConfirmation: NewModeHandlers().
+			On("left", a.handleConfirmationLeft).
+			On("right", a.handleConfirmationRight).
+			On("h", a.handleConfirmationLeft).
+			On("l", a.handleConfirmationRight).
+			On("y", a.handleConfirmationYes).
+			On("n", a.handleConfirmationNo).
+			On("enter", a.handleConfirmationEnter).
+			Build(),
 		ModeHistory:         NewModeHandlers().Build(),
 		ModeConflictResolve: NewModeHandlers().Build(),
 		ModeClone: NewModeHandlers().

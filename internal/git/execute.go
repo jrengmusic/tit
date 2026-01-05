@@ -216,6 +216,34 @@ func SetUpstreamTracking() CommandResult {
 	result = Execute("branch", "--set-upstream-to="+remoteBranch)
 	buffer.Append(fmt.Sprintf("DEBUG: git branch result success=%v, stderr=%s", result.Success, result.Stderr), ui.TypeStatus)
 
+	return result
+}
+
+// SetUpstreamTrackingWithBranch sets upstream tracking using a provided branch name
+// This avoids querying git in the worker thread context
+func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
+	buffer := ui.GetBuffer()
+	
+	if branchName == "" {
+		buffer.Append("WARNING: No branch name provided for upstream tracking", ui.TypeStderr)
+		return CommandResult{Success: false, Stderr: "No branch name provided"}
+	}
+
+	buffer.Append(fmt.Sprintf("Setting upstream for branch '%s'...", branchName), ui.TypeStatus)
+
+	// Use full ref path to avoid ambiguity with local branches named "origin/[branch]"
+	remoteBranch := "refs/remotes/origin/" + branchName
+
+	// Try to set upstream
+	result := Execute("branch", "--set-upstream-to="+remoteBranch)
+	
+	if result.Success {
+		buffer.Append(fmt.Sprintf("Upstream tracking set to %s", remoteBranch), ui.TypeStatus)
+	} else {
+		// Not fatal - may be detached HEAD or other condition
+		buffer.Append(fmt.Sprintf("Could not set upstream tracking: %s", result.Stderr), ui.TypeInfo)
+	}
+
 	// Always return success - if remote branch doesn't exist, first push -u will handle it
 	return CommandResult{Success: true}
 }

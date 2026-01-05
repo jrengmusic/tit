@@ -104,9 +104,9 @@ Terminal displays result
 | ModeCloneLocation | Choose clone location (cwd/subdir) | Menu selection |
 | ModeConsole | Show streaming git output | Console scroll (↑↓/PgUp/PgDn) |
 | ModeSelectBranch | Choose branch after clone | Menu selection |
+| ModeConfirmation | Confirm destructive operation ✅ | left/right/y/n/enter |
 | ModeConflictResolve | 3-way conflict resolution | (TBD - Phase 7) |
 | ModeHistory | Commit/file history browser | (TBD - Phase 5) |
-| ModeConfirmation | Confirm destructive operation | (TBD - Phase 8) |
 
 ---
 
@@ -290,6 +290,79 @@ handleKeyESC(): restore previousMode + previousMenuIndex
     ↓
 Return to ModeMenu with regenerated menu
 ```
+
+---
+
+## Confirmation Dialog System
+
+### Purpose
+
+Confirmation dialogs provide safe UX for destructive operations:
+- Nested repository warnings
+- Force push confirmations
+- Hard reset warnings
+- Blocking user mistakes
+
+### Flow
+
+```go
+User initiates destructive action
+    ↓
+Code calls app.showNestedRepoWarning(path)
+    ↓
+app.confirmationDialog = NewConfirmationDialog(config, width, theme)
+app.mode = ModeConfirmation
+    ↓
+View() renders confirmationDialog.Render()
+    ↓
+User presses left/right/y/n to select button
+    ↓
+User presses enter to confirm
+    ↓
+handleConfirmationEnter() → handleConfirmationResponse(confirmed)
+    ↓
+confirmationActions/confirmationRejectActions dispatch
+    ↓
+Handler executes operation or returns to menu
+```
+
+### Components
+
+**ConfirmationDialog** (`internal/ui/confirmation.go`):
+- ConfirmationConfig: title, explanation, yesLabel, noLabel, actionID
+- ButtonSelection: enum (ButtonYes, ButtonNo)
+- Methods: SelectYes(), SelectNo(), ToggleSelection(), GetSelectedButton()
+- Render() with button styling based on selection state
+
+**Handlers** (`internal/app/confirmationhandlers.go`):
+- showConfirmation(config) - Display dialog and enter ModeConfirmation
+- showNestedRepoWarning(path) - Pre-built config for nested repo warnings
+- showForcePushWarning(branchName) - Pre-built config for force push
+- showHardResetWarning() - Pre-built config for hard reset
+- showAlert(title, explanation) - Single-button alert dialog
+- confirmationActions map - YES button handlers
+- confirmationRejectActions map - NO button handlers
+- handleConfirmationResponse(confirmed) - Router to appropriate handler
+
+### Keyboard Interaction
+
+| Key | Action |
+|-----|--------|
+| left/h | Select Yes button |
+| right/l | Select No button |
+| y | Select Yes |
+| n | Select No |
+| enter | Confirm selection |
+| esc | Cancel (global handler, dismisses dialog) |
+
+### Styling
+
+Button colors from theme:
+- Yes button (selected): MenuSelectionBackground + HighlightTextColor
+- No button (selected): MenuSelectionBackground + HighlightTextColor
+- Button (unselected): InlineBackgroundColor + ContentTextColor
+- Dialog border: BoxBorderColor
+- Text: ContentTextColor + AccentTextColor (for highlights)
 
 ---
 

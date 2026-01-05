@@ -80,10 +80,30 @@ func DetectState() (*State, error) {
 	state.Remote = remote
 
 	// Get current branch and commit hashes
-	state.CurrentBranch = executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
-	state.CurrentHash = executeGitCommand("rev-parse", "HEAD")
+	// Use symbolic-ref for branch name (works even with zero commits)
+	branch, err := executeGitCommand("symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		// If symbolic-ref fails (detached HEAD), try rev-parse
+		branch, err = executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
+		if err != nil {
+			return nil, fmt.Errorf("detecting current branch: %w", err)
+		}
+	}
+	state.CurrentBranch = branch
+
+	hash, err := executeGitCommand("rev-parse", "HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("detecting current hash: %w", err)
+	}
+	state.CurrentHash = hash
+
 	if state.Remote == HasRemote {
-		state.RemoteHash = executeGitCommand("rev-parse", "@{u}")
+		remoteHash, err := executeGitCommand("rev-parse", "@{u}")
+		if err != nil {
+			// Remote tracking not set up yet (expected for new branches)
+			remoteHash = ""
+		}
+		state.RemoteHash = remoteHash
 		state.LocalBranchOnRemote = CurrentBranchExistsOnRemote()
 	}
 
@@ -125,20 +145,33 @@ func detectTimeline() (Timeline, int, int, error) {
 	err := cmd.Run()
 	if err != nil {
 		// No upstream tracking - try to compare with refs/remotes/origin/[current-branch]
-		currentBranch := executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
-		if currentBranch == "" {
+		// Use symbolic-ref first (works in empty repos), fall back to rev-parse
+		currentBranch, err := executeGitCommand("symbolic-ref", "--short", "HEAD")
+		if err != nil {
+			currentBranch, err = executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
+			if err != nil {
+				return InSync, 0, 0, nil
+			}
+		}
+		if currentBranch == "" || currentBranch == "HEAD" {
 			return InSync, 0, 0, nil
 		}
 
 		// Use full ref path to avoid ambiguity
 		remoteBranch := "refs/remotes/origin/" + currentBranch
-		cmd := exec.Command("git", "rev-parse", remoteBranch)
-		err := cmd.Run()
+		checkRemoteCmd := exec.Command("git", "rev-parse", remoteBranch)
+		err = checkRemoteCmd.Run()
 		if err != nil {
 			// Remote branch doesn't exist yet (never pushed)
 			cmd := exec.Command("git", "rev-list", "--count", "HEAD")
-			output, _ := cmd.Output()
-			count, _ := strconv.Atoi(strings.TrimSpace(string(output)))
+			output, err := cmd.Output()
+			if err != nil {
+				return InSync, 0, 0, nil
+			}
+			count, err := strconv.Atoi(strings.TrimSpace(string(output)))
+			if err != nil {
+				return InSync, 0, 0, nil
+			}
 			if count > 0 {
 				return Ahead, count, 0, nil
 			}
@@ -147,14 +180,23 @@ func detectTimeline() (Timeline, int, int, error) {
 
 		// Remote branch exists - compare HEAD with refs/remotes/origin/[branch]
 		cmd = exec.Command("git", "rev-list", "--left-right", "--count", "HEAD..."+remoteBranch)
-		output, _ := cmd.Output()
+		output, err := cmd.Output()
+		if err != nil {
+			return InSync, 0, 0, nil
+		}
 		parts := strings.Fields(strings.TrimSpace(string(output)))
 		if len(parts) != 2 {
 			return InSync, 0, 0, nil
 		}
 
-		ahead, _ := strconv.Atoi(parts[0])
-		behind, _ := strconv.Atoi(parts[1])
+		ahead, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return InSync, 0, 0, nil
+		}
+		behind, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return InSync, 0, 0, nil
+		}
 		return determineTimeline(ahead, behind), ahead, behind, nil
 	}
 
@@ -170,8 +212,14 @@ func detectTimeline() (Timeline, int, int, error) {
 		return InSync, 0, 0, nil
 	}
 
-	ahead, _ := strconv.Atoi(parts[0])
-	behind, _ := strconv.Atoi(parts[1])
+	ahead, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return InSync, 0, 0, nil
+	}
+	behind, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return InSync, 0, 0, nil
+	}
 
 	return determineTimeline(ahead, behind), ahead, behind, nil
 }
@@ -196,7 +244,10 @@ func determineTimeline(ahead, behind int) Timeline {
 func detectOperation() (Operation, error) {
 	// Priority 1: Check for conflicts FIRST (highest priority)
 	cmd := exec.Command("git", "status", "--porcelain=v2")
-	output, _ := cmd.Output()
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("checking for conflicts: %w", err)
+	}
 	for _, line := range strings.Split(string(output), "\n") {
 		if strings.HasPrefix(line, "u ") {
 			return Conflicted, nil
@@ -225,7 +276,10 @@ func detectOperation() (Operation, error) {
 // detectRemote checks if remote exists
 func detectRemote() (Remote, error) {
 	cmd := exec.Command("git", "remote")
-	output, _ := cmd.Output()
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("detecting remote: %w", err)
+	}
 
 	if strings.TrimSpace(string(output)) == "" {
 		return NoRemote, nil
@@ -233,16 +287,22 @@ func detectRemote() (Remote, error) {
 	return HasRemote, nil
 }
 
-// executeGitCommand runs git command and returns trimmed output
-func executeGitCommand(args ...string) string {
+// executeGitCommand runs git command and returns trimmed output or error
+func executeGitCommand(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
-	output, _ := cmd.Output()
-	return strings.TrimSpace(string(output))
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 // CurrentBranchExistsOnRemote checks if current branch exists on remote
 func CurrentBranchExistsOnRemote() bool {
-	currentBranch := executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
+	currentBranch, err := executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return false // Can't determine branch, assume doesn't exist on remote
+	}
 	remoteBranch := "refs/remotes/origin/" + currentBranch
 	cmd := exec.Command("git", "rev-parse", remoteBranch)
 	return cmd.Run() == nil

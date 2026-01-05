@@ -18,7 +18,7 @@ import (
 // They capture state in closures to avoid race conditions
 // Each returns a GitOperationMsg when complete
 
-// cmdInit executes `git init` and creates initial branch
+// cmdInit executes `git init`, creates initial branch, and commits .gitignore
 func (a *Application) cmdInit(branchName string) tea.Cmd {
 	name := branchName // Capture in closure
 	return func() tea.Msg {
@@ -42,6 +42,55 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 				Step:    "init",
 				Success: false,
 				Error:   "Failed to create branch",
+			}
+		}
+
+		// Create .gitignore with common patterns
+		gitignoreContent := `.DS_Store
+*.o
+*.a
+*.so
+.exe
+.dll
+node_modules/
+build/
+Build/
+builds/
+Builds/
+dist/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.env
+.env.local
+`
+		if err := os.WriteFile(".gitignore", []byte(gitignoreContent), 0644); err != nil {
+			return GitOperationMsg{
+				Step:    "init",
+				Success: false,
+				Error:   "Failed to create .gitignore",
+			}
+		}
+
+		// Stage .gitignore
+		result = git.ExecuteWithStreaming("add", ".gitignore")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "init",
+				Success: false,
+				Error:   "Failed to stage .gitignore",
+			}
+		}
+
+		// Commit .gitignore
+		result = git.ExecuteWithStreaming("commit", "-m", "Repo initialized with TIT")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "init",
+				Success: false,
+				Error:   "Failed to commit .gitignore",
 			}
 		}
 
@@ -101,12 +150,20 @@ func (a *Application) cmdClone(url, targetPath string) tea.Cmd {
 	}
 }
 
-// cmdAddRemote adds a remote repository
+// cmdAddRemote adds a remote repository (step 1 of 3-step chain)
 func (a *Application) cmdAddRemote(url string) tea.Cmd {
 	u := url // Capture in closure
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
+
+		// Get current branch BEFORE adding remote (works even with zero commits)
+		// Use symbolic-ref instead of rev-parse: works when HEAD exists but has no commits
+		branchResult := git.Execute("symbolic-ref", "--short", "HEAD")
+		branchName := ""
+		if branchResult.Success {
+		branchName = strings.TrimSpace(branchResult.Stdout)
+		}
 
 		// Add remote
 		result := git.ExecuteWithStreaming("remote", "add", "origin", u)
@@ -118,29 +175,52 @@ func (a *Application) cmdAddRemote(url string) tea.Cmd {
 			}
 		}
 
-		// Fetch from remote
-		result = git.ExecuteWithStreaming("fetch", "--all")
+		return GitOperationMsg{
+			Step:       "add_remote",
+			Success:    true,
+			Output:     "Remote added",
+			BranchName: branchName,
+		}
+	}
+}
+
+// cmdFetchRemote fetches from origin (step 2 of 3-step chain)
+func (a *Application) cmdFetchRemote() tea.Cmd {
+	return func() tea.Msg {
+		result := git.ExecuteWithStreaming("fetch", "--all")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "add_remote",
+				Step:    "fetch_remote",
 				Success: false,
 				Error:   "Failed to fetch from remote",
 			}
 		}
 
-		// Set upstream tracking
-		result = git.SetUpstreamTracking()
+		return GitOperationMsg{
+			Step:    "fetch_remote",
+			Success: true,
+			Output:  "Fetch completed",
+		}
+	}
+}
+
+// cmdSetUpstream sets upstream tracking (step 3 of 3-step chain)
+// Takes branchName from previous step to avoid querying git again
+func (a *Application) cmdSetUpstream(branchName string) tea.Cmd {
+	branch := branchName // Capture in closure
+	return func() tea.Msg {
+		result := git.SetUpstreamTrackingWithBranch(branch)
 		if !result.Success {
-			// Non-fatal: remote was added and fetched
+			// Non-fatal: tracking setup failed but remote is ready
 			return GitOperationMsg{
-				Step:    "add_remote",
-				Success: true,
-				Output:  "Remote added and fetched (tracking not set, may be detached HEAD)",
+				Step:    "set_upstream",
+				Success: true, // Consider success because remote is added
+				Output:  "Remote configured (upstream tracking could not be set - may be detached HEAD)",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "add_remote",
+			Step:    "set_upstream",
 			Success: true,
 			Output:  "Remote added, fetched, and tracking configured",
 		}
@@ -214,6 +294,7 @@ func (a *Application) cmdPull() tea.Cmd {
 
 		// Pull (merge by default)
 		result := git.ExecuteWithStreaming("pull")
+
 		if !result.Success {
 			// Check if conflict
 			if strings.Contains(result.Stderr, "conflict") || strings.Contains(result.Stderr, "CONFLICT") {
@@ -246,6 +327,7 @@ func (a *Application) cmdPullRebase() tea.Cmd {
 
 		// Pull with rebase
 		result := git.ExecuteWithStreaming("pull", "--rebase")
+
 		if !result.Success {
 			// Check if conflict
 			if strings.Contains(result.Stderr, "conflict") || strings.Contains(result.Stderr, "CONFLICT") {
@@ -267,5 +349,19 @@ func (a *Application) cmdPullRebase() tea.Cmd {
 			Success: true,
 			Output:  "Pulled with rebase successfully",
 		}
+	}
+}
+
+// cmdInitSubdirectory transitions directly to subdirectory input mode
+// Used when CWD is not empty (can't init here, must use subdir)
+func (a *Application) cmdInitSubdirectory() tea.Cmd {
+	return func() tea.Msg {
+		a.mode = ModeInput
+		a.inputPrompt = InputPrompts["init_subdir_name"]
+		a.inputAction = "init_subdir_name"
+		a.footerHint = InputHints["init_subdir_name"]
+		a.inputValue = ""
+		a.inputCursorPosition = 0
+		return nil
 	}
 }

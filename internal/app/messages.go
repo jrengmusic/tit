@@ -12,11 +12,12 @@ type ClearTickMsg time.Time
 
 // GitOperationMsg represents the result of a git operation
 type GitOperationMsg struct {
-	Step    string // "init", "clone", "push", "pull", etc.
-	Success bool
-	Output  string
-	Error   string
-	Path    string // Working directory to change to after operation
+	Step       string // "init", "clone", "push", "pull", etc.
+	Success    bool
+	Output     string
+	Error      string
+	Path       string // Working directory to change to after operation
+	BranchName string // Current branch name (for remote operations)
 }
 
 // GitOperationCompleteMsg signals that a git operation completed
@@ -48,6 +49,8 @@ const (
 	MessageResolveConflicts
 	MessageOperationComplete
 	MessageOperationFailed
+	MessageOperationInProgress
+	MessageOperationAborting
 )
 
 // GetFooterMessageText returns display text for a message type
@@ -65,10 +68,59 @@ func GetFooterMessageText(msgType FooterMessageType) string {
 		MessageResolveConflicts: "Resolving conflicts...",
 		MessageOperationComplete: "Press ESC to return to menu",
 		MessageOperationFailed:   "Failed. Press ESC to return.",
+		MessageOperationInProgress: "Operation in progress. Please wait for completion.",
+		MessageOperationAborting:   "Aborting operation. Please wait...",
 	}
 
 	if msg, exists := messages[msgType]; exists {
 		return msg
 	}
 	return ""
+}
+
+// ========================================
+// Input Prompts & Hints (SSOT)
+// ========================================
+
+// InputPrompts centralizes all user-facing input prompts
+var InputPrompts = map[string]string{
+	"clone_url":          "Repository URL:",
+	"remote_url":         "Remote URL:",
+	"commit_message":     "Commit message:",
+	"subdir_name":        "Subdirectory name:",
+	"init_branch_name":   "Initial branch name:",
+	"init_subdir_name":   "Subdirectory name:",
+}
+
+// InputHints centralizes all user-facing input hints
+var InputHints = map[string]string{
+	"clone_url":          "Enter git repository URL (https or git+ssh)",
+	"remote_url":         "Enter git repository URL and press Enter",
+	"commit_message":     "Enter message and press Enter",
+	"subdir_name":        "Enter new directory name",
+	"init_branch_name":   "Enter branch name (default: main), press Enter to initialize",
+	"init_subdir_name":   "Enter subdirectory name for new repository",
+}
+
+// ErrorMessages centralizes error messages
+var ErrorMessages = map[string]string{
+	"cwd_read_failed":    "Failed to get current directory",
+	"operation_failed":   "Operation failed",
+}
+
+// OutputMessages centralizes operation success messages
+var OutputMessages = map[string]string{
+	"remote_added":       "Remote added",
+	"fetch_completed":    "Fetch completed",
+	"pushed_successfully": "Pushed successfully",
+	"pulled_successfully": "Pulled successfully",
+}
+
+// ButtonLabels centralizes confirmation dialog button text
+var ButtonLabels = map[string]string{
+	"continue":   "Yes, continue",
+	"cancel":     "No, cancel",
+	"force_push": "Force push",
+	"reset":      "Reset",
+	"ok":         "OK",
 }
