@@ -765,3 +765,86 @@ Copied **exact pattern from old-tit**:
 
 ### Status
 Console auto-scroll **fully implemented and working**. Ready to continue with Phase 2 testing and remaining features.
+
+---
+
+## Session 36: Destructive Operations with Confirmation
+**Date:** 2025-01-05  
+**Agent:** Claude Sonnet 4.5 (GitHub Copilot CLI)  
+**Duration:** ~30 minutes  
+**Status:** ✅ COMPLETED
+
+### Implementation Summary
+Added **Force Push** and **Replace Local** destructive operations with proper confirmation dialogs, following SPEC.md requirements and old-tit patterns.
+
+### Force Push (Replace Remote)
+**Menu conditions:**
+- Timeline = Ahead + WorkingTree = Clean  
+- Timeline = Diverged + WorkingTree = Clean
+- Shortcut: `f` (Ahead), `f` (Diverged)
+
+**Operation:** 
+- Command: `git push --force-with-lease origin <branch>`
+- Effect: Overwrites remote branch with local commits
+
+### Replace Local (Replace with Remote)  
+**Menu conditions:**
+- Timeline = Behind (any WorkingTree state)
+- Timeline = Diverged (any WorkingTree state) 
+- Timeline = InSync + WorkingTree = Modified (discard uncommitted changes)
+- Shortcuts: `f` (Behind/InSync), `x` (Diverged)
+
+**Operation:**
+- Commands: `git fetch origin && git reset --hard origin/<branch> && git clean -fd`
+- Effect: LOCAL == REMOTE exactly (removes tracked changes, commits, and untracked files)
+
+### Confirmation Dialog Implementation
+**Pattern (copied from old-tit):**
+1. **Dispatcher**: Sets `mode = ModeConfirmation`, `confirmType = "hard_reset"/"force_push"`
+2. **Dialog creation**: `NewConfirmationDialog()` with warning message
+3. **User interaction**: Y/N keys handled by confirmation handlers
+4. **Execution**: Y → execute operation, N → return to menu
+
+### Key Technical Details
+- **Emoji compliance**: Fixed all narrow emojis (⚠️ → 💥) per SESSION-LOG.md width rules
+- **Console behavior**: Operations stay in console after completion, ESC returns to menu  
+- **State refresh**: Git state properly reloaded after operations complete
+- **Complete cleanup**: `git clean -fd` ensures untracked files removed for true LOCAL == REMOTE
+
+### Code Changes
+
+#### `internal/app/menu.go`
+- Added "Replace local" for InSync + Modified + HasRemote state
+- Added destructive operations for all applicable timeline states
+- Fixed emoji width violations (⚠️ → 💥, ⛔ → 💥)
+
+#### `internal/app/dispatchers.go`  
+- `dispatchForcePush()`: Creates force push confirmation dialog
+- `dispatchReplaceLocal()`: Creates replace local confirmation dialog
+- Both follow old-tit pattern: set confirmType, create dialog, return nil
+
+#### `internal/app/operations.go`
+- `cmdForcePush()`: Executes `git push --force-with-lease origin <branch>`
+- `cmdHardReset()`: Executes fetch + reset + clean sequence for complete LOCAL == REMOTE
+
+#### `internal/app/confirmationhandlers.go`
+- `executeConfirmForcePush()`: Handles Y response for force push
+- `executeConfirmHardReset()`: Handles Y response for replace local
+- Both execute respective cmd functions with proper console setup
+
+#### `internal/app/githandlers.go` 
+- Updated `force_push` and `hard_reset` completion handlers
+- Set `a.mode = ModeConsole` to stay in console after operations
+- Proper state refresh after destructive operations
+
+### Verification
+- ✅ Confirmation dialogs appear for destructive operations
+- ✅ Y/N keys work correctly (execute vs cancel)
+- ✅ Force push overwrites remote branch
+- ✅ Replace local achieves complete LOCAL == REMOTE state
+- ✅ Console output visible, ESC returns to menu
+- ✅ Git state properly refreshed after operations
+- ✅ Emoji width compliance maintained
+
+### Status
+**Destructive operations fully implemented with confirmation**. Force Push and Replace Local working correctly with proper safety dialogs. Phase 2.2-2.3 operations complete.

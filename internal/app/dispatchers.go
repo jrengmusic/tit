@@ -4,6 +4,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/ui"
 )
 
 // ActionHandler is a function type for action dispatchers
@@ -44,8 +45,10 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"commit":             a.dispatchCommit,
 		"commit_push":        a.dispatchCommitPush,
 		"push":               a.dispatchPush,
+		"force_push":         a.dispatchForcePush,
 		"pull_merge":         a.dispatchPullMerge,
 		"pull_rebase":        a.dispatchPullRebase,
+		"replace_local":      a.dispatchReplaceLocal,
 		"resolve_conflicts":  a.dispatchResolveConflicts,
 		"abort_operation":    a.dispatchAbortOperation,
 		"continue_operation": a.dispatchContinueOperation,
@@ -199,6 +202,46 @@ func (a *Application) dispatchAbortOperation(app *Application) tea.Cmd {
 // dispatchContinueOperation continues current operation
 func (a *Application) dispatchContinueOperation(app *Application) tea.Cmd {
 	// TODO: Implement
+	return nil
+}
+
+// dispatchForcePush shows confirmation dialog for destructive action (like old-tit)
+func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
+	// Show confirmation dialog for destructive action
+	app.mode = ModeConfirmation
+	app.confirmType = "force_push"
+	app.confirmContext = map[string]string{}
+	
+	// Create the confirmation dialog
+	config := ui.ConfirmationConfig{
+		Title:       "Force Push Confirmation",
+		Explanation: "This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
+		YesLabel:    "Force push",
+		NoLabel:     "Cancel",
+		ActionID:    "force_push",
+	}
+	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
+	
+	return nil
+}
+
+// dispatchReplaceLocal shows confirmation dialog for destructive action (like old-tit)  
+func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
+	// Show confirmation dialog for destructive action  
+	app.mode = ModeConfirmation
+	app.confirmType = "hard_reset"
+	app.confirmContext = map[string]string{}
+	
+	// Create the confirmation dialog
+	config := ui.ConfirmationConfig{
+		Title:       "Replace Local Confirmation", 
+		Explanation: "This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
+		YesLabel:    "Reset to remote",
+		NoLabel:     "Cancel",
+		ActionID:    "hard_reset",
+	}
+	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
+	
 	return nil
 }
 

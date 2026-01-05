@@ -91,7 +91,7 @@ func (a *Application) menuConflicted() []MenuItem {
 			Build(),
 		Item("abort_operation").
 			Shortcut("a").
-			Emoji("⛔").
+			Emoji("💥").
 			Label(abortLabel).
 			Hint(abortHint).
 			Build(),
@@ -131,7 +131,7 @@ func (a *Application) menuOperation() []MenuItem {
 			Build(),
 		Item("abort_operation").
 			Shortcut("a").
-			Emoji("⛔").
+			Emoji("💥").
 			Label("Abort " + operationType).
 			Hint("Stop the operation and return to previous state").
 			Build(),
@@ -228,8 +228,19 @@ func (a *Application) menuTimeline() []MenuItem {
 
 	switch a.gitState.Timeline {
 	case git.InSync:
-		// No sync actions needed when in sync
-		return []MenuItem{}
+		// When in sync but have uncommitted changes, allow reset to remote
+		if a.gitState.WorkingTree == git.Modified && a.gitState.Remote == git.HasRemote {
+			items = append(items,
+				Item("replace_local").
+					Shortcut("f").
+					Emoji("💥").
+					Label("Reset to remote (discard changes)").
+					Hint("💥 DESTRUCTIVE: Discard uncommitted changes, reset to remote state").
+					Build(),
+			)
+		}
+		// No other sync actions needed when in sync
+		return items
 
 	case git.Ahead:
 		// Local ahead → show push ONLY if working tree is Clean
@@ -242,11 +253,17 @@ func (a *Application) menuTimeline() []MenuItem {
 					Label("Push to remote").
 					Hint("Send local commits to remote branch").
 					Build(),
+				Item("force_push").
+					Shortcut("f").
+					Emoji("💥").
+					Label("Replace remote (force push)").
+					Hint("💥 DESTRUCTIVE: Overwrite remote branch with local commits").
+					Build(),
 			)
 		}
 
 	case git.Behind:
-		// Remote ahead → show pull
+		// Remote ahead → show pull and destructive reset (always available)
 		items = append(items,
 			Item("pull_merge").
 				Shortcut("p").
@@ -254,10 +271,16 @@ func (a *Application) menuTimeline() []MenuItem {
 				Label("Pull (fetch + merge)").
 				Hint("Fetch latest from remote and merge into local branch").
 				Build(),
+			Item("replace_local").
+				Shortcut("f").
+				Emoji("💥").
+				Label("Replace local (hard reset)").
+				Hint("💥 DESTRUCTIVE: Discard local commits, match remote exactly").
+				Build(),
 		)
 
 	case git.Diverged:
-		// Diverged → show both merge and rebase strategies
+		// Diverged → show merge/rebase strategies and destructive options (always available)
 		items = append(items,
 			Item("pull_merge").
 				Shortcut("p").
@@ -270,6 +293,18 @@ func (a *Application) menuTimeline() []MenuItem {
 				Emoji("📥").
 				Label("Pull (rebase strategy)").
 				Hint("Fetch remote and rebase local commits on top").
+				Build(),
+			Item("force_push").
+				Shortcut("f").
+				Emoji("💥").
+				Label("Replace remote (force push)").
+				Hint("💥 DESTRUCTIVE: Overwrite remote branch with local commits").
+				Build(),
+			Item("replace_local").
+				Shortcut("x").
+				Emoji("💥").
+				Label("Replace local (hard reset)").
+				Hint("💥 DESTRUCTIVE: Discard local commits, match remote exactly").
 				Build(),
 		)
 	}

@@ -95,12 +95,14 @@ func (a *Application) executeConfirmForcePush() (tea.Model, tea.Cmd) {
 	// Initiate async push --force operation
 	a.confirmationDialog = nil
 	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
+	a.consoleState.Reset()
 	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 
-	// TODO: Call cmdPushForce() when implemented
-	return a, nil
+	return a, a.cmdForcePush()
 }
 
 // executeRejectForcePush handles NO response to force push confirmation
@@ -116,12 +118,14 @@ func (a *Application) executeConfirmHardReset() (tea.Model, tea.Cmd) {
 	// User confirmed hard reset
 	a.confirmationDialog = nil
 	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
+	a.consoleState.Reset()
 	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 
-	// TODO: Call cmdHardReset() when implemented
-	return a, nil
+	return a, a.cmdHardReset()
 }
 
 // executeRejectHardReset handles NO response to hard reset confirmation

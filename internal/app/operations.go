@@ -1,8 +1,11 @@
 package app
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -385,7 +388,155 @@ func (a *Application) cmdInitSubdirectory() tea.Cmd {
 		a.footerHint = InputHints["init_subdir_name"]
 		a.inputValue = ""
 		a.inputCursorPosition = 0
-		return nil
+		return GitOperationMsg{Step: "input_mode_set", Success: true}
+	}
+}
+
+// cmdForcePush executes git push --force-with-lease (like old-tit)
+func (a *Application) cmdForcePush() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+		
+		// Get current branch name
+		cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+		output, err := cmd.Output()
+		if err != nil {
+			buffer.Append("Error: Could not determine current branch", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "force_push",
+				Success: false,
+				Error:   "Could not determine current branch",
+			}
+		}
+		
+		branchName := strings.TrimSpace(string(output))
+		buffer.Append("Force pushing to remote (overwriting remote history)...", ui.TypeInfo)
+		
+		cmd = exec.Command("git", "push", "--force-with-lease", "origin", branchName)
+		stdout, _ := cmd.StdoutPipe()
+		stderr, _ := cmd.StderrPipe()
+		
+		cmd.Start()
+		
+		// Stream output
+		scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+		for scanner.Scan() {
+			line := scanner.Text()
+			buffer.Append(line, ui.TypeStdout)
+		}
+		
+		err = cmd.Wait()
+		if err != nil {
+			return GitOperationMsg{
+				Step:    "force_push", 
+				Success: false,
+				Error:   "Force push failed",
+			}
+		}
+		
+		return GitOperationMsg{
+			Step:    "force_push",
+			Success: true,
+		}
+	}
+}
+
+// cmdHardReset executes git fetch + reset --hard origin/<branch> (ALWAYS get remote state)
+func (a *Application) cmdHardReset() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+		
+		// Get current branch name
+		cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+		output, err := cmd.Output()
+		if err != nil {
+			buffer.Append("Error: Could not determine current branch", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "hard_reset",
+				Success: false,
+				Error:   "Could not determine current branch",
+			}
+		}
+		
+		branchName := strings.TrimSpace(string(output))
+		buffer.Append("Fetching latest from remote...", ui.TypeInfo)
+		
+		// First: fetch latest from remote
+		cmd = exec.Command("git", "fetch", "origin")
+		stdout, _ := cmd.StdoutPipe()
+		stderr, _ := cmd.StderrPipe()
+		
+		cmd.Start()
+		
+		// Stream fetch output
+		scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+		for scanner.Scan() {
+			line := scanner.Text()
+			buffer.Append(line, ui.TypeStdout)
+		}
+		
+		err = cmd.Wait()
+		if err != nil {
+			buffer.Append("Failed to fetch from remote", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "hard_reset",
+				Success: false,
+				Error:   "Fetch failed",
+			}
+		}
+		
+		buffer.Append(fmt.Sprintf("Resetting to origin/%s (discarding local state)...", branchName), ui.TypeInfo)
+		
+		// Second: reset to origin/<branch> (ALWAYS - regardless of timeline/worktree state)
+		cmd = exec.Command("git", "reset", "--hard", fmt.Sprintf("origin/%s", branchName))
+		stdout, _ = cmd.StdoutPipe()
+		stderr, _ = cmd.StderrPipe()
+		
+		cmd.Start()
+		
+		// Stream reset output
+		scanner = bufio.NewScanner(io.MultiReader(stdout, stderr))
+		for scanner.Scan() {
+			line := scanner.Text()
+			buffer.Append(line, ui.TypeStdout)
+		}
+		
+		err = cmd.Wait()
+		if err != nil {
+			return GitOperationMsg{
+				Step:    "hard_reset",
+				Success: false,
+				Error:   "Reset to remote failed",
+			}
+		}
+		
+		buffer.Append("Removing untracked files and directories...", ui.TypeInfo)
+		
+		// Third: clean untracked files to make LOCAL == REMOTE exactly
+		cmd = exec.Command("git", "clean", "-fd")
+		stdout, _ = cmd.StdoutPipe()
+		stderr, _ = cmd.StderrPipe()
+		
+		cmd.Start()
+		
+		// Stream clean output
+		scanner = bufio.NewScanner(io.MultiReader(stdout, stderr))
+		for scanner.Scan() {
+			line := scanner.Text()
+			buffer.Append(line, ui.TypeStdout)
+		}
+		
+		err = cmd.Wait()
+		if err != nil {
+			buffer.Append("Warning: Failed to clean untracked files", ui.TypeWarning)
+		}
+		
+		return GitOperationMsg{
+			Step:    "hard_reset",
+			Success: true,
+		}
 	}
 }
 

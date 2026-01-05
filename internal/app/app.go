@@ -57,6 +57,8 @@ type Application struct {
 	
 	// Confirmation dialog state
 	confirmationDialog   *ui.ConfirmationDialog
+	confirmType          string // Type of confirmation for old-tit compatibility
+	confirmContext       map[string]string // Context for old-tit compatibility
 	
 	// State display info maps
 	workingTreeInfo      map[git.WorkingTree]StateInfo

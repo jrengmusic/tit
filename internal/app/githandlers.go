@@ -79,6 +79,29 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
 
+	case "force_push":
+		// Force push completed - reload state, stay in console  
+		// User presses ESC to return to menu
+		a.gitState, _ = git.DetectState()
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		a.mode = ModeConsole
+
+	case "hard_reset":
+		// Hard reset completed - reload state, stay in console
+		// User presses ESC to return to menu
+		a.gitState, _ = git.DetectState()
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		a.mode = ModeConsole
+
+	case "cancel":
+		// User cancelled any confirmation dialog
+		a.mode = ModeMenu
+		a.confirmationDialog = nil
+
 	default:
 		// Default: just cleanup
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
