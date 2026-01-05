@@ -98,7 +98,7 @@
 
 ## Session 34: Confirmation Dialog System - Port and Wire (COMPLETE) ✅
 
-**Agent:** Claude (Amp)
+**Agent:** Claude Sonnet 4.5
 **Date:** 2026-01-05
 
 ### Objective: Port confirmation dialog system from old-tit, update to use SSOT, wire into new-tit
@@ -169,7 +169,7 @@
 
 ## Session 33: Console Auto-Scroll Investigation (COMPLETE) ✅
 
-**Agent:** Claude (Amp)
+**Agent:** Claude Sonnet 4.5
 **Date:** 2026-01-05
 
 ### Objective: Fix console scroll not auto-scrolling to bottom during async git operations
