@@ -66,6 +66,93 @@
 
 ---
 
+## Session 24: Port Old-TIT Git Operations Architecture (IN PROGRESS - BUILD OK, DEBUG NEEDED) 🔧
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-05
+
+### Objective: Bring organized git operations pattern from old-tit (operations.go, githandlers.go) to new-tit, fix SetUpstreamTracking failure
+
+### Completed:
+
+✅ **Created operations.go with async cmd* functions**
+- New file: `internal/app/operations.go` (271 lines)
+- Ported: `cmdInit()`, `cmdClone()`, `cmdAddRemote()`, `cmdCommit()`, `cmdPush()`, `cmdPull()`, `cmdPullRebase()`
+- Each function captures state in closures, returns `tea.Cmd` for async execution
+- Matches old-tit pattern exactly
+
+✅ **Created githandlers.go for result handling**
+- New file: `internal/app/githandlers.go` (40 lines)
+- Central `handleGitOperation()` dispatcher for all GitOperationMsg results
+- Routes to appropriate handlers based on msg.Step
+- Reloads git state after successful operations
+
+✅ **Refactored dispatchers to use cmd* pattern**
+- Updated `dispatchPush()`, `dispatchPullMerge()`, `dispatchPullRebase()` to call `cmd*` functions
+- Removed inline execute*Workflow calls
+- Simplified dispatcher code (removed footer hint setup, buffer clearing)
+
+✅ **Updated handlers to wire cmd* operations**
+- `handleCommitSubmit()` now calls `cmdCommit()` instead of `executeCommitWorkflow()`
+- `handleAddRemoteSubmit()` now calls `cmdAddRemote()` instead of `executeAddRemoteWorkflow()`
+- Cleaner separation: dispatchers set mode, handlers call cmd functions
+
+✅ **Simplified app.go Update() handler**
+- Removed large switch statement for GitOperationMsg handling
+- Now routes all GitOperationMsg to `handleGitOperation()`
+- Cleaner, easier to maintain
+
+✅ **Improved Execute() function**
+- Fixed to properly separate stdout/stderr
+- Now uses pipes instead of CombinedOutput for better diagnostics
+- Returns actual git error messages in Stderr field
+
+### Known Issues (Investigating):
+
+❌ **SetUpstreamTracking() still failing in worker thread**
+- Console shows: "DEBUG: Failed to get current branch"
+- `Execute("rev-parse", "--abbrev-ref", "HEAD")` returning non-success
+- Likely issue: Different working directory context in worker thread
+- Debug messages added to SetUpstreamTracking() but git error not yet visible
+
+### Files Created:
+
+- `internal/app/operations.go` (271 lines) - All async cmd* functions
+- `internal/app/githandlers.go` (40 lines) - Central GitOperationMsg handler
+
+### Files Modified:
+
+- `internal/app/dispatchers.go` - Simplified to call cmd* functions
+- `internal/app/handlers.go` - Updated to use cmd* operations
+- `internal/app/app.go` - Simplified GitOperationMsg handling
+- `internal/git/execute.go` - Improved Execute() function with better error handling
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ⏳ PARTIAL
+- ✅ Add remote, fetch complete successfully
+- ✅ Console output displays correctly
+- ❌ SetUpstreamTracking fails silently (needs investigation)
+- ❌ Need to debug why git command fails in worker thread context
+
+### Architecture Changes:
+
+**Old Pattern (Bad):** Handlers mixed with dispatchers, execute*Workflow sprinkled throughout
+**New Pattern (Good):** 
+- Dispatchers → Set mode + call cmd*
+- cmd* functions → Async execution with git operations
+- githandlers → Process results, update state
+
+### Next Session:
+
+1. Debug why `git rev-parse --abbrev-ref HEAD` fails in worker thread
+2. Check if cwd changed between handler execution and worker startup
+3. Possibly need to capture branch name in closure before async execution
+4. After fix: test full workflow (init → add remote → commit → push)
+5. Verify pull operations work correctly
+
+---
+
 ## Session 23: Port Old-TIT Header to New-TIT (COMPLETE - TESTED) ✅
 
 **Agent:** Claude (Amp)

@@ -84,11 +84,9 @@ func (a *Application) dispatchPush(app *Application) tea.Cmd {
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState = ui.NewConsoleOutState()
-	app.outputBuffer.Clear()
-	app.footerHint = GetFooterMessageText(MessagePush)
 
-	// Execute push asynchronously
-	return app.executePushWorkflow()
+	// Execute push asynchronously using operations pattern
+	return app.cmdPush()
 }
 
 // dispatchPullMerge pulls with merge strategy
@@ -100,11 +98,9 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState = ui.NewConsoleOutState()
-	app.outputBuffer.Clear()
-	app.footerHint = GetFooterMessageText(MessagePull)
 
-	// Execute pull with merge asynchronously
-	return app.executePullMergeWorkflow()
+	// Execute pull with merge asynchronously using operations pattern
+	return app.cmdPull()
 }
 
 // dispatchPullRebase pulls with rebase strategy
@@ -116,11 +112,9 @@ func (a *Application) dispatchPullRebase(app *Application) tea.Cmd {
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState = ui.NewConsoleOutState()
-	app.outputBuffer.Clear()
-	app.footerHint = GetFooterMessageText(MessagePull)
 
-	// Execute pull with rebase asynchronously
-	return app.executePullRebaseWorkflow()
+	// Execute pull with rebase asynchronously using operations pattern
+	return app.cmdPullRebase()
 }
 
 // dispatchResolveConflicts opens conflict resolution UI

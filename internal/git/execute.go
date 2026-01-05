@@ -3,6 +3,7 @@ package git
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -23,18 +24,37 @@ type CommandResult struct {
 func Execute(args ...string) CommandResult {
 	cmd := exec.Command("git", args...)
 
-	// Capture both stdout and stderr
-	output, err := cmd.CombinedOutput()
-	outputStr := strings.TrimSpace(string(output))
+	// Capture stdout and stderr separately for better error diagnostics
+	stdout, _ := cmd.StdoutPipe()
+	stderr, _ := cmd.StderrPipe()
+	
+	if err := cmd.Start(); err != nil {
+		return CommandResult{
+			Stdout:   "",
+			Stderr:   fmt.Sprintf("Failed to start command: %v", err),
+			ExitCode: 1,
+			Success:  false,
+		}
+	}
 
+	// Read output
+	var stdoutBuf, stderrBuf strings.Builder
+	io.Copy(&stdoutBuf, stdout)
+	io.Copy(&stderrBuf, stderr)
+	
+	err := cmd.Wait()
 	exitCode := 0
 	if err != nil {
-		exitCode = 1
+		if exitError, ok := err.(*exec.ExitError); ok {
+			exitCode = exitError.ExitCode()
+		} else {
+			exitCode = 1
+		}
 	}
 
 	return CommandResult{
-		Stdout:   outputStr,
-		Stderr:   outputStr,
+		Stdout:   strings.TrimSpace(stdoutBuf.String()),
+		Stderr:   strings.TrimSpace(stderrBuf.String()),
 		ExitCode: exitCode,
 		Success:  exitCode == 0,
 	}
@@ -170,4 +190,32 @@ func GetRemoteURL() string {
 		return strings.TrimSpace(result.Stdout)
 	}
 	return ""
+}
+
+// SetUpstreamTracking sets the upstream tracking branch to origin/[current-branch]
+// Returns success even if remote branch doesn't exist yet (will be set on first push -u)
+func SetUpstreamTracking() CommandResult {
+	buffer := ui.GetBuffer()
+	buffer.Append("Attempting to set upstream tracking...", ui.TypeStatus)
+
+	// Get current branch name
+	result := Execute("rev-parse", "--abbrev-ref", "HEAD")
+	if !result.Success || result.Stdout == "" {
+		buffer.Append("DEBUG: Failed to get current branch", ui.TypeStderr)
+		return CommandResult{Success: false, Stderr: "Not on a branch"}
+	}
+
+	currentBranch := strings.TrimSpace(result.Stdout)
+	buffer.Append(fmt.Sprintf("DEBUG: Current branch = '%s'", currentBranch), ui.TypeStatus)
+
+	// Use full ref path to avoid ambiguity with local branches named "origin/[branch]"
+	remoteBranch := "refs/remotes/origin/" + currentBranch
+	buffer.Append(fmt.Sprintf("DEBUG: Remote branch = '%s'", remoteBranch), ui.TypeStatus)
+
+	// Try to set upstream
+	result = Execute("branch", "--set-upstream-to="+remoteBranch)
+	buffer.Append(fmt.Sprintf("DEBUG: git branch result success=%v, stderr=%s", result.Success, result.Stderr), ui.TypeStatus)
+
+	// Always return success - if remote branch doesn't exist, first push -u will handle it
+	return CommandResult{Success: true}
 }

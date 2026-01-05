@@ -214,7 +214,26 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 // Keeping as comment for reference of old behavior
 // func (a *Application) handleInitBranchesCancel(app *Application) (tea.Model, tea.Cmd) { ... }
 
-// executeInitWorkflow launches git operations in a worker and returns a command
+// handleInitBranchNameSubmit validates branch name and starts init operation
+func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
+	branchName := strings.TrimSpace(a.inputValue)
+	if branchName == "" {
+		a.footerHint = "Branch name cannot be empty"
+		return a, nil
+	}
+
+	buffer := ui.GetBuffer()
+	buffer.Clear()
+	buffer.Append("Initializing repository...", ui.TypeStatus)
+
+	a.mode = ModeConsole
+	a.asyncOperationActive = true
+	a.inputValue = ""
+
+	return a, a.cmdInit(branchName)
+}
+
+// executeInitWorkflow DEPRECATED - use cmdInit instead
 func (a *Application) executeInitWorkflow(branchName string) tea.Cmd {
 	// UI THREAD - Launching worker goroutine for git operations
 	repoPath := a.initRepositoryPath
@@ -526,11 +545,10 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState = ui.NewConsoleOutState()
-	app.outputBuffer.Clear()
-	app.footerHint = GetFooterMessageText(MessageCommit)
+	app.inputValue = ""
 
-	// Execute commit asynchronously
-	return app, app.executeCommitWorkflow(message)
+	// Execute commit asynchronously using operations pattern
+	return app, app.cmdCommit(message)
 }
 
 // executeCommitWorkflow launches git commit in a worker and returns a command
@@ -687,14 +705,13 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState = ui.NewConsoleOutState()
-	app.outputBuffer.Clear()
-	app.footerHint = GetFooterMessageText(MessageAddRemote)
+	app.inputValue = ""
 
-	// Execute add remote + fetch asynchronously
-	return app, app.executeAddRemoteWorkflow(url)
+	// Execute add remote + fetch asynchronously using operations pattern
+	return app, app.cmdAddRemote(url)
 }
 
-// executeAddRemoteWorkflow launches git remote add + fetch in a worker and returns a command
+// executeAddRemoteWorkflow launches git remote add + fetch + set upstream in a worker and returns a command
 func (a *Application) executeAddRemoteWorkflow(remoteURL string) tea.Cmd {
 	// UI THREAD - Capturing URL before spawning worker
 	url := remoteURL
@@ -721,10 +738,22 @@ func (a *Application) executeAddRemoteWorkflow(remoteURL string) tea.Cmd {
 			}
 		}
 
+		// Set upstream tracking for current branch
+		result = git.SetUpstreamTracking()
+		if !result.Success {
+			// Non-fatal: remote was added and fetched, just tracking setup failed
+			// This can happen in detached HEAD state
+			return GitOperationMsg{
+				Step:    "add_remote",
+				Success: true,
+				Output:  "Remote added and fetched, but could not set upstream tracking (may be in detached HEAD)",
+			}
+		}
+
 		return GitOperationMsg{
 			Step:    "add_remote",
 			Success: true,
-			Output:  "Remote added and fetched successfully",
+			Output:  "Remote added, fetched, and tracking configured successfully",
 		}
 	}
 }
