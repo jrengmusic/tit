@@ -28,7 +28,7 @@
 - **Only the last 5 sessions are kept in active log.**
 - Agents must identify itself as session log author
 ```
-**Agent:** Sonnet 3.5, Sonnet 4.5, Mistral Vibe
+**Agent:** Sonnet 3.5 (claude.ai/code), Sonnet 4.5 (GitHub Copilot CLI), GPT-5.1 (Cursor)
 **Date:** 2025-12-31
 ```
 - Session could be executed parallel with multiple agents.
@@ -98,7 +98,7 @@
 
 ## Session 34: Confirmation Dialog System - Port and Wire (COMPLETE) ✅
 
-**Agent:** Claude Sonnet 4.5
+**Agent:** Claude Sonnet 4.5 (GitHub Copilot CLI)
 **Date:** 2026-01-05
 
 ### Objective: Port confirmation dialog system from old-tit, update to use SSOT, wire into new-tit
@@ -169,7 +169,7 @@
 
 ## Session 33: Console Auto-Scroll Investigation (COMPLETE) ✅
 
-**Agent:** Claude Sonnet 4.5
+**Agent:** Claude Sonnet 4.5 (GitHub Copilot CLI)
 **Date:** 2026-01-05
 
 ### Objective: Fix console scroll not auto-scrolling to bottom during async git operations
