@@ -47,6 +47,7 @@ type Application struct {
 	// Async operation state
 	asyncOperationActive bool // True while git operation (clone, init, etc) is running
 	asyncOperationAborted bool // True if user pressed ESC to abort during operation
+	isExitAllowed        bool // False during critical operations (pull merge) to prevent premature exit
 	previousMode         AppMode // Mode before async operation started (for restoration on ESC)
 	previousMenuIndex    int // Menu selection before async (for restoration)
 
@@ -159,6 +160,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		selectedIndex:        0,
 		asyncOperationActive: false,
 		asyncOperationAborted: false,
+		isExitAllowed:        true, // Allow exit by default (disabled during critical operations)
 		consoleState:         ui.NewConsoleOutState(),
 		outputBuffer:         ui.GetBuffer(),
 		consoleAutoScroll:    true, // Start with auto-scroll enabled
@@ -409,6 +411,12 @@ func (a *Application) RenderStateHeader() string {
 	state := a.gitState
 	if state == nil || state.Operation == git.NotRepo {
 		// Don't render state header if not in a repo
+		return ""
+	}
+
+	// Guard: Skip rendering if WorkingTree/Timeline are empty (happens during dirty operations)
+	// DetectState() returns partial state for dirty operations (only Operation is set)
+	if state.WorkingTree == "" || state.Timeline == "" {
 		return ""
 	}
 

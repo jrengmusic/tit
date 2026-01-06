@@ -174,26 +174,36 @@ func (a *Application) menuTimeline() []MenuItem {
 		}
 
 	case git.Behind:
-		// If Dirty, show dirty pull first
+		// Dirty → ONLY dirty pull (don't offer clean pull that would lose work)
 		if a.gitState.WorkingTree == git.Dirty {
-			items = append(items, GetMenuItem("dirty_pull_merge"))
-			// Add separator between dirty pull and clean pull
-			items = append(items, Item("").Separator().Build())
+			items = append(items,
+				GetMenuItem("dirty_pull_merge"),
+				GetMenuItem("replace_local"), // Destructive option (has confirmation)
+			)
+		} else {
+			// Clean → ONLY clean pull options
+			items = append(items,
+				GetMenuItem("pull_merge"),
+				GetMenuItem("replace_local"),
+			)
 		}
 
-		// Show clean pull options
-		items = append(items,
-			GetMenuItem("pull_merge"),
-			GetMenuItem("replace_local"),
-		)
-
 	case git.Diverged:
-		// Diverged → show merge and destructive options (always available)
-		items = append(items,
-			GetMenuItem("pull_merge_diverged"),
-			GetMenuItem("force_push"),
-			GetMenuItem("replace_local"),
-		)
+		// Dirty → ONLY dirty pull (don't offer clean pull that would lose work)
+		if a.gitState.WorkingTree == git.Dirty {
+			items = append(items,
+				GetMenuItem("dirty_pull_merge"),
+				GetMenuItem("force_push"),     // Destructive option (has confirmation)
+				GetMenuItem("replace_local"),  // Destructive option (has confirmation)
+			)
+		} else {
+			// Clean → ONLY clean pull options
+			items = append(items,
+				GetMenuItem("pull_merge_diverged"),
+				GetMenuItem("force_push"),
+				GetMenuItem("replace_local"),
+			)
+		}
 	}
 
 	return items

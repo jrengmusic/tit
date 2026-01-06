@@ -424,7 +424,95 @@ state := &ConflictResolveState{
 
 **Abort:** User presses ESC → `handleConflictEsc()`
 - Discards all choices
-- Returns to ModeMenu without applying changes
+- Returns to ModeConsole (shows abort command output)
+- User presses ESC again → Returns to ModeMenu without applying changes
+
+### Generic Conflict Resolver Setup Pattern
+
+**Function:** `setupConflictResolver(operation, columnLabels)` (`internal/app/githandlers.go`)
+
+All conflict-resolving operations use the same parameterized setup function:
+
+```go
+func (a *Application) setupConflictResolver(
+    operation string,              // "pull_merge", "dirty_pull_changeset_apply", "cherry_pick"
+    columnLabels []string,         // ["BASE", "LOCAL (yours)", "REMOTE (theirs)"]
+) (tea.Model, tea.Cmd)
+```
+
+**Usage:**
+
+```go
+// Pull merge conflicts (3-way: BASE, LOCAL, REMOTE)
+return a.setupConflictResolver("pull_merge", 
+    []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+
+// Dirty pull conflicts (same labels)
+return a.setupConflictResolver("dirty_pull_changeset_apply",
+    []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+
+// Cherry-pick conflicts (2-way: LOCAL, INCOMING)
+return a.setupConflictResolver("cherry_pick",
+    []string{"LOCAL (current)", "INCOMING (cherry-pick)"})
+```
+
+**Advantages:**
+1. **Single source of truth** - One function handles all conflict scenarios
+2. **Reduced duplication** - No copy-paste between pull/dirty-pull/cherry-pick
+3. **Extensible** - New conflict operations only need to call setupConflictResolver with appropriate labels
+4. **Consistent behavior** - All conflict resolvers behave identically (file detection, version loading, routing)
+
+**Implementation Detail:**
+- Detects conflicted files via `git.ListConflictedFiles()`
+- Loads 3-way git versions (stages 1/2/3) for each file
+- Populates `ConflictResolveState` with parameterized operation name and column labels
+- Routes to `ModeConflictResolve` with handlers delegating on operation type
+
+**Handler Routing:**
+
+Both `handleConflictEnter()` and `handleConflictEsc()` check operation name:
+```go
+if app.conflictResolveState.Operation == "pull_merge" {
+    return app.cmdFinalizePullMerge()  // or cmdAbortMerge()
+} else if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
+    return app.cmdDirtyPullApplySnapshot()  // or cmdAbortDirtyPull()
+} else if app.conflictResolveState.Operation == "cherry_pick" {
+    return app.cmdFinalizeCherryPick()  // or cmdAbortCherryPick()
+}
+```
+
+**Pull Merge Example:**
+
+1. **Finalize path (ENTER):**
+   - Handler routes to `cmdFinalizePullMerge()`
+   - Stages all resolved files: `git add -A`
+   - Commits the merge: `git commit -m "Merge commit"`
+   - Returns `GitOperationMsg{Step: OpFinalizePullMerge}`
+   - Handler reloads git state → displays completion message
+
+2. **Abort path (ESC):**
+   - Handler routes to `cmdAbortMerge()`
+   - Aborts the merge: `git merge --abort`
+   - Resets working tree: `git reset --hard`
+   - Returns `GitOperationMsg{Step: OpAbortMerge}`
+   - Handler reloads git state → displays abort message
+
+3. **State Routing in `githandlers.go`:**
+   ```go
+   case OpFinalizePullMerge:
+       state, _ := git.DetectState()
+       a.gitState = state  // Reload state after merge
+       buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+       a.asyncOperationActive = false
+       a.conflictResolveState = nil
+   
+   case OpAbortMerge:
+       state, _ := git.DetectState()
+       a.gitState = state  // Reload state after abort
+       buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+       a.asyncOperationActive = false
+       a.conflictResolveState = nil
+   ```
 
 ### Critical Design Decisions
 

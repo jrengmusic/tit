@@ -19,9 +19,11 @@ const (
 	OpForcePush = "force_push"
 
 	// Pull operations
-	OpPull       = "pull"
-	OpPullMerge  = "pull_merge"
-	OpPullRebase = "pull_rebase"
+	OpPull                = "pull"
+	OpPullMerge           = "pull_merge"
+	OpPullRebase          = "pull_rebase"
+	OpFinalizePullMerge   = "finalize_pull_merge"
+	OpAbortMerge          = "abort_merge"
 
 	// Remote operations
 	OpAddRemote  = "add_remote"

@@ -274,6 +274,7 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 	// Transition to console to show streaming output
 	a.asyncOperationActive = true
 	a.asyncOperationAborted = false
+	a.isExitAllowed = false // Block Ctrl+C until operation completes or is aborted
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()

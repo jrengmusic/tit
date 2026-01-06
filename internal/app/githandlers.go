@@ -33,6 +33,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		buffer.Append(GetFooterMessageText(MessageOperationFailed), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationFailed)
 		a.asyncOperationActive = false
+
+		// Clean up dirty operation snapshot if this was a dirty operation phase
+		if a.dirtyOperationState != nil {
+			snapshot := &git.DirtyOperationSnapshot{}
+			snapshot.Delete() // Clean up .git/TIT_DIRTY_OP on failure
+			a.dirtyOperationState = nil
+		}
+
 		return a, nil
 	}
 
@@ -71,12 +79,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case OpAddRemote:
 		// Chain: OpAddRemote → OpFetchRemote
-		buffer.Append("Fetching from remote...", ui.TypeInfo)
+		buffer.Append(OutputMessages["fetching_remote"], ui.TypeInfo)
 		return a, a.cmdFetchRemote()
 
 	case OpFetchRemote:
 		// Fetch complete: set upstream tracking
-		buffer.Append("Setting upstream tracking...", ui.TypeInfo)
+		buffer.Append(OutputMessages["setting_upstream"], ui.TypeInfo)
 		state, err := git.DetectState()
 		if err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
@@ -93,12 +101,56 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		if err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
+			a.isExitAllowed = true // Re-enable exit on error
 			return a, nil
 		}
 		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
+		a.isExitAllowed = true // Re-enable exit after successful pull
+		return a, nil
+
+	case OpFinalizePullMerge:
+		// Merge finalization succeeded: reload state and stay in console
+		// User must press ESC to return to menu (ensures merge completed before menu reachable)
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			a.isExitAllowed = true // Re-enable exit on error
+			a.mode = ModeConsole
+			return a, nil
+		}
+		a.gitState = state
+		buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true // Re-enable exit after successful merge finalization
+		a.conflictResolveState = nil
+		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
+		return a, nil
+
+	case OpAbortMerge:
+		// Merge abort succeeded: reload state and stay in console
+		// User must press ESC to return to menu (ensures abort completed before menu reachable)
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			a.isExitAllowed = true // Re-enable exit on error
+			a.mode = ModeConsole
+			return a, nil
+		}
+		a.gitState = state
+		buffer.Append(OutputMessages["abort_successful"], ui.TypeStatus)
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true // Re-enable exit after successful abort
+		a.conflictResolveState = nil
+		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 		return a, nil
 
 	case OpCommit, OpPush:
@@ -161,6 +213,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// No conflicts: proceed to snapshot reapply
 		buffer.Append(OutputMessages["dirty_pull_merge_succeeded"], ui.TypeInfo)
 		a.dirtyOperationState.SetPhase("apply_snapshot")
+		return a, a.cmdDirtyPullApplySnapshot()
+
+	case "finalize_dirty_pull_merge":
+		// Phase 2b complete: merge conflicts resolved and committed
+		// Now proceed to stash apply
+		buffer.Append(OutputMessages["dirty_pull_merge_succeeded"], ui.TypeInfo)
+		a.dirtyOperationState.SetPhase("apply_snapshot")
+		a.conflictResolveState = nil // Clear conflict state
 		return a, a.cmdDirtyPullApplySnapshot()
 
 	case OpPullRebase:
@@ -236,21 +296,22 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	return a, nil
 }
 
-// setupConflictResolverForDirtyPull initializes conflict resolver UI for dirty pull operations
-// Reads conflicted files from git status and populates 3-way conflict versions
-func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+// setupConflictResolver initializes conflict resolver UI for any conflict-resolving operation
+// Parameters:
+//   - operation: operation identifier (e.g., "pull_merge", "dirty_pull_changeset_apply", "cherry_pick")
+//   - columnLabels: human-readable labels for the 3 columns (e.g., ["BASE", "LOCAL (yours)", "REMOTE (theirs)"])
+func (a *Application) setupConflictResolver(operation string, columnLabels []string) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
 	
-	buffer.Append("Detecting conflict files...", ui.TypeInfo)
+	buffer.Append(OutputMessages["detecting_conflicts"], ui.TypeInfo)
 	
 	// Get list of conflicted files from git status
 	conflictFiles, err := git.ListConflictedFiles()
 	if err != nil {
-		buffer.Append(fmt.Sprintf("Error: %v", err), ui.TypeStderr)
 		buffer.Append(fmt.Sprintf(OutputMessages["conflict_detection_error"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.footerHint = ErrorMessages["operation_failed"]
-		a.mode = ModeConsole  // Stay in console on error
+		a.mode = ModeConsole
 		return a, nil
 	}
 	
@@ -260,7 +321,7 @@ func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Mod
 		// No conflicts found - should not happen, but handle gracefully
 		buffer.Append(OutputMessages["conflict_detection_none"], ui.TypeInfo)
 		a.asyncOperationActive = false
-		a.mode = ModeConsole  // Stay in console
+		a.mode = ModeConsole
 		return a, nil
 	}
 	
@@ -270,10 +331,10 @@ func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Mod
 		SelectedFileIndex:   0,
 		FocusedPane:         0,
 		NumColumns:          3, // Base, Local, Remote
-		ColumnLabels:        []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"},
+		ColumnLabels:        columnLabels,
 		ScrollOffsets:       make([]int, 3),
 		LineCursors:         make([]int, 3),
-		Operation:           "pull_merge",
+		Operation:           operation,
 		DiffPane:            nil,
 	}
 	
@@ -321,76 +382,13 @@ func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Mod
 	return a, nil
 }
 
+// setupConflictResolverForPull initializes conflict resolver for pull merge conflicts (convenience wrapper)
+func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	return a.setupConflictResolver("pull_merge", []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+}
+
+// setupConflictResolverForDirtyPull initializes conflict resolver for dirty pull conflicts (convenience wrapper)
 func (a *Application) setupConflictResolverForDirtyPull(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
-	buffer := ui.GetBuffer()
-	
-	// Get list of conflicted files from git status
-	conflictFiles, err := git.ListConflictedFiles()
-	if err != nil {
-		buffer.Append(fmt.Sprintf(OutputMessages["conflict_detection_error"], err), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.footerHint = ErrorMessages["operation_failed"]
-		return a, nil
-	}
-	
-	if len(conflictFiles) == 0 {
-		// No conflicts found - continue operation
-		buffer.Append(OutputMessages["conflict_detection_none"], ui.TypeInfo)
-		a.asyncOperationActive = false
-		return a, nil
-	}
-	
-	// Read 3-way versions for each conflicted file
-	resolveState := &ConflictResolveState{
-		Files:               make([]ui.ConflictFileGeneric, 0, len(conflictFiles)),
-		SelectedFileIndex:   0,
-		FocusedPane:         0,
-		NumColumns:          3, // Base, Local, Remote
-		LineCursors:         make([]int, 3),
-		Operation:           "dirty_pull_" + conflictPhase,
-		DiffPane:            nil,
-	}
-	
-	for _, filePath := range conflictFiles {
-		// Get base version (stage 1)
-		baseContent, err := git.ShowConflictVersion(filePath, 1)
-		if err != nil {
-			baseContent = fmt.Sprintf("Error reading base: %v", err)
-		}
-		
-		// Get local version (stage 2)
-		localContent, err := git.ShowConflictVersion(filePath, 2)
-		if err != nil {
-			localContent = fmt.Sprintf("Error reading local: %v", err)
-		}
-		
-		// Get remote version (stage 3)
-		remoteContent, err := git.ShowConflictVersion(filePath, 3)
-		if err != nil {
-			remoteContent = fmt.Sprintf("Error reading remote: %v", err)
-		}
-		
-		// Build conflict file entry
-		conflictFile := ui.ConflictFileGeneric{
-			Path: filePath,
-			Versions: []string{
-				baseContent,
-				localContent,
-				remoteContent,
-			},
-			Chosen: -1, // Not yet marked
-		}
-		resolveState.Files = append(resolveState.Files, conflictFile)
-	}
-	
-	// Store conflict state and transition to resolver UI
-	a.conflictResolveState = resolveState
-	a.asyncOperationActive = false
-	a.mode = ModeConflictResolve
-	a.footerHint = fmt.Sprintf(FooterHints["resolve_conflicts_help"], len(conflictFiles))
-	
-	buffer.Append(fmt.Sprintf(OutputMessages["conflicts_detected_count"], len(conflictFiles)), ui.TypeInfo)
-	buffer.Append(OutputMessages["mark_choices_in_resolver"], ui.TypeInfo)
-	
-	return a, nil
+	operation := "dirty_pull_" + conflictPhase
+	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
 }

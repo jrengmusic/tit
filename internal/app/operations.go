@@ -372,7 +372,7 @@ func (a *Application) cmdForcePush() tea.Cmd {
 		cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 		output, err := cmd.Output()
 		if err != nil {
-			buffer.Append("Error: Could not determine current branch", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_determine_branch"], ui.TypeStderr)
 			return GitOperationMsg{
 				Step: OpForcePush,
 				Success: false,
@@ -381,7 +381,7 @@ func (a *Application) cmdForcePush() tea.Cmd {
 		}
 		
 		branchName := strings.TrimSpace(string(output))
-		buffer.Append("Force pushing to remote (overwriting remote history)...", ui.TypeInfo)
+		buffer.Append(OutputMessages["force_push_in_progress"], ui.TypeInfo)
 		
 		cmd = exec.Command("git", "push", "--force-with-lease", "origin", branchName)
 		stdout, _ := cmd.StdoutPipe()
@@ -422,7 +422,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 		output, err := cmd.Output()
 		if err != nil {
-			buffer.Append("Error: Could not determine current branch", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_determine_branch"], ui.TypeStderr)
 			return GitOperationMsg{
 				Step: OpHardReset,
 				Success: false,
@@ -431,7 +431,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		}
 		
 		branchName := strings.TrimSpace(string(output))
-		buffer.Append("Fetching latest from remote...", ui.TypeInfo)
+		buffer.Append(OutputMessages["fetching_latest"], ui.TypeInfo)
 		
 		// First: fetch latest from remote
 		cmd = exec.Command("git", "fetch", "origin")
@@ -449,7 +449,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		
 		err = cmd.Wait()
 		if err != nil {
-			buffer.Append("Failed to fetch from remote", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_fetch_remote"], ui.TypeStderr)
 			return GitOperationMsg{
 				Step: OpHardReset,
 				Success: false,
@@ -482,7 +482,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			}
 		}
 		
-		buffer.Append("Removing untracked files and directories...", ui.TypeInfo)
+		buffer.Append(OutputMessages["removing_untracked"], ui.TypeInfo)
 		
 		// Third: clean untracked files to make LOCAL == REMOTE exactly
 		cmd = exec.Command("git", "clean", "-fd")
@@ -500,7 +500,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		
 		err = cmd.Wait()
 		if err != nil {
-			buffer.Append("Warning: Failed to clean untracked files", ui.TypeWarning)
+			buffer.Append(OutputMessages["failed_clean_untracked"], ui.TypeWarning)
 		}
 		
 		return GitOperationMsg{
@@ -523,9 +523,9 @@ func (a *Application) cmdDirtyPullSnapshot(preserveChanges bool) tea.Cmd {
 		buffer.Clear()
 
 		if preserve {
-			buffer.Append("Saving your changes (creating stash)...", ui.TypeInfo)
+			buffer.Append(OutputMessages["saving_changes_stash"], ui.TypeInfo)
 		} else {
-			buffer.Append("Discarding your changes...", ui.TypeInfo)
+			buffer.Append(OutputMessages["discarding_changes"], ui.TypeInfo)
 		}
 
 		// Get current branch name
@@ -571,7 +571,7 @@ func (a *Application) cmdDirtyPullSnapshot(preserveChanges bool) tea.Cmd {
 					Error:   "Failed to stash changes",
 				}
 			}
-			buffer.Append("Changes saved (stashed)", ui.TypeInfo)
+			buffer.Append(OutputMessages["changes_saved_stashed"], ui.TypeInfo)
 		} else {
 			// Discard changes without stash
 			result := git.ExecuteWithStreaming("reset", "--hard")
@@ -592,7 +592,7 @@ func (a *Application) cmdDirtyPullSnapshot(preserveChanges bool) tea.Cmd {
 					Error:   "Failed to clean untracked files",
 				}
 			}
-			buffer.Append("Changes discarded", ui.TypeInfo)
+			buffer.Append(OutputMessages["changes_discarded"], ui.TypeInfo)
 		}
 
 		return GitOperationMsg{
@@ -608,13 +608,15 @@ func (a *Application) cmdDirtyPullSnapshot(preserveChanges bool) tea.Cmd {
 func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
-		buffer.Append("Pulling from remote (merge strategy)...", ui.TypeInfo)
+		buffer.Append(OutputMessages["dirty_pull_merge_started"], ui.TypeInfo)
 
-		result := git.ExecuteWithStreaming("pull")
+		result := git.ExecuteWithStreaming("pull", "--no-rebase")
 		if !result.Success {
-			// Check for conflict markers
-			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
-				buffer.Append("Merge conflicts detected", ui.TypeWarning)
+			// Check if we're in a conflicted state (more reliable than parsing stderr)
+			// This detects merge conflicts by checking git state (.git/MERGE_HEAD + unmerged files)
+			state, err := git.DetectState()
+			if err == nil && state.Operation == git.Conflicted {
+				buffer.Append(OutputMessages["merge_conflicts_detected"], ui.TypeWarning)
 				return GitOperationMsg{
 					Step:             "dirty_pull_merge",
 					Success:          true, // Mark as success to trigger conflict resolver setup
@@ -629,7 +631,7 @@ func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 			}
 		}
 
-		buffer.Append("Merge completed", ui.TypeInfo)
+		buffer.Append(OutputMessages["merge_completed"], ui.TypeInfo)
 		return GitOperationMsg{
 			Step:    "dirty_pull_merge",
 			Success: true,
@@ -643,12 +645,12 @@ func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
-		buffer.Append("Reapplying your changes...", ui.TypeInfo)
+		buffer.Append(OutputMessages["reapplying_changes"], ui.TypeInfo)
 
 		// Check if there's a stash to apply
 		stashListResult := git.Execute("stash", "list")
 		if !strings.Contains(stashListResult.Stdout, "TIT DIRTY-PULL SNAPSHOT") {
-			buffer.Append("No stash to apply (changes were discarded)", ui.TypeInfo)
+			buffer.Append("No stash to apply (changes were discarded)", ui.TypeInfo) // No SSOT entry needed - contextual message
 			return GitOperationMsg{
 				Step:    "dirty_pull_apply_snapshot",
 				Success: true,
@@ -658,9 +660,11 @@ func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
 
 		result := git.ExecuteWithStreaming("stash", "apply")
 		if !result.Success {
-			// Check for conflict markers
-			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
-				buffer.Append("Conflicts detected while reapplying changes", ui.TypeWarning)
+			// Check if we're in a conflicted state (more reliable than parsing stderr)
+			// This detects stash apply conflicts by checking git state (unmerged files)
+			state, err := git.DetectState()
+			if err == nil && state.Operation == git.Conflicted {
+				buffer.Append(OutputMessages["stash_apply_conflicts_detected"], ui.TypeWarning)
 				return GitOperationMsg{
 					Step:             "dirty_pull_apply_snapshot",
 					Success:          true, // Mark as success to trigger conflict resolver setup
@@ -675,7 +679,7 @@ func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
 			}
 		}
 
-		buffer.Append("Changes reapplied", ui.TypeInfo)
+		buffer.Append(OutputMessages["changes_reapplied"], ui.TypeInfo)
 		return GitOperationMsg{
 			Step:    "dirty_pull_apply_snapshot",
 			Success: true,
@@ -689,14 +693,14 @@ func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
 func (a *Application) cmdDirtyPullFinalize() tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
-		buffer.Append("Finalizing dirty pull operation...", ui.TypeInfo)
+		buffer.Append(OutputMessages["dirty_pull_finalize_started"], ui.TypeInfo)
 
 		// Drop the stash (if it exists)
 		stashListResult := git.Execute("stash", "list")
 		if strings.Contains(stashListResult.Stdout, "TIT DIRTY-PULL SNAPSHOT") {
 			result := git.ExecuteWithStreaming("stash", "drop")
 			if !result.Success {
-				buffer.Append("Warning: Failed to drop stash (manual cleanup may be needed)", ui.TypeWarning)
+				buffer.Append(OutputMessages["stash_drop_failed_warning"], ui.TypeWarning)
 				// Continue anyway - snapshot file cleanup is more important
 			}
 		}
@@ -707,7 +711,7 @@ func (a *Application) cmdDirtyPullFinalize() tea.Cmd {
 			// Non-fatal, but warn user
 		}
 
-		buffer.Append("Dirty pull completed successfully", ui.TypeInfo)
+		buffer.Append(OutputMessages["dirty_pull_completed_successfully"], ui.TypeInfo)
 		return GitOperationMsg{
 			Step:    "dirty_pull_finalize",
 			Success: true,
@@ -725,7 +729,19 @@ func (a *Application) cmdDirtyPullFinalize() tea.Cmd {
 func (a *Application) cmdAbortDirtyPull() tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
-		buffer.Append("Aborting dirty pull and restoring original state...", ui.TypeWarning)
+		buffer.Append(OutputMessages["dirty_pull_aborting"], ui.TypeWarning)
+
+		// CRITICAL: Abort merge first if merge is in progress
+		// This cleans up .git/MERGE_HEAD and unmerged files
+		state, _ := git.DetectState()
+		if state != nil && state.Operation == git.Conflicted {
+			buffer.Append(OutputMessages["aborting_merge"], ui.TypeInfo)
+			result := git.ExecuteWithStreaming("merge", "--abort")
+			if !result.Success {
+				// Continue anyway - try to restore state even if merge abort fails
+				buffer.Append("Warning: merge abort failed, continuing with restore", ui.TypeWarning)
+			}
+		}
 
 		// Load snapshot
 		snapshot := &git.DirtyOperationSnapshot{}
@@ -740,7 +756,7 @@ func (a *Application) cmdAbortDirtyPull() tea.Cmd {
 		// Checkout original branch
 		result := git.ExecuteWithStreaming("checkout", snapshot.OriginalBranch)
 		if !result.Success {
-			buffer.Append("Error: Failed to checkout original branch", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_checkout_original_branch"], ui.TypeStderr)
 			return GitOperationMsg{
 				Step:    "dirty_pull_abort",
 				Success: false,
@@ -751,7 +767,7 @@ func (a *Application) cmdAbortDirtyPull() tea.Cmd {
 		// Reset to original HEAD
 		result = git.ExecuteWithStreaming("reset", "--hard", snapshot.OriginalHead)
 		if !result.Success {
-			buffer.Append("Error: Failed to reset to original HEAD", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_reset_to_original_head"], ui.TypeStderr)
 			return GitOperationMsg{
 				Step:    "dirty_pull_abort",
 				Success: false,
@@ -764,7 +780,7 @@ func (a *Application) cmdAbortDirtyPull() tea.Cmd {
 		if strings.Contains(stashListResult.Stdout, "TIT DIRTY-PULL SNAPSHOT") {
 			result = git.ExecuteWithStreaming("stash", "apply")
 			if !result.Success {
-				buffer.Append("Warning: Could not reapply stash, but HEAD restored", ui.TypeWarning)
+				buffer.Append(ErrorMessages["stash_reapply_failed_but_restored"], ui.TypeWarning)
 				// Continue - main objective (restoring HEAD) succeeded
 			}
 
@@ -775,11 +791,49 @@ func (a *Application) cmdAbortDirtyPull() tea.Cmd {
 		// Delete the snapshot file
 		snapshot.Delete()
 
-		buffer.Append("Original state restored", ui.TypeInfo)
+		buffer.Append(OutputMessages["original_state_restored"], ui.TypeInfo)
 		return GitOperationMsg{
 			Step:    "dirty_pull_abort",
 			Success: true,
 			Output:  "Abort completed, original state restored",
+		}
+	}
+}
+
+// cmdFinalizeDirtyPullMerge finalizes the merge commit during dirty pull, then continues to stash apply
+// Called after user resolves merge conflicts during dirty pull operation
+// This is Phase 2b: After conflict resolution, commit merge before reapplying stash
+func (a *Application) cmdFinalizeDirtyPullMerge() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+
+		// Stage all resolved files (already done in handleConflictEnter, but be safe)
+		result := git.ExecuteWithStreaming("add", "-A")
+		if !result.Success {
+			buffer.Append(ErrorMessages["failed_stage_resolved"], ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "finalize_dirty_pull_merge",
+				Success: false,
+				Error:   ErrorMessages["failed_stage_resolved"],
+			}
+		}
+
+		// Commit the merge
+		result = git.ExecuteWithStreaming("commit", "-m", "Merge resolved conflicts")
+		if !result.Success {
+			buffer.Append(ErrorMessages["failed_commit_merge"], ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "finalize_dirty_pull_merge",
+				Success: false,
+				Error:   ErrorMessages["failed_commit_merge"],
+			}
+		}
+
+		buffer.Append(OutputMessages["merge_finalized"], ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    "finalize_dirty_pull_merge",
+			Success: true,
+			Output:  "Merge finalized, continuing to stash apply",
 		}
 	}
 }
@@ -793,30 +847,30 @@ func (a *Application) cmdFinalizePullMerge() tea.Cmd {
 		// Stage all resolved files
 		result := git.ExecuteWithStreaming("add", "-A")
 		if !result.Success {
-			buffer.Append("Failed to stage resolved files", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_stage_resolved"], ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    OpPull,
+				Step:    OpFinalizePullMerge,
 				Success: false,
-				Error:   "Failed to stage changes",
+				Error:   ErrorMessages["failed_stage_resolved"],
 			}
 		}
 		
 		// Commit the merge
 		result = git.ExecuteWithStreaming("commit", "-m", "Merge resolved conflicts")
 		if !result.Success {
-			buffer.Append("Failed to commit merge", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_commit_merge"], ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    OpPull,
+				Step:    OpFinalizePullMerge,
 				Success: false,
-				Error:   "Failed to commit merge",
+				Error:   ErrorMessages["failed_commit_merge"],
 			}
 		}
 		
-		buffer.Append("Merge completed successfully", ui.TypeInfo)
+		buffer.Append(OutputMessages["merge_finalized"], ui.TypeInfo)
 		return GitOperationMsg{
-			Step:    OpPull,
+			Step:    OpFinalizePullMerge,
 			Success: true,
-			Output:  "Merge completed and committed",
+			Output:  OutputMessages["merge_finalized"],
 		}
 	}
 }
@@ -830,19 +884,26 @@ func (a *Application) cmdAbortMerge() tea.Cmd {
 		// Abort the merge
 		result := git.ExecuteWithStreaming("merge", "--abort")
 		if !result.Success {
-			buffer.Append("Failed to abort merge", ui.TypeStderr)
+			buffer.Append(ErrorMessages["failed_abort_merge"], ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    OpPull,
+				Step:    OpAbortMerge,
 				Success: false,
-				Error:   "Failed to abort merge",
+				Error:   ErrorMessages["failed_abort_merge"],
 			}
 		}
 		
-		buffer.Append("Merge aborted - state restored", ui.TypeInfo)
+		// Reset working tree to remove conflict markers
+		result = git.ExecuteWithStreaming("reset", "--hard")
+		if !result.Success {
+			buffer.Append(ErrorMessages["failed_reset_after_abort"], ui.TypeWarning)
+			// Non-fatal: merge state is cleared, just working tree has stale markers
+		}
+		
+		buffer.Append(OutputMessages["merge_aborted"], ui.TypeInfo)
 		return GitOperationMsg{
-			Step:    OpPull,
+			Step:    OpAbortMerge,
 			Success: true,
-			Output:  "Merge aborted successfully",
+			Output:  OutputMessages["merge_aborted"],
 		}
 	}
 }

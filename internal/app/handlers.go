@@ -27,8 +27,15 @@ func (a *Application) validateAndProceed(
 
 // handleKeyCtrlC handles Ctrl+C globally
 // During async operations: shows "operation in progress" message
+// During critical operations (!isExitAllowed): blocks exit to prevent broken git state
 // Otherwise: prompts for confirmation before quitting
 func (a *Application) handleKeyCtrlC(app *Application) (tea.Model, tea.Cmd) {
+	// Block exit during critical operations (e.g., pull merge with potential conflicts)
+	if !a.isExitAllowed {
+		a.footerHint = GetFooterMessageText(MessageExitBlocked)
+		return a, nil
+	}
+
 	// If async operation is running, show "in progress" message
 	if a.asyncOperationActive && !a.asyncOperationAborted {
 		a.footerHint = GetFooterMessageText(MessageOperationInProgress)
@@ -51,18 +58,25 @@ func (a *Application) handleKeyCtrlC(app *Application) (tea.Model, tea.Cmd) {
 }
 
 // handleKeyESC handles ESC globally
+// In console mode with async operation: blocked (prevents exiting before operation completes)
+// In conflict resolver mode: delegates to handleConflictEsc (abort operation)
 // During async operations: aborts the operation
 // In input mode with text: confirms clear (3s timeout)
 // Otherwise: returns to previous menu and restores state
 func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
-	// If async operation is running: abort it
-	if a.asyncOperationActive && !a.asyncOperationAborted {
-		a.asyncOperationAborted = true
-		a.footerHint = GetFooterMessageText(MessageOperationAborting)
+	// Conflict resolver mode: delegate to conflict-specific handler
+	if a.mode == ModeConflictResolve {
+		return a.handleConflictEsc(app)
+	}
+
+	// Block ESC in console mode while async operation is active
+	// This prevents user from exiting before critical operations complete (e.g., git merge --abort)
+	if (a.mode == ModeConsole || a.mode == ModeClone) && a.asyncOperationActive {
+		a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 		return a, nil
 	}
 
-	// If async operation just aborted: restore previous state
+	// If async operation was aborted but completed: restore previous state
 	if a.asyncOperationAborted {
 		a.asyncOperationActive = false
 		a.asyncOperationAborted = false
@@ -71,7 +85,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		a.consoleState.Reset()
 		a.outputBuffer.Clear()
 		a.footerHint = ""
-		
+
 		// Regenerate menu if returning to menu mode
 		if a.mode == ModeMenu {
 			menu := app.GenerateMenu()
@@ -91,7 +105,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		if a.inputValue == "" {
 			return a.returnToMenu()
 		}
-		
+
 		// If clear confirm active: clear input and stay
 		if a.clearConfirmActive {
 			a.inputValue = ""
@@ -101,7 +115,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 			a.footerHint = ""
 			return a, nil
 		}
-		
+
 		// First ESC with non-empty input: start clear confirmation
 		a.clearConfirmActive = true
 		a.footerHint = GetFooterMessageText(MessageEscClearConfirm)
@@ -125,6 +139,7 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.inputCursorPosition = 0
 	a.inputValidationMsg = ""
 	a.clearConfirmActive = false
+	a.isExitAllowed = true // ALWAYS allow exit when in menu
 
 	menu := a.GenerateMenu()
 	a.menuItems = menu
@@ -706,7 +721,7 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	// UI THREAD - Validate remote URL
 	url := app.inputValue
 	if url == "" {
-		app.footerHint = "Remote URL cannot be empty"
+		app.footerHint = ErrorMessages["remote_url_empty_validation"]
 		return app, nil
 	}
 
@@ -719,7 +734,7 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	// Check if remote already exists
 	result := git.Execute("remote", "get-url", "origin")
 	if result.Success {
-		app.footerHint = "Remote 'origin' already exists"
+		app.footerHint = ErrorMessages["remote_already_exists_validation"]
 		return app, nil
 	}
 

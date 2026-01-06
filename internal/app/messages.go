@@ -53,6 +53,7 @@ const (
 	MessageOperationFailed
 	MessageOperationInProgress
 	MessageOperationAborting
+	MessageExitBlocked
 )
 
 // GetFooterMessageText returns display text for a message type
@@ -72,6 +73,7 @@ func GetFooterMessageText(msgType FooterMessageType) string {
 		MessageOperationFailed:   "Failed. Press ESC to return.",
 		MessageOperationInProgress: "Operation in progress. Please wait for completion.",
 		MessageOperationAborting:   "Aborting operation. Please wait...",
+		MessageExitBlocked:         "Exit blocked. Operation must complete or be aborted first.",
 	}
 
 	if msg, exists := messages[msgType]; exists {
@@ -123,6 +125,19 @@ var ErrorMessages = map[string]string{
 	"failed_checkout_branch": "Failed to checkout branch '%s'",
 	"pull_conflicts":         "Merge conflicts occurred",
 	"pull_failed":            "Failed to pull",
+	"failed_stage_resolved":  "Failed to stage resolved files",
+	"failed_commit_merge":    "Failed to commit merge",
+	"failed_abort_merge":     "Failed to abort merge",
+	"failed_reset_after_abort": "Failed to reset working tree after merge abort",
+	"failed_determine_branch": "Error: Could not determine current branch",
+	"failed_fetch_remote":    "Failed to fetch from remote",
+	// Dirty pull abort path errors
+	"failed_checkout_original_branch": "Error: Failed to checkout original branch",
+	"failed_reset_to_original_head":   "Error: Failed to reset to original HEAD",
+	"stash_reapply_failed_but_restored": "Warning: Could not reapply stash, but HEAD restored",
+	// Validation errors
+	"remote_url_empty_validation": "Remote URL cannot be empty",
+	"remote_already_exists_validation": "Remote 'origin' already exists",
 }
 
 // OutputMessages centralizes operation success messages
@@ -134,6 +149,7 @@ var OutputMessages = map[string]string{
 	"initializing_repo":    "Initializing repository...",
 	"fetching_remote":      "Fetching from remote...",
 	"setting_upstream":     "Setting upstream tracking...",
+	"detecting_conflicts":  "Detecting conflict files...",
 	"checking_out_branch":  "Checking out branch '%s'...",
 	"dirty_pull_snapshot":  "Your changes have been saved",
 	"dirty_pull_snapshot_saved": "Snapshot saved. Starting merge pull...",
@@ -149,6 +165,28 @@ var OutputMessages = map[string]string{
 	"mark_choices_in_resolver": "Mark your choices in the resolver (SPACE to select, ENTER to continue)",
 	"aborting_dirty_pull": "Aborting dirty pull...",
 	"aborting_merge": "Aborting merge...",
+	"merge_finalized":        "Merge completed successfully",
+	"merge_aborted":          "Merge aborted - state restored",
+	"abort_successful":       "Successfully aborted by user",
+	"force_push_in_progress": "Force pushing to remote (overwriting remote history)...",
+	"fetching_latest":        "Fetching latest from remote...",
+	"removing_untracked":     "Removing untracked files and directories...",
+	"failed_clean_untracked": "Warning: Failed to clean untracked files",
+	"saving_changes_stash":   "Saving your changes (creating stash)...",
+	"discarding_changes":     "Discarding your changes...",
+	"changes_saved_stashed":  "Changes saved (stashed)",
+	// Dirty pull operation phases
+	"changes_discarded":                 "Changes discarded",
+	"merge_conflicts_detected":          "Merge conflicts detected",
+	"merge_completed":                   "Merge completed",
+	"reapplying_changes":                "Reapplying your changes...",
+	"stash_apply_conflicts_detected":    "Conflicts detected while reapplying changes",
+	"changes_reapplied":                 "Changes reapplied",
+	"dirty_pull_finalize_started":       "Finalizing dirty pull operation...",
+	"stash_drop_failed_warning":         "Warning: Failed to drop stash (manual cleanup may be needed)",
+	"dirty_pull_completed_successfully": "Dirty pull completed successfully",
+	"dirty_pull_aborting":               "Aborting dirty pull and restoring original state...",
+	"original_state_restored":           "Original state restored",
 }
 
 // ButtonLabels centralizes confirmation dialog button text
@@ -193,4 +231,6 @@ var FooterHints = map[string]string{
 	"resolve_conflicts_help": "Resolve %d conflicted file(s) - SPACE to mark, ENTER to continue, ESC to abort",
 	"error_writing_file":     "Error writing %s: %v",
 	"error_staging_file":     "Error staging %s: %s",
+	"already_marked_column":  "Already marked in this column",
+	"marked_file_column":     "Marked: %s → %s",
 }
