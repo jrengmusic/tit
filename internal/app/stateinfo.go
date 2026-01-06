@@ -25,10 +25,10 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 				return "Your files match the remote."
 			},
 		},
-		git.Modified: {
-			Label: "Modified",
+		git.Dirty: {
+			Label: "Dirty",
 			Emoji: "📝",
-			Color: theme.StatusModified,
+			Color: theme.StatusDirty,
 			Description: func(ahead, behind int) string {
 				return "You have uncommitted changes."
 			},

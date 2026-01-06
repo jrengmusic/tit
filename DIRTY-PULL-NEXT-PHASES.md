@@ -522,11 +522,10 @@ func ReadConflictFiles() ([]ui.ConflictFileGeneric, error) {
 
 ## 🧪 PHASE 6: Integration Testing
 
-Use `titest.sh` to test each scenario:
+Use `titest.sh` to test each scenario (run from test repo directory):
 
 ```bash
-cd /Users/jreng/Documents/Poems/inf/tit_test_repo
-../../titest.sh
+./titest.sh
 
 # Scenario 0: Reset to fresh state
 # Scenario 5: Clean dirty pull (no conflicts)

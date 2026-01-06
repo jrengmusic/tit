@@ -3,8 +3,8 @@ package git
 type WorkingTree string
 
 const (
-	Clean    WorkingTree = "Clean"
-	Modified WorkingTree = "Modified"
+	Clean WorkingTree = "Clean"
+	Dirty WorkingTree = "Dirty"
 )
 
 type Timeline string

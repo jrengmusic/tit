@@ -43,7 +43,7 @@ conflictPaneTitleColor = "#8CC9D9"            # dolphin (pane title text)
 
 # Status & State
 statusClean = "#01C2D2"               # caribbeanBlue
-statusModified = "#FC704C"            # preciousPersimmon
+statusDirty = "#FC704C"            # preciousPersimmon
 timelineSynchronized = "#01C2D2"      # caribbeanBlue
 timelineLocalAhead = "#00C8D8"        # blueBikini
 timelineLocalBehind = "#F2AB53"       # safflower
@@ -97,8 +97,8 @@ type ThemeDefinition struct {
 		ConflictPaneTitleColor string `toml:"conflictPaneTitleColor"`
 
 		// Status Colors
-		StatusClean    string `toml:"statusClean"`
-		StatusModified string `toml:"statusModified"`
+		StatusClean string `toml:"statusClean"`
+		StatusDirty string `toml:"statusDirty"`
 
 		// Timeline Colors
 		TimelineSynchronized string `toml:"timelineSynchronized"`
@@ -152,8 +152,8 @@ type Theme struct {
 	ConflictPaneTitleColor string
 
 	// Status Colors
-	StatusClean    string
-	StatusModified string
+	StatusClean string
+	StatusDirty string
 
 	// Timeline Colors
 	TimelineSynchronized string
@@ -217,8 +217,8 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		ConflictPaneTitleColor: themeDef.Palette.ConflictPaneTitleColor,
 
 		// Status Colors
-		StatusClean:    themeDef.Palette.StatusClean,
-		StatusModified: themeDef.Palette.StatusModified,
+		StatusClean: themeDef.Palette.StatusClean,
+		StatusDirty: themeDef.Palette.StatusDirty,
 
 		// Timeline Colors
 		TimelineSynchronized: themeDef.Palette.TimelineSynchronized,

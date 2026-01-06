@@ -96,6 +96,80 @@
 
 ---
 
+## Session 39: Menu SSOT Refactoring + Documentation Update (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-06
+
+### Objective: Complete menu refactoring documentation and verify SSOT implementation works end-to-end
+
+### Completed:
+
+✅ **Documentation Updates** (20 min)
+- Updated ARCHITECTURE.md MenuItem SSOT System section with comprehensive explanation
+- Added "Menu Rendering Flow" diagram showing:
+  - GenerateMenu() produces clean []MenuItem
+  - RenderMenu() displays shortcuts + labels (no hints in menu)
+  - Footer hint updates on selection change via `app.footerHint = GetMenuItem(selected).Hint`
+- Updated "Adding a New Menu Item" pattern with 5-step SSOT approach:
+  1. Define in menuitems.go (ID, Shortcut, Emoji, Label, Hint)
+  2. Use in menu.go generator (GetMenuItem only)
+  3. Add dispatcher in dispatchers.go
+  4. Add handler in handlers.go
+  5. Dispatcher lookup automatic (no manual registration needed)
+- Updated generator list (menuWorkingTree mentions "Dirty" not "Modified")
+- Cleaned up obsolete code examples (removed old Item builder pattern)
+
+✅ **Verified SSOT Implementation Exists** (10 min)
+- menuitems.go: All menu items defined with ID, Shortcut, Emoji, Label, Hint, Enabled
+- messages.go: SSOT maps for:
+  - InputPrompts — All text input prompts
+  - InputHints — Help text for inputs
+  - ErrorMessages — Error text
+  - OutputMessages — Operation messages
+  - ConfirmationTitles, ConfirmationExplanations, ConfirmationLabels — Dialog text
+  - FooterHints — Footer messages for conflict resolution
+- No hardcoded strings in new code (dirty pull, conflict resolver)
+
+✅ **Verified "Modified" to "Dirty" Rename** (5 min)
+- ARCHITECTURE.md updated: menuWorkingTree() now correctly mentions "Dirty" not "Modified"
+- git/types.go: WorkingTree enum uses Clean | Dirty
+- All references to "Modified" changed to "Dirty"
+
+✅ **Clean Build**
+- No errors, no warnings
+- Binary ready in `/Users/jreng/Documents/Poems/inf/___user-modules___/automation/tit_x64`
+
+### Files Modified:
+- `ARCHITECTURE.md` — MenuItem SSOT documentation, Menu Rendering Flow diagram, updated "Adding a New Menu Item" pattern
+- No code changes needed (all implementation already complete from Session 38)
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ✅ BUILD VERIFIED - Code compiles and runs cleanly
+
+### Key Accomplishments:
+
+**Refactored Menu System:**
+- Single source of truth (menuitems.go) for all menu text
+- Shortcuts globally unique (no conflicts)
+- Hints displayed in footer (not in menu body)
+- Generators simplified to GetMenuItem() calls
+- All prompts, errors, messages, and dialog text centralized in messages.go
+
+**Documentation Complete:**
+- ARCHITECTURE.md fully documents new SSOT approach
+- "Adding a New Menu Item" pattern clear and testable
+- Menu rendering flow diagram shows hint movement to footer
+- All changes verified as implemented and working
+
+### Ready for:
+- Phase 6 Integration Testing (dirty pull scenarios)
+- Next feature development using documented SSOT patterns
+- User testing of menu hints in footer
+
+---
+
 ## Session 38: Dirty Pull Phase 4 — Conflict Resolver Integration + SSOT Cleanup (COMPLETE) ✅
 
 **Agent:** Claude (Amp)

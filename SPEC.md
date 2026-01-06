@@ -42,7 +42,7 @@ Every decision in TIT derives from **four axes**:
 | Code | Meaning |
 |------|---------|
 | `Clean` | No changes |
-| `Modified` | Has changes (staged, unstaged, or both) |
+| `Dirty` | Has changes (staged, unstaged, or both) |
 
 **Note:** TIT doesn't distinguish staging states. All changes commit together.
 
@@ -151,7 +151,7 @@ Every decision in TIT derives from **four axes**:
 | State | Menu Items |
 |-------|------------|
 | `Clean` | *(no working tree actions)* |
-| `Modified` | ✅ Commit changes<br>🚀 Commit and push |
+| `Dirty` | ✅ Commit changes<br>🚀 Commit and push |
 
 #### Timeline Sync Actions
 
@@ -190,9 +190,9 @@ Every decision in TIT derives from **four axes**:
 **Purpose:** Apply any change-set (pull, merge, time travel) while preserving uncommitted work.
 
 **Used when:**
-- Pull (merge) with WorkingTree = Modified
-- Merge with WorkingTree = Modified
-- Time travel with WorkingTree = Modified
+- Pull (merge) with WorkingTree = Dirty
+- Merge with WorkingTree = Dirty
+- Time travel with WorkingTree = Dirty
 
 **User sees:**
 ```
@@ -582,7 +582,7 @@ Press Enter to explore this commit (time travel mode)
 
 **State-dependent diff behavior:**
 
-**When WorkingTree = Modified:**
+**When WorkingTree = Dirty:**
 - Diff shows: Working tree vs selected commit
 - Command: `git diff <commit> -- <file>`
 - Use case: "How do my current changes compare to commit X?"

@@ -47,54 +47,16 @@ func (a *Application) GenerateMenu() []MenuItem {
 // Always shows both options; smart dispatch happens in dispatchInit/dispatchClone
 func (a *Application) menuNotRepo() []MenuItem {
 	return []MenuItem{
-		Item("init").
-			Shortcut("i").
-			Emoji("🔨").
-			Label("Initialize repository").
-			Hint("Create a new git repository").
-			Build(),
-		Item("clone").
-			Shortcut("c").
-			Emoji("📥").
-			Label("Clone repository").
-			Hint("Clone an existing repository from remote URL").
-			Build(),
+		GetMenuItem("init"),
+		GetMenuItem("clone"),
 	}
 }
 
 // menuConflicted returns menu for Conflicted state
 func (a *Application) menuConflicted() []MenuItem {
-	operationType := detectConflictedOperation()
-
-	var abortLabel, abortHint string
-	switch operationType {
-	case "merge":
-		abortLabel = "Abort merge"
-		abortHint = "Cancel merge and return to pre-merge state"
-	case "rebase":
-		abortLabel = "Abort rebase"
-		abortHint = "Cancel rebase and return to original branch"
-	case "cherry-pick":
-		abortLabel = "Abort cherry-pick"
-		abortHint = "Cancel cherry-pick and discard changes"
-	default:
-		abortLabel = "Abort operation"
-		abortHint = "Cancel operation and return to previous state"
-	}
-
 	return []MenuItem{
-		Item("resolve_conflicts").
-			Shortcut("r").
-			Emoji("🔧").
-			Label("Resolve conflicts").
-			Hint("Open conflict resolution UI (3-way view)").
-			Build(),
-		Item("abort_operation").
-			Shortcut("a").
-			Emoji("💥").
-			Label(abortLabel).
-			Hint(abortHint).
-			Build(),
+		GetMenuItem("resolve_conflicts"),
+		GetMenuItem("abort_operation"),
 	}
 }
 
@@ -117,24 +79,9 @@ func detectConflictedOperation() string {
 
 // menuOperation returns menu for Merging/Rebasing (no conflicts)
 func (a *Application) menuOperation() []MenuItem {
-	operationType := "merge"
-	if a.gitState.Operation == git.Rebasing {
-		operationType = "rebase"
-	}
-
 	return []MenuItem{
-		Item("continue_operation").
-			Shortcut("c").
-			Emoji("⏩").
-			Label("Continue " + operationType).
-			Hint("Resume the operation in progress").
-			Build(),
-		Item("abort_operation").
-			Shortcut("a").
-			Emoji("💥").
-			Label("Abort " + operationType).
-			Hint("Stop the operation and return to previous state").
-			Build(),
+		GetMenuItem("continue_operation"),
+		GetMenuItem("abort_operation"),
 	}
 }
 
@@ -159,15 +106,8 @@ func (a *Application) menuNormal() []MenuItem {
 	// First-time setup (always at bottom)
 	if a.gitState.Remote == git.NoRemote {
 		items = append(items,
-			Item("").
-				Separator().
-				Build(),
-			Item("add_remote").
-				Shortcut("a").
-				Emoji("🔗").
-				Label("Add remote").
-				Hint("Configure a remote repository URL").
-				Build(),
+			Item("").Separator().Build(),
+			GetMenuItem("add_remote"),
 		)
 	}
 
@@ -180,31 +120,19 @@ func (a *Application) menuWorkingTree() []MenuItem {
 		return []MenuItem{}
 	}
 
-	// Only show commit when Modified - HIDDEN when Clean
+	// Only show commit when Dirty - HIDDEN when Clean
 	switch a.gitState.WorkingTree {
 	case git.Clean:
 		return []MenuItem{} // No working tree actions when Clean
 
-	case git.Modified:
+	case git.Dirty:
 		items := []MenuItem{
-			Item("commit").
-				Shortcut("m").
-				Emoji("📝").
-				Label("Commit changes").
-				Hint("Create a new commit with staged changes").
-				Build(),
+			GetMenuItem("commit"),
 		}
 
 		// Show "Commit and push" only if remote exists
 		if a.gitState.Remote == git.HasRemote {
-			items = append(items, MenuItem{
-				ID:       "commit_push",
-				Shortcut: "p",
-				Emoji:    "🚀",
-				Label:    "Commit and push",
-				Hint:     "Stage, commit, and push changes in one action",
-				Enabled:  true,
-			})
+			items = append(items, GetMenuItem("commit_push"))
 		}
 
 		return items
@@ -229,15 +157,8 @@ func (a *Application) menuTimeline() []MenuItem {
 	switch a.gitState.Timeline {
 	case git.InSync:
 		// When in sync but have uncommitted changes, allow reset to remote
-		if a.gitState.WorkingTree == git.Modified && a.gitState.Remote == git.HasRemote {
-			items = append(items,
-				Item("replace_local").
-					Shortcut("f").
-					Emoji("💥").
-					Label("Reset to remote (discard changes)").
-					Hint("💥 DESTRUCTIVE: Discard uncommitted changes, reset to remote state").
-					Build(),
-			)
+		if a.gitState.WorkingTree == git.Dirty && a.gitState.Remote == git.HasRemote {
+			items = append(items, GetMenuItem("reset_discard_changes"))
 		}
 		// No other sync actions needed when in sync
 		return items
@@ -247,73 +168,31 @@ func (a *Application) menuTimeline() []MenuItem {
 		// Can't push uncommitted changes
 		if a.gitState.WorkingTree == git.Clean {
 			items = append(items,
-				Item("push").
-					Shortcut("h").
-					Emoji("📤").
-					Label("Push to remote").
-					Hint("Send local commits to remote branch").
-					Build(),
-				Item("force_push").
-					Shortcut("f").
-					Emoji("💥").
-					Label("Replace remote (force push)").
-					Hint("💥 DESTRUCTIVE: Overwrite remote branch with local commits").
-					Build(),
+				GetMenuItem("push"),
+				GetMenuItem("force_push"),
 			)
 		}
 
 	case git.Behind:
-		// If Modified, show dirty pull first
-		if a.gitState.WorkingTree == git.Modified {
-			items = append(items,
-				Item("dirty_pull_merge").
-					Shortcut("d").
-					Emoji("⚠️").
-					Label("Pull (save changes)").
-					Hint("Save WIP, pull remote, reapply changes (may conflict)").
-					Build(),
-			)
+		// If Dirty, show dirty pull first
+		if a.gitState.WorkingTree == git.Dirty {
+			items = append(items, GetMenuItem("dirty_pull_merge"))
 			// Add separator between dirty pull and clean pull
 			items = append(items, Item("").Separator().Build())
 		}
 
 		// Show clean pull options
 		items = append(items,
-			Item("pull_merge").
-				Shortcut("p").
-				Emoji("📥").
-				Label("Pull (fetch + merge)").
-				Hint("Fetch latest from remote and merge into local branch").
-				Build(),
-			Item("replace_local").
-				Shortcut("f").
-				Emoji("💥").
-				Label("Replace local (hard reset)").
-				Hint("💥 DESTRUCTIVE: Discard local commits, match remote exactly").
-				Build(),
+			GetMenuItem("pull_merge"),
+			GetMenuItem("replace_local"),
 		)
 
 	case git.Diverged:
 		// Diverged → show merge and destructive options (always available)
 		items = append(items,
-			Item("pull_merge").
-				Shortcut("p").
-				Emoji("📥").
-				Label("Pull (merge)").
-				Hint("Fetch remote and merge diverged branches").
-				Build(),
-			Item("force_push").
-				Shortcut("f").
-				Emoji("💥").
-				Label("Replace remote (force push)").
-				Hint("💥 DESTRUCTIVE: Overwrite remote branch with local commits").
-				Build(),
-			Item("replace_local").
-				Shortcut("x").
-				Emoji("💥").
-				Label("Replace local (hard reset)").
-				Hint("💥 DESTRUCTIVE: Discard local commits, match remote exactly").
-				Build(),
+			GetMenuItem("pull_merge_diverged"),
+			GetMenuItem("force_push"),
+			GetMenuItem("replace_local"),
 		)
 	}
 
@@ -323,59 +202,23 @@ func (a *Application) menuTimeline() []MenuItem {
 // menuHistory returns history actions
 func (a *Application) menuHistory() []MenuItem {
 	return []MenuItem{
-		Item("history").
-			Shortcut("l").
-			Emoji("📜").
-			Label("Commit history").
-			Hint("View and navigate through commit history").
-			Build(),
-		Item("file_history").
-			Shortcut("f").
-			Emoji("📄").
-			Label("File(s) history").
-			Hint("View history of specific files").
-			Build(),
-		Item("test_conflict").
-			Shortcut("t").
-			Emoji("🧪").
-			Label("TEST: Conflict resolver").
-			Hint("DEBUG: Test conflict resolution UI with mock data").
-			Build(),
+		GetMenuItem("history"),
+		GetMenuItem("file_history"),
 	}
 }
 
 // menuInitializeLocation returns options for where to initialize repository
 func (a *Application) menuInitializeLocation() []MenuItem {
 	return []MenuItem{
-		Item("init_here").
-			Shortcut("1").
-			Emoji("📍").
-			Label("Initialize current directory").
-			Hint("Create repository here").
-			Build(),
-		Item("init_subdir").
-			Shortcut("2").
-			Emoji("📁").
-			Label("Create subdirectory").
-			Hint("Create new folder and initialize there").
-			Build(),
+		GetMenuItem("init_here"),
+		GetMenuItem("init_subdir"),
 	}
 }
 
 // menuCloneLocation returns options for where to clone repository
 func (a *Application) menuCloneLocation() []MenuItem {
 	return []MenuItem{
-		Item("clone_here").
-			Shortcut("1").
-			Emoji("📍").
-			Label("Clone to current directory").
-			Hint("Clone repository here").
-			Build(),
-		Item("clone_subdir").
-			Shortcut("2").
-			Emoji("📁").
-			Label("Create subdirectory").
-			Hint("Create new folder and clone there").
-			Build(),
+		GetMenuItem("clone_here"),
+		GetMenuItem("clone_subdir"),
 	}
 }

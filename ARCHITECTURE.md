@@ -14,9 +14,9 @@ Every moment in TIT is described by exactly 4 git axes:
 
 ```go
 type State struct {
-    WorkingTree      git.WorkingTree // Clean | Modified
+    WorkingTree      git.WorkingTree // Clean | Dirty
     Timeline         git.Timeline    // InSync | Ahead | Behind | Diverged | NoRemote
-    Operation        git.Operation   // NotRepo | Normal | Conflicted | Merging | Rebasing
+    Operation        git.Operation   // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation
     Remote           git.Remote      // NoRemote | HasRemote
     CurrentBranch    string          // Local branch name
     LocalBranchOnRemote bool         // Whether current branch tracked on remote
@@ -128,18 +128,55 @@ menuGenerators := map[git.Operation]MenuGenerator{
 }
 ```
 
-### MenuItem Builder Pattern
+### MenuItem SSOT System
 
-Clean fluent API for creating menu items:
+All menu items defined in single source of truth (`internal/app/menuitems.go`):
 
 ```go
-Item("commit").
-    Shortcut("m").
-    Emoji("📝").
-    Label("Commit changes").
-    Hint("Create commit from staged changes").
-    When(isModified).  // Enable only when Working Tree is Modified
-    Build()
+var MenuItems = map[string]MenuItem{
+    "commit": {
+        ID:       "commit",
+        Shortcut: "m",
+        Emoji:    "📝",
+        Label:    "Commit changes",
+        Hint:     "Create commit from staged changes",
+        Enabled:  true,
+    },
+    // ... all menu items defined here
+}
+```
+
+**Benefits:**
+- All shortcuts globally unique (no conflicts)
+- Single source for labels, hints, emoji
+- Hints displayed in footer (not in menu)
+- Easy to audit and modify without touching menu generators
+
+**Menu Item SSOT Guarantees:**
+- Shortcut conflicts detected at build time (in `app.go` init)
+- Emoji validation (no narrow emojis per SESSION-LOG.md rules)
+- Hints stored in SSOT but rendered in footer hint area
+- All text centralized: no hardcoded labels in menu.go
+
+Menu generators retrieve items via `GetMenuItem(id)`:
+```go
+Item("commit").Shortcut("m").Label("...").Build()  // ❌ OLD
+GetMenuItem("commit")                              // ✅ NEW
+```
+
+### Menu Rendering Flow
+
+```
+GenerateMenu() → []MenuItem (ID, Shortcut, Emoji, Label only)
+    ↓
+RenderMenu() displays with 2 columns:
+    - Left: [Shortcut] emoji Label
+    - Right: (empty - hints moved to footer)
+    ↓
+On menu selection change:
+    - app.footerHint = GetMenuItem(selected).Hint
+    ↓
+Layout() displays footer with current hint
 ```
 
 ### Generators in `internal/app/menu.go`
@@ -148,7 +185,7 @@ Item("commit").
 - `menuConflicted()` - Resolve/Abort (conflicts detected)
 - `menuOperation()` - Continue/Abort (merge/rebase in progress)
 - `menuNormal()` - Full menu (normal state)
-  - `menuWorkingTree()` - Commit (when Modified)
+  - `menuWorkingTree()` - Commit (when Dirty)
   - `menuTimeline()` - Push/Pull based on Timeline
   - `menuHistory()` - Commit history browser
 
@@ -661,7 +698,8 @@ func executeOperation() tea.Cmd {
 | `internal/app/app.go` | Application struct, Update() event loop, key handler registry |
 | `internal/app/modes.go` | AppMode enum definition |
 | `internal/app/menu.go` | Menu generators (state → []MenuItem) |
-| `internal/app/menubuilder.go` | MenuItemBuilder fluent API |
+| `internal/app/menuitems.go` | MenuItems SSOT map (all menu definitions) |
+| `internal/app/menubuilder.go` | MenuItemBuilder fluent API (for separators) |
 | `internal/app/dispatchers.go` | Menu item → mode transitions |
 | `internal/app/handlers.go` | Input handlers (enter, ESC, text input, etc) |
 | `internal/app/keyboard.go` | Key handler registry construction |
@@ -688,56 +726,55 @@ func executeOperation() tea.Cmd {
 
 ### Adding a New Menu Item
 
-1. **menu.go**: Add to appropriate generator
-2. **dispatchers.go**: Add dispatcher function
-3. **handlers.go**: Add input handler
-4. **keyboard.go**: Register key handler if needed
-
-Example: Adding "Commit changes"
-
+**Step 1: Define in SSOT** (`menuitems.go`)
 ```go
-// menu.go: menuWorkingTree()
-Item("commit").
-    Shortcut("m").
-    Label("Commit changes").
-    When(a.gitState.WorkingTree == git.Modified).
-    Build()
+var MenuItems = map[string]MenuItem{
+    // ... existing items ...
+    "commit": {
+        ID:       "commit",
+        Shortcut: "m",
+        Emoji:    "📝",
+        Label:    "Commit changes",
+        Hint:     "Create a new commit from staged changes",
+        Enabled:  true,
+    },
+}
+```
 
-// dispatchers.go
+**Step 2: Use in menu generator** (`menu.go`)
+```go
+// menuWorkingTree()
+items = append(items, GetMenuItem("commit"))
+// That's it! No inline builders
+```
+
+**Step 3: Add dispatcher** (`dispatchers.go`)
+```go
 func (a *Application) dispatchCommit() (tea.Model, tea.Cmd) {
     a.mode = ModeInput
-    a.inputPrompt = "Commit message:"
+    a.inputPrompt = InputPrompts["commit_message"]
     a.inputAction = "commit"
     return a, nil
 }
+```
 
-// handlers.go
-func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
-    switch app.inputAction {
-    case "commit":
-        return app.handleCommitSubmit()
-    }
-}
-
-func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) {
-    message := app.inputValue
-    app.asyncOperationActive = true
-    app.mode = ModeConsole
-    return app, app.executeCommitWorkflow(message)
-}
-
-// handlers.go: executeCommitWorkflow
-func (a *Application) executeCommitWorkflow(message string) tea.Cmd {
-    return func() tea.Msg {
-        result := git.ExecuteWithStreaming("commit", "-m", message)
-        return GitOperationMsg{
-            Step: "commit",
-            Success: result.Success,
-            Error: "Commit failed",
-        }
-    }
+**Step 4: Add handler** (`handlers.go`)
+```go
+func (a *Application) handleCommitSubmit() (tea.Model, tea.Cmd) {
+    message := a.inputValue
+    // ... execute commit ...
 }
 ```
+
+**Step 5: Register dispatcher** (`menu.go` generator mapping or explicit check in handlers)
+- Menu selection → handleMenuEnter() → dispatchers.handleMenuAction(itemID)
+- Dispatcher lookup is already automatic in menu handling
+
+**Benefits of SSOT approach:**
+- All text in one place (easy to audit, translate, change)
+- Shortcuts checked for conflicts at build time
+- Hints automatically in footer (no code duplication)
+- Menu generators stay simple (just GetMenuItem calls)
 
 ### Async Operation with Streaming
 

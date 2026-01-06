@@ -174,7 +174,7 @@ Press ESC → handleConflictEsc()
 ./build.sh
 
 # Run with test repo
-cd /Users/jreng/Documents/Poems/inf/tit_test_repo
+cd /your/test/repo  # Your actual test repo directory
 ../tit_x64
 
 # Setup test scenario

@@ -1,9 +1,9 @@
 #!/bin/bash
 # TIT Dirty Pull Test Setup
-# Run this from OUTSIDE tit_test_repo
+# Run this from your test repository directory
 # It will set up various dirty pull scenarios
 
-TEST_REPO="/Users/jreng/Documents/Poems/inf/tit_test_repo"
+TEST_REPO="$(pwd)"
 
 # Colors
 RED='\033[0;31m'
@@ -112,17 +112,27 @@ scenario_2() {
 
     cleanup_git_state
 
-    # Create WIP changes
+    # Reset to remote state
+    git reset --hard origin/main
+
+    # Create remote ahead by making a commit on temp branch and pushing to main
+    git checkout -b temp-remote
+    echo "remote change" >> conflict.txt
+    git add conflict.txt
+    git commit -m "Remote conflicting change"
+    git push -f origin temp-remote:main
+    
+    # Switch back to main and reset to before the push (now we're Behind)
+    git checkout main
+    git reset --hard origin/main~1
+    git branch -D temp-remote
+
+    # Create WIP changes (uncommitted)
     echo "wip work" >> wip.txt
 
-    # Make conflicting local commit that's ahead of remote
-    echo "local change" >> conflict.txt
-    git add conflict.txt
-    git commit -m "Local conflicting change"
-
     echo -e "${GREEN}✓ Setup complete${NC}"
-    echo -e "${BLUE}Working tree: DIRTY (wip.txt)${NC}"
-    echo -e "${BLUE}Now run TIT and select 'Merge local and remote (+ save WIP)'${NC}"
+    echo -e "${BLUE}Working tree: DIRTY (wip.txt) + BEHIND (remote ahead)${NC}"
+    echo -e "${BLUE}Now run TIT and select 'Pull (save changes)'${NC}"
     echo -e "${BLUE}Expected: Stash → Merge → Conflict UI → Resolve → Stash apply${NC}"
 }
 

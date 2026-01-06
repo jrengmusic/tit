@@ -386,6 +386,15 @@ func (a *Application) GetFooterHint() string {
 	return a.footerHint
 }
 
+// updateFooterHintFromMenu updates footer with hint of currently selected menu item
+func (a *Application) updateFooterHintFromMenu() {
+	if a.selectedIndex >= 0 && a.selectedIndex < len(a.menuItems) {
+		if !a.menuItems[a.selectedIndex].Separator {
+			a.footerHint = a.menuItems[a.selectedIndex].Hint
+		}
+	}
+}
+
 // GetGitState returns the current git state
 func (a *Application) GetGitState() interface{} {
 	return a.gitState
@@ -485,6 +494,7 @@ func (a *Application) isInputMode() bool {
 }
 
 // menuItemsToMaps converts MenuItem slice to map slice for rendering
+// Note: Hint is excluded from maps (displayed in footer instead)
 func (a *Application) menuItemsToMaps(items []MenuItem) []map[string]interface{} {
 	maps := make([]map[string]interface{}, len(items))
 	for i, item := range items {
@@ -493,7 +503,6 @@ func (a *Application) menuItemsToMaps(items []MenuItem) []map[string]interface{}
 			"Shortcut":  item.Shortcut,
 			"Emoji":     item.Emoji,
 			"Label":     item.Label,
-			"Hint":      item.Hint,
 			"Enabled":   item.Enabled,
 			"Separator": item.Separator,
 		}

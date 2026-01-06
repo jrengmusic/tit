@@ -214,7 +214,7 @@ Current State → cmdAbortDirtyPull()
 ### Setup
 ```bash
 # Terminal 1: Go to test repo
-cd /Users/jreng/Documents/Poems/inf/tit_test_repo
+cd /your/test/repo  # Your actual test repo directory
 
 # Terminal 2: Run test scenario setup
 ./titest.sh

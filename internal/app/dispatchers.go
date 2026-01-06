@@ -53,7 +53,6 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"abort_operation":    a.dispatchAbortOperation,
 		"continue_operation": a.dispatchContinueOperation,
 		"history":            a.dispatchHistory,
-		"test_conflict":      a.dispatchTestConflict, // DEBUG: Test conflict resolver
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -257,59 +256,5 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
 
-	return nil
-}
-
-// dispatchTestConflict enters conflict resolve mode with mock data (DEBUG ONLY)
-func (a *Application) dispatchTestConflict(app *Application) tea.Cmd {
-	// Create mock conflict state with 2 columns (LOCAL vs REMOTE)
-	app.conflictResolveState = &ConflictResolveState{
-		Operation:  "test_conflict",
-		CommitHash: "abc1234",
-		IsRebase:   false,
-		
-		// Mock files in conflict
-		Files: []ui.ConflictFileGeneric{
-			{
-				Path:   "src/main.go",
-				Chosen: 0, // Default to LOCAL
-				Versions: []string{
-					"package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"LOCAL version\")\n}\n",
-					"package main\n\nimport \"log\"\n\nfunc main() {\n\tlog.Println(\"REMOTE version\")\n}\n",
-				},
-			},
-			{
-				Path:   "README.md",
-				Chosen: 1, // Default to REMOTE
-				Versions: []string{
-					"# Project\n\nLocal README content\nwith some changes.\n",
-					"# Project\n\nRemote README content\nwith different changes.\n",
-				},
-			},
-			{
-				Path:   "config.yaml",
-				Chosen: 0,
-				Versions: []string{
-					"version: 1.0.0\nmode: development\n",
-					"version: 2.0.0\nmode: production\n",
-				},
-			},
-		},
-		
-		// UI state
-		SelectedFileIndex: 0,
-		FocusedPane:       0, // Start with first file list focused
-		NumColumns:        2,
-		ColumnLabels:      []string{"LOCAL", "REMOTE"},
-		ScrollOffsets:     []int{0, 0},
-		LineCursors:       []int{0, 0},
-		
-		// Create diff pane (for future use)
-		DiffPane: ui.NewDiffPane(&app.theme),
-	}
-	
-	app.mode = ModeConflictResolve
-	app.footerHint = "Test conflict mode - use TAB to cycle panes, SPACE to mark choices"
-	
 	return nil
 }

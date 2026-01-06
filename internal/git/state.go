@@ -200,7 +200,7 @@ func detectWorkingTree() (WorkingTree, error) {
 		}
 		// Lines starting with '1', '2' (changes) or '?' (untracked) indicate modifications
 		if line[0] == '1' || line[0] == '2' || line[0] == '?' {
-			return Modified, nil
+			return Dirty, nil
 		}
 	}
 
