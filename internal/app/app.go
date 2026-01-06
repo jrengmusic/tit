@@ -60,6 +60,9 @@ type Application struct {
 	confirmType          string // Type of confirmation for old-tit compatibility
 	confirmContext       map[string]string // Context for old-tit compatibility
 	
+	// Conflict resolution state
+	conflictResolveState *ConflictResolveState
+	
 	// State display info maps
 	workingTreeInfo      map[git.WorkingTree]StateInfo
 	timelineInfo         map[git.Timeline]StateInfo
@@ -337,7 +340,23 @@ func (a *Application) View() string {
 	case ModeHistory:
 		panic("ModeHistory: not yet implemented")
 	case ModeConflictResolve:
-		panic("ModeConflictResolve: not yet implemented")
+		// Render conflict resolution UI using generic N-column view
+		if a.conflictResolveState == nil {
+			contentText = "No conflict state initialized"
+		} else {
+			contentText = ui.RenderConflictResolveGeneric(
+				a.conflictResolveState.Files,
+				a.conflictResolveState.SelectedFileIndex,
+				a.conflictResolveState.FocusedPane,
+				a.conflictResolveState.NumColumns,
+				a.conflictResolveState.ColumnLabels,
+				a.conflictResolveState.ScrollOffsets,
+				a.conflictResolveState.LineCursors,
+				ui.ContentInnerWidth,
+				ui.ContentHeight,
+				a.theme,
+			)
+		}
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
@@ -544,7 +563,13 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("enter", a.handleConfirmationEnter).
 			Build(),
 		ModeHistory:         NewModeHandlers().Build(),
-		ModeConflictResolve: NewModeHandlers().Build(),
+		ModeConflictResolve: NewModeHandlers().
+			On("up", a.handleConflictUp).
+			On("down", a.handleConflictDown).
+			On("tab", a.handleConflictTab).
+			On(" ", a.handleConflictSpace).  // Space character, not "space"
+			On("enter", a.handleConflictEnter).
+			Build(),
 		ModeClone: NewModeHandlers().
 			On("up", a.handleConsoleUp).
 			On("down", a.handleConsoleDown).

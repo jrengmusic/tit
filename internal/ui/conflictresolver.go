@@ -1,0 +1,373 @@
+package ui
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// ========================================
+// Conflict Resolution Data Structures
+// ========================================
+
+// ConflictFile represents a file in conflict (2-column version)
+type ConflictFile struct {
+	Path      string
+	KeepLocal bool // true=keep LOCAL, false=keep REMOTE
+}
+
+// ConflictFileGeneric represents a file in conflict with N-way choice
+type ConflictFileGeneric struct {
+	Path     string
+	Versions []string // Content for each column
+	Chosen   int      // Which column is chosen (0-based)
+}
+
+// ========================================
+// N-Column Generic Parallel View
+// ========================================
+
+// RenderConflictResolveGeneric renders the generic N-column parallel view
+// Top row: N columns showing file lists with checkboxes
+// Bottom row: N columns showing content for selected file
+// Returns content exactly `width` chars wide and `height - 2` lines tall (for outer border)
+func RenderConflictResolveGeneric(
+	files []ConflictFileGeneric,
+	selectedFileIndex int,
+	focusedPane int, // 0...numCols-1 = top columns, numCols...numCols*2-1 = bottom columns
+	numColumns int,
+	columnLabels []string,
+	scrollOffsets []int,
+	lineCursors []int,
+	width int,
+	height int,
+	theme Theme,
+) string {
+	if width <= 0 || height <= 0 || numColumns == 0 {
+		return ""
+	}
+
+	// Return height - 2 lines (wrapper will add border(2))
+	// Layout: topRow + bottomRow + status = height - 2
+	// Available for panes: (height - 2) - status(1) = height - 3
+	// But lipgloss adds extra padding, so reduce by 4 more
+	totalPaneHeight := height - 7
+	topRowHeight := totalPaneHeight / 3
+	bottomRowHeight := totalPaneHeight - topRowHeight
+	
+	// Adjust: add 2 to top row, reduce from bottom row
+	topRowHeight += 2
+	bottomRowHeight -= 2
+
+	// Calculate column widths - no gaps, borders touch
+	// For 2 columns: width=76, each gets 38 chars (including their own borders)
+	baseColumnWidth := width / numColumns
+	remainder := width % numColumns
+
+	// Render top row: N file list columns using ListPane
+	var topRowLines []string
+	for col := 0; col < numColumns; col++ {
+		isActive := (focusedPane == col)
+		label := ""
+		if col < len(columnLabels) {
+			label = columnLabels[col]
+			// Colorize hash in title (e.g., "COMMIT abc1234")
+			label = colorizeIncomingPaneTitle(label, &theme)
+		}
+
+		// Calculate column width: base + 1 if we have remainder
+		columnWidth := baseColumnWidth
+		if col >= numColumns-remainder {
+			columnWidth++ // Give remainder to last columns
+		}
+
+		// Use ListPane for file list
+		listPane := NewListPane(label, &theme)
+		listItems := convertFilesToListItems(files, selectedFileIndex, col, &theme)
+		
+		// Calculate visible lines for scrolling (height - border(2) - title(1) - separator(1))
+		visibleLines := topRowHeight - 4
+		if visibleLines < 1 {
+			visibleLines = 1
+		}
+		
+		// Adjust scroll to keep selected file visible
+		listPane.AdjustScroll(selectedFileIndex, visibleLines)
+		
+		paneRendered := listPane.Render(listItems, columnWidth, topRowHeight, isActive, col, numColumns)
+		topRowLines = append(topRowLines, paneRendered)
+	}
+
+	// Join top row columns - lipgloss will place them side-by-side with borders touching
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top, topRowLines...)
+
+	// Render bottom row: N content columns
+	var bottomRowLines []string
+	for col := 0; col < numColumns; col++ {
+		isActive := (focusedPane == numColumns+col)
+		scrollOffset := 0
+		if col < len(scrollOffsets) {
+			scrollOffset = scrollOffsets[col]
+		}
+		lineCursor := 0
+		if col < len(lineCursors) {
+			lineCursor = lineCursors[col]
+		}
+		content := ""
+		if selectedFileIndex >= 0 && selectedFileIndex < len(files) {
+			if col < len(files[selectedFileIndex].Versions) {
+				content = files[selectedFileIndex].Versions[col]
+			}
+		}
+
+		// Calculate column width: base + 1 if we have remainder
+		columnWidth := baseColumnWidth
+		if col >= numColumns-remainder {
+			columnWidth++ // Give remainder to last columns
+		}
+
+		// Render content column with cursor
+		paneRendered := renderGenericContentPane(content, columnWidth, bottomRowHeight, lineCursor, scrollOffset, isActive, &theme, scrollOffsets, col, numColumns)
+		bottomRowLines = append(bottomRowLines, paneRendered)
+	}
+
+	// Join bottom row columns - lipgloss will place them side-by-side with borders touching
+	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, bottomRowLines...)
+
+	// Build status bar
+	statusBar := buildGenericConflictStatusBar(focusedPane, numColumns, width, theme)
+
+	// Stack everything with no gaps: topRow + bottomRow + statusBar
+	return topRow + "\n" + bottomRow + "\n" + statusBar
+}
+
+// ========================================
+// Helper Functions
+// ========================================
+
+// convertFilesToListItems converts conflict files to ListItem format for ListPane
+func convertFilesToListItems(files []ConflictFileGeneric, selectedFileIndex int, columnIndex int, theme *Theme) []ListItem {
+	var items []ListItem
+	for i, file := range files {
+		// Checkbox as attribute
+		checkbox := "[ ]"
+		checkboxColor := theme.DimmedTextColor
+		if file.Chosen == columnIndex {
+			checkbox = "[✓]"
+			checkboxColor = theme.AccentTextColor
+		}
+
+		// File path as content
+		items = append(items, ListItem{
+			AttributeText:  checkbox,
+			AttributeColor: checkboxColor,
+			ContentText:    file.Path,
+			ContentColor:   theme.ContentTextColor,
+			ContentBold:    false,
+			IsSelected:     (i == selectedFileIndex),
+		})
+	}
+	return items
+}
+
+// renderGenericContentPane renders content pane with border (no title, just code with line numbers)
+// Returns exactly `height` lines of width `width` (including border)
+func renderGenericContentPane(
+	content string,
+	width int,
+	height int,
+	lineCursor int,
+	scrollOffset int,
+	isActive bool,
+	theme *Theme,
+	scrollOffsets []int,
+	paneIndex int,
+	numColumns int,
+) string {
+	if width <= 0 || height <= 0 {
+		return ""
+	}
+
+	// Border color - darker for unfocused (will use BoxBorderColor for focused later)
+	borderColor := theme.ConflictPaneUnfocusedBorder // dim but visible
+
+	// Content area inside border
+	contentWidth := width - 2
+	contentHeight := height - 2
+
+	if contentWidth <= 0 || contentHeight <= 0 {
+		return ""
+	}
+
+	// Parse file content into lines
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+
+	// All content height is available (no title)
+	visibleLines := contentHeight
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+
+	// Adjust scroll to keep cursor visible (DiffPane pattern)
+	if lineCursor < scrollOffset {
+		scrollOffset = lineCursor
+	} else if lineCursor >= scrollOffset+visibleLines {
+		scrollOffset = lineCursor - visibleLines + 1
+	}
+
+	// Clamp scroll offset
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+	if scrollOffset > totalLines-visibleLines && totalLines > visibleLines {
+		scrollOffset = totalLines - visibleLines
+	}
+	if scrollOffset < 0 {
+		scrollOffset = 0
+	}
+
+	// Update the scroll offset in the array (so it persists)
+	if paneIndex >= 0 && paneIndex < len(scrollOffsets) {
+		scrollOffsets[paneIndex] = scrollOffset
+	}
+
+	start := scrollOffset
+	end := start + visibleLines
+	if end > totalLines {
+		end = totalLines
+	}
+
+	// Line number styling
+	lineNumberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DimmedTextColor))
+
+	// Calculate code width: contentWidth - 4 (line num) - 1 (space)
+	codeWidth := contentWidth - 5
+	if codeWidth < 1 {
+		codeWidth = 1
+	}
+
+	// Build content lines
+	var contentLines []string
+
+	// Render visible lines with line numbers
+	for i := start; i < end; i++ {
+		isCursorLine := (i == lineCursor) && isActive
+
+		lineNum := i + 1
+		lineNumText := lipgloss.NewStyle().
+			Width(4).
+			Align(lipgloss.Right).
+			Render(fmt.Sprintf("%d", lineNum))
+		lineNumColumn := lineNumberStyle.Render(lineNumText)
+
+		// Get code line and wrap to fit
+		code := lines[i]
+
+		// Style code based on cursor
+		var codeStyle lipgloss.Style
+		if isCursorLine {
+			// Cursor line: match menu convention (dark foreground on teal background)
+			codeStyle = lipgloss.NewStyle().
+				Width(codeWidth).
+				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+				Background(lipgloss.Color(theme.MenuSelectionBackground)).
+				Bold(true)
+		} else {
+			// Normal line
+			codeStyle = lipgloss.NewStyle().
+				Width(codeWidth).
+				Foreground(lipgloss.Color(theme.ContentTextColor))
+		}
+		wrappedCode := codeStyle.Render(code)
+
+		// Combine: lineNum + space + code
+		line := lineNumColumn + " " + wrappedCode
+		contentLines = append(contentLines, line)
+	}
+
+	// Pad remaining lines to fill contentHeight
+	emptyLine := strings.Repeat(" ", contentWidth)
+	for len(contentLines) < visibleLines {
+		contentLines = append(contentLines, emptyLine)
+	}
+
+	// Join all lines
+	contentText := strings.Join(contentLines, "\n")
+
+	// Border color based on focus state
+	borderColor = theme.ConflictPaneUnfocusedBorder
+	if isActive {
+		borderColor = theme.ConflictPaneFocusedBorder
+	}
+
+	// Add simple border with lipgloss - ALL FOUR SIDES like old-tit
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Width(width - 2).
+		Height(height)
+
+	return boxStyle.Render(contentText)
+}
+
+// buildGenericConflictStatusBar builds the status bar with keyboard shortcuts for N-column view
+func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, theme Theme) string {
+	shortcutStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.AccentTextColor)).
+		Bold(true)
+	descStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.ContentTextColor))
+	sepStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.DimmedTextColor))
+
+	// Build shortcuts based on focused pane
+	var parts []string
+	if focusedPane < numColumns {
+		// Top row (file list) - can navigate and mark
+		parts = []string{
+			shortcutStyle.Render("↑↓") + descStyle.Render(" navigate"),
+			shortcutStyle.Render("SPACE") + descStyle.Render(" mark"),
+		}
+	} else {
+		// Bottom row (content) - can scroll
+		parts = []string{
+			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
+		}
+	}
+	parts = append(parts,
+		shortcutStyle.Render("TAB") + descStyle.Render(" switch pane"),
+		shortcutStyle.Render("ENTER") + descStyle.Render(" apply"),
+		shortcutStyle.Render("ESC") + descStyle.Render(" abort"),
+	)
+
+	statusText := strings.Join(parts, sepStyle.Render("  │  "))
+
+	// Use lipgloss to center and size status bar (match width)
+	statusStyle := lipgloss.NewStyle().
+		Width(width).
+		Align(lipgloss.Center)
+
+	return statusStyle.Render(statusText)
+}
+
+// colorizeIncomingPaneTitle colors the hash portion of "COMMIT ABC1234" using AccentTextColor
+func colorizeIncomingPaneTitle(title string, theme *Theme) string {
+	// Look for pattern: "COMMIT <hash>"
+	parts := strings.Fields(title)
+	if len(parts) >= 2 && parts[0] == "COMMIT" {
+		prefix := parts[0]
+		hash := parts[1]
+		
+		// Style hash with AccentTextColor and bold
+		hashStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.AccentTextColor)).
+			Bold(true)
+		
+		return prefix + " " + hashStyle.Render(hash)
+	}
+	
+	// If pattern doesn't match, return as-is
+	return title
+}

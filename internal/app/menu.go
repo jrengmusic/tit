@@ -327,6 +327,12 @@ func (a *Application) menuHistory() []MenuItem {
 			Label("File(s) history").
 			Hint("View history of specific files").
 			Build(),
+		Item("test_conflict").
+			Shortcut("t").
+			Emoji("🧪").
+			Label("TEST: Conflict resolver").
+			Hint("DEBUG: Test conflict resolution UI with mock data").
+			Build(),
 	}
 }
 

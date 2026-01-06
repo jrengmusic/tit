@@ -29,8 +29,17 @@ terminalTextColor = "#999999"          # neutral gray (command output)
 cwdTextColor = "#67DFEF"               # poseidonJr (current working directory)
 footerTextColor = "#519299"            # lagoon (footer hints)
 
-# Borders
-boxBorderColor = "#8CC9D9"             # dolphin (borders for all boxes)
+# Borders - Conflict Resolver specific
+boxBorderColor = "#8CC9D9"                    # dolphin (borders for all boxes)
+conflictPaneUnfocusedBorder = "#2C4144"       # littleMermaid (OLD-TIT EXACT - unfocused)
+conflictPaneFocusedBorder = "#8CC9D9"         # dolphin (OLD-TIT EXACT - focused)
+
+# Selection - Conflict Resolver specific
+conflictSelectionForeground = "#090D12"       # bunker (selection text color)
+conflictSelectionBackground = "#7EB8C5"       # brighter muted teal (selection background)
+
+# Pane Headers
+conflictPaneTitleColor = "#8CC9D9"            # dolphin (pane title text)
 
 # Status & State
 statusClean = "#01C2D2"               # caribbeanBlue
@@ -75,6 +84,17 @@ type ThemeDefinition struct {
 
 		// Borders
 		BoxBorderColor string `toml:"boxBorderColor"`
+		
+		// Conflict Resolver - Borders
+		ConflictPaneUnfocusedBorder string `toml:"conflictPaneUnfocusedBorder"`
+		ConflictPaneFocusedBorder   string `toml:"conflictPaneFocusedBorder"`
+		
+		// Conflict Resolver - Selection
+		ConflictSelectionForeground string `toml:"conflictSelectionForeground"`
+		ConflictSelectionBackground string `toml:"conflictSelectionBackground"`
+		
+		// Conflict Resolver - Pane Headers
+		ConflictPaneTitleColor string `toml:"conflictPaneTitleColor"`
 
 		// Status Colors
 		StatusClean    string `toml:"statusClean"`
@@ -119,6 +139,17 @@ type Theme struct {
 
 	// Borders
 	BoxBorderColor string
+	
+	// Conflict Resolver - Borders
+	ConflictPaneUnfocusedBorder string
+	ConflictPaneFocusedBorder   string
+	
+	// Conflict Resolver - Selection
+	ConflictSelectionForeground string
+	ConflictSelectionBackground string
+	
+	// Conflict Resolver - Pane Headers
+	ConflictPaneTitleColor string
 
 	// Status Colors
 	StatusClean    string
@@ -173,6 +204,17 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 
 		// Borders
 		BoxBorderColor: themeDef.Palette.BoxBorderColor,
+		
+		// Conflict Resolver - Borders
+		ConflictPaneUnfocusedBorder: themeDef.Palette.ConflictPaneUnfocusedBorder,
+		ConflictPaneFocusedBorder:   themeDef.Palette.ConflictPaneFocusedBorder,
+		
+		// Conflict Resolver - Selection
+		ConflictSelectionForeground: themeDef.Palette.ConflictSelectionForeground,
+		ConflictSelectionBackground: themeDef.Palette.ConflictSelectionBackground,
+		
+		// Conflict Resolver - Pane Headers
+		ConflictPaneTitleColor: themeDef.Palette.ConflictPaneTitleColor,
 
 		// Status Colors
 		StatusClean:    themeDef.Palette.StatusClean,
