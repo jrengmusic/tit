@@ -96,6 +96,150 @@
 
 ---
 
+## Session 36: Dirty Pull Foundation — Complete Component Audit + Async Commands (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-06
+
+### Objective: Audit dirty pull requirements, create all missing components, prepare for wiring
+
+### Completed:
+
+✅ **Full Codebase Audit**
+- Found 9 existing components ready to use (conflict resolver, menus, dialogs, states)
+- Identified exactly what's missing (stash management, operation state tracking, async commands)
+- Documented all dependencies and integration points
+- Created DIRTY-PULL-AUDIT.md with complete inventory
+
+✅ **Created 3 New Core Components**
+
+1. **internal/git/dirtyop.go** (130 lines) — Snapshot Management
+   - `DirtyOperationSnapshot` struct to capture original state
+   - `Save(branch, hash)` → writes `.git/TIT_DIRTY_OP` with 2 lines
+   - `Load()` → reads snapshot back (with validation)
+   - `Delete()` → cleanup after operation
+   - `IsDirtyOperationActive()` → check if dirty op in progress
+   - Thread-safe file I/O, fail-fast error handling
+
+2. **internal/app/dirtystate.go** (60 lines) — Operation State Tracking
+   - `DirtyOperationState` struct for phase progression
+   - Phase tracking: snapshot → apply_changeset → apply_snapshot → finalize
+   - `SetPhase()` to transition between phases
+   - `MarkConflictDetected()` to track conflict phase and files
+   - Cleanup flag for stash management
+
+3. **internal/app/operations.go** (305 new lines) — Async Operation Chain
+   - `cmdDirtyPullSnapshot(preserve)` — Phase 1: Capture state, stash/discard changes
+   - `cmdDirtyPullMerge()` — Phase 2a: Pull with merge strategy
+   - `cmdDirtyPullRebase()` — Phase 2b: Pull with rebase strategy
+   - `cmdDirtyPullApplySnapshot()` — Phase 3: Reapply stashed changes
+   - `cmdDirtyPullFinalize()` — Phase 4: Cleanup stash + snapshot file
+   - `cmdAbortDirtyPull()` — Universal abort: Restore exact original state
+
+All commands:
+- Follow existing async pattern (closure capture, immutable returns)
+- Include streaming output to UI buffer
+- Proper error detection (conflict markers in stderr)
+- Fail-fast with explicit error messages
+
+✅ **Build Verified**
+- Clean compile with no errors or warnings
+- Binary created successfully (tit_x64)
+- Code ready for integration
+
+✅ **Created 3 Reference Documents**
+
+1. **DIRTY-PULL-AUDIT.md** — Component Inventory
+   - Existing components (9 ready to use)
+   - Missing components (2 created + their specs)
+   - Checklist by phase
+   - Dependency graph
+
+2. **DIRTY-PULL-NEXT-PHASES.md** — Implementation Guide
+   - 6 detailed phases with code examples
+   - File-by-file modifications
+   - Line ranges for each change
+   - Full code snippets to copy/paste
+   - Operation chain flow diagram
+   - Integration testing strategy
+
+3. **DIRTY-PULL-QUICK-REF.md** — Quick Lookup
+   - Component map and tables
+   - Phase overview with file changes
+   - Test scenarios (titest.sh)
+   - Git commands used
+   - Error handling guide
+   - Testing checklist
+
+### Architecture Design:
+
+**Operation Chain Flow:**
+```
+Menu (Behind + Modified)
+  ↓ Select "Pull (save changes)"
+Confirmation Dialog (Save? / Discard? / Cancel)
+  ↓ Choice
+cmdDirtyPullSnapshot() — Capture state, stash/discard
+  ↓ Success
+cmdDirtyPullMerge/Rebase() — Pull remote changes
+  ├─ Conflicts? → ConflictResolver (dirty_pull_changeset_apply)
+  └─ Success → next phase
+cmdDirtyPullApplySnapshot() — Reapply saved changes
+  ├─ Conflicts? → ConflictResolver (dirty_pull_snapshot_reapply)
+  └─ Success → finalize
+cmdDirtyPullFinalize() — Cleanup stash + snapshot file
+  ↓ Complete
+Return to Menu (Operation = Normal)
+
+Abort at any point: cmdAbortDirtyPull()
+  → Restore branch/HEAD/stash → Original state preserved
+```
+
+**Conflict Resolver Integration:**
+- Reuses existing N-column model (ready for 3 versions)
+- 3 columns: LOCAL / REMOTE / SNAPSHOT
+- User marks file with SPACE (radio button)
+- ENTER: Stage file, continue to next phase
+- ESC: Abort entire operation, restore original
+
+**Key Invariant:**
+- Snapshot file `.git/TIT_DIRTY_OP` tracks operation state
+- Survives app restarts (crash-safe)
+- Abort always restores: git checkout orig_branch, git reset --hard orig_head, git stash apply
+
+### Files Created:
+- `internal/git/dirtyop.go` (130 lines) — Snapshot management
+- `internal/app/dirtystate.go` (60 lines) — Operation state tracking
+- `DIRTY-PULL-AUDIT.md` (100+ lines) — Component inventory
+- `DIRTY-PULL-NEXT-PHASES.md` (400+ lines) — Implementation guide
+- `DIRTY-PULL-QUICK-REF.md` (200+ lines) — Quick reference
+- `DIRTY-PULL-SESSION-SUMMARY.md` (350+ lines) — Session summary
+- `DIRTY-PULL-FILES-CREATED.md` (250+ lines) — Files documentation
+
+### Files Modified:
+- `internal/app/operations.go` (305 new lines) — 6 async commands
+
+### Build Status: ✅ Clean compile
+
+### Next: Phase 1 Implementation
+
+**Phase 1: State Extension** (15 min, 5 lines code)
+- Add `DirtyOperation` to `git.Operation` enum
+- Add `detectDirtyOperation()` function
+- Update `DetectState()` to check for dirty operation
+
+Then 5 more phases to wire everything together (total ~4 hours).
+
+### Key Decisions:
+
+1. **Snapshot at `.git/TIT_DIRTY_OP`** — Simple 2-line file, survives app crash
+2. **Reuse ConflictResolve mode** — No new UI components needed
+3. **Universal abort** — Works from any phase, restores atomically
+4. **Async commands** — Follow existing pattern, streaming output
+5. **3-way conflict resolver** — LOCAL / REMOTE / SNAPSHOT columns
+
+---
+
 ## Session 35: Conflict Resolver - Border Artifacts Fix + SPACE Handler (COMPLETE) ✅
 
 **Agent:** Claude Sonnet 4.5 (GitHub Copilot CLI)

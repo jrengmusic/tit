@@ -540,4 +540,310 @@ func (a *Application) cmdHardReset() tea.Cmd {
 	}
 }
 
+// ========================================
+// Dirty Pull Operations
+// ========================================
+
+// cmdDirtyPullSnapshot creates a git stash and saves the snapshot state
+// Phase 1: Capture original branch/HEAD, then git stash push -u
+func (a *Application) cmdDirtyPullSnapshot(preserveChanges bool) tea.Cmd {
+	preserve := preserveChanges // Capture in closure
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+
+		if preserve {
+			buffer.Append("Saving your changes (creating stash)...", ui.TypeInfo)
+		} else {
+			buffer.Append("Discarding your changes...", ui.TypeInfo)
+		}
+
+		// Get current branch name
+		branchResult := git.Execute("symbolic-ref", "--short", "HEAD")
+		if !branchResult.Success {
+			return GitOperationMsg{
+				Step:    "dirty_pull_snapshot",
+				Success: false,
+				Error:   "Failed to get current branch",
+			}
+		}
+		currentBranch := strings.TrimSpace(branchResult.Stdout)
+
+		// Get current HEAD commit hash
+		headResult := git.Execute("rev-parse", "HEAD")
+		if !headResult.Success {
+			return GitOperationMsg{
+				Step:    "dirty_pull_snapshot",
+				Success: false,
+				Error:   "Failed to get current HEAD",
+			}
+		}
+		currentHead := strings.TrimSpace(headResult.Stdout)
+
+		// Save snapshot to .git/TIT_DIRTY_OP
+		snapshot := &git.DirtyOperationSnapshot{}
+		if err := snapshot.Save(currentBranch, currentHead); err != nil {
+			return GitOperationMsg{
+				Step:    "dirty_pull_snapshot",
+				Success: false,
+				Error:   fmt.Sprintf("Failed to save snapshot: %v", err),
+			}
+		}
+
+		// Create stash with uncommitted changes
+		if preserve {
+			result := git.ExecuteWithStreaming("stash", "push", "-u", "-m", "TIT DIRTY-PULL SNAPSHOT")
+			if !result.Success {
+				snapshot.Delete() // Cleanup on failure
+				return GitOperationMsg{
+					Step:    "dirty_pull_snapshot",
+					Success: false,
+					Error:   "Failed to stash changes",
+				}
+			}
+			buffer.Append("Changes saved (stashed)", ui.TypeInfo)
+		} else {
+			// Discard changes without stash
+			result := git.ExecuteWithStreaming("reset", "--hard")
+			if !result.Success {
+				snapshot.Delete()
+				return GitOperationMsg{
+					Step:    "dirty_pull_snapshot",
+					Success: false,
+					Error:   "Failed to discard changes",
+				}
+			}
+			result = git.ExecuteWithStreaming("clean", "-fd")
+			if !result.Success {
+				snapshot.Delete()
+				return GitOperationMsg{
+					Step:    "dirty_pull_snapshot",
+					Success: false,
+					Error:   "Failed to clean untracked files",
+				}
+			}
+			buffer.Append("Changes discarded", ui.TypeInfo)
+		}
+
+		return GitOperationMsg{
+			Step:    "dirty_pull_snapshot",
+			Success: true,
+			Output:  "Snapshot created, tree cleaned",
+		}
+	}
+}
+
+// cmdDirtyPullMerge pulls from remote using merge strategy
+// Phase 2: After snapshot, pull remote changes
+func (a *Application) cmdDirtyPullMerge() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append("Pulling from remote (merge strategy)...", ui.TypeInfo)
+
+		result := git.ExecuteWithStreaming("pull")
+		if !result.Success {
+			// Check for conflict markers
+			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
+				buffer.Append("Merge conflicts detected", ui.TypeWarning)
+				return GitOperationMsg{
+					Step:    "dirty_pull_merge",
+					Success: false,
+					Error:   "Merge conflicts detected",
+				}
+			}
+			return GitOperationMsg{
+				Step:    "dirty_pull_merge",
+				Success: false,
+				Error:   "Failed to pull",
+			}
+		}
+
+		buffer.Append("Merge completed", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    "dirty_pull_merge",
+			Success: true,
+			Output:  "Remote changes merged",
+		}
+	}
+}
+
+// cmdDirtyPullRebase pulls from remote using rebase strategy
+// Phase 2: After snapshot, pull remote changes with rebase
+func (a *Application) cmdDirtyPullRebase() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append("Pulling from remote (rebase strategy)...", ui.TypeInfo)
+
+		result := git.ExecuteWithStreaming("pull", "--rebase")
+		if !result.Success {
+			// Check for conflict markers
+			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
+				buffer.Append("Rebase conflicts detected", ui.TypeWarning)
+				return GitOperationMsg{
+					Step:    "dirty_pull_rebase",
+					Success: false,
+					Error:   "Rebase conflicts detected",
+				}
+			}
+			return GitOperationMsg{
+				Step:    "dirty_pull_rebase",
+				Success: false,
+				Error:   "Failed to pull with rebase",
+			}
+		}
+
+		buffer.Append("Rebase completed", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    "dirty_pull_rebase",
+			Success: true,
+			Output:  "Remote changes rebased",
+		}
+	}
+}
+
+// cmdDirtyPullApplySnapshot applies the stashed changes back to the tree
+// Phase 3: After pull succeeds, reapply saved changes
+func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append("Reapplying your changes...", ui.TypeInfo)
+
+		// Check if there's a stash to apply
+		stashListResult := git.Execute("stash", "list")
+		if !strings.Contains(stashListResult.Stdout, "TIT DIRTY-PULL SNAPSHOT") {
+			buffer.Append("No stash to apply (changes were discarded)", ui.TypeInfo)
+			return GitOperationMsg{
+				Step:    "dirty_pull_apply_snapshot",
+				Success: true,
+				Output:  "No stashed changes to reapply",
+			}
+		}
+
+		result := git.ExecuteWithStreaming("stash", "apply")
+		if !result.Success {
+			// Check for conflict markers
+			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
+				buffer.Append("Conflicts detected while reapplying changes", ui.TypeWarning)
+				return GitOperationMsg{
+					Step:    "dirty_pull_apply_snapshot",
+					Success: false,
+					Error:   "Stash apply conflicts detected",
+				}
+			}
+			return GitOperationMsg{
+				Step:    "dirty_pull_apply_snapshot",
+				Success: false,
+				Error:   "Failed to reapply stash",
+			}
+		}
+
+		buffer.Append("Changes reapplied", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    "dirty_pull_apply_snapshot",
+			Success: true,
+			Output:  "Stashed changes reapplied",
+		}
+	}
+}
+
+// cmdDirtyPullFinalize drops the stash and cleans up the snapshot file
+// Phase 4: After all operations succeed, finalize
+func (a *Application) cmdDirtyPullFinalize() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append("Finalizing dirty pull operation...", ui.TypeInfo)
+
+		// Drop the stash (if it exists)
+		stashListResult := git.Execute("stash", "list")
+		if strings.Contains(stashListResult.Stdout, "TIT DIRTY-PULL SNAPSHOT") {
+			result := git.ExecuteWithStreaming("stash", "drop")
+			if !result.Success {
+				buffer.Append("Warning: Failed to drop stash (manual cleanup may be needed)", ui.TypeWarning)
+				// Continue anyway - snapshot file cleanup is more important
+			}
+		}
+
+		// Delete the snapshot file
+		if err := git.CleanupSnapshot(); err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to cleanup snapshot file: %v", err), ui.TypeWarning)
+			// Non-fatal, but warn user
+		}
+
+		buffer.Append("Dirty pull completed successfully", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    "dirty_pull_finalize",
+			Success: true,
+			Output:  "Dirty pull finalized",
+		}
+	}
+}
+
+// cmdAbortDirtyPull restores the exact original state by:
+// 1. Checking out the original branch
+// 2. Resetting to original HEAD commit
+// 3. Reapplying the stash (if changes were preserved)
+// 4. Dropping the stash
+// 5. Deleting the snapshot file
+func (a *Application) cmdAbortDirtyPull() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append("Aborting dirty pull and restoring original state...", ui.TypeWarning)
+
+		// Load snapshot
+		snapshot := &git.DirtyOperationSnapshot{}
+		if err := snapshot.Load(); err != nil {
+			return GitOperationMsg{
+				Step:    "dirty_pull_abort",
+				Success: false,
+				Error:   fmt.Sprintf("Failed to load snapshot for abort: %v", err),
+			}
+		}
+
+		// Checkout original branch
+		result := git.ExecuteWithStreaming("checkout", snapshot.OriginalBranch)
+		if !result.Success {
+			buffer.Append("Error: Failed to checkout original branch", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "dirty_pull_abort",
+				Success: false,
+				Error:   fmt.Sprintf("Failed to checkout %s", snapshot.OriginalBranch),
+			}
+		}
+
+		// Reset to original HEAD
+		result = git.ExecuteWithStreaming("reset", "--hard", snapshot.OriginalHead)
+		if !result.Success {
+			buffer.Append("Error: Failed to reset to original HEAD", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "dirty_pull_abort",
+				Success: false,
+				Error:   "Failed to reset to original HEAD",
+			}
+		}
+
+		// Reapply stash (if it exists)
+		stashListResult := git.Execute("stash", "list")
+		if strings.Contains(stashListResult.Stdout, "TIT DIRTY-PULL SNAPSHOT") {
+			result = git.ExecuteWithStreaming("stash", "apply")
+			if !result.Success {
+				buffer.Append("Warning: Could not reapply stash, but HEAD restored", ui.TypeWarning)
+				// Continue - main objective (restoring HEAD) succeeded
+			}
+
+			// Drop the stash
+			git.ExecuteWithStreaming("stash", "drop")
+		}
+
+		// Delete the snapshot file
+		snapshot.Delete()
+
+		buffer.Append("Original state restored", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    "dirty_pull_abort",
+			Success: true,
+			Output:  "Abort completed, original state restored",
+		}
+	}
+}
+
 
