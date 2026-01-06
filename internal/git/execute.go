@@ -25,8 +25,25 @@ func Execute(args ...string) CommandResult {
 	cmd := exec.Command("git", args...)
 
 	// Capture stdout and stderr separately for better error diagnostics
-	stdout, _ := cmd.StdoutPipe()
-	stderr, _ := cmd.StderrPipe()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return CommandResult{
+			Stdout:   "",
+			Stderr:   fmt.Sprintf("Failed to create stdout pipe: %v", err),
+			ExitCode: 1,
+			Success:  false,
+		}
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return CommandResult{
+			Stdout:   "",
+			Stderr:   fmt.Sprintf("Failed to create stderr pipe: %v", err),
+			ExitCode: 1,
+			Success:  false,
+		}
+	}
 	
 	if err := cmd.Start(); err != nil {
 		return CommandResult{
@@ -39,10 +56,24 @@ func Execute(args ...string) CommandResult {
 
 	// Read output
 	var stdoutBuf, stderrBuf strings.Builder
-	io.Copy(&stdoutBuf, stdout)
-	io.Copy(&stderrBuf, stderr)
+	if _, copyErr := io.Copy(&stdoutBuf, stdout); copyErr != nil {
+		return CommandResult{
+			Stdout:   "",
+			Stderr:   fmt.Sprintf("Failed to read stdout: %v", copyErr),
+			ExitCode: 1,
+			Success:  false,
+		}
+	}
+	if _, copyErr := io.Copy(&stderrBuf, stderr); copyErr != nil {
+		return CommandResult{
+			Stdout:   "",
+			Stderr:   fmt.Sprintf("Failed to read stderr: %v", copyErr),
+			ExitCode: 1,
+			Success:  false,
+		}
+	}
 	
-	err := cmd.Wait()
+	err = cmd.Wait()
 	exitCode := 0
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
@@ -152,7 +183,8 @@ func ExecuteWithStreaming(args ...string) CommandResult {
 	if exitCode == 0 {
 		buffer.Append("Command completed successfully", ui.TypeStatus)
 	} else {
-		buffer.Append(fmt.Sprintf("Command failed with exit code %d", exitCode), ui.TypeStderr)
+		// Don't say "failed" - exit code 1 can be expected (e.g., merge conflicts)
+		buffer.Append(fmt.Sprintf("Command exited with code %d", exitCode), ui.TypeInfo)
 	}
 
 	return CommandResult{
@@ -270,9 +302,11 @@ func ListConflictedFiles() ([]string, error) {
 		}
 
 		if parts[0] == "u" { // Unmerged status
-			// Path is the last field
-			if len(parts) > 8 {
-				path := parts[8] // Standard position for path in v2 format
+			// Path starts at field 10 for unmerged entries (after 3 hashes)
+			// Format: u <xy> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>
+			if len(parts) >= 11 {
+				// Join fields from index 10 onwards (handles filenames with spaces)
+				path := strings.Join(parts[10:], " ")
 				conflictedFiles = append(conflictedFiles, path)
 			}
 		}

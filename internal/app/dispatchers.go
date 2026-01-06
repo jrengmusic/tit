@@ -4,6 +4,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/git"
 	"tit/internal/ui"
 )
 
@@ -39,20 +40,21 @@ func isCwdEmpty() bool {
 // dispatchAction routes menu item selections to appropriate handlers
 func (a *Application) dispatchAction(actionID string) tea.Cmd {
 	actionDispatchers := map[string]ActionHandler{
-		"init":               a.dispatchInit,
-		"clone":              a.dispatchClone,
-		"add_remote":         a.dispatchAddRemote,
-		"commit":             a.dispatchCommit,
-		"commit_push":        a.dispatchCommitPush,
-		"push":               a.dispatchPush,
-		"force_push":         a.dispatchForcePush,
-		"pull_merge":         a.dispatchPullMerge,
-		"dirty_pull_merge":   a.dispatchDirtyPullMerge,
-		"replace_local":      a.dispatchReplaceLocal,
-		"resolve_conflicts":  a.dispatchResolveConflicts,
-		"abort_operation":    a.dispatchAbortOperation,
-		"continue_operation": a.dispatchContinueOperation,
-		"history":            a.dispatchHistory,
+		"init":                 a.dispatchInit,
+		"clone":                a.dispatchClone,
+		"add_remote":           a.dispatchAddRemote,
+		"commit":               a.dispatchCommit,
+		"commit_push":          a.dispatchCommitPush,
+		"push":                 a.dispatchPush,
+		"force_push":           a.dispatchForcePush,
+		"pull_merge":           a.dispatchPullMerge,
+		"pull_merge_diverged":  a.dispatchPullMerge,
+		"dirty_pull_merge":     a.dispatchDirtyPullMerge,
+		"replace_local":        a.dispatchReplaceLocal,
+		"resolve_conflicts":    a.dispatchResolveConflicts,
+		"abort_operation":      a.dispatchAbortOperation,
+		"continue_operation":   a.dispatchContinueOperation,
+		"history":              a.dispatchHistory,
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -161,16 +163,28 @@ func (a *Application) dispatchPush(app *Application) tea.Cmd {
 
 // dispatchPullMerge pulls with merge strategy
 func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
-	// Set up async state for console display
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
-	app.previousMode = ModeMenu
-	app.previousMenuIndex = 0
-	app.mode = ModeConsole
-	app.consoleState.Reset()
+	// Determine confirmation type based on timeline state
+	confirmType := string(ConfirmPullMerge)
+	if app.gitState.Timeline == git.Diverged {
+		confirmType = string(ConfirmPullMergeDiverged)
+	}
 
-	// Execute pull with merge asynchronously using operations pattern
-	return app.cmdPull()
+	// Show confirmation dialog for pull (merge) - may cause conflicts
+	app.mode = ModeConfirmation
+	labels := ConfirmationLabels[confirmType]
+	app.confirmationDialog = ui.NewConfirmationDialog(
+		ui.ConfirmationConfig{
+			Title:       ConfirmationTitles[confirmType],
+			Explanation: ConfirmationExplanations[confirmType],
+			YesLabel:    labels[0],
+			NoLabel:     labels[1],
+			ActionID:    confirmType,
+		},
+		ui.ContentInnerWidth,
+		&app.theme,
+	)
+	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
+	return nil
 }
 
 // dispatchResolveConflicts opens conflict resolution UI

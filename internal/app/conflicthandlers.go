@@ -164,7 +164,12 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	// Route based on operation type
-	if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
+	if app.conflictResolveState.Operation == "pull_merge" {
+		// Regular pull with merge conflicts: finalize merge
+		app.asyncOperationActive = true
+		app.mode = ModeConsole
+		return app, app.cmdFinalizePullMerge()
+	} else if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
 		// Continue with snapshot reapply
 		app.asyncOperationActive = true
 		app.mode = ModeConsole
@@ -199,13 +204,21 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 	}
 
 	// Route abort based on operation type
-	if app.conflictResolveState != nil && strings.HasPrefix(app.conflictResolveState.Operation, "dirty_pull_") {
-		// Abort dirty pull: restore original state
-		if app.dirtyOperationState != nil {
+	if app.conflictResolveState != nil {
+		if app.conflictResolveState.Operation == "pull_merge" {
+			// Abort pull merge: run git merge --abort to undo the merge
 			app.asyncOperationActive = true
 			app.mode = ModeConsole
-			ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
-			return app, app.cmdAbortDirtyPull()
+			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
+			return app, app.cmdAbortMerge()
+		} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_pull_") {
+			// Abort dirty pull: restore original state
+			if app.dirtyOperationState != nil {
+				app.asyncOperationActive = true
+				app.mode = ModeConsole
+				ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
+				return app, app.cmdAbortDirtyPull()
+			}
 		}
 	}
 

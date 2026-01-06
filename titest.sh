@@ -96,14 +96,48 @@ scenario_1() {
 
     cleanup_git_state
 
-    # Make conflicting local commit
-    echo "local change" >> conflict.txt
+    # Get a common base commit
+    BASE=$(git rev-parse origin/main~1)
+    
+    # Reset both local and remote to this base
+    git reset --hard "$BASE"
+    git clean -fd
+
+    # Create LOCAL commit (modifies conflict.txt at specific line)
+    echo "===== START OF FILE =====" > conflict.txt
+    echo "LOCAL VERSION - Line 2" >> conflict.txt
+    echo "Line 3 unchanged" >> conflict.txt
     git add conflict.txt
-    git commit -m "Local conflicting change"
+    git commit -m "Local: modified conflict.txt line 2"
+
+    # Create REMOTE commit (via temp branch, modifies SAME lines)
+    git checkout -b temp-remote
+    git reset --hard "$BASE"
+    echo "===== START OF FILE =====" > conflict.txt
+    echo "REMOTE VERSION - Line 2" >> conflict.txt
+    echo "Line 3 unchanged" >> conflict.txt
+    git add conflict.txt
+    git commit -m "Remote: modified conflict.txt line 2"
+    git push -f origin temp-remote:main
+
+    # Reset local to BEFORE remote (now we're Behind with diverging commits)
+    git checkout main
+    git reset --hard "$BASE"
+    git branch -D temp-remote
+
+    # Now recreate LOCAL commit (we're ahead of base, remote is further ahead)
+    echo "===== START OF FILE =====" > conflict.txt
+    echo "LOCAL VERSION - Line 2" >> conflict.txt
+    echo "Line 3 unchanged" >> conflict.txt
+    git add conflict.txt
+    git commit -m "Local: modified conflict.txt line 2"
 
     echo -e "${GREEN}✓ Setup complete${NC}"
+    echo -e "${BLUE}Working tree: CLEAN, BEHIND (diverging commits on conflict.txt)${NC}"
+    echo -e "${BLUE}Local:  'LOCAL VERSION - Line 2'${NC}"
+    echo -e "${BLUE}Remote: 'REMOTE VERSION - Line 2'${NC}"
     echo -e "${BLUE}Now run TIT and select 'Pull from remote'${NC}"
-    echo -e "${BLUE}Expected: Immediate conflict resolution UI${NC}"
+    echo -e "${BLUE}Expected: Merge starts → Conflict detected → Conflict resolver UI${NC}"
 }
 
 scenario_2() {

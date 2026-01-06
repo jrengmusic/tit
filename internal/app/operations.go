@@ -318,22 +318,25 @@ func (a *Application) cmdPull() tea.Cmd {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
-		// Pull (merge by default)
-		result := git.ExecuteWithStreaming("pull")
+		// Pull with explicit --no-rebase to merge (required for diverged branches)
+		result := git.ExecuteWithStreaming("pull", "--no-rebase")
 
 		if !result.Success {
-			// Check if conflict
-			if strings.Contains(result.Stderr, "conflict") || strings.Contains(result.Stderr, "CONFLICT") {
+			// Check if we're in a conflicted state (more reliable than parsing stderr)
+			// This detects merge conflicts by checking git state (.git/MERGE_HEAD + unmerged files)
+			state, err := git.DetectState()
+			if err == nil && state.Operation == git.Conflicted {
 				return GitOperationMsg{
 					Step: OpPull,
 					Success: false,
-					Error:   "Merge conflicts occurred",
+					ConflictDetected: true,
+					Error: ErrorMessages["pull_conflicts"],
 				}
 			}
 			return GitOperationMsg{
 				Step: OpPull,
 				Success: false,
-				Error:   "Failed to pull",
+				Error: ErrorMessages["pull_failed"],
 			}
 		}
 
@@ -777,6 +780,69 @@ func (a *Application) cmdAbortDirtyPull() tea.Cmd {
 			Step:    "dirty_pull_abort",
 			Success: true,
 			Output:  "Abort completed, original state restored",
+		}
+	}
+}
+
+// cmdFinalizePullMerge finalizes a merge by committing staged changes
+// Called after user resolves conflicts in conflict resolver for pull merge
+func (a *Application) cmdFinalizePullMerge() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		
+		// Stage all resolved files
+		result := git.ExecuteWithStreaming("add", "-A")
+		if !result.Success {
+			buffer.Append("Failed to stage resolved files", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    OpPull,
+				Success: false,
+				Error:   "Failed to stage changes",
+			}
+		}
+		
+		// Commit the merge
+		result = git.ExecuteWithStreaming("commit", "-m", "Merge resolved conflicts")
+		if !result.Success {
+			buffer.Append("Failed to commit merge", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    OpPull,
+				Success: false,
+				Error:   "Failed to commit merge",
+			}
+		}
+		
+		buffer.Append("Merge completed successfully", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    OpPull,
+			Success: true,
+			Output:  "Merge completed and committed",
+		}
+	}
+}
+
+// cmdAbortMerge aborts an in-progress merge
+// Called when user presses ESC in conflict resolver during pull merge
+func (a *Application) cmdAbortMerge() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		
+		// Abort the merge
+		result := git.ExecuteWithStreaming("merge", "--abort")
+		if !result.Success {
+			buffer.Append("Failed to abort merge", ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    OpPull,
+				Success: false,
+				Error:   "Failed to abort merge",
+			}
+		}
+		
+		buffer.Append("Merge aborted - state restored", ui.TypeInfo)
+		return GitOperationMsg{
+			Step:    OpPull,
+			Success: true,
+			Output:  "Merge aborted successfully",
 		}
 	}
 }

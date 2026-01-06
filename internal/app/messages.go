@@ -121,6 +121,8 @@ var ErrorMessages = map[string]string{
 	"failed_detect_state":    "Failed to detect git state: %v",
 	"failed_cd_into":         "Failed to cd into %s: %v",
 	"failed_checkout_branch": "Failed to checkout branch '%s'",
+	"pull_conflicts":         "Merge conflicts occurred",
+	"pull_failed":            "Failed to pull",
 }
 
 // OutputMessages centralizes operation success messages
@@ -146,6 +148,7 @@ var OutputMessages = map[string]string{
 	"conflicts_detected_count": "Conflicts detected in %d file(s)",
 	"mark_choices_in_resolver": "Mark your choices in the resolver (SPACE to select, ENTER to continue)",
 	"aborting_dirty_pull": "Aborting dirty pull...",
+	"aborting_merge": "Aborting merge...",
 }
 
 // ButtonLabels centralizes confirmation dialog button text
@@ -159,9 +162,11 @@ var ButtonLabels = map[string]string{
 
 // ConfirmationTitles centralizes confirmation dialog titles
 var ConfirmationTitles = map[string]string{
-	"force_push":   "Force Push Confirmation",
-	"hard_reset":   "Replace Local Confirmation",
-	"dirty_pull":   "Save your changes?",
+	"force_push":        "Force Push Confirmation",
+	"hard_reset":        "Replace Local Confirmation",
+	"dirty_pull":        "Save your changes?",
+	"pull_merge":        "Pull from remote?",
+	"pull_merge_diverged": "Pull diverged branches?",
 }
 
 // ConfirmationExplanations centralizes confirmation dialog explanations
@@ -169,13 +174,17 @@ var ConfirmationExplanations = map[string]string{
 	"force_push": "This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
 	"hard_reset": "This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
 	"dirty_pull": "You have uncommitted changes. To pull, they must be temporarily saved.\n\nAfter the pull, we'll try to reapply them.\n(This may cause conflicts if the changes overlap.)",
+	"pull_merge": "This will merge remote changes into your local branch.\n\nIf both branches modified the same files, conflicts may occur.\nYou'll be able to resolve them interactively.",
+	"pull_merge_diverged": "Your branches have diverged (both have new commits).\n\nThis will merge remote changes into your local branch.\n\nIf both modified the same files, conflicts may occur.",
 }
 
 // ConfirmationLabels centralizes confirmation dialog button labels by action
 var ConfirmationLabels = map[string][2]string{
-	"force_push": {"Force push", "Cancel"},
-	"hard_reset": {"Reset to remote", "Cancel"},
-	"dirty_pull": {"Save changes", "Discard changes"},
+	"force_push":        {"Force push", "Cancel"},
+	"hard_reset":        {"Reset to remote", "Cancel"},
+	"dirty_pull":        {"Save changes", "Discard changes"},
+	"pull_merge":        {"Proceed", "Cancel"},
+	"pull_merge_diverged": {"Proceed", "Cancel"},
 }
 
 // FooterHints centralizes footer hint messages

@@ -19,7 +19,15 @@ import (
 func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
 
-	// Handle failure
+	// Check for conflicts BEFORE checking Success
+	// Conflicts are "failures" but require special handling (conflict resolver UI)
+	if msg.ConflictDetected && msg.Step == OpPull {
+		// Pull operation with merge conflicts: setup conflict resolver
+		a.asyncOperationActive = false
+		return a.setupConflictResolverForPull(msg)
+	}
+
+	// Handle other failures
 	if !msg.Success {
 		buffer.Append(msg.Error, ui.TypeStderr)
 		buffer.Append(GetFooterMessageText(MessageOperationFailed), ui.TypeInfo)
@@ -69,12 +77,39 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpFetchRemote:
 		// Fetch complete: set upstream tracking
 		buffer.Append("Setting upstream tracking...", ui.TypeInfo)
-		a.gitState, _ = git.DetectState()
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
 		return a, a.cmdSetUpstream(a.gitState.CurrentBranch)
 
-	case OpCommit, OpPush, OpPull:
+	case OpPull:
+		// Pull operation succeeded (no conflicts)
+		// Reload state and return to menu
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		return a, nil
+
+	case OpCommit, OpPush:
 		// Simple operations: reload state
-		a.gitState, _ = git.DetectState()
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -82,7 +117,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpForcePush:
 		// Force push completed - reload state, stay in console  
 		// User presses ESC to return to menu
-		a.gitState, _ = git.DetectState()
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -91,7 +132,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpHardReset:
 		// Hard reset completed - reload state, stay in console
 		// User presses ESC to return to menu
-		a.gitState, _ = git.DetectState()
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -142,7 +189,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case OpDirtyPullFinalize:
 		// Operation complete: cleanup stash and snapshot file
-		a.gitState, _ = git.DetectState()
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			a.dirtyOperationState = nil
+			return a, nil
+		}
+		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -151,7 +205,15 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case OpDirtyPullAbort:
 		// Abort complete: original state restored
-		a.gitState, _ = git.DetectState()
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			a.dirtyOperationState = nil
+			a.conflictResolveState = nil
+			return a, nil
+		}
+		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -176,6 +238,89 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 // setupConflictResolverForDirtyPull initializes conflict resolver UI for dirty pull operations
 // Reads conflicted files from git status and populates 3-way conflict versions
+func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	buffer := ui.GetBuffer()
+	
+	buffer.Append("Detecting conflict files...", ui.TypeInfo)
+	
+	// Get list of conflicted files from git status
+	conflictFiles, err := git.ListConflictedFiles()
+	if err != nil {
+		buffer.Append(fmt.Sprintf("Error: %v", err), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(OutputMessages["conflict_detection_error"], err), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.footerHint = ErrorMessages["operation_failed"]
+		a.mode = ModeConsole  // Stay in console on error
+		return a, nil
+	}
+	
+	buffer.Append(fmt.Sprintf("Found %d conflicted file(s)", len(conflictFiles)), ui.TypeInfo)
+	
+	if len(conflictFiles) == 0 {
+		// No conflicts found - should not happen, but handle gracefully
+		buffer.Append(OutputMessages["conflict_detection_none"], ui.TypeInfo)
+		a.asyncOperationActive = false
+		a.mode = ModeConsole  // Stay in console
+		return a, nil
+	}
+	
+	// Read 3-way versions for each conflicted file
+	resolveState := &ConflictResolveState{
+		Files:               make([]ui.ConflictFileGeneric, 0, len(conflictFiles)),
+		SelectedFileIndex:   0,
+		FocusedPane:         0,
+		NumColumns:          3, // Base, Local, Remote
+		ColumnLabels:        []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"},
+		ScrollOffsets:       make([]int, 3),
+		LineCursors:         make([]int, 3),
+		Operation:           "pull_merge",
+		DiffPane:            nil,
+	}
+	
+	for _, filePath := range conflictFiles {
+		// Get base version (stage 1)
+		baseContent, err := git.ShowConflictVersion(filePath, 1)
+		if err != nil {
+			baseContent = fmt.Sprintf("Error reading base: %v", err)
+		}
+		
+		// Get local version (stage 2)
+		localContent, err := git.ShowConflictVersion(filePath, 2)
+		if err != nil {
+			localContent = fmt.Sprintf("Error reading local: %v", err)
+		}
+		
+		// Get remote version (stage 3)
+		remoteContent, err := git.ShowConflictVersion(filePath, 3)
+		if err != nil {
+			remoteContent = fmt.Sprintf("Error reading remote: %v", err)
+		}
+		
+		// Build conflict file entry
+		conflictFile := ui.ConflictFileGeneric{
+			Path: filePath,
+			Versions: []string{
+				baseContent,
+				localContent,
+				remoteContent,
+			},
+			Chosen: -1, // Not yet marked
+		}
+		resolveState.Files = append(resolveState.Files, conflictFile)
+	}
+	
+	// Store conflict state and transition to resolver UI
+	a.conflictResolveState = resolveState
+	a.asyncOperationActive = false
+	a.mode = ModeConflictResolve
+	a.footerHint = fmt.Sprintf(FooterHints["resolve_conflicts_help"], len(conflictFiles))
+	
+	buffer.Append(fmt.Sprintf(OutputMessages["conflicts_detected_count"], len(conflictFiles)), ui.TypeInfo)
+	buffer.Append(OutputMessages["mark_choices_in_resolver"], ui.TypeInfo)
+	
+	return a, nil
+}
+
 func (a *Application) setupConflictResolverForDirtyPull(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
 	

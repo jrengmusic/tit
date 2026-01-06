@@ -11,11 +11,14 @@ import (
 type ConfirmationType string
 
 const (
-	ConfirmNestedRepoInit  ConfirmationType = "nested_repo_init"
-	ConfirmForcePush       ConfirmationType = "force_push"
-	ConfirmHardReset       ConfirmationType = "hard_reset"
-	ConfirmDestructiveOp   ConfirmationType = "destructive_op"
-	ConfirmAlert           ConfirmationType = "alert"
+	ConfirmNestedRepoInit    ConfirmationType = "nested_repo_init"
+	ConfirmForcePush         ConfirmationType = "force_push"
+	ConfirmHardReset         ConfirmationType = "hard_reset"
+	ConfirmDestructiveOp     ConfirmationType = "destructive_op"
+	ConfirmAlert             ConfirmationType = "alert"
+	ConfirmPullMerge         ConfirmationType = "pull_merge"
+	ConfirmPullMergeDiverged ConfirmationType = "pull_merge_diverged"
+	ConfirmDirtyPull         ConfirmationType = "dirty_pull"
 )
 
 // ConfirmationAction is a function that handles a confirmed action
@@ -23,20 +26,24 @@ type ConfirmationAction func(*Application) (tea.Model, tea.Cmd)
 
 // confirmationActions maps confirmation types to their YES handlers
 var confirmationActions = map[string]ConfirmationAction{
-	string(ConfirmNestedRepoInit): (*Application).executeConfirmNestedRepoInit,
-	string(ConfirmForcePush):      (*Application).executeConfirmForcePush,
-	string(ConfirmHardReset):      (*Application).executeConfirmHardReset,
-	string(ConfirmAlert):          (*Application).executeAlert,
-	"dirty_pull":                   (*Application).executeConfirmDirtyPull,
+	string(ConfirmNestedRepoInit):    (*Application).executeConfirmNestedRepoInit,
+	string(ConfirmForcePush):         (*Application).executeConfirmForcePush,
+	string(ConfirmHardReset):         (*Application).executeConfirmHardReset,
+	string(ConfirmAlert):             (*Application).executeAlert,
+	string(ConfirmDirtyPull):         (*Application).executeConfirmDirtyPull,
+	string(ConfirmPullMerge):         (*Application).executeConfirmPullMerge,
+	string(ConfirmPullMergeDiverged): (*Application).executeConfirmPullMerge,
 }
 
 // confirmationRejectActions maps confirmation types to their NO handlers
 var confirmationRejectActions = map[string]ConfirmationAction{
-	string(ConfirmNestedRepoInit): (*Application).executeRejectNestedRepoInit,
-	string(ConfirmForcePush):      (*Application).executeRejectForcePush,
-	string(ConfirmHardReset):      (*Application).executeRejectHardReset,
-	string(ConfirmAlert):          (*Application).executeAlert, // Any key dismisses alert
-	"dirty_pull":                   (*Application).executeRejectDirtyPull,
+	string(ConfirmNestedRepoInit):    (*Application).executeRejectNestedRepoInit,
+	string(ConfirmForcePush):         (*Application).executeRejectForcePush,
+	string(ConfirmHardReset):         (*Application).executeRejectHardReset,
+	string(ConfirmAlert):             (*Application).executeAlert, // Any key dismisses alert
+	string(ConfirmDirtyPull):         (*Application).executeRejectDirtyPull,
+	string(ConfirmPullMerge):         (*Application).executeRejectPullMerge,
+	string(ConfirmPullMergeDiverged): (*Application).executeRejectPullMerge,
 }
 
 // ========================================
@@ -253,4 +260,35 @@ func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
 
 	// Start the operation chain - Phase 1: Snapshot (will discard instead of stash)
 	return a, a.cmdDirtyPullSnapshot(false)
+}
+
+// ========================================
+// Pull Merge Confirmation Handlers
+// ========================================
+
+// executeConfirmPullMerge handles YES response to pull merge confirmation
+func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
+	// User confirmed to proceed with pull merge
+	a.confirmationDialog = nil
+
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// Start pull operation with merge strategy (--no-rebase)
+	return a, a.cmdPull()
+}
+
+// executeRejectPullMerge handles NO response to pull merge confirmation
+func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
+	// User cancelled pull merge
+	a.confirmationDialog = nil
+	return a.returnToMenu()
 }
