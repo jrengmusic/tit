@@ -32,7 +32,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 		result := git.ExecuteWithStreaming("init")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "init",
+				Step: OpInit,
 				Success: false,
 				Error:   "Failed to initialize repository",
 			}
@@ -42,7 +42,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 		result = git.ExecuteWithStreaming("checkout", "-b", name)
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "init",
+				Step: OpInit,
 				Success: false,
 				Error:   "Failed to create branch",
 			}
@@ -51,7 +51,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 		// Create .gitignore and commit it so tree is clean
 		if err := git.CreateDefaultGitignore(); err != nil {
 			return GitOperationMsg{
-				Step:    "init",
+				Step: OpInit,
 				Success: false,
 				Error:   fmt.Sprintf("Failed to create .gitignore: %v", err),
 			}
@@ -60,7 +60,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 		result = git.ExecuteWithStreaming("add", ".gitignore")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "init",
+				Step: OpInit,
 				Success: false,
 				Error:   "Failed to add .gitignore",
 			}
@@ -69,14 +69,14 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 		result = git.ExecuteWithStreaming("commit", "-m", "Initialize repository with .gitignore")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "init",
+				Step: OpInit,
 				Success: false,
 				Error:   "Failed to commit .gitignore",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "init",
+			Step: OpInit,
 			Success: true,
 			Output:  fmt.Sprintf("Repository initialized with branch '%s'", name),
 		}
@@ -95,7 +95,7 @@ func (a *Application) cmdClone(url, targetPath string) tea.Cmd {
 		result := git.ExecuteWithStreaming("clone", u, path)
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "clone",
+				Step: OpClone,
 				Success: false,
 				Error:   "Failed to clone repository",
 			}
@@ -105,7 +105,7 @@ func (a *Application) cmdClone(url, targetPath string) tea.Cmd {
 		if path != "." {
 			if err := os.Chdir(path); err != nil {
 				return GitOperationMsg{
-					Step:    "clone",
+					Step: OpClone,
 					Success: false,
 					Error:   fmt.Sprintf("Failed to change directory: %v", err),
 				}
@@ -117,14 +117,14 @@ func (a *Application) cmdClone(url, targetPath string) tea.Cmd {
 		gitDir := filepath.Join(cwd, ".git")
 		if _, err := os.Stat(gitDir); err != nil {
 			return GitOperationMsg{
-				Step:    "clone",
+				Step: OpClone,
 				Success: false,
 				Error:   fmt.Sprintf("Clone completed but .git not found"),
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "clone",
+			Step: OpClone,
 			Success: true,
 			Output:  "Repository cloned successfully",
 		}
@@ -150,14 +150,14 @@ func (a *Application) cmdAddRemote(url string) tea.Cmd {
 		result := git.ExecuteWithStreaming("remote", "add", "origin", u)
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "add_remote",
+				Step: OpAddRemote,
 				Success: false,
 				Error:   "Failed to add remote",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:       "add_remote",
+			Step: OpAddRemote,
 			Success:    true,
 			Output:     "Remote added",
 			BranchName: branchName,
@@ -171,14 +171,14 @@ func (a *Application) cmdFetchRemote() tea.Cmd {
 		result := git.ExecuteWithStreaming("fetch", "--all")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "fetch_remote",
+				Step: OpFetchRemote,
 				Success: false,
 				Error:   "Failed to fetch from remote",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "fetch_remote",
+			Step: OpFetchRemote,
 			Success: true,
 			Output:  "Fetch completed",
 		}
@@ -194,14 +194,14 @@ func (a *Application) cmdSetUpstream(branchName string) tea.Cmd {
 		if !result.Success {
 			// Non-fatal: tracking setup failed but remote is ready
 			return GitOperationMsg{
-				Step:    "set_upstream",
+				Step: OpSetUpstream,
 				Success: true, // Consider success because remote is added
 				Output:  "Remote configured (upstream tracking could not be set - may be detached HEAD)",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "set_upstream",
+			Step: OpSetUpstream,
 			Success: true,
 			Output:  "Remote added, fetched, and tracking configured",
 		}
@@ -219,7 +219,7 @@ func (a *Application) cmdCommit(message string) tea.Cmd {
 		result := git.ExecuteWithStreaming("add", "-A")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "commit",
+				Step: OpCommit,
 				Success: false,
 				Error:   "Failed to stage changes",
 			}
@@ -229,14 +229,14 @@ func (a *Application) cmdCommit(message string) tea.Cmd {
 		result = git.ExecuteWithStreaming("commit", "-m", msg)
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "commit",
+				Step: OpCommit,
 				Success: false,
 				Error:   "Failed to commit",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "commit",
+			Step: OpCommit,
 			Success: true,
 			Output:  "Changes committed successfully",
 		}
@@ -254,7 +254,7 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 		result := git.ExecuteWithStreaming("add", "-A")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "commit_push",
+				Step: OpCommitPush,
 				Success: false,
 				Error:   "Failed to stage changes",
 			}
@@ -264,7 +264,7 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 		result = git.ExecuteWithStreaming("commit", "-m", msg)
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "commit_push",
+				Step: OpCommitPush,
 				Success: false,
 				Error:   "Failed to commit",
 			}
@@ -274,14 +274,14 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 		result = git.ExecuteWithStreaming("push")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "commit_push",
+				Step: OpCommitPush,
 				Success: false,
 				Error:   "Failed to push",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "commit_push",
+			Step: OpCommitPush,
 			Success: true,
 			Output:  "Committed and pushed successfully",
 		}
@@ -298,14 +298,14 @@ func (a *Application) cmdPush() tea.Cmd {
 		result := git.ExecuteWithStreaming("push")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    "push",
+				Step: OpPush,
 				Success: false,
 				Error:   "Failed to push",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "push",
+			Step: OpPush,
 			Success: true,
 			Output:  "Pushed successfully",
 		}
@@ -325,20 +325,20 @@ func (a *Application) cmdPull() tea.Cmd {
 			// Check if conflict
 			if strings.Contains(result.Stderr, "conflict") || strings.Contains(result.Stderr, "CONFLICT") {
 				return GitOperationMsg{
-					Step:    "pull",
+					Step: OpPull,
 					Success: false,
 					Error:   "Merge conflicts occurred",
 				}
 			}
 			return GitOperationMsg{
-				Step:    "pull",
+				Step: OpPull,
 				Success: false,
 				Error:   "Failed to pull",
 			}
 		}
 
 		return GitOperationMsg{
-			Step:    "pull",
+			Step: OpPull,
 			Success: true,
 			Output:  "Pulled successfully",
 		}
@@ -371,7 +371,7 @@ func (a *Application) cmdForcePush() tea.Cmd {
 		if err != nil {
 			buffer.Append("Error: Could not determine current branch", ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    "force_push",
+				Step: OpForcePush,
 				Success: false,
 				Error:   "Could not determine current branch",
 			}
@@ -396,14 +396,14 @@ func (a *Application) cmdForcePush() tea.Cmd {
 		err = cmd.Wait()
 		if err != nil {
 			return GitOperationMsg{
-				Step:    "force_push", 
+				Step: OpForcePush, 
 				Success: false,
 				Error:   "Force push failed",
 			}
 		}
 		
 		return GitOperationMsg{
-			Step:    "force_push",
+			Step: OpForcePush,
 			Success: true,
 		}
 	}
@@ -421,7 +421,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		if err != nil {
 			buffer.Append("Error: Could not determine current branch", ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    "hard_reset",
+				Step: OpHardReset,
 				Success: false,
 				Error:   "Could not determine current branch",
 			}
@@ -448,7 +448,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		if err != nil {
 			buffer.Append("Failed to fetch from remote", ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    "hard_reset",
+				Step: OpHardReset,
 				Success: false,
 				Error:   "Fetch failed",
 			}
@@ -473,7 +473,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		err = cmd.Wait()
 		if err != nil {
 			return GitOperationMsg{
-				Step:    "hard_reset",
+				Step: OpHardReset,
 				Success: false,
 				Error:   "Reset to remote failed",
 			}
@@ -501,7 +501,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		}
 		
 		return GitOperationMsg{
-			Step:    "hard_reset",
+			Step: OpHardReset,
 			Success: true,
 		}
 	}

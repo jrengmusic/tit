@@ -740,10 +740,11 @@ func executeOperation() tea.Cmd {
 | `internal/app/menu.go` | Menu generators (state → []MenuItem) |
 | `internal/app/menuitems.go` | MenuItems SSOT map (all menu definitions) |
 | `internal/app/menubuilder.go` | MenuItemBuilder fluent API (for separators) |
+| `internal/app/operationsteps.go` | OperationStep constants SSOT (all async operation names) |
 | `internal/app/dispatchers.go` | Menu item → mode transitions |
 | `internal/app/handlers.go` | Input handlers (enter, ESC, text input, etc) |
 | `internal/app/keyboard.go` | Key handler registry construction |
-| `internal/app/messages.go` | Custom tea.Msg types |
+| `internal/app/messages.go` | Custom tea.Msg types & SSOT maps (prompts, errors, dialogs) |
 | `internal/app/confirmationhandlers.go` | Confirmation dialog system and handlers |
 | `internal/app/conflictstate.go` | Conflict resolution state struct |
 | `internal/app/conflicthandlers.go` | Conflict resolution keyboard handlers |
@@ -839,19 +840,41 @@ func (a *Application) executeOperation() tea.Cmd {
         result := git.ExecuteWithStreaming("status")
         
         return GitOperationMsg{
-            Step: "operation",
+            Step: OpCommit,  // Use constant from operationsteps.go
             Success: result.Success,
         }
     }
 }
 
-// 4. Handle completion
-case GitOperationMsg:
-    if msg.Success {
-        a.asyncOperationActive = false
-        a.footerHint = "Operation complete. Press ESC to continue."
-    }
+// 4. Handle completion in githandlers.go
+case OpCommit:
+    a.gitState, _ = git.DetectState()
+    buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+    a.footerHint = GetFooterMessageText(MessageOperationComplete)
+    a.asyncOperationActive = false
 ```
+
+**Operation Step Constants** (`internal/app/operationsteps.go`):
+```go
+// All operation step names centralized as constants
+// Used in GitOperationMsg.Step field for operation routing
+const (
+    OpInit              = "init"
+    OpClone             = "clone"
+    OpCommit            = "commit"
+    OpPush              = "push"
+    OpPull              = "pull"
+    OpAddRemote         = "add_remote"
+    OpDirtyPullSnapshot = "dirty_pull_snapshot"
+    // ... and 20+ more
+)
+```
+
+**Why this pattern:**
+- All operation names in one SSOT file (operationsteps.go)
+- GitOperationMsg.Step uses constants, never hardcoded strings
+- Handlers switch on constants (case OpCommit:)
+- Typos caught at compile time, not at runtime
 
 ---
 

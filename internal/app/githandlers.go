@@ -35,7 +35,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	// Handle step-specific post-processing and chaining
 	switch msg.Step {
-	case "init", "clone", "checkout":
+	case OpInit, OpClone, OpCheckout:
 		// Init/clone/checkout: reload state, keep console visible
 		// User presses ESC to return to menu
 		if msg.Path != "" {
@@ -61,25 +61,25 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.asyncOperationActive = false
 		a.mode = ModeConsole
 
-	case "add_remote":
-		// Chain: add_remote → fetch_remote
+	case OpAddRemote:
+		// Chain: OpAddRemote → OpFetchRemote
 		buffer.Append("Fetching from remote...", ui.TypeInfo)
 		return a, a.cmdFetchRemote()
 
-	case "fetch_remote":
+	case OpFetchRemote:
 		// Fetch complete: set upstream tracking
 		buffer.Append("Setting upstream tracking...", ui.TypeInfo)
 		a.gitState, _ = git.DetectState()
 		return a, a.cmdSetUpstream(a.gitState.CurrentBranch)
 
-	case "commit", "push", "pull":
+	case OpCommit, OpPush, OpPull:
 		// Simple operations: reload state
 		a.gitState, _ = git.DetectState()
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
 
-	case "force_push":
+	case OpForcePush:
 		// Force push completed - reload state, stay in console  
 		// User presses ESC to return to menu
 		a.gitState, _ = git.DetectState()
@@ -88,7 +88,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.asyncOperationActive = false
 		a.mode = ModeConsole
 
-	case "hard_reset":
+	case OpHardReset:
 		// Hard reset completed - reload state, stay in console
 		// User presses ESC to return to menu
 		a.gitState, _ = git.DetectState()
@@ -97,14 +97,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.asyncOperationActive = false
 		a.mode = ModeConsole
 
-	case "dirty_pull_snapshot":
+	case OpDirtyPullSnapshot:
 		// Phase 1 complete: snapshot saved, changes stashed/discarded
 		// Next: merge or rebase
 		buffer.Append(OutputMessages["dirty_pull_snapshot_saved"], ui.TypeInfo)
 		a.dirtyOperationState.SetPhase("apply_changeset")
 		return a, a.cmdDirtyPullMerge()
 
-	case "dirty_pull_merge":
+	case OpDirtyPullMerge:
 		// Phase 2a complete: pull with merge succeeded
 		// Check for conflicts before proceeding
 		if msg.ConflictDetected {
@@ -116,7 +116,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.dirtyOperationState.SetPhase("apply_snapshot")
 		return a, a.cmdDirtyPullApplySnapshot()
 
-	case "dirty_pull_rebase":
+	case OpPullRebase:
 		// Phase 2b complete: pull with rebase succeeded
 		// Check for conflicts before proceeding
 		if msg.ConflictDetected {
@@ -128,7 +128,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.dirtyOperationState.SetPhase("apply_snapshot")
 		return a, a.cmdDirtyPullApplySnapshot()
 
-	case "dirty_pull_apply_snapshot":
+	case OpDirtyPullApplySnapshot:
 		// Phase 3 complete: stashed changes reapplied
 		// Check for conflicts before finalizing
 		if msg.ConflictDetected {
@@ -140,7 +140,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.dirtyOperationState.SetPhase("finalizing")
 		return a, a.cmdDirtyPullFinalize()
 
-	case "dirty_pull_finalize":
+	case OpDirtyPullFinalize:
 		// Operation complete: cleanup stash and snapshot file
 		a.gitState, _ = git.DetectState()
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
@@ -149,7 +149,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.dirtyOperationState = nil
 		a.mode = ModeConsole
 
-	case "dirty_pull_abort":
+	case OpDirtyPullAbort:
 		// Abort complete: original state restored
 		a.gitState, _ = git.DetectState()
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
