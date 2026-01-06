@@ -105,7 +105,7 @@ Terminal displays result
 | ModeClone | Clone operation streaming output | Same as ModeConsole |
 | ModeSelectBranch | Choose branch after clone | Menu selection |
 | ModeConfirmation | Confirm destructive operation | left/right/h/l/y/n/enter |
-| ModeConflictResolve | 3-way conflict resolution | (TBD - Phase 7) |
+| ModeConflictResolve | N-column parallel conflict resolution | ↑↓ (nav/scroll), TAB (cycle), SPACE (mark), ENTER (apply) |
 | ModeHistory | Commit/file history browser | (TBD - Phase 5) |
 
 ---
@@ -151,6 +151,217 @@ Item("commit").
   - `menuWorkingTree()` - Commit (when Modified)
   - `menuTimeline()` - Push/Pull based on Timeline
   - `menuHistory()` - Commit history browser
+
+---
+
+## Conflict Resolver System (ModeConflictResolve)
+
+**The most complex and reusable UI component in TIT.** Used for:
+- Dirty pull (LOCAL vs REMOTE vs INCOMING)
+- Time travel conflicts (CURRENT vs PAST)
+- Pull merge conflicts (LOCAL vs REMOTE)
+- Any N-way file comparison + resolution
+
+### Architecture: Generic N-Column Model
+
+**Layout Structure:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ Top Row: N file lists (shared selection across columns)│
+│ ┌────────────────┬────────────────┬────────────────┐   │
+│ │   LOCAL        │   REMOTE       │   INCOMING     │   │
+│ │ [✓] main.go    │ [ ] main.go    │ [ ] main.go    │   │
+│ │ [ ] README.md  │ [✓] README.md  │ [ ] README.md  │   │
+│ │ [✓] config.yaml│ [ ] config.yaml│ [ ] config.yaml│   │
+│ └────────────────┴────────────────┴────────────────┘   │
+├─────────────────────────────────────────────────────────┤
+│ Bottom Row: N content panes (independent scrolling)    │
+│ ┌────────────────┬────────────────┬────────────────┐   │
+│ │  1 package main│  1 package main│  1 package main│   │
+│ │  2             │  2             │  2             │   │
+│ │  3 import "fmt"│  3 import "log"│  3 import "os" │   │
+│ │  4             │  4             │  4             │   │
+│ │  5 func main() │  5 func main() │  5 func main() │   │
+│ └────────────────┴────────────────┴────────────────┘   │
+│ ↑↓ scroll | TAB switch | SPACE mark | ENTER apply     │
+└─────────────────────────────────────────────────────────┘
+```
+
+### State Management
+
+**ConflictResolveState** (`internal/app/conflictstate.go`):
+```go
+type ConflictResolveState struct {
+    Operation         string              // "dirty_pull", "time_travel", etc.
+    Files            []ConflictFileGeneric // All conflicted files
+    SelectedFileIndex int                  // Shared file selection (top row)
+    FocusedPane      int                   // Which pane has focus (0...2N-1)
+    NumColumns       int                   // Number of version columns (2 or 3)
+    ColumnLabels     []string              // ["LOCAL", "REMOTE", "INCOMING"]
+    ScrollOffsets    []int                 // Per-column scroll position (bottom row)
+    LineCursors      []int                 // Per-column line cursor (bottom row)
+}
+
+type ConflictFileGeneric struct {
+    Path     string   // File path
+    Versions []string // Content for each column (N versions)
+    Chosen   int      // Which column is chosen (0-based, radio button)
+}
+```
+
+### Component Hierarchy
+
+**RenderConflictResolveGeneric()** (`internal/ui/conflictresolver.go`)
+- Top row: N × ListPane (file lists with checkboxes)
+- Bottom row: N × renderGenericContentPane (code viewers)
+- Status bar: buildGenericConflictStatusBar (keyboard hints)
+
+**ListPane** (`internal/ui/listpane.go`)
+- Reusable list component with:
+  - Title (colorized, centered)
+  - Scrollable items with checkbox + filename
+  - Focus-based border color (#2C4144 → #8CC9D9)
+  - Shared selection highlight across all columns
+
+**DiffPane** (`internal/ui/diffpane.go`)
+- Advanced diff viewer (ready for Phase 5)
+- Features: syntax highlighting, visual mode, copy mode
+- Currently not used by conflict resolver (uses simpler renderGenericContentPane)
+
+### Navigation Model
+
+**Pane Indexing:**
+- Top row: panes 0 to N-1 (file lists)
+- Bottom row: panes N to 2N-1 (content)
+- Example (2-column): 0=LOCAL list, 1=REMOTE list, 2=LOCAL content, 3=REMOTE content
+
+**Keyboard Handlers** (`internal/app/conflicthandlers.go`):
+
+| Key | Top Row (File Lists) | Bottom Row (Content) |
+|-----|----------------------|----------------------|
+| ↑ | Move selection up (shared across all columns) | Scroll content up (independent per pane) |
+| ↓ | Move selection down (shared) | Scroll content down (independent) |
+| TAB | Cycle: pane 0 → 1 → ... → N-1 → N → ... → 2N-1 → wrap | Same |
+| SPACE | Mark file in focused column (radio button - one choice per file) | No action |
+| ENTER | Apply resolution choices | Apply resolution choices |
+| ESC | Abort conflict resolution | Abort conflict resolution |
+
+**Focus Feedback:**
+- Border color: Unfocused (#2C4144) → Focused (#8CC9D9)
+- Status bar: Shows active pane index and operation type
+- Footer hint: Displays marking feedback ("Marked: file.go → column 1")
+
+### Radio Button Marking
+
+**Exclusive Selection:** Each file must have exactly ONE column marked.
+
+```go
+// User presses SPACE on file in column 1
+if file.Chosen == focusedPane {
+    // Already marked here → do nothing (show hint)
+    return
+}
+// Mark this column, unmarks other columns automatically (Chosen field)
+file.Chosen = focusedPane
+```
+
+**Visual Feedback:**
+- `[✓]` = This column chosen
+- `[ ]` = Other columns not chosen
+- Checkbox state updates in ALL file lists simultaneously
+
+### Width Calculation Strategy
+
+**Problem:** N panes must fit exactly in terminal width with borders.
+
+**Solution:**
+```go
+baseColumnWidth := width / numColumns
+remainder := width % numColumns
+
+// Distribute remainder to rightmost columns
+for col := 0; col < numColumns; col++ {
+    columnWidth := baseColumnWidth
+    if col >= numColumns - remainder {
+        columnWidth++ // Last columns get +1 if needed
+    }
+}
+```
+
+**Border Rendering:**
+- Each pane draws ALL FOUR borders (lipgloss.NormalBorder)
+- lipgloss.JoinHorizontal() places borders side-by-side
+- Borders "touch" at seams but this is correct (not artifacts)
+- Focus changes border color, making active pane clearly visible
+
+### Theme Colors
+
+**Conflict-specific colors** (`internal/ui/theme.go`):
+```toml
+conflictPaneUnfocusedBorder = "#2C4144"  # Dark teal (inactive)
+conflictPaneFocusedBorder = "#8CC9D9"    # Bright cyan (active)
+conflictPaneTitleColor = "#8CC9D9"       # Pane header text
+conflictSelectionForeground = "#090D12"  # Checkbox text
+conflictSelectionBackground = "#7EB8C5"  # Checkbox background
+```
+
+### Reusability Pattern
+
+**Same component, different contexts:**
+
+```go
+// Dirty pull (3 versions)
+state := &ConflictResolveState{
+    NumColumns: 3,
+    ColumnLabels: []string{"LOCAL", "REMOTE", "INCOMING"},
+    Files: /* files with 3 versions each */
+}
+
+// Time travel (2 versions)
+state := &ConflictResolveState{
+    NumColumns: 2,
+    ColumnLabels: []string{"CURRENT", "PAST"},
+    Files: /* files with 2 versions each */
+}
+
+// Pull merge conflict (2 versions)
+state := &ConflictResolveState{
+    NumColumns: 2,
+    ColumnLabels: []string{"LOCAL", "REMOTE"},
+    Files: /* conflicted files */
+}
+```
+
+### Integration Points
+
+**Entry:** Menu item → `dispatchDirtyPull()` / `dispatchTimeTravel()` / etc.
+- Sets `a.mode = ModeConflictResolve`
+- Initializes `a.conflictResolveState` with appropriate data
+- Returns to Update() → View() renders conflict UI
+
+**Exit:** User presses ENTER → `handleConflictEnter()`
+- Collects all `file.Chosen` values
+- Applies resolution (copy chosen version to working tree)
+- Runs git commands to complete operation
+- Returns to ModeMenu with updated git state
+
+**Abort:** User presses ESC → `handleConflictEsc()`
+- Discards all choices
+- Returns to ModeMenu without applying changes
+
+### Critical Design Decisions
+
+**Q: Why not use lipgloss for border-free joining?**
+A: Each pane needs borders for visual separation. Full borders + JoinHorizontal is the correct pattern (matches old-tit).
+
+**Q: Why radio buttons instead of checkboxes?**
+A: Conflict resolution requires choosing ONE version per file. Radio button enforces this constraint.
+
+**Q: Why shared selection in top row but independent scrolling in bottom row?**
+A: User needs to compare the SAME file across all columns. Shared selection keeps all columns synchronized. Bottom row needs independent scrolling for long files.
+
+**Q: Why not use DiffPane for content rendering?**
+A: DiffPane is overkill for basic conflict resolution. renderGenericContentPane is simpler (line numbers + highlighting). DiffPane ready for advanced features (Phase 5).
 
 ---
 
@@ -456,6 +667,8 @@ func executeOperation() tea.Cmd {
 | `internal/app/keyboard.go` | Key handler registry construction |
 | `internal/app/messages.go` | Custom tea.Msg types |
 | `internal/app/confirmationhandlers.go` | Confirmation dialog system and handlers |
+| `internal/app/conflictstate.go` | Conflict resolution state struct |
+| `internal/app/conflicthandlers.go` | Conflict resolution keyboard handlers |
 | `internal/git/state.go` | State detection from git commands |
 | `internal/git/execute.go` | Command execution with streaming |
 | `internal/ui/layout.go` | RenderLayout() main view composer |
@@ -463,6 +676,9 @@ func executeOperation() tea.Cmd {
 | `internal/ui/buffer.go` | OutputBuffer thread-safe ring buffer |
 | `internal/ui/console.go` | RenderConsoleOutput() component |
 | `internal/ui/confirmation.go` | ConfirmationDialog component |
+| `internal/ui/conflictresolver.go` | N-column parallel conflict resolution UI |
+| `internal/ui/listpane.go` | Reusable list pane with checkboxes and scrolling |
+| `internal/ui/diffpane.go` | Diff viewer with line numbers and cursor |
 | `internal/ui/menu.go` | RenderMenuWithHeight() component |
 | `internal/ui/validation.go` | Input validation (URLs, directory names) |
 
