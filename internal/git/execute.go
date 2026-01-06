@@ -247,3 +247,58 @@ func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 	// Always return success - if remote branch doesn't exist, first push -u will handle it
 	return CommandResult{Success: true}
 }
+
+// ListConflictedFiles returns a list of files with merge conflicts
+// Uses: git status --porcelain=v2 and filters for unmerged (u) entries
+func ListConflictedFiles() ([]string, error) {
+	result := Execute("status", "--porcelain=v2")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to get status: %s", result.Stderr)
+	}
+
+	var conflictedFiles []string
+	for _, line := range strings.Split(result.Stdout, "\n") {
+		if line == "" {
+			continue
+		}
+		
+		// Status line format: <status> <meta> <meta> ... <path>
+		// Unmerged is marked with 'u' in second field
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+
+		if parts[0] == "u" { // Unmerged status
+			// Path is the last field
+			if len(parts) > 8 {
+				path := parts[8] // Standard position for path in v2 format
+				conflictedFiles = append(conflictedFiles, path)
+			}
+		}
+	}
+
+	if len(conflictedFiles) == 0 {
+		return nil, fmt.Errorf("no conflicted files found")
+	}
+
+	return conflictedFiles, nil
+}
+
+// ShowConflictVersion retrieves the content of a specific stage from a merge conflict
+// stage: 1=base, 2=local (ours), 3=remote (theirs)
+// Returns the file content as a string
+func ShowConflictVersion(filePath string, stage int) (string, error) {
+	if stage < 1 || stage > 3 {
+		return "", fmt.Errorf("invalid stage: %d (must be 1-3)", stage)
+	}
+
+	stageRef := fmt.Sprintf(":%d:%s", stage, filePath)
+	result := Execute("show", stageRef)
+	
+	if !result.Success {
+		return "", fmt.Errorf("failed to show stage %d of %s: %s", stage, filePath, result.Stderr)
+	}
+
+	return result.Stdout, nil
+}

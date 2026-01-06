@@ -12,12 +12,14 @@ type ClearTickMsg time.Time
 
 // GitOperationMsg represents the result of a git operation
 type GitOperationMsg struct {
-	Step       string // "init", "clone", "push", "pull", etc.
-	Success    bool
-	Output     string
-	Error      string
-	Path       string // Working directory to change to after operation
-	BranchName string // Current branch name (for remote operations)
+	Step              string // "init", "clone", "push", "pull", etc.
+	Success           bool
+	Output            string
+	Error             string
+	Path              string // Working directory to change to after operation
+	BranchName        string // Current branch name (for remote operations)
+	ConflictDetected  bool   // true if merge/rebase conflicts detected
+	ConflictedFiles   []string // List of files with conflicts
 }
 
 // GitOperationCompleteMsg signals that a git operation completed
@@ -132,9 +134,18 @@ var OutputMessages = map[string]string{
 	"setting_upstream":     "Setting upstream tracking...",
 	"checking_out_branch":  "Checking out branch '%s'...",
 	"dirty_pull_snapshot":  "Your changes have been saved",
+	"dirty_pull_snapshot_saved": "Snapshot saved. Starting merge pull...",
+	"dirty_pull_merge_succeeded": "Merge succeeded. Reapplying your changes...",
+	"dirty_pull_rebase_succeeded": "Rebase succeeded. Reapplying your changes...",
 	"dirty_pull_merge_started": "Pulling from remote (merge strategy)...",
 	"dirty_pull_reapply":   "Reapplying your saved changes...",
+	"dirty_pull_changes_reapplied": "Changes reapplied. Finalizing...",
 	"dirty_pull_finalize":  "Finalizing dirty pull operation...",
+	"conflict_detection_error": "Error detecting conflicts: %v",
+	"conflict_detection_none": "Conflict detection succeeded but no conflicts found (continuing)",
+	"conflicts_detected_count": "Conflicts detected in %d file(s)",
+	"mark_choices_in_resolver": "Mark your choices in the resolver (SPACE to select, ENTER to continue)",
+	"aborting_dirty_pull": "Aborting dirty pull...",
 }
 
 // ButtonLabels centralizes confirmation dialog button text
@@ -165,4 +176,12 @@ var ConfirmationLabels = map[string][2]string{
 	"force_push": {"Force push", "Cancel"},
 	"hard_reset": {"Reset to remote", "Cancel"},
 	"dirty_pull": {"Save changes", "Discard changes"},
+}
+
+// FooterHints centralizes footer hint messages
+var FooterHints = map[string]string{
+	"mark_all_files":         "Mark all files with SPACE before continuing",
+	"resolve_conflicts_help": "Resolve %d conflicted file(s) - SPACE to mark, ENTER to continue, ESC to abort",
+	"error_writing_file":     "Error writing %s: %v",
+	"error_staging_file":     "Error staging %s: %s",
 }

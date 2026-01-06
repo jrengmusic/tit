@@ -613,9 +613,10 @@ func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
 				buffer.Append("Merge conflicts detected", ui.TypeWarning)
 				return GitOperationMsg{
-					Step:    "dirty_pull_merge",
-					Success: false,
-					Error:   "Merge conflicts detected",
+					Step:             "dirty_pull_merge",
+					Success:          true, // Mark as success to trigger conflict resolver setup
+					ConflictDetected: true,
+					Error:            "Merge conflicts detected",
 				}
 			}
 			return GitOperationMsg{
@@ -658,9 +659,10 @@ func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
 			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
 				buffer.Append("Conflicts detected while reapplying changes", ui.TypeWarning)
 				return GitOperationMsg{
-					Step:    "dirty_pull_apply_snapshot",
-					Success: false,
-					Error:   "Stash apply conflicts detected",
+					Step:             "dirty_pull_apply_snapshot",
+					Success:          true, // Mark as success to trigger conflict resolver setup
+					ConflictDetected: true,
+					Error:            "Stash apply conflicts detected",
 				}
 			}
 			return GitOperationMsg{

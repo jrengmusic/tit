@@ -2,10 +2,13 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-)
+	"tit/internal/git"
+	"tit/internal/ui"
+) 
 
 // ========================================
 // Conflict Resolution Mode Handlers
@@ -119,20 +122,68 @@ func (a *Application) handleConflictSpace(app *Application) (tea.Model, tea.Cmd)
 }
 
 // handleConflictEnter applies user's file choices and continues the operation
-// For now, this is a stub that will be implemented with dirty pull
+// Routes based on the current operation type
 func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd) {
 	if app.mode != ModeConflictResolve || app.conflictResolveState == nil {
 		return app, nil
 	}
 
-	// TODO: Implement conflict resolution logic when dirty pull is integrated
-	// For now, just return to menu
-	app.footerHint = "Conflict resolution: ENTER handler (not yet implemented)"
+	// Check if all files have been marked
+	allMarked := true
+	for _, file := range app.conflictResolveState.Files {
+		if file.Chosen < 0 {
+			allMarked = false
+			break
+		}
+	}
+
+	if !allMarked {
+		app.footerHint = FooterHints["mark_all_files"]
+		return app, nil
+	}
+
+	// Apply the chosen versions to all files
+	for _, file := range app.conflictResolveState.Files {
+		if file.Chosen < 0 || file.Chosen >= len(file.Versions) {
+			continue // Skip invalid choice
+		}
+
+		// Write chosen version to file
+		chosenContent := file.Versions[file.Chosen]
+		if err := os.WriteFile(file.Path, []byte(chosenContent), 0644); err != nil {
+			app.footerHint = fmt.Sprintf(FooterHints["error_writing_file"], file.Path, err)
+			return app, nil
+		}
+
+		// Stage the resolved file
+		result := git.Execute("add", file.Path)
+		if !result.Success {
+			app.footerHint = fmt.Sprintf(FooterHints["error_staging_file"], file.Path, result.Stderr)
+			return app, nil
+		}
+	}
+
+	// Route based on operation type
+	if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
+		// Continue with snapshot reapply
+		app.asyncOperationActive = true
+		app.mode = ModeConsole
+		app.dirtyOperationState.SetPhase("apply_snapshot")
+		return app, app.cmdDirtyPullApplySnapshot()
+	} else if app.conflictResolveState.Operation == "dirty_pull_snapshot_reapply" {
+		// Continue to finalize
+		app.asyncOperationActive = true
+		app.mode = ModeConsole
+		app.dirtyOperationState.SetPhase("finalizing")
+		return app, app.cmdDirtyPullFinalize()
+	}
+
+	// Default: return to menu
 	return app.returnToMenu()
 }
 
 // handleConflictEsc exits conflict resolution and aborts the operation
-// For now, this is a stub that will be implemented with dirty pull
+// Routes to proper abort based on operation type
 func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 	if app.mode != ModeConflictResolve {
 		return app, nil
@@ -147,8 +198,17 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 		return app, nil
 	}
 
-	// TODO: Implement abort logic when dirty pull is integrated
-	// For now, just return to menu
-	app.footerHint = "Conflict resolution aborted (stub)"
+	// Route abort based on operation type
+	if app.conflictResolveState != nil && strings.HasPrefix(app.conflictResolveState.Operation, "dirty_pull_") {
+		// Abort dirty pull: restore original state
+		if app.dirtyOperationState != nil {
+			app.asyncOperationActive = true
+			app.mode = ModeConsole
+			ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
+			return app, app.cmdAbortDirtyPull()
+		}
+	}
+
+	// Default: return to menu
 	return app.returnToMenu()
 }

@@ -96,6 +96,80 @@
 
 ---
 
+## Session 38: Dirty Pull Phase 4 — Conflict Resolver Integration + SSOT Cleanup (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-06
+
+### Objective: Complete Phase 4 conflict resolver wiring, verify SSOT compliance, prepare for Phase 6 testing
+
+### Completed:
+
+✅ **Phase 4: Conflict Resolver Integration** (60 min)
+- Updated `GitOperationMsg` with `ConflictDetected` and `ConflictedFiles` fields
+- Implemented `setupConflictResolverForDirtyPull()` in `githandlers.go`
+  - Detects conflicted files via `git.ListConflictedFiles()`
+  - Populates 3-way versions using `git.ShowConflictVersion()`
+  - Initializes `ConflictResolveState` with proper operation tracking
+- Added git helper functions in `internal/git/execute.go`:
+  - `ListConflictedFiles()` — parses `git status --porcelain=v2` for unmerged files
+  - `ShowConflictVersion()` — retrieves 3-way versions (base, local, remote)
+- Implemented conflict detection in merge/apply phases:
+  - `cmdDirtyPullMerge()` returns `ConflictDetected=true` on conflicts
+  - `cmdDirtyPullApplySnapshot()` returns `ConflictDetected=true` on conflicts
+- Wired GitOperationMsg routing in `githandlers.go`:
+  - `dirty_pull_snapshot` → chains to merge
+  - `dirty_pull_merge` → conflict check → resolver or snapshot apply
+  - `dirty_pull_apply_snapshot` → conflict check → resolver or finalize
+  - `dirty_pull_finalize` → cleanup, return to menu
+  - `dirty_pull_abort` → restore state, return to menu
+- Implemented conflict handlers in `conflicthandlers.go`:
+  - `handleConflictEnter()` — validates all files marked, applies choices, routes to next phase
+  - `handleConflictEsc()` — aborts dirty pull with `cmdAbortDirtyPull()`
+
+✅ **SSOT Compliance Audit & Cleanup** (30 min)
+- Added entries to `messages.go`:
+  - `OutputMessages`: dirty_pull phases, conflict detection, abort messages
+  - `FooterHints`: file marking, conflict resolution help, error messages
+- Updated all hardcoded strings throughout implementation:
+  - `githandlers.go`: All buffer/footer messages use SSOT maps
+  - `conflicthandlers.go`: All footer hints and status messages use SSOT maps
+  - `operations.py`: Already using SSOT for operation messages
+- **Result:** Zero hardcoded user-facing strings in new code
+
+✅ **Final Integration & Build**
+- Added missing `dirty_pull_abort` handler in `githandlers.go`
+- Clean build with no warnings
+- Binary ready in `/Users/jreng/Documents/Poems/inf/___user-modules___/automation/tit_x64`
+
+### Files Modified:
+- `internal/app/githandlers.go` — Operation routing for 5 phases + conflict setup
+- `internal/app/conflicthandlers.go` — Conflict resolution logic + abort routing
+- `internal/app/messages.go` — SSOT maps (OutputMessages, FooterHints)
+- `internal/git/execute.go` — `ListConflictedFiles()`, `ShowConflictVersion()`
+- `internal/app/operations.go` — Conflict detection in merge/apply phases
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ❌ UNTESTED - Ready for Phase 6 (titest.sh scenarios)
+
+### Complete Phase Chain (All Phases 1-5 DONE):
+
+**Phase 1:** ✅ State extension (dirty operation detection)
+**Phase 2:** ✅ Menu & dispatcher (dirty pull menu item)
+**Phase 3:** ✅ Confirmation & operation chain (5-phase async flow)
+**Phase 4:** ✅ Conflict resolver integration (3-way resolver + abort)
+**Phase 5:** ✅ Helper functions (conflict file reading)
+
+### Next: Phase 6 Integration Testing
+
+Ready to test with titest.sh:
+- Scenario 0: Reset to clean state
+- Scenario 2: Dirty pull with merge conflicts
+- Scenario 5: Dirty pull, clean (no conflicts)
+
+---
+
 ## Session 37: Dirty Pull Implementation — Phases 1-3 + Remove Rebase (COMPLETE) ✅
 
 **Agent:** Claude (Amp)
