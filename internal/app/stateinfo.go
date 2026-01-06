@@ -22,7 +22,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "✅",
 			Color: theme.StatusClean,
 			Description: func(ahead, behind int) string {
-				return "Your files match the remote."
+				return StateDescriptions["working_tree_clean"]
 			},
 		},
 		git.Dirty: {
@@ -30,7 +30,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "📝",
 			Color: theme.StatusDirty,
 			Description: func(ahead, behind int) string {
-				return "You have uncommitted changes."
+				return StateDescriptions["working_tree_dirty"]
 			},
 		},
 	}
@@ -41,7 +41,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "🔌",
 			Color: theme.FooterTextColor,
 			Description: func(ahead, behind int) string {
-				return "No remote repository configured."
+				return StateDescriptions["timeline_no_remote"]
 			},
 		},
 		git.InSync: {
@@ -49,7 +49,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "🔗",
 			Color: theme.TimelineSynchronized,
 			Description: func(ahead, behind int) string {
-				return "Local and remote are in sync."
+				return StateDescriptions["timeline_in_sync"]
 			},
 		},
 		git.Ahead: {
@@ -57,7 +57,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "🌎",
 			Color: theme.TimelineLocalAhead,
 			Description: func(ahead, behind int) string {
-				return fmt.Sprintf("You have %d unsynced commit(s).", ahead)
+				return fmt.Sprintf(StateDescriptions["timeline_ahead"], ahead)
 			},
 		},
 		git.Behind: {
@@ -65,7 +65,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "🪐",
 			Color: theme.TimelineLocalBehind,
 			Description: func(ahead, behind int) string {
-				return fmt.Sprintf("The remote has %d new commit(s).", behind)
+				return fmt.Sprintf(StateDescriptions["timeline_behind"], behind)
 			},
 		},
 		git.Diverged: {
@@ -73,7 +73,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 			Emoji: "💥",
 			Color: theme.TimelineLocalBehind,
 			Description: func(ahead, behind int) string {
-				return fmt.Sprintf("Both have new commits. Ahead %d, Behind %d.", ahead, behind)
+				return fmt.Sprintf(StateDescriptions["timeline_diverged"], ahead, behind)
 			},
 		},
 	}

@@ -234,3 +234,30 @@ var FooterHints = map[string]string{
 	"already_marked_column":  "Already marked in this column",
 	"marked_file_column":     "Marked: %s → %s",
 }
+
+// DialogMessages centralizes dialog box content (titles + explanations)
+var DialogMessages = map[string][2]string{
+	"nested_repo": {
+		"Nested Repository Detected",
+		"The directory '%s' is inside another git repository.\n\nThis may cause confusion. Would you like to initialize in a subdirectory instead?",
+	},
+	"force_push_nested": {
+		"Force Push Confirmation",
+		"This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
+	},
+	"hard_reset_nested": {
+		"Hard Reset Confirmation",
+		"This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
+	},
+}
+
+// StateDescriptions centralizes git state display descriptions
+var StateDescriptions = map[string]string{
+	"working_tree_clean":  "Your files match the remote.",
+	"working_tree_dirty":  "You have uncommitted changes.",
+	"timeline_no_remote":  "No remote repository configured.",
+	"timeline_in_sync":    "Local and remote are in sync.",
+	"timeline_ahead":      "You have %d unsynced commit(s).",
+	"timeline_behind":     "The remote has %d new commit(s).",
+	"timeline_diverged":   "Both have new commits. Ahead %d, Behind %d.",
+}

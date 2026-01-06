@@ -229,6 +229,77 @@ Layout() displays footer with current hint
   - `menuTimeline()` - Push/Pull based on Timeline
   - `menuHistory()` - Commit history browser
 
+### State Display System (StateDescriptions SSOT)
+
+**Purpose:** Centralize all git state descriptions for consistent, translatable UI messages.
+
+**Implementation** (`internal/app/stateinfo.go` uses `StateDescriptions` SSOT):
+
+```go
+// messages.go - State descriptions SSOT
+var StateDescriptions = map[string]string{
+    "working_tree_clean":  "Your files match the remote.",
+    "working_tree_dirty":  "You have uncommitted changes.",
+    "timeline_no_remote":  "No remote repository configured.",
+    "timeline_in_sync":    "Local and remote are in sync.",
+    "timeline_ahead":      "You have %d unsynced commit(s).",
+    "timeline_behind":     "The remote has %d new commit(s).",
+    "timeline_diverged":   "Both have new commits. Ahead %d, Behind %d.",
+}
+
+// stateinfo.go - Uses SSOT
+type StateInfo struct {
+    Label       string
+    Emoji       string
+    Color       string
+    Description func(ahead, behind int) string  // Lookup from SSOT
+}
+
+BuildStateInfo(theme) returns:
+- WorkingTree map: Clean/Dirty → StateInfo with description from StateDescriptions
+- Timeline map: InSync/Ahead/Behind/Diverged → StateInfo with description from StateDescriptions
+```
+
+**Rendering flow:**
+```
+RenderStateHeader()
+    ↓
+Looks up WorkingTree state info via stateinfo map
+    ↓
+Calls Description(ahead, behind) function
+    ↓
+Function returns StateDescriptions[key] formatted with counts
+    ↓
+Display: "Branch: main | Dirty | You have 2 unsynced commits."
+```
+
+---
+
+## Confirmation Dialog System
+
+**Purpose:** Centralize all confirmation dialog text (titles + explanations) for safe destructive operations.
+
+**Implementation** (`internal/app/messages.go` DialogMessages SSOT):
+
+```go
+// Dialog messages for confirmation dialogs
+var DialogMessages = map[string][2]string{
+    "nested_repo": {
+        "Nested Repository Detected",
+        "The directory '%s' is inside another git repository...",
+    },
+    // Add more as needed: "force_push", "hard_reset", etc.
+}
+
+// Dialog routing in confirmationhandlers.go:
+func setupConfirmation(action string) {
+    if msg, ok := DialogMessages[action]; ok {
+        a.confirmationTitle = msg[0]
+        a.confirmationExplanation = msg[1]
+    }
+}
+```
+
 ---
 
 ## Conflict Resolver System (ModeConflictResolve)
@@ -963,6 +1034,80 @@ const (
 - GitOperationMsg.Step uses constants, never hardcoded strings
 - Handlers switch on constants (case OpCommit:)
 - Typos caught at compile time, not at runtime
+
+---
+
+## Error Handling Best Practices (FAIL-FAST Rule)
+
+**Critical Rule:** Never silently suppress errors or return fallback values. Fail early and loudly.
+
+### Anti-Patterns ❌
+
+```go
+// WRONG: Silent error suppression
+stdout, _ := cmd.StdoutPipe()  // If StdoutPipe fails, stdout is nil
+scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+for scanner.Scan() { ... }  // Crashes here with confusing error
+
+// WRONG: Using string literals for error messages
+if err != nil {
+    return "Operation failed"  // Doesn't tell user WHAT failed
+}
+
+// WRONG: Empty return on error
+executeGitCommand(...) returns ""  // Masks why it failed
+```
+
+### Correct Patterns ✅
+
+```go
+// RIGHT: Check error immediately and return meaningful message
+stdout, err := cmd.StdoutPipe()
+if err != nil {
+    return GitOperationMsg{
+        Step: OpMyOperation,
+        Success: false,
+        Error: ErrorMessages["operation_failed"],  // From SSOT
+    }
+}
+
+// RIGHT: Use SSOT maps for all user-facing messages
+return GitOperationMsg{
+    Step: OpCommit,
+    Success: false,
+    Error: ErrorMessages["failed_commit_merge"],  // Specific, from SSOT
+}
+
+// RIGHT: Fail fast in handlers
+state, err := git.DetectState()
+if err != nil {
+    return nil, nil  // Return error via model state, not silently ignore
+}
+```
+
+### Error Message Categories (SSOT)
+
+```go
+// messages.go - Three error categories
+ErrorMessages["..."]        // Specific operation failure (git returned error)
+OutputMessages["..."]       // Operation phase output (informational)
+FooterHints["..."]          // User guidance (what to do next)
+```
+
+**Example flow:**
+```
+User selects "Commit"
+    ↓
+git commit fails (exit code 1)
+    ↓
+Handler: Check error explicitly
+    ↓
+Return GitOperationMsg with ErrorMessages["failed_commit_merge"]
+    ↓
+githandlers.go catches, displays error in console
+    ↓
+User sees specific reason why commit failed (not generic "Operation failed")
+```
 
 ---
 

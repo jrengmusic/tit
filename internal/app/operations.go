@@ -461,8 +461,22 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		
 		// Second: reset to origin/<branch> (ALWAYS - regardless of timeline/worktree state)
 		cmd = exec.Command("git", "reset", "--hard", fmt.Sprintf("origin/%s", branchName))
-		stdout, _ = cmd.StdoutPipe()
-		stderr, _ = cmd.StderrPipe()
+		stdout, err = cmd.StdoutPipe()
+		if err != nil {
+			return GitOperationMsg{
+				Step: OpHardReset,
+				Success: false,
+				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+			}
+		}
+		stderr, err = cmd.StderrPipe()
+		if err != nil {
+			return GitOperationMsg{
+				Step: OpHardReset,
+				Success: false,
+				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+			}
+		}
 		
 		cmd.Start()
 		
@@ -486,8 +500,22 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		
 		// Third: clean untracked files to make LOCAL == REMOTE exactly
 		cmd = exec.Command("git", "clean", "-fd")
-		stdout, _ = cmd.StdoutPipe()
-		stderr, _ = cmd.StderrPipe()
+		stdout, err = cmd.StdoutPipe()
+		if err != nil {
+			return GitOperationMsg{
+				Step: OpHardReset,
+				Success: false,
+				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+			}
+		}
+		stderr, err = cmd.StderrPipe()
+		if err != nil {
+			return GitOperationMsg{
+				Step: OpHardReset,
+				Success: false,
+				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+			}
+		}
 		
 		cmd.Start()
 		

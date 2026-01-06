@@ -3,6 +3,7 @@
 /tit.exe
 /tit_x64
 /tit_arm64
+/tit_test
 
 # Build directories
 /dist
