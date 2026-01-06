@@ -63,6 +63,9 @@ type Application struct {
 	// Conflict resolution state
 	conflictResolveState *ConflictResolveState
 	
+	// Dirty operation tracking
+	dirtyOperationState *DirtyOperationState // nil when no dirty op in progress
+	
 	// State display info maps
 	workingTreeInfo      map[git.WorkingTree]StateInfo
 	timelineInfo         map[git.Timeline]StateInfo

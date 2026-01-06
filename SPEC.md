@@ -61,7 +61,6 @@ Every decision in TIT derives from **four axes**:
 | `NotRepo` | Not in a git repository |
 | `Normal` | No operation in progress |
 | `Merging` | Merge in progress |
-| `Rebasing` | Rebase in progress |
 | `Conflicted` | Operation stopped due to conflicts |
 | `TimeTraveling` | Detached HEAD (exploring history, read-only) |
 | `DirtyOperation` | Executing dirty pull/merge with stashed work |
@@ -168,12 +167,10 @@ Every decision in TIT derives from **four axes**:
 
 **When Timeline = Behind:**
 - 📥 Pull (merge)
-- 📥 Pull (rebase)
 - ⚠️ Replace local with remote (discard local commits)
 
 **When Timeline = Diverged:**
 - 🔀 Sync: Merge remote into local
-- 🔀 Sync: Rebase local onto remote
 - ⬇️ Keep remote (discard local commits)
 - ⬆️ Keep local (overwrite remote)
 
@@ -193,7 +190,7 @@ Every decision in TIT derives from **four axes**:
 **Purpose:** Apply any change-set (pull, merge, time travel) while preserving uncommitted work.
 
 **Used when:**
-- Pull with WorkingTree = Modified
+- Pull (merge) with WorkingTree = Modified
 - Merge with WorkingTree = Modified
 - Time travel with WorkingTree = Modified
 

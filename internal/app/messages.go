@@ -90,6 +90,8 @@ var InputPrompts = map[string]string{
 	"subdir_name":      "Subdirectory name:",
 	"init_branch_name": "Initial branch name:",
 	"init_subdir_name": "Subdirectory name:",
+	"dirty_pull_save":  "Save and continue with dirty pull",
+	"dirty_pull_discard": "Discard changes and pull",
 }
 
 // InputHints centralizes all user-facing input hints
@@ -100,6 +102,8 @@ var InputHints = map[string]string{
 	"subdir_name":      "Enter new directory name",
 	"init_branch_name": "Enter branch name (default: main), press Enter to initialize",
 	"init_subdir_name": "Enter subdirectory name for new repository",
+	"dirty_pull_save":  "Save changes before pulling",
+	"dirty_pull_discard": "Discard changes before pulling",
 }
 
 // ErrorMessages centralizes error messages
@@ -127,6 +131,10 @@ var OutputMessages = map[string]string{
 	"fetching_remote":      "Fetching from remote...",
 	"setting_upstream":     "Setting upstream tracking...",
 	"checking_out_branch":  "Checking out branch '%s'...",
+	"dirty_pull_snapshot":  "Your changes have been saved",
+	"dirty_pull_merge_started": "Pulling from remote (merge strategy)...",
+	"dirty_pull_reapply":   "Reapplying your saved changes...",
+	"dirty_pull_finalize":  "Finalizing dirty pull operation...",
 }
 
 // ButtonLabels centralizes confirmation dialog button text
@@ -136,4 +144,25 @@ var ButtonLabels = map[string]string{
 	"force_push": "Force push",
 	"reset":      "Reset",
 	"ok":         "OK",
+}
+
+// ConfirmationTitles centralizes confirmation dialog titles
+var ConfirmationTitles = map[string]string{
+	"force_push":   "Force Push Confirmation",
+	"hard_reset":   "Replace Local Confirmation",
+	"dirty_pull":   "Save your changes?",
+}
+
+// ConfirmationExplanations centralizes confirmation dialog explanations
+var ConfirmationExplanations = map[string]string{
+	"force_push": "This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
+	"hard_reset": "This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
+	"dirty_pull": "You have uncommitted changes. To pull, they must be temporarily saved.\n\nAfter the pull, we'll try to reapply them.\n(This may cause conflicts if the changes overlap.)",
+}
+
+// ConfirmationLabels centralizes confirmation dialog button labels by action
+var ConfirmationLabels = map[string][2]string{
+	"force_push": {"Force push", "Cancel"},
+	"hard_reset": {"Reset to remote", "Cancel"},
+	"dirty_pull": {"Save changes", "Discard changes"},
 }

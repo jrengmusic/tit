@@ -27,6 +27,7 @@ var confirmationActions = map[string]ConfirmationAction{
 	string(ConfirmForcePush):      (*Application).executeConfirmForcePush,
 	string(ConfirmHardReset):      (*Application).executeConfirmHardReset,
 	string(ConfirmAlert):          (*Application).executeAlert,
+	"dirty_pull":                   (*Application).executeConfirmDirtyPull,
 }
 
 // confirmationRejectActions maps confirmation types to their NO handlers
@@ -35,6 +36,7 @@ var confirmationRejectActions = map[string]ConfirmationAction{
 	string(ConfirmForcePush):      (*Application).executeRejectForcePush,
 	string(ConfirmHardReset):      (*Application).executeRejectHardReset,
 	string(ConfirmAlert):          (*Application).executeAlert, // Any key dismisses alert
+	"dirty_pull":                   (*Application).executeRejectDirtyPull,
 }
 
 // ========================================
@@ -205,4 +207,56 @@ func (a *Application) showAlert(title, explanation string) {
 		ActionID:    string(ConfirmAlert),
 	}
 	a.showConfirmation(config)
+}
+
+// ========================================
+// Dirty Pull Confirmation Handlers
+// ========================================
+
+// executeConfirmDirtyPull handles YES response to dirty pull confirmation (Save changes)
+func (a *Application) executeConfirmDirtyPull() (tea.Model, tea.Cmd) {
+	// User confirmed to save changes and proceed with dirty pull
+	a.confirmationDialog = nil
+
+	// Create operation state - merge strategy only
+	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", true) // true = preserve changes
+	a.dirtyOperationState.PullStrategy = "merge"
+
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// Start the operation chain - Phase 1: Snapshot
+	return a, a.cmdDirtyPullSnapshot(true)
+}
+
+// executeRejectDirtyPull handles NO response to dirty pull confirmation (Discard changes)
+func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
+	// User chose to discard changes and pull
+	a.confirmationDialog = nil
+
+	// Create operation state - merge strategy only
+	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", false) // false = discard changes
+	a.dirtyOperationState.PullStrategy = "merge"
+
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// Start the operation chain - Phase 1: Snapshot (will discard instead of stash)
+	return a, a.cmdDirtyPullSnapshot(false)
 }

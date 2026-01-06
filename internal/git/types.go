@@ -20,11 +20,12 @@ const (
 type Operation string
 
 const (
-	NotRepo    Operation = "NotRepo"
-	Normal     Operation = "Normal"
-	Conflicted Operation = "Conflicted"
-	Merging    Operation = "Merging"
-	Rebasing   Operation = "Rebasing"
+	NotRepo        Operation = "NotRepo"
+	Normal         Operation = "Normal"
+	Conflicted     Operation = "Conflicted"
+	Merging        Operation = "Merging"
+	Rebasing       Operation = "Rebasing"
+	DirtyOperation Operation = "DirtyOperation"
 )
 
 type Remote string

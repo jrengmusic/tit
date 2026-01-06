@@ -96,6 +96,100 @@
 
 ---
 
+## Session 37: Dirty Pull Implementation — Phases 1-3 + Remove Rebase (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-06
+
+### Objective: Implement dirty pull phases 1-3, integrate with menu/confirmation/operation chain, remove rebase strategy
+
+### Completed:
+
+✅ **Phase 1: State Extension** (15 min)
+- Added `DirtyOperation` to `git.Operation` enum in `internal/git/types.go`
+- Added `detectDirtyOperation()` helper function in `internal/git/state.go`
+- Updated `DetectState()` to check for dirty operation before other states
+- Dirty operation detection returns `Conflicted` state (reuses conflict resolver UI)
+
+✅ **Phase 2: Menu & Dispatcher** (30 min)
+- Updated `menuTimeline()` in `menu.go` — Added "Pull (save changes)" menu item when `Modified + Behind`
+- Added `dispatchDirtyPullMerge()` in `dispatchers.go` — Shows confirmation dialog
+- Created SSOT maps in `messages.go`:
+  - `ConfirmationTitles` — Dialog titles
+  - `ConfirmationExplanations` — Dialog descriptions
+  - `ConfirmationLabels` — Button labels (YES/NO)
+- All confirmation dialogs now reference SSOT (no hardcoded strings)
+- Updated existing dispatchers (`dispatchForcePush`, `dispatchReplaceLocal`) to use SSOT
+
+✅ **Phase 3: Confirmation & Operation Chain** (45 min)
+- Added `dirtyOperationState` field to Application struct
+- Added dirty pull handlers to confirmation maps in `confirmationhandlers.go`
+- Implemented `executeConfirmDirtyPull()` — handles "Save changes" button
+  - Creates operation state with merge strategy
+  - Transitions to console mode
+  - Calls `cmdDirtyPullSnapshot(true)` to start operation chain
+- Implemented `executeRejectDirtyPull()` — handles "Discard changes" button
+  - Same flow but calls `cmdDirtyPullSnapshot(false)`
+- Confirmation response routing works end-to-end
+
+✅ **Removed Rebase Strategy Entirely** (30 min)
+- Removed `pull_rebase` menu item (Behind case)
+- Removed `dispatchPullRebase()` dispatcher
+- Removed `cmdPullRebase()` async command
+- Removed `cmdDirtyPullRebase()` async command
+- Removed `dirtyPullStrategy` field from Application
+- Updated confirmation handlers to hardcode merge strategy
+- Updated SPEC.md:
+  - Removed `Rebasing` operation state
+  - Removed rebase options from Behind/Diverged menus
+  - Updated dirty operation protocol description
+
+**Philosophy:** TIT is designed for predictability and safety. Rebase is a power-user feature that adds complexity without significant benefit. Merge strategy is simpler, safer, and more predictable—especially for dirty pull operations where stashed content is involved.
+
+### Flow Now Working:
+```
+Menu item "Pull (save changes)" selected (Modified + Behind)
+  ↓
+dispatchDirtyPullMerge()
+  ↓
+Shows confirmation dialog (SSOT text)
+  ↓
+User clicks "Save changes" OR "Discard changes"
+  ↓
+executeConfirmDirtyPull() OR executeRejectDirtyPull()
+  ↓
+cmdDirtyPullSnapshot(preserve) ← Phase 1 of operation chain
+```
+
+### Files Modified:
+- `internal/git/types.go` - Added `DirtyOperation` constant
+- `internal/git/state.go` - Added dirty operation detection + priority check
+- `internal/app/menu.go` - Added dirty pull menu item (Modified + Behind)
+- `internal/app/dispatchers.go` - Added `dispatchDirtyPullMerge()`, removed `dispatchPullRebase()`, removed rebase references
+- `internal/app/messages.go` - Added SSOT maps (ConfirmationTitles, ConfirmationExplanations, ConfirmationLabels)
+- `internal/app/confirmationhandlers.go` - Added dirty pull handlers, updated to use SSOT
+- `internal/app/operations.go` - Removed `cmdPullRebase()` and `cmdDirtyPullRebase()`
+- `internal/app/app.go` - Added `dirtyOperationState` field, removed `dirtyPullStrategy`
+- `SPEC.md` - Updated state definitions and menu descriptions (removed rebase references)
+
+### Build Status: ✅ Clean compile
+
+### Testing Status: ❌ UNTESTED - User must test:
+1. Create Modified + Behind state
+2. Verify menu shows "Pull (save changes)" with correct shortcut
+3. Click menu item → see confirmation dialog
+4. Click "Save changes" → operation chain starts (Phase 1)
+5. Click "Discard changes" → same flow but without stashing
+
+### Next: Phase 4 (Conflict Integration)
+
+**Phase 4:** Wire conflict resolver for dirty pull operations
+- Update `GitOperationMsg` handler in `Update()` to detect conflicts
+- Setup conflict resolver state based on operation phase
+- Implement conflict resolution routing in conflict handlers
+
+---
+
 ## Session 36: Dirty Pull Foundation — Complete Component Audit + Async Commands (COMPLETE) ✅
 
 **Agent:** Claude (Amp)

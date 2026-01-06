@@ -49,18 +49,30 @@ func HasParentRepo() (bool, string) {
 func DetectState() (*State, error) {
 	state := &State{}
 
+	// PRIORITY CHECK: DirtyOperation trumps everything except NotRepo
+	isRepo, _ := IsInitializedRepo()
+	if !isRepo {
+		return &State{Operation: NotRepo}, nil
+	}
+
+	// Check for dirty operation in progress
+	if IsDirtyOperationActive() {
+		// Return Conflicted state (dirty operation blocks all menus)
+		// We reuse Conflicted because it shows the conflict resolution UI
+		return &State{
+			Operation: Conflicted,
+		}, nil
+	}
+
 	// Check if repo has any commits yet
 	hash, err := executeGitCommand("rev-parse", "HEAD")
 	hasCommits := err == nil && hash != ""
 
 	// If repo exists but has NO commits, auto-setup with .gitignore
 	if !hasCommits {
-		isRepo, _ := IsInitializedRepo()
-		if isRepo {
-			if err := setupFreshRepo(); err != nil {
-				// Log error but continue - state detection should still work
-				fmt.Fprintf(os.Stderr, "Warning: Failed to setup fresh repo: %v\n", err)
-			}
+		if err := setupFreshRepo(); err != nil {
+			// Log error but continue - state detection should still work
+			fmt.Fprintf(os.Stderr, "Warning: Failed to setup fresh repo: %v\n", err)
 		}
 	}
 
@@ -369,4 +381,10 @@ func CurrentBranchExistsOnRemote() bool {
 	remoteBranch := "refs/remotes/origin/" + currentBranch
 	cmd := exec.Command("git", "rev-parse", remoteBranch)
 	return cmd.Run() == nil
+}
+
+// detectDirtyOperation checks if a dirty operation is in progress
+// by looking for the .git/TIT_DIRTY_OP snapshot file
+func detectDirtyOperation() bool {
+	return IsDirtyOperationActive()
 }

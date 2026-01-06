@@ -47,7 +47,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"push":               a.dispatchPush,
 		"force_push":         a.dispatchForcePush,
 		"pull_merge":         a.dispatchPullMerge,
-		"pull_rebase":        a.dispatchPullRebase,
+		"dirty_pull_merge":   a.dispatchDirtyPullMerge,
 		"replace_local":      a.dispatchReplaceLocal,
 		"resolve_conflicts":  a.dispatchResolveConflicts,
 		"abort_operation":    a.dispatchAbortOperation,
@@ -174,20 +174,6 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	return app.cmdPull()
 }
 
-// dispatchPullRebase pulls with rebase strategy
-func (a *Application) dispatchPullRebase(app *Application) tea.Cmd {
-	// Set up async state for console display
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
-	app.previousMode = ModeMenu
-	app.previousMenuIndex = 0
-	app.mode = ModeConsole
-	app.consoleState.Reset()
-
-	// Execute pull with rebase asynchronously using operations pattern
-	return app.cmdPullRebase()
-}
-
 // dispatchResolveConflicts opens conflict resolution UI
 func (a *Application) dispatchResolveConflicts(app *Application) tea.Cmd {
 	// TODO: Implement
@@ -213,12 +199,13 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.confirmType = "force_push"
 	app.confirmContext = map[string]string{}
 	
-	// Create the confirmation dialog
+	// Create the confirmation dialog from SSOT
+	labels := ConfirmationLabels["force_push"]
 	config := ui.ConfirmationConfig{
-		Title:       "Force Push Confirmation",
-		Explanation: "This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
-		YesLabel:    "Force push",
-		NoLabel:     "Cancel",
+		Title:       ConfirmationTitles["force_push"],
+		Explanation: ConfirmationExplanations["force_push"],
+		YesLabel:    labels[0],
+		NoLabel:     labels[1],
 		ActionID:    "force_push",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
@@ -233,12 +220,13 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
 	
-	// Create the confirmation dialog
+	// Create the confirmation dialog from SSOT
+	labels := ConfirmationLabels["hard_reset"]
 	config := ui.ConfirmationConfig{
-		Title:       "Replace Local Confirmation", 
-		Explanation: "This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
-		YesLabel:    "Reset to remote",
-		NoLabel:     "Cancel",
+		Title:       ConfirmationTitles["hard_reset"], 
+		Explanation: ConfirmationExplanations["hard_reset"],
+		YesLabel:    labels[0],
+		NoLabel:     labels[1],
 		ActionID:    "hard_reset",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
@@ -249,6 +237,26 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 	// TODO: Implement
+	return nil
+}
+
+// dispatchDirtyPullMerge starts the dirty pull confirmation dialog
+func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
+	app.mode = ModeConfirmation
+	app.confirmType = "dirty_pull"
+	app.confirmContext = map[string]string{}
+
+	// Create the confirmation dialog from SSOT
+	labels := ConfirmationLabels["dirty_pull"]
+	config := ui.ConfirmationConfig{
+		Title:       ConfirmationTitles["dirty_pull"],
+		Explanation: ConfirmationExplanations["dirty_pull"],
+		YesLabel:    labels[0],
+		NoLabel:     labels[1],
+		ActionID:    "dirty_pull",
+	}
+	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
+
 	return nil
 }
 

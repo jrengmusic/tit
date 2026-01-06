@@ -263,7 +263,21 @@ func (a *Application) menuTimeline() []MenuItem {
 		}
 
 	case git.Behind:
-		// Remote ahead → show pull and destructive reset (always available)
+		// If Modified, show dirty pull first
+		if a.gitState.WorkingTree == git.Modified {
+			items = append(items,
+				Item("dirty_pull_merge").
+					Shortcut("d").
+					Emoji("⚠️").
+					Label("Pull (save changes)").
+					Hint("Save WIP, pull remote, reapply changes (may conflict)").
+					Build(),
+			)
+			// Add separator between dirty pull and clean pull
+			items = append(items, Item("").Separator().Build())
+		}
+
+		// Show clean pull options
 		items = append(items,
 			Item("pull_merge").
 				Shortcut("p").
@@ -280,19 +294,13 @@ func (a *Application) menuTimeline() []MenuItem {
 		)
 
 	case git.Diverged:
-		// Diverged → show merge/rebase strategies and destructive options (always available)
+		// Diverged → show merge and destructive options (always available)
 		items = append(items,
 			Item("pull_merge").
 				Shortcut("p").
 				Emoji("📥").
-				Label("Pull (merge strategy)").
+				Label("Pull (merge)").
 				Hint("Fetch remote and merge diverged branches").
-				Build(),
-			Item("pull_rebase").
-				Shortcut("r").
-				Emoji("📥").
-				Label("Pull (rebase strategy)").
-				Hint("Fetch remote and rebase local commits on top").
 				Build(),
 			Item("force_push").
 				Shortcut("f").

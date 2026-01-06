@@ -345,39 +345,6 @@ func (a *Application) cmdPull() tea.Cmd {
 	}
 }
 
-// cmdPullRebase pulls from remote (rebase)
-func (a *Application) cmdPullRebase() tea.Cmd {
-	return func() tea.Msg {
-		buffer := ui.GetBuffer()
-		buffer.Clear()
-
-		// Pull with rebase
-		result := git.ExecuteWithStreaming("pull", "--rebase")
-
-		if !result.Success {
-			// Check if conflict
-			if strings.Contains(result.Stderr, "conflict") || strings.Contains(result.Stderr, "CONFLICT") {
-				return GitOperationMsg{
-					Step:    "pull",
-					Success: false,
-					Error:   "Rebase conflicts occurred",
-				}
-			}
-			return GitOperationMsg{
-				Step:    "pull",
-				Success: false,
-				Error:   "Failed to pull with rebase",
-			}
-		}
-
-		return GitOperationMsg{
-			Step:    "pull",
-			Success: true,
-			Output:  "Pulled with rebase successfully",
-		}
-	}
-}
-
 // cmdInitSubdirectory transitions directly to subdirectory input mode
 // Used when CWD is not empty (can't init here, must use subdir)
 func (a *Application) cmdInitSubdirectory() tea.Cmd {
@@ -663,40 +630,6 @@ func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 			Step:    "dirty_pull_merge",
 			Success: true,
 			Output:  "Remote changes merged",
-		}
-	}
-}
-
-// cmdDirtyPullRebase pulls from remote using rebase strategy
-// Phase 2: After snapshot, pull remote changes with rebase
-func (a *Application) cmdDirtyPullRebase() tea.Cmd {
-	return func() tea.Msg {
-		buffer := ui.GetBuffer()
-		buffer.Append("Pulling from remote (rebase strategy)...", ui.TypeInfo)
-
-		result := git.ExecuteWithStreaming("pull", "--rebase")
-		if !result.Success {
-			// Check for conflict markers
-			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stderr, "conflict") {
-				buffer.Append("Rebase conflicts detected", ui.TypeWarning)
-				return GitOperationMsg{
-					Step:    "dirty_pull_rebase",
-					Success: false,
-					Error:   "Rebase conflicts detected",
-				}
-			}
-			return GitOperationMsg{
-				Step:    "dirty_pull_rebase",
-				Success: false,
-				Error:   "Failed to pull with rebase",
-			}
-		}
-
-		buffer.Append("Rebase completed", ui.TypeInfo)
-		return GitOperationMsg{
-			Step:    "dirty_pull_rebase",
-			Success: true,
-			Output:  "Remote changes rebased",
 		}
 	}
 }
