@@ -176,6 +176,9 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		app.footerHint = menu[0].Hint
 	}
 
+	// Register menu shortcuts dynamically
+	app.rebuildMenuShortcuts()
+
 	return app
 }
 
@@ -602,6 +605,65 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 	}
 
 	return modeHandlers
+}
+
+// rebuildMenuShortcuts dynamically registers keyboard handlers for all current menu item shortcuts
+// Called after GenerateMenu() to ensure shortcuts match current git state
+func (a *Application) rebuildMenuShortcuts() {
+	if a.keyHandlers[ModeMenu] == nil {
+		a.keyHandlers[ModeMenu] = make(map[string]KeyHandler)
+	}
+
+	// Remove old shortcut handlers (keep navigation and enter)
+	// We'll rebuild from scratch by first copying the base handlers
+	baseHandlers := NewModeHandlers().
+		WithMenuNav(a).
+		On("enter", a.handleMenuEnter).
+		Build()
+
+	// Merge global handlers
+	globalHandlers := map[string]KeyHandler{
+		"ctrl+c": a.handleKeyCtrlC,
+		"q":      a.handleKeyCtrlC,
+		"esc":    a.handleKeyESC,
+		"ctrl+v": a.handleKeyPaste,
+		"cmd+v":  a.handleKeyPaste,
+		"meta+v": a.handleKeyPaste,
+		"alt+v":  a.handleKeyPaste,
+	}
+
+	// Start fresh
+	newHandlers := make(map[string]KeyHandler)
+
+	// Copy base handlers
+	for key, handler := range baseHandlers {
+		newHandlers[key] = handler
+	}
+
+	// Add global handlers
+	for key, handler := range globalHandlers {
+		newHandlers[key] = handler
+	}
+
+	// Dynamically register shortcuts for current menu items
+	for i, item := range a.menuItems {
+		if item.Shortcut != "" && item.Enabled && !item.Separator {
+			// Capture loop variables in closure
+			itemIndex := i
+			itemID := item.ID
+			itemHint := item.Hint
+
+			// Create handler that selects item and dispatches action
+			newHandlers[item.Shortcut] = func(app *Application) (tea.Model, tea.Cmd) {
+				app.selectedIndex = itemIndex
+				app.footerHint = itemHint
+				return app, app.dispatchAction(itemID)
+			}
+		}
+	}
+
+	// Replace ModeMenu handlers
+	a.keyHandlers[ModeMenu] = newHandlers
 }
 
 // handleMenuUp moves selection up

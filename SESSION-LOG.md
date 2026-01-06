@@ -96,6 +96,79 @@
 
 ---
 
+## Session 40: Keyboard Shortcut Bug Fix + Documentation (COMPLETE) ✅
+
+**Agent:** Claude (Amp)
+**Date:** 2026-01-06
+
+### Objective: Learn and document the SPACE key fix for keyboard handler registration
+
+### Completed:
+
+✅ **Learned the Keyboard Registration Pattern** (15 min)
+- **The Bug:** SPACE key was registered as `"space"` but Bubble Tea sends `" "` (actual space character)
+- **Root Cause:** `msg.String()` returns actual character/key name, not semantic names
+- **The Fix:** Changed `On("space", ...)` to `On(" ", ...)` in keyboard handler registry
+- **Discovery Method:** Debugged by checking `msg.String()` output and comparing to registered key strings
+
+✅ **Updated ARCHITECTURE.md with Keyboard Patterns** (20 min)
+- Added "Keyboard Input Patterns" section after Key Handler Registry documentation
+- Documented critical distinction: Bubble Tea sends actual characters, not key names
+- Showed correct vs incorrect examples:
+  - ✅ `On(" ", handler)` - Space character (what Bubble Tea sends)
+  - ❌ `On("space", handler)` - Would never fire
+- Added registration pattern example from actual code (ModeMenu, ModeConflictResolve)
+- Explained why this matters: handler never fires if key string doesn't match
+
+✅ **Documented in Code** (5 min)
+- Found inline comment in app.go line 585: `// Space character, not "space"`
+- This documents the pattern for future developers
+
+### Files Modified:
+- `ARCHITECTURE.md` — Added "Keyboard Input Patterns" section with critical SPACE key lesson and examples
+
+### Build Status: ✅ Clean compile (no code changes)
+
+### Testing Status: ✅ VERIFIED WORKING (from Session 35)
+- SPACE key fires correctly in conflict resolver
+- File marking works (SPACE toggles selection)
+- Border focus changes work (TAB navigation)
+
+### Key Learning:
+
+**Bubble Tea Key Dispatch:**
+```
+Bubble Tea KeyMsg
+    ↓
+msg.String() → actual character or key name
+    ↓
+Lookup in handlers["enter", "tab", " ", "ctrl+c", etc.]
+    ↓
+Execute handler or fall through
+```
+
+**Critical Examples:**
+| Key | msg.String() value | Correct Registration | Wrong Registration |
+|-----|------------------|-------------------|------------------|
+| Space | `" "` | `On(" ", ...)` | ~~`On("space", ...)`~~ |
+| Enter | `"enter"` | `On("enter", ...)` | ~~`On("return", ...)`~~ |
+| Tab | `"tab"` | `On("tab", ...)` | ~~`On("\\t", ...)`~~ |
+| Up arrow | `"up"` | `On("up", ...)` | ~~`On("↑", ...)`~~ |
+
+**Debugging Pattern:**
+1. Handler not firing? Check if key string was registered
+2. Add debug: `a.footerHint = "KEY: [" + msg.String() + "]"`
+3. See what Bubble Tea actually sends
+4. Compare with registration key in NewModeHandlers()
+5. Fix mismatch
+
+### Ready for:
+- Any new keyboard shortcuts (now with correct pattern understanding)
+- Future debugging of non-firing key handlers
+- Documentation of any other Bubble Tea quirks discovered
+
+---
+
 ## Session 39: Menu SSOT Refactoring + Documentation Update (COMPLETE) ✅
 
 **Agent:** Claude (Amp)

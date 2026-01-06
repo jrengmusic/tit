@@ -47,8 +47,7 @@ var confirmationRejectActions = map[string]ConfirmationAction{
 func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea.Cmd) {
 	if a.confirmationDialog == nil {
 		// No active confirmation dialog
-		a.mode = ModeMenu
-		return a, nil
+		return a.returnToMenu()
 	}
 
 	confirmType := a.confirmationDialog.Config.ActionID
@@ -63,8 +62,7 @@ func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea
 	if handler == nil {
 		// No handler registered for this type - return to menu
 		a.confirmationDialog = nil
-		a.mode = ModeMenu
-		return a, nil
+		return a.returnToMenu()
 	}
 
 	return handler(a)
@@ -87,8 +85,7 @@ func (a *Application) executeConfirmNestedRepoInit() (tea.Model, tea.Cmd) {
 func (a *Application) executeRejectNestedRepoInit() (tea.Model, tea.Cmd) {
 	// User cancelled - abort init, return to menu
 	a.confirmationDialog = nil
-	a.mode = ModeMenu
-	return a, nil
+	return a.returnToMenu()
 }
 
 // executeConfirmForcePush handles YES response to force push confirmation
@@ -111,8 +108,7 @@ func (a *Application) executeConfirmForcePush() (tea.Model, tea.Cmd) {
 func (a *Application) executeRejectForcePush() (tea.Model, tea.Cmd) {
 	// User cancelled force push
 	a.confirmationDialog = nil
-	a.mode = ModeMenu
-	return a, nil
+	return a.returnToMenu()
 }
 
 // executeConfirmHardReset handles YES response to hard reset confirmation
@@ -134,16 +130,14 @@ func (a *Application) executeConfirmHardReset() (tea.Model, tea.Cmd) {
 func (a *Application) executeRejectHardReset() (tea.Model, tea.Cmd) {
 	// User cancelled hard reset
 	a.confirmationDialog = nil
-	a.mode = ModeMenu
-	return a, nil
+	return a.returnToMenu()
 }
 
 // executeAlert handles alert dialog dismissal (any response)
 func (a *Application) executeAlert() (tea.Model, tea.Cmd) {
 	// Alert dialogs are dismissed with any key press
 	a.confirmationDialog = nil
-	a.mode = ModeMenu
-	return a, nil
+	return a.returnToMenu()
 }
 
 // ========================================

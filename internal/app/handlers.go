@@ -79,6 +79,8 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 			if a.previousMenuIndex < len(menu) && len(menu) > 0 {
 				app.footerHint = menu[a.previousMenuIndex].Hint
 			}
+			// Rebuild shortcuts for new menu
+			app.rebuildMenuShortcuts()
 		}
 		return a, nil
 	}
@@ -123,13 +125,16 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.inputCursorPosition = 0
 	a.inputValidationMsg = ""
 	a.clearConfirmActive = false
-	
+
 	menu := a.GenerateMenu()
 	a.menuItems = menu
 	if len(menu) > 0 {
 		a.footerHint = menu[0].Hint
 	}
-	
+
+	// Rebuild shortcuts for new menu
+	a.rebuildMenuShortcuts()
+
 	return a, nil
 }
 

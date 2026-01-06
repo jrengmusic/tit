@@ -161,8 +161,8 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case "cancel":
 		// User cancelled any confirmation dialog
-		a.mode = ModeMenu
 		a.confirmationDialog = nil
+		return a.returnToMenu()
 
 	default:
 		// Default: just cleanup

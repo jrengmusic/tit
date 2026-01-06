@@ -50,6 +50,46 @@ map[AppMode]map[string]KeyHandler
 
 Global handlers (ESC, Ctrl+C) take priority and apply to all modes.
 
+### Keyboard Input Patterns
+
+**Critical: Bubble Tea sends actual characters, not key names**
+
+```go
+// ✅ CORRECT - Use actual character or Bubble Tea key string
+On("enter", handler)     // Named key
+On("tab", handler)       // Named key
+On("up", handler)        // Named key
+On(" ", handler)         // SPACE character, not "space"!
+On("ctrl+c", handler)    // Special combo notation
+
+// ❌ WRONG
+On("space", handler)     // Bubble Tea sends " " not "space"
+On("return", handler)    // Bubble Tea sends "enter" not "return"
+```
+
+**Registration pattern** (`internal/app/app.go`):
+```go
+ModeMenu: NewModeHandlers().
+    On("j", a.handleMenuDown).
+    On("k", a.handleMenuUp).
+    On("enter", a.handleMenuEnter).
+    Build(),
+
+ModeConflictResolve: NewModeHandlers().
+    On("up", a.handleConflictUp).
+    On("down", a.handleConflictDown).
+    On("tab", a.handleConflictTab).
+    On(" ", a.handleConflictSpace).      // ← Space character
+    On("enter", a.handleConflictEnter).
+    Build(),
+```
+
+**Why this matters:**
+- Bubble Tea's `msg.String()` returns the actual character (`" "`) or key name (`"enter"`, `"tab"`)
+- If you register `"space"`, the handler never fires (Bubble Tea sends `" "`)
+- Discovered by checking `msg.String()` in handler and comparing to registry key
+- This caused SPACE key not to fire in conflict resolver until fixed
+
 ### 2. State Mutation → Async Operations
 
 All blocking git operations run in goroutines (worker threads):
