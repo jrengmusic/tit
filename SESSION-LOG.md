@@ -192,6 +192,73 @@
 
 ---
 
+## Session 52: History Mode Layout Gap Fix - Lipgloss Height Calculation ✅
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-07
+
+### Objective
+Fix 2-line gap at bottom of History mode panes (list and details). Debug lipgloss Height() + Padding() interaction and correct visibleLines calculation.
+
+### Problems Identified & Fixed
+
+#### 1. **Root Cause: Incorrect visibleLines Calculation**
+- **Issue:** List pane and text pane had 2-line gap before bottom border
+- **Root Cause:** `visibleLines := height - 4` was designed for old layout (title + separator + border calculation)
+- **Discovery Process:** 
+  - Initially assumed the issue was in padding/border logic
+  - Tried multiple approaches: removing Padding(), using MaxHeight(), nested boxes, manual padding
+  - All attempts broke layout
+  - User identified the real issue: **recalculate visibleLines to match actual space**
+
+#### 2. **Fixed ListPane Visible Lines Calculation**
+- Changed: `visibleLines := height - 4` → `visibleLines := height - 2`
+- Why: With `Width(width - 2)` + `Height(height)` + `Padding(0, 1)`, interior space is `height - 2` (just border)
+- Title + separator + items now use full interior: title(1) + separator(1) + items(15) = 17 lines for height=19
+- No gap remains - content fills completely
+- **File:** `internal/ui/listpane.go` line 67
+
+#### 3. **Fixed History Module Scroll Calculation**
+- Changed: `visibleLines := height - 4` → `visibleLines := height - 2`
+- Why: Must match listpane's new calculation for scroll offset to work correctly
+- Scroll now starts at correct position without jumping 2 lines
+- **File:** `internal/ui/history.go` line 99
+
+#### 4. **TextPane Still Needs Alignment**
+- TextPane still uses old calculation logic: `visibleLines := contentHeight` where `contentHeight := height - 2`
+- Results in same calculation but structured differently
+- Still has gap and scrolling issues (deferred to next phase)
+- **File:** `internal/ui/textpane.go` line 51
+
+### Key Learning: Don't Fight the Library
+**Critical Lesson Learned:**
+- ❌ WRONG: Assume layout math is the problem, try to fix with custom calculations
+- ❌ WRONG: Add padding logic, nested boxes, manual width adjustments
+- ❌ WRONG: Fight lipgloss behavior
+- ✅ CORRECT: Understand what space is actually available after border/padding applied
+- ✅ CORRECT: Match your content line count to that available space exactly
+- ✅ CORRECT: Trust the library's rendering - if gap exists, your math is wrong, not the library
+
+### Files Modified (2 total)
+- `internal/ui/listpane.go` — Line 67: Changed `height - 4` to `height - 2`
+- `internal/ui/history.go` — Line 99: Changed `height - 4` to `height - 2`
+
+### Build Status
+✅ Clean compile (no errors/warnings)
+
+### Testing Status
+✅ **USER TESTED**: List pane gap fixed. Scrolling works correctly.
+⏳ **PENDING**: Text pane gap and scrolling fixes
+
+### Known Issues (Deferred)
+1. **TextPane still has 2-line gap** - visibleLines calculation needs update to match ListPane pattern
+2. **TextPane scrolling behavior** - follows from gap issue, will be fixed when gap is resolved
+
+### Summary
+Fixed History mode list pane rendering gap by correcting visibleLines calculation from `height - 4` to `height - 2`. The original calculation was designed for a different layout model. With current `Height(height)` + `Padding()` approach, interior space is `height - 2`, so content should fill exactly that. TextPane still needs same fix applied.
+
+---
+
 ## Session 51: History Mode UI Polish & Bug Fixes ✅
 
 **Agent:** Claude Sonnet 4.5 (GitHub Copilot CLI)

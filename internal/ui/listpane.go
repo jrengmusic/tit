@@ -64,7 +64,7 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 
 	// Calculate visible lines for items
 	// height - border - title - separator
-	visibleLines := height - 4
+	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1
 	}

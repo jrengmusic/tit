@@ -95,8 +95,8 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 		})
 	}
 	
-	// Calculate visible lines for scrolling (height - border(2) - title(1) - separator(1))
-	visibleLines := height - 4
+	// Calculate visible lines for scrolling (height - border(2))
+	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1
 	}
