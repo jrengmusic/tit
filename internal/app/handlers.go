@@ -817,3 +817,65 @@ func (a *Application) handleConfirmationEnter(app *Application) (tea.Model, tea.
 	return a, nil
 }
 
+// History Mode Handlers
+
+// handleHistoryUp navigates up in history mode
+func (a *Application) handleHistoryUp(app *Application) (tea.Model, tea.Cmd) {
+	if app.historyState == nil {
+		return app, nil
+	}
+	
+	if app.historyState.PaneFocused { // List pane focused
+		if app.historyState.SelectedIdx > 0 {
+			app.historyState.SelectedIdx--
+			// Reset details cursor when switching commits
+			app.historyState.DetailsLineCursor = 0
+		}
+	} else { // Details pane focused - move line cursor
+		if app.historyState.DetailsLineCursor > 0 {
+			app.historyState.DetailsLineCursor--
+		}
+	}
+	return app, nil
+}
+
+// handleHistoryDown navigates down in history mode
+func (a *Application) handleHistoryDown(app *Application) (tea.Model, tea.Cmd) {
+	if app.historyState == nil {
+		return app, nil
+	}
+	
+	if app.historyState.PaneFocused { // List pane focused
+		if app.historyState.SelectedIdx < len(app.historyState.Commits)-1 {
+			app.historyState.SelectedIdx++
+			// Reset details cursor when switching commits
+			app.historyState.DetailsLineCursor = 0
+		}
+	} else { // Details pane focused - move line cursor
+		// TextPane will auto-clamp cursor to content length
+		app.historyState.DetailsLineCursor++
+	}
+	return app, nil
+}
+
+// handleHistoryTab switches focus between panes in history mode
+func (a *Application) handleHistoryTab(app *Application) (tea.Model, tea.Cmd) {
+	if app.historyState == nil {
+		return app, nil
+	}
+	
+	app.historyState.PaneFocused = !app.historyState.PaneFocused
+	return app, nil
+}
+
+// handleHistoryEsc returns to menu from history mode
+func (a *Application) handleHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
+	return app.returnToMenu()
+}
+
+// handleHistoryEnter handles ENTER key in history mode (Phase 7: Time Travel)
+func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) {
+	// Phase 7: Time travel - for now just return
+	return app, nil
+}
+

@@ -2,6 +2,8 @@ package app
 
 import (
 	"os"
+	"sort"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
@@ -249,8 +251,58 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
-	// TODO: Implement
+	app.mode = ModeHistory
+	
+	// Use cached metadata to build commits list
+	app.historyCacheMutex.Lock()
+	defer app.historyCacheMutex.Unlock()
+	
+	var commits []ui.CommitInfo
+	
+	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
+	for hash, details := range app.historyMetadataCache {
+		commits = append(commits, ui.CommitInfo{
+			Hash:    hash,
+			Subject: details.Message, // Full message (not just first line)
+			Time:    parseCommitDate(details.Date),
+		})
+	}
+	
+	// CRITICAL: Sort commits by time (newest first) - map iteration is unordered!
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Time.After(commits[j].Time)
+	})
+	
+	// Always initialize state (even if commits empty)
+	app.historyState = &ui.HistoryState{
+		Commits:           commits,
+		SelectedIdx:       0,
+		PaneFocused:       true, // List pane focused initially
+		DetailsLineCursor: 0,    // Start at top of details
+		DetailsScrollOff:  0,    // No scroll initially
+	}
+	
+	// Show appropriate hint
+	if len(commits) == 0 {
+		if app.cacheMetadata {
+			app.footerHint = "No commits found in history"
+		} else {
+			app.footerHint = "Loading commit history..."
+		}
+	}
+	
 	return nil
+}
+
+// parseCommitDate parses git commit date format
+func parseCommitDate(dateStr string) time.Time {
+	// Expected format from git: "Mon, 7 Jan 2026 08:42:00 -0700"
+	t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", dateStr)
+	if err != nil {
+		// Fallback to current time if parsing fails
+		return time.Now()
+	}
+	return t
 }
 
 // dispatchDirtyPullMerge starts the dirty pull confirmation dialog

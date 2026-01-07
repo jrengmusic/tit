@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"tit/internal/ui"
 )
 
@@ -332,6 +333,144 @@ func ShowConflictVersion(filePath string, stage int) (string, error) {
 	
 	if !result.Success {
 		return "", fmt.Errorf("failed to show stage %d of %s: %s", stage, filePath, result.Stderr)
+	}
+
+	return result.Stdout, nil
+}
+
+// FetchRecentCommits fetches the last N commits with basic info
+// Returns: []CommitInfo with Hash, Subject, Time populated
+// Format: git log --pretty=%H%n%s%n%ai -N
+// Example output: hash1\nsubject1\nISO-date1\nhash2\nsubject2\nISO-date2\n...
+func FetchRecentCommits(limit int) ([]CommitInfo, error) {
+	result := Execute("log", fmt.Sprintf("-%d", limit), "--pretty=%H%n%s%n%ai")
+	if !result.Success {
+		return nil, fmt.Errorf("failed to fetch recent commits: %s", result.Stderr)
+	}
+
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	commits := make([]CommitInfo, 0)
+
+	// Parse output: hash, subject, iso-date on consecutive lines
+	for i := 0; i+2 < len(lines); i += 3 {
+		hash := strings.TrimSpace(lines[i])
+		subject := strings.TrimSpace(lines[i+1])
+		dateStr := strings.TrimSpace(lines[i+2])
+
+		if hash == "" {
+			continue
+		}
+
+		// Parse ISO date format: YYYY-MM-DD HH:MM:SS ±HHMM
+		parsedTime, err := time.Parse("2006-01-02 15:04:05 -0700", dateStr)
+		if err != nil {
+			// If parsing fails, use zero time but continue
+			parsedTime = time.Time{}
+		}
+
+		commits = append(commits, CommitInfo{
+			Hash:    hash,
+			Subject: subject,
+			Time:    parsedTime,
+		})
+	}
+
+	if len(commits) == 0 {
+		return nil, fmt.Errorf("no commits found")
+	}
+
+	return commits, nil
+}
+
+// GetCommitDetails fetches full metadata for a commit
+// Returns: CommitDetails with Author, Date, Message
+// Format: git show -s --pretty=%aN%n%aD%n%B <hash>
+func GetCommitDetails(hash string) (*CommitDetails, error) {
+	result := Execute("show", "-s", "--pretty=%aN%n%aD%n%B", hash)
+	if !result.Success {
+		return nil, fmt.Errorf("failed to get commit details: %s", result.Stderr)
+	}
+
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	if len(lines) < 3 {
+		return nil, fmt.Errorf("unexpected commit details format")
+	}
+
+	// Parse: author name (line 0), date (line 1), message (lines 2+)
+	author := strings.TrimSpace(lines[0])
+	date := strings.TrimSpace(lines[1])
+	message := strings.Join(lines[2:], "\n")
+
+	return &CommitDetails{
+		Author:  author,
+		Date:    date,
+		Message: strings.TrimSpace(message),
+	}, nil
+}
+
+// GetFilesInCommit fetches list of files changed in a commit
+// Returns: []FileInfo with Path and Status
+// Format: git show --name-status --pretty= <hash>
+// Status: M (modified), A (added), D (deleted), R (renamed), C (copied), T (type changed), U (unmerged)
+func GetFilesInCommit(hash string) ([]FileInfo, error) {
+	result := Execute("show", "--name-status", "--pretty=", hash)
+	if !result.Success {
+		return nil, fmt.Errorf("failed to get files in commit: %s", result.Stderr)
+	}
+
+	lines := strings.Split(strings.TrimSpace(result.Stdout), "\n")
+	files := make([]FileInfo, 0)
+
+	// Parse output: status\tpath (tab-separated)
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		status := strings.TrimSpace(parts[0])
+		path := strings.TrimSpace(parts[1])
+
+		// Rename/copy format: "R100\told\tnew" → extract just status char
+		statusChar := string(status[0])
+
+		files = append(files, FileInfo{
+			Path:   path,
+			Status: statusChar,
+		})
+	}
+
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no files found in commit")
+	}
+
+	return files, nil
+}
+
+// GetCommitDiff fetches diff for a file in a commit
+// version: "parent" (commit vs parent) or "wip" (commit vs working tree)
+// Returns: unified diff content (plain text)
+// Uses git diff with appropriate range based on version
+func GetCommitDiff(hash, path, version string) (string, error) {
+	var result CommandResult
+
+	switch version {
+	case "parent":
+		// Compare commit with its parent
+		result = Execute("diff", hash+"^", hash, "--", path)
+	case "wip":
+		// Compare commit with working tree
+		result = Execute("diff", hash, "--", path)
+	default:
+		return "", fmt.Errorf("invalid diff version: %s (must be 'parent' or 'wip')", version)
+	}
+
+	if !result.Success {
+		return "", fmt.Errorf("failed to get diff for %s: %s", path, result.Stderr)
 	}
 
 	return result.Stdout, nil

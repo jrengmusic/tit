@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -127,8 +126,14 @@ func RenderConflictResolveGeneric(
 			columnWidth++ // Give remainder to last columns
 		}
 
-		// Render content column with cursor
-		paneRendered := renderGenericContentPane(content, columnWidth, bottomRowHeight, lineCursor, scrollOffset, isActive, &theme, scrollOffsets, col, numColumns)
+		// Render content column with cursor using SSOT TextPane
+		paneRendered, newScrollOffset := RenderTextPane(content, columnWidth, bottomRowHeight, lineCursor, scrollOffset, true, isActive, &theme)
+		
+		// Update scroll offset in array
+		if col < len(scrollOffsets) {
+			scrollOffsets[col] = newScrollOffset
+		}
+		
 		bottomRowLines = append(bottomRowLines, paneRendered)
 	}
 
@@ -171,146 +176,6 @@ func convertFilesToListItems(files []ConflictFileGeneric, selectedFileIndex int,
 	return items
 }
 
-// renderGenericContentPane renders content pane with border (no title, just code with line numbers)
-// Returns exactly `height` lines of width `width` (including border)
-func renderGenericContentPane(
-	content string,
-	width int,
-	height int,
-	lineCursor int,
-	scrollOffset int,
-	isActive bool,
-	theme *Theme,
-	scrollOffsets []int,
-	paneIndex int,
-	numColumns int,
-) string {
-	if width <= 0 || height <= 0 {
-		return ""
-	}
-
-	// Border color - darker for unfocused (will use BoxBorderColor for focused later)
-	borderColor := theme.ConflictPaneUnfocusedBorder // dim but visible
-
-	// Content area inside border
-	contentWidth := width - 2
-	contentHeight := height - 2
-
-	if contentWidth <= 0 || contentHeight <= 0 {
-		return ""
-	}
-
-	// Parse file content into lines
-	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
-
-	// All content height is available (no title)
-	visibleLines := contentHeight
-	if visibleLines < 1 {
-		visibleLines = 1
-	}
-
-	// Adjust scroll to keep cursor visible (DiffPane pattern)
-	if lineCursor < scrollOffset {
-		scrollOffset = lineCursor
-	} else if lineCursor >= scrollOffset+visibleLines {
-		scrollOffset = lineCursor - visibleLines + 1
-	}
-
-	// Clamp scroll offset
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
-	if scrollOffset > totalLines-visibleLines && totalLines > visibleLines {
-		scrollOffset = totalLines - visibleLines
-	}
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
-
-	// Update the scroll offset in the array (so it persists)
-	if paneIndex >= 0 && paneIndex < len(scrollOffsets) {
-		scrollOffsets[paneIndex] = scrollOffset
-	}
-
-	start := scrollOffset
-	end := start + visibleLines
-	if end > totalLines {
-		end = totalLines
-	}
-
-	// Line number styling
-	lineNumberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DimmedTextColor))
-
-	// Calculate code width: contentWidth - 4 (line num) - 1 (space)
-	codeWidth := contentWidth - 5
-	if codeWidth < 1 {
-		codeWidth = 1
-	}
-
-	// Build content lines
-	var contentLines []string
-
-	// Render visible lines with line numbers
-	for i := start; i < end; i++ {
-		isCursorLine := (i == lineCursor) && isActive
-
-		lineNum := i + 1
-		lineNumText := lipgloss.NewStyle().
-			Width(4).
-			Align(lipgloss.Right).
-			Render(fmt.Sprintf("%d", lineNum))
-		lineNumColumn := lineNumberStyle.Render(lineNumText)
-
-		// Get code line and wrap to fit
-		code := lines[i]
-
-		// Style code based on cursor
-		var codeStyle lipgloss.Style
-		if isCursorLine {
-			// Cursor line: match menu convention (dark foreground on teal background)
-			codeStyle = lipgloss.NewStyle().
-				Width(codeWidth).
-				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
-				Background(lipgloss.Color(theme.MenuSelectionBackground)).
-				Bold(true)
-		} else {
-			// Normal line
-			codeStyle = lipgloss.NewStyle().
-				Width(codeWidth).
-				Foreground(lipgloss.Color(theme.ContentTextColor))
-		}
-		wrappedCode := codeStyle.Render(code)
-
-		// Combine: lineNum + space + code
-		line := lineNumColumn + " " + wrappedCode
-		contentLines = append(contentLines, line)
-	}
-
-	// Pad remaining lines to fill contentHeight
-	emptyLine := strings.Repeat(" ", contentWidth)
-	for len(contentLines) < visibleLines {
-		contentLines = append(contentLines, emptyLine)
-	}
-
-	// Join all lines
-	contentText := strings.Join(contentLines, "\n")
-
-	// Border color based on focus state
-	borderColor = theme.ConflictPaneUnfocusedBorder
-	if isActive {
-		borderColor = theme.ConflictPaneFocusedBorder
-	}
-
-	// Add simple border with lipgloss - ALL FOUR SIDES like old-tit
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Width(width - 2).
-		Height(height)
-
-	return boxStyle.Render(contentText)
-}
 
 // buildGenericConflictStatusBar builds the status bar with keyboard shortcuts for N-column view
 func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, theme Theme) string {

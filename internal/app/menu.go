@@ -211,10 +211,19 @@ func (a *Application) menuTimeline() []MenuItem {
 
 // menuHistory returns history actions
 func (a *Application) menuHistory() []MenuItem {
-	return []MenuItem{
-		GetMenuItem("history"),
-		GetMenuItem("file_history"),
-	}
+	items := []MenuItem{}
+	
+	// History menu item - always enabled (cache loads in background)
+	historyItem := GetMenuItem("history")
+	historyItem.Enabled = true
+	items = append(items, historyItem)
+	
+	// File history menu item - always enabled
+	fileHistoryItem := GetMenuItem("file_history")
+	fileHistoryItem.Enabled = true
+	items = append(items, fileHistoryItem)
+	
+	return items
 }
 
 // menuInitializeLocation returns options for where to initialize repository

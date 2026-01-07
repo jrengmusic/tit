@@ -77,6 +77,7 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 	content := strings.Join(contentLines, "\n")
 
 	// Add border with padding - ALL FOUR SIDES like old-tit
+	// Use Width/Height to enforce exact size, content is already properly sized
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).

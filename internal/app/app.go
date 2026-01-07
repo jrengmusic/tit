@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,6 +11,27 @@ import (
 	"tit/internal/git"
 	"tit/internal/ui"
 )
+
+// FileHistoryPane represents which pane is focused in file(s) history mode
+type FileHistoryPane int
+
+const (
+	PaneCommits FileHistoryPane = iota
+	PaneFiles
+	PaneDiff
+)
+
+// FileHistoryState represents the state of the file(s) history browser
+type FileHistoryState struct {
+	Commits           []git.CommitInfo  // List of recent commits
+	Files             []git.FileInfo    // Files in selected commit
+	SelectedCommitIdx int               // Currently selected commit (0-indexed)
+	SelectedFileIdx   int               // Currently selected file (0-indexed)
+	FocusedPane       FileHistoryPane   // Which pane has focus
+	CommitsScrollOff  int               // Scroll offset for commits list
+	FilesScrollOff    int               // Scroll offset for files list
+	DiffScrollOff     int               // Scroll offset for diff pane
+}
 
 // Application represents the main TIT app state
 type Application struct {
@@ -70,6 +92,26 @@ type Application struct {
 	// State display info maps
 	workingTreeInfo      map[git.WorkingTree]StateInfo
 	timelineInfo         map[git.Timeline]StateInfo
+	
+	// History mode state
+	historyState *ui.HistoryState
+	
+	// File(s) History mode state
+	fileHistoryState *FileHistoryState
+	
+	// Cache fields (Phase 2)
+	historyMetadataCache  map[string]*git.CommitDetails  // hash → commit metadata
+	fileHistoryDiffCache  map[string]string               // hash:path:version → diff content
+	fileHistoryFilesCache map[string][]git.FileInfo      // hash → file list
+	
+	// Cache status flags
+	cacheLoadingStarted bool  // Guard against re-preloading
+	cacheMetadata       bool  // true when history metadata cache populated
+	cacheDiffs          bool  // true when file(s) history diffs cache populated
+	
+	// Mutexes for thread-safe cache access
+	historyCacheMutex sync.Mutex
+	diffCacheMutex    sync.Mutex
 }
 
 // ModeTransition configuration for streamlined mode changes
@@ -166,6 +208,30 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		consoleAutoScroll:    true, // Start with auto-scroll enabled
 		workingTreeInfo:      workingTreeInfo,
 		timelineInfo:         timelineInfo,
+		historyState: &ui.HistoryState{
+			Commits:           make([]ui.CommitInfo, 0),
+			SelectedIdx:       0,
+			PaneFocused:       true,  // Start with list pane focused
+			DetailsLineCursor: 0,
+			DetailsScrollOff:  0,
+		},
+		fileHistoryState: &FileHistoryState{
+			Commits:           make([]git.CommitInfo, 0),
+			Files:             make([]git.FileInfo, 0),
+			SelectedCommitIdx: 0,
+			SelectedFileIdx:   0,
+			FocusedPane:       PaneCommits,  // Start with commits pane focused
+			CommitsScrollOff:  0,
+			FilesScrollOff:    0,
+			DiffScrollOff:     0,
+		},
+		// Initialize cache fields (Phase 2)
+		historyMetadataCache:  make(map[string]*git.CommitDetails),
+		fileHistoryDiffCache:  make(map[string]string),
+		fileHistoryFilesCache: make(map[string][]git.FileInfo),
+		cacheLoadingStarted:   false,
+		cacheMetadata:         false,
+		cacheDiffs:            false,
 	}
 
 	// Build and cache key handler registry once
@@ -180,6 +246,14 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 
 	// Register menu shortcuts dynamically
 	app.rebuildMenuShortcuts()
+
+	// Start pre-loading caches (non-blocking, async goroutines)
+	// Only start if in normal operation (not merging/rebasing/conflicted/time-traveling)
+	if app.gitState.Operation == git.Normal {
+		app.cacheLoadingStarted = true
+		go app.preloadHistoryMetadata()
+		go app.preloadFileHistoryDiffs()
+	}
 
 	return app
 }
@@ -346,7 +420,17 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
 
 	case ModeHistory:
-		panic("ModeHistory: not yet implemented")
+		// Render history split-pane view
+		if a.historyState == nil {
+			contentText = "History state not initialized"
+		} else {
+			contentText = ui.RenderHistorySplitPane(
+				a.historyState,
+				a.theme,
+				ui.ContentInnerWidth,
+				ui.ContentHeight, // RenderHistorySplitPane accounts for outer border internally
+			)
+		}
 	case ModeConflictResolve:
 		// Render conflict resolution UI using generic N-column view
 		if a.conflictResolveState == nil {
@@ -585,7 +669,14 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("n", a.handleConfirmationNo).
 			On("enter", a.handleConfirmationEnter).
 			Build(),
-		ModeHistory:         NewModeHandlers().Build(),
+		ModeHistory: NewModeHandlers().
+			On("up", a.handleHistoryUp).
+			On("down", a.handleHistoryDown).
+			On("tab", a.handleHistoryTab).
+			On("enter", a.handleHistoryEnter).
+			On("esc", a.handleHistoryEsc).
+			Build(),
+		ModeFileHistory: NewModeHandlers().Build(),
 		ModeConflictResolve: NewModeHandlers().
 			On("up", a.handleConflictUp).
 			On("down", a.handleConflictDown).

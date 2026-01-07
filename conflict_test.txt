@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 conflict line B
+=======
+conflict line A
+>>>>>>> test-conflict

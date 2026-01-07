@@ -16,6 +16,7 @@ const (
 	ModeCloneLocation         // Choose: clone to current dir or create subdir
 	ModeClone                 // Clone operation with console output
 	ModeSelectBranch          // Dynamic menu to select canon branch from cloned repo
+	ModeFileHistory           // File(s) history browser mode
 )
 
 // ModeString returns string representation of AppMode
@@ -27,6 +28,7 @@ func (m AppMode) String() string {
 		ModeConfirmation:      "confirmation",
 		ModeHistory:           "history",
 		ModeConflictResolve:   "conflict_resolve",
+		ModeFileHistory:       "file_history",
 	}
 
 	if s, exists := modes[m]; exists {
