@@ -63,7 +63,8 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 	contentLines = append(contentLines, "")
 
 	// Calculate visible lines for items
-	// height - border - title - separator
+	// Interior space = height - border(2)
+	// Title(1) + separator(1) + items(visibleLines) = interior space
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

@@ -38,7 +38,7 @@ func RenderTextPane(
 
 	// Content area inside border
 	contentWidth := width - 2
-	contentHeight := height - 2
+	contentHeight := height  // Will be constrained by MaxHeight in outer box
 
 	if contentWidth <= 0 || contentHeight <= 0 {
 		return "", scrollOffset
@@ -161,7 +161,7 @@ func RenderTextPane(
 	// Inner box: constrain content with MaxHeight (no border)
 	contentBox := lipgloss.NewStyle().
 		Width(width - 4).  // Account for border(2) + padding(2)
-		MaxHeight(height - 2).  // Account for border(2)
+		MaxHeight(contentHeight).  // Use calculated contentHeight
 		Render(contentText)
 	
 	// Outer box: fixed size with border and padding

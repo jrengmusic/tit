@@ -852,8 +852,21 @@ func (a *Application) handleHistoryDown(app *Application) (tea.Model, tea.Cmd) {
 			app.historyState.DetailsLineCursor = 0
 		}
 	} else { // Details pane focused - move line cursor
-		// TextPane will auto-clamp cursor to content length
-		app.historyState.DetailsLineCursor++
+		// Get total lines in selected commit's details
+		if app.historyState.SelectedIdx >= 0 && app.historyState.SelectedIdx < len(app.historyState.Commits) {
+			commit := app.historyState.Commits[app.historyState.SelectedIdx]
+			
+			// Build details lines (must match renderHistoryDetailsPane logic)
+			var totalLines int
+			totalLines += 2 // "Author:" and "Date:" lines
+			totalLines += 1 // Empty line separator
+			totalLines += strings.Count(commit.Subject, "\n") + 1 // Commit subject lines
+			
+			// Only increment if not at the last line
+			if app.historyState.DetailsLineCursor < totalLines-1 {
+				app.historyState.DetailsLineCursor++
+			}
+		}
 	}
 	return app, nil
 }
