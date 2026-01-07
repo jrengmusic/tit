@@ -7,21 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// RenderTextPane renders a scrollable text pane with optional line numbers and cursor
-// This is the SSOT for all scrollable text rendering (conflict resolver, history details, etc.)
-//
-// Parameters:
-//   - content: Text to display (newline-separated)
-//   - width, height: Dimensions (including border)
-//   - lineCursor: Current line cursor position (0-indexed, -1 for no cursor)
-//   - scrollOffset: Vertical scroll position (0-indexed)
-//   - showLineNumbers: Whether to show line numbers in left gutter
-//   - isActive: Whether this pane has focus (affects border color and cursor highlight)
-//   - theme: Theme for colors
-//
-// Returns:
-//   - rendered: The rendered pane string
-//   - newScrollOffset: Updated scroll offset (auto-adjusted to keep cursor visible)
+// RenderTextPane renders scrollable text in a fixed-size box
 func RenderTextPane(
 	content string,
 	width int,
@@ -32,145 +18,145 @@ func RenderTextPane(
 	isActive bool,
 	theme *Theme,
 ) (rendered string, newScrollOffset int) {
-	if width <= 0 || height <= 0 {
-		return "", scrollOffset
-	}
 
-	// Content area inside border
-	contentWidth := width - 2
-	contentHeight := height  // Will be constrained by MaxHeight in outer box
-
-	if contentWidth <= 0 || contentHeight <= 0 {
-		return "", scrollOffset
-	}
-
-	// Parse content into lines
 	lines := strings.Split(content, "\n")
 	totalLines := len(lines)
 
-	visibleLines := contentHeight
-	if visibleLines < 1 {
-		visibleLines = 1
+	if totalLines == 0 {
+		return renderEmptyPane(width, height, isActive, theme), 0
 	}
 
-	// Clamp line cursor to content bounds
+	// Available space
+	interiorHeight := height - 2
+	contentWidth := width - 4
+
+	// Clamp cursor
+	if lineCursor < 0 {
+		lineCursor = 0
+	}
 	if lineCursor >= totalLines {
 		lineCursor = totalLines - 1
 	}
-	if lineCursor < 0 && totalLines > 0 {
-		lineCursor = 0
+
+	// Scroll window with 4-line margin (interiorHeight is physical lines)
+	scrollWindow := interiorHeight - 4
+	if scrollWindow < 1 {
+		scrollWindow = 1
 	}
 
-	// Adjust scroll to keep cursor visible
-	if lineCursor >= 0 {
+	// Don't scroll if all lines fit
+	if totalLines <= scrollWindow {
+		scrollOffset = 0
+	} else {
+		// Scroll to keep cursor in window
 		if lineCursor < scrollOffset {
 			scrollOffset = lineCursor
-		} else if lineCursor >= scrollOffset+visibleLines {
-			scrollOffset = lineCursor - visibleLines + 1
 		}
-	}
+		if lineCursor >= scrollOffset+scrollWindow {
+			scrollOffset = lineCursor - scrollWindow + 1
+		}
 
-	// Clamp scroll offset
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
-	if scrollOffset > totalLines-visibleLines && totalLines > visibleLines {
-		scrollOffset = totalLines - visibleLines
-	}
-	if scrollOffset < 0 {
-		scrollOffset = 0
-	}
-
-	start := scrollOffset
-	end := start + visibleLines
-	if end > totalLines {
-		end = totalLines
+		// Clamp scroll
+		if scrollOffset < 0 {
+			scrollOffset = 0
+		}
+		maxScroll := totalLines - scrollWindow
+		if maxScroll < 0 {
+			maxScroll = 0
+		}
+		if scrollOffset > maxScroll {
+			scrollOffset = maxScroll
+		}
 	}
 
 	// Calculate widths
-	var lineNumWidth int
-	var codeWidth int
+	lineNumWidth := 0
+	textWidth := contentWidth
 	if showLineNumbers {
 		lineNumWidth = 4
-		codeWidth = contentWidth - lineNumWidth - 1 // -1 for space separator
-		if codeWidth < 1 {
-			codeWidth = 1
-		}
-	} else {
-		codeWidth = contentWidth
+		textWidth = contentWidth - lineNumWidth - 1
 	}
 
-	// Build content lines
-	var contentLines []string
-	lineNumberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DimmedTextColor))
+	// Render all lines from scrollOffset - MaxHeight will clip
+	var renderedLines []string
 
-	for i := start; i < end; i++ {
-		isCursorLine := (i == lineCursor) && isActive
+	for i := scrollOffset; i < totalLines; i++ {
+		line := ""
 
-		var line string
-
-		// Add line number if enabled
+		// Line number
 		if showLineNumbers {
-			lineNum := i + 1
-			lineNumText := lipgloss.NewStyle().
+			num := ""
+			if i >= 0 && i < totalLines {
+				num = fmt.Sprintf("%d", i+1)
+			}
+			lineNumCol := lipgloss.NewStyle().
 				Width(lineNumWidth).
 				Align(lipgloss.Right).
-				Render(fmt.Sprintf("%d", lineNum))
-			lineNumColumn := lineNumberStyle.Render(lineNumText)
-			line = lineNumColumn + " "
+				Foreground(lipgloss.Color(theme.DimmedTextColor)).
+				Render(num)
+			line = lineNumCol + " "
 		}
 
-		// Style code based on cursor (lipgloss will wrap text naturally)
-		code := lines[i]
-		var codeStyle lipgloss.Style
-		if isCursorLine {
-			// Cursor line: dark foreground on teal background (menu convention)
-			codeStyle = lipgloss.NewStyle().
-				Width(codeWidth).
+		// Text - apply width to all lines
+		text := lines[i]
+		isCursor := (i == lineCursor) && isActive
+
+		if isCursor {
+			line += lipgloss.NewStyle().
+				Width(textWidth).
 				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
 				Background(lipgloss.Color(theme.MenuSelectionBackground)).
-				Bold(true)
+				Bold(true).
+				Render(text)
 		} else {
-			// Normal line
-			codeStyle = lipgloss.NewStyle().
-				Width(codeWidth).
-				Foreground(lipgloss.Color(theme.ContentTextColor))
+			line += lipgloss.NewStyle().
+				Width(textWidth).
+				Foreground(lipgloss.Color(theme.ContentTextColor)).
+				Render(text)
 		}
-		wrappedCode := codeStyle.Render(code)
-		line += wrappedCode
 
-		contentLines = append(contentLines, line)
+		renderedLines = append(renderedLines, line)
 	}
 
-	// Pad remaining lines to fill contentHeight
-	emptyLine := strings.Repeat(" ", contentWidth)
-	for len(contentLines) < visibleLines {
-		contentLines = append(contentLines, emptyLine)
-	}
+	contentText := strings.Join(renderedLines, "\n")
 
-	// Join all lines
-	contentText := strings.Join(contentLines, "\n")
-
-	// Border color based on focus state
+	// Border color
 	borderColor := theme.ConflictPaneUnfocusedBorder
 	if isActive {
 		borderColor = theme.ConflictPaneFocusedBorder
 	}
 
-	// Nested box approach:
-	// Inner box: constrain content with MaxHeight (no border)
-	contentBox := lipgloss.NewStyle().
-		Width(width - 4).  // Account for border(2) + padding(2)
-		MaxHeight(contentHeight).  // Use calculated contentHeight
+	// Nested box pattern from Session 52:
+	// Inner box MaxHeight(height) - expands fully
+	// Outer box Height(height) + Border + Padding - naturally trims
+	innerBox := lipgloss.NewStyle().
+		Width(contentWidth).
+		MaxHeight(height).
 		Render(contentText)
-	
-	// Outer box: fixed size with border and padding
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
+
+	outerBox := lipgloss.NewStyle().
 		Width(width - 2).
 		Height(height).
-		Padding(0, 1)
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Padding(0, 1).
+		Render(innerBox)
 
-	return boxStyle.Render(contentBox), scrollOffset
+	return outerBox, scrollOffset
+}
+
+func renderEmptyPane(width, height int, isActive bool, theme *Theme) string {
+	borderColor := theme.ConflictPaneUnfocusedBorder
+	if isActive {
+		borderColor = theme.ConflictPaneFocusedBorder
+	}
+
+	return lipgloss.NewStyle().
+		Width(width - 2).
+		Height(height).
+		MaxHeight(height).
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(borderColor)).
+		Padding(0, 1).
+		Render("")
 }
