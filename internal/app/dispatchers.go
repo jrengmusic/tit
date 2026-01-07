@@ -57,6 +57,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"abort_operation":      a.dispatchAbortOperation,
 		"continue_operation":   a.dispatchContinueOperation,
 		"history":              a.dispatchHistory,
+		"file_history":         a.dispatchFileHistory,
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -289,6 +290,81 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 		} else {
 			app.footerHint = "Loading commit history..."
 		}
+	}
+	
+	return nil
+}
+
+// dispatchFileHistory shows file(s) history
+func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
+	app.mode = ModeFileHistory
+	
+	// Use cached data to build file history state
+	app.fileHistoryCacheMutex.Lock()
+	defer app.fileHistoryCacheMutex.Unlock()
+	
+	var commits []ui.CommitInfo
+	
+	// Build commits from cache if available
+	for hash, details := range app.historyMetadataCache {
+		commits = append(commits, ui.CommitInfo{
+			Hash:    hash,
+			Subject: details.Message,
+			Time:    parseCommitDate(details.Date),
+		})
+	}
+	
+	// Sort commits by time (newest first)
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Time.After(commits[j].Time)
+	})
+	
+	// Get files for first commit (if any)
+	var files []ui.FileInfo
+	if len(commits) > 0 {
+		firstCommitHash := commits[0].Hash
+		if gitFileList, exists := app.fileHistoryFilesCache[firstCommitHash]; exists {
+			// Convert git.FileInfo to ui.FileInfo
+			for _, gitFile := range gitFileList {
+				files = append(files, ui.FileInfo{
+					Path:   gitFile.Path,
+					Status: gitFile.Status,
+				})
+			}
+		}
+	}
+	
+	// Convert commits to git.CommitInfo for app state
+	var gitCommits []git.CommitInfo
+	for _, uiCommit := range commits {
+		gitCommits = append(gitCommits, git.CommitInfo{
+			Hash:    uiCommit.Hash,
+			Subject: uiCommit.Subject,
+			Time:    uiCommit.Time,
+		})
+	}
+	
+	// Initialize state
+	app.fileHistoryState = &FileHistoryState{
+		Commits:           gitCommits,
+		Files:             files,
+		SelectedCommitIdx: 0,
+		SelectedFileIdx:   0,
+		FocusedPane:       PaneCommits, // Start with commits pane focused
+		CommitsScrollOff:  0,
+		FilesScrollOff:    0,
+		DiffScrollOff:     0,
+	}
+	
+	// Show appropriate hint
+	if len(commits) == 0 {
+		if app.cacheDiffs {
+			app.footerHint = "No commits found in file history"
+		} else {
+			app.footerHint = "Loading file history..."
+		}
+	} else {
+		app.footerHint = "File(s) History │ ↑↓ navigate │ TAB cycle panes │ ESC back"
 	}
 	
 	return nil

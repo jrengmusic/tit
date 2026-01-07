@@ -24,7 +24,7 @@ const (
 // FileHistoryState represents the state of the file(s) history browser
 type FileHistoryState struct {
 	Commits           []git.CommitInfo  // List of recent commits
-	Files             []git.FileInfo    // Files in selected commit
+	Files             []ui.FileInfo     // Files in selected commit
 	SelectedCommitIdx int               // Currently selected commit (0-indexed)
 	SelectedFileIdx   int               // Currently selected file (0-indexed)
 	FocusedPane       FileHistoryPane   // Which pane has focus
@@ -110,8 +110,9 @@ type Application struct {
 	cacheDiffs          bool  // true when file(s) history diffs cache populated
 	
 	// Mutexes for thread-safe cache access
-	historyCacheMutex sync.Mutex
-	diffCacheMutex    sync.Mutex
+	historyCacheMutex    sync.Mutex
+	fileHistoryCacheMutex sync.Mutex
+	diffCacheMutex       sync.Mutex
 }
 
 // ModeTransition configuration for streamlined mode changes
@@ -217,7 +218,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		},
 		fileHistoryState: &FileHistoryState{
 			Commits:           make([]git.CommitInfo, 0),
-			Files:             make([]git.FileInfo, 0),
+			Files:             make([]ui.FileInfo, 0),
 			SelectedCommitIdx: 0,
 			SelectedFileIdx:   0,
 			FocusedPane:       PaneCommits,  // Start with commits pane focused
@@ -429,6 +430,18 @@ func (a *Application) View() string {
 				a.theme,
 				ui.ContentInnerWidth,
 				ui.ContentHeight, // RenderHistorySplitPane accounts for outer border internally
+			)
+		}
+	case ModeFileHistory:
+		// Render file(s) history split-pane view
+		if a.fileHistoryState == nil {
+			contentText = "File history state not initialized"
+		} else {
+			contentText = ui.RenderFileHistorySplitPane(
+				a.fileHistoryState,
+				a.theme,
+				ui.ContentInnerWidth,
+				ui.ContentHeight, // RenderFileHistorySplitPane accounts for outer border internally
 			)
 		}
 	case ModeConflictResolve:
@@ -676,7 +689,16 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("enter", a.handleHistoryEnter).
 			On("esc", a.handleHistoryEsc).
 			Build(),
-		ModeFileHistory: NewModeHandlers().Build(),
+		ModeFileHistory: NewModeHandlers().
+			On("up", a.handleFileHistoryUp).
+			On("down", a.handleFileHistoryDown).
+			On("k", a.handleFileHistoryUp).
+			On("j", a.handleFileHistoryDown).
+			On("tab", a.handleFileHistoryTab).
+			On("y", a.handleFileHistoryCopy).
+			On("v", a.handleFileHistoryVisualMode).
+			On("esc", a.handleFileHistoryEsc).
+			Build(),
 		ModeConflictResolve: NewModeHandlers().
 			On("up", a.handleConflictUp).
 			On("down", a.handleConflictDown).

@@ -132,7 +132,7 @@ func (a *Application) invalidateHistoryCaches() {
 
 	a.fileHistoryState = &FileHistoryState{
 		Commits:           make([]git.CommitInfo, 0),
-		Files:             make([]git.FileInfo, 0),
+		Files:             make([]ui.FileInfo, 0),
 		SelectedCommitIdx: 0,
 		SelectedFileIdx:   0,
 		FocusedPane:       PaneCommits,

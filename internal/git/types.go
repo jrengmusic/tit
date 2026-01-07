@@ -28,6 +28,7 @@ const (
 	Merging        Operation = "Merging"
 	Rebasing       Operation = "Rebasing"
 	DirtyOperation Operation = "DirtyOperation"
+	TimeTraveling  Operation = "TimeTraveling"
 )
 
 type Remote string

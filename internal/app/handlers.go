@@ -892,3 +892,117 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 	return app, nil
 }
 
+// handleFileHistoryUp navigates up in file(s) history mode
+func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd) {
+	if app.fileHistoryState == nil {
+		return app, nil
+	}
+
+	switch app.fileHistoryState.FocusedPane {
+	case PaneCommits:
+		// Navigate up in commits list
+		if app.fileHistoryState.SelectedCommitIdx > 0 {
+			app.fileHistoryState.SelectedCommitIdx--
+			// Reset file selection when switching commits
+			app.fileHistoryState.SelectedFileIdx = 0
+			// Update files for new commit
+			if app.fileHistoryState.SelectedCommitIdx >= 0 && app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits) {
+				commitHash := app.fileHistoryState.Commits[app.fileHistoryState.SelectedCommitIdx].Hash
+				if gitFileList, exists := app.fileHistoryFilesCache[commitHash]; exists {
+					// Convert git.FileInfo to ui.FileInfo
+					var convertedFiles []ui.FileInfo
+					for _, gitFile := range gitFileList {
+						convertedFiles = append(convertedFiles, ui.FileInfo{
+							Path:   gitFile.Path,
+							Status: gitFile.Status,
+						})
+					}
+					app.fileHistoryState.Files = convertedFiles
+				}
+			}
+		}
+	case PaneFiles:
+		// Navigate up in files list
+		if app.fileHistoryState.SelectedFileIdx > 0 {
+			app.fileHistoryState.SelectedFileIdx--
+		}
+	case PaneDiff:
+		// Scroll diff up
+		if app.fileHistoryState.DiffScrollOff > 0 {
+			app.fileHistoryState.DiffScrollOff--
+		}
+	}
+	return app, nil
+}
+
+// handleFileHistoryDown navigates down in file(s) history mode
+func (a *Application) handleFileHistoryDown(app *Application) (tea.Model, tea.Cmd) {
+	if app.fileHistoryState == nil {
+		return app, nil
+	}
+
+	switch app.fileHistoryState.FocusedPane {
+	case PaneCommits:
+		// Navigate down in commits list
+		if app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits)-1 {
+			app.fileHistoryState.SelectedCommitIdx++
+			// Reset file selection when switching commits
+			app.fileHistoryState.SelectedFileIdx = 0
+			// Update files for new commit
+			if app.fileHistoryState.SelectedCommitIdx >= 0 && app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits) {
+				commitHash := app.fileHistoryState.Commits[app.fileHistoryState.SelectedCommitIdx].Hash
+				if gitFileList, exists := app.fileHistoryFilesCache[commitHash]; exists {
+					// Convert git.FileInfo to ui.FileInfo
+					var convertedFiles []ui.FileInfo
+					for _, gitFile := range gitFileList {
+						convertedFiles = append(convertedFiles, ui.FileInfo{
+							Path:   gitFile.Path,
+							Status: gitFile.Status,
+						})
+					}
+					app.fileHistoryState.Files = convertedFiles
+				}
+			}
+		}
+	case PaneFiles:
+		// Navigate down in files list
+		if app.fileHistoryState.SelectedFileIdx < len(app.fileHistoryState.Files)-1 {
+			app.fileHistoryState.SelectedFileIdx++
+		}
+	case PaneDiff:
+		// Scroll diff down
+		app.fileHistoryState.DiffScrollOff++
+	}
+	return app, nil
+}
+
+// handleFileHistoryTab switches focus between panes in file(s) history mode
+func (a *Application) handleFileHistoryTab(app *Application) (tea.Model, tea.Cmd) {
+	if app.fileHistoryState == nil {
+		return app, nil
+	}
+
+	// Cycle through panes: Commits → Files → Diff → Commits
+	app.fileHistoryState.FocusedPane = (app.fileHistoryState.FocusedPane + 1) % 3
+	return app, nil
+}
+
+// handleFileHistoryCopy handles copy action in file(s) history mode (placeholder)
+func (a *Application) handleFileHistoryCopy(app *Application) (tea.Model, tea.Cmd) {
+	// Placeholder for Phase 8 - copy selected lines from diff
+	app.footerHint = "Copy functionality (Phase 8)"
+	return app, nil
+}
+
+// handleFileHistoryVisualMode handles visual mode in file(s) history mode (placeholder)
+func (a *Application) handleFileHistoryVisualMode(app *Application) (tea.Model, tea.Cmd) {
+	// Placeholder for Phase 8 - toggle visual selection mode
+	app.footerHint = "Visual mode (Phase 8)"
+	return app, nil
+}
+
+// handleFileHistoryEsc returns to menu from file(s) history mode
+func (a *Application) handleFileHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
+	return app.returnToMenu()
+}
+
