@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// DiffLine represents a parsed diff line with structured format
+// DiffLine represents a parsed diff line (for diff mode rendering)
 type DiffLine struct {
 	LineNum  int    // Line number in file (0 if removed)
 	Marker   string // "+", "-", or " "
@@ -16,8 +16,8 @@ type DiffLine struct {
 	LineType string // "added", "removed", or "context"
 }
 
-// parseDiffLines parses diff output into structured DiffLine objects
-func parseDiffLines(diffContent string) []DiffLine {
+// parseDiffContent parses diff output into structured DiffLine objects for 3-column rendering
+func parseDiffContent(diffContent string) []DiffLine {
 	if diffContent == "" {
 		return []DiffLine{}
 	}
@@ -74,151 +74,10 @@ func parseDiffLines(diffContent string) []DiffLine {
 	return result
 }
 
-// RenderDiffPane renders diff with 3-column layout (line# + marker + code)
-func RenderDiffPane(
-	diffContent string,
-	width int,
-	height int,
-	lineCursor int,
-	scrollOffset int,
-	isActive bool,
-	theme *Theme,
-) (rendered string, newScrollOffset int) {
-
-	if width <= 0 || height <= 0 {
-		return "", 0
-	}
-
-	// Border color
-	borderColor := theme.ConflictPaneUnfocusedBorder
-	if isActive {
-		borderColor = theme.ConflictPaneFocusedBorder
-	}
-
-	contentWidth := width - 2
-	contentHeight := height - 2
-
-	if contentWidth <= 0 || contentHeight <= 0 {
-		return "", 0
-	}
-
-	// Parse diff lines
-	diffLines := parseDiffLines(diffContent)
-
-	// Color styles
-	addedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DiffAddedLineColor))
-	removedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DiffRemovedLineColor))
-	contextStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.ContentTextColor))
-	lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.DimmedTextColor))
-	selectionStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.MainBackgroundColor)).
-		Background(lipgloss.Color(theme.MenuSelectionBackground))
-
-	// Clamp cursor
-	if lineCursor < 0 {
-		lineCursor = 0
-	}
-	if lineCursor >= len(diffLines) {
-		lineCursor = len(diffLines) - 1
-	}
-
-	// Scroll window
-	scrollWindow := contentHeight - 4
-	if scrollWindow < 1 {
-		scrollWindow = 1
-	}
-
-	if len(diffLines) <= scrollWindow {
-		scrollOffset = 0
-	} else {
-		if lineCursor < scrollOffset {
-			scrollOffset = lineCursor
-		}
-		if lineCursor >= scrollOffset+scrollWindow {
-			scrollOffset = lineCursor - scrollWindow + 1
-		}
-		if scrollOffset < 0 {
-			scrollOffset = 0
-		}
-		maxScroll := len(diffLines) - scrollWindow
-		if maxScroll < 0 {
-			maxScroll = 0
-		}
-		if scrollOffset > maxScroll {
-			scrollOffset = maxScroll
-		}
-	}
-
-	// Column widths: 4 (linenum) + 2 (marker) + remaining (code)
-	codeWidth := contentWidth - 6
-	if codeWidth < 1 {
-		codeWidth = 1
-	}
-
-	// Render lines
-	var contentLines []string
-
-	start := scrollOffset
-	end := start + scrollWindow
-	if end > len(diffLines) {
-		end = len(diffLines)
-	}
-
-	for i := start; i < end; i++ {
-		dl := diffLines[i]
-		isCursor := (i == lineCursor) && isActive
-
-		// Column 1: Line number (4 chars)
-		var lineNumText string
-		if dl.LineType == "removed" {
-			lineNumText = "    "
-		} else {
-			lineNumText = fmt.Sprintf("%4d", dl.LineNum)
-		}
-		lineNumCol := lineNumStyle.Width(4).Render(lineNumText)
-
-		// Column 2: Marker (2 chars)
-		markerCol := lineNumStyle.Width(2).Render(dl.Marker + " ")
-
-		// Column 3: Code
-		var codeStyle lipgloss.Style
-		if isCursor {
-			codeStyle = selectionStyle
-		} else {
-			switch dl.LineType {
-			case "added":
-				codeStyle = addedStyle
-			case "removed":
-				codeStyle = removedStyle
-			default:
-				codeStyle = contextStyle
-			}
-		}
-		codeCol := codeStyle.Width(codeWidth).Render(dl.Code)
-
-		// Join columns
-		line := lipgloss.JoinHorizontal(lipgloss.Top, lineNumCol, markerCol, codeCol)
-		contentLines = append(contentLines, line)
-	}
-
-	// Pad to height
-	for len(contentLines) < scrollWindow {
-		contentLines = append(contentLines, strings.Repeat(" ", contentWidth))
-	}
-
-	content := strings.Join(contentLines, "\n")
-
-	// Apply border
-	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Width(contentWidth).
-		Height(height)
-
-	return boxStyle.Render(content), scrollOffset
-}
-
 // RenderTextPane renders scrollable text in a fixed-size box
+// If isDiff is true, parses diff content and renders 3-column layout (line# + marker + code)
+// Otherwise renders plain text with optional line numbers
+// Supports visual mode selection in diff mode (v + y)
 func RenderTextPane(
 	content string,
 	width int,
@@ -229,10 +88,28 @@ func RenderTextPane(
 	isActive bool,
 	isDiff bool,
 	theme *Theme,
+	visualModeActive bool,
+	visualModeStart int,
 ) (rendered string, newScrollOffset int) {
 
-	lines := strings.Split(content, "\n")
-	totalLines := len(lines)
+	var lines []string
+	var diffLines []DiffLine
+	var totalLines int
+	var isDiffMode bool
+
+	// Parse content based on mode
+	if isDiff {
+		// Diff mode: parse into structured format for later rendering
+		diffLines = parseDiffContent(content)
+		totalLines = len(diffLines)
+		isDiffMode = true
+		showLineNumbers = false // Diff already has line numbers in 3-column format
+	} else {
+		// Plain text mode
+		lines = strings.Split(content, "\n")
+		totalLines = len(lines)
+		isDiffMode = false
+	}
 
 	if totalLines == 0 {
 		return renderEmptyPane(width, height, isActive, theme), 0
@@ -250,8 +127,18 @@ func RenderTextPane(
 		lineCursor = totalLines - 1
 	}
 
-	// Scroll window with 4-line margin (interiorHeight is physical lines)
-	scrollWindow := interiorHeight - 4
+	// Scroll window calculation
+	var scrollWindow int
+	
+	if isDiffMode {
+		// Diff mode: no line wrapping, each line = 1 physical line
+		// Allow cursor to move beyond visible window before scrolling
+		scrollWindow = interiorHeight + 2
+	} else {
+		// Plain text: conservative margin for line wrapping
+		scrollWindow = interiorHeight - 4
+	}
+	
 	if scrollWindow < 1 {
 		scrollWindow = 1
 	}
@@ -293,52 +180,116 @@ func RenderTextPane(
 	var renderedLines []string
 
 	for i := scrollOffset; i < totalLines; i++ {
-		line := ""
-
-		// Line number
-		if showLineNumbers {
-			num := ""
-			if i >= 0 && i < totalLines {
-				num = fmt.Sprintf("%d", i+1)
-			}
-			lineNumCol := lipgloss.NewStyle().
-				Width(lineNumWidth).
-				Align(lipgloss.Right).
-				Foreground(lipgloss.Color(theme.DimmedTextColor)).
-				Render(num)
-			line = lineNumCol + " "
-		}
-
-		// Text - apply width to all lines
-		text := lines[i]
+		var line string
 		isCursor := (i == lineCursor) && isActive
 
-		if isCursor {
-			line += lipgloss.NewStyle().
-				Width(textWidth).
-				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
-				Background(lipgloss.Color(theme.MenuSelectionBackground)).
-				Bold(true).
-				Render(text)
-		} else {
-			// Diff mode: color +/- lines from theme
-			var textColor string
-			if isDiff {
-				if strings.HasPrefix(text, "+") {
-					textColor = theme.DiffAddedLineColor // Green for added
-				} else if strings.HasPrefix(text, "-") {
-					textColor = theme.DiffRemovedLineColor // Red for removed
-				} else {
-					textColor = theme.ContentTextColor
-				}
+		if isDiffMode {
+			// Diff mode: render 3-column format (line# + marker + code)
+			dl := diffLines[i]
+
+			// Column 1: Line number (4 chars, dimmed)
+			var lineNumText string
+			if dl.LineType == "removed" {
+				lineNumText = "    "
 			} else {
-				textColor = theme.ContentTextColor
+				lineNumText = fmt.Sprintf("%4d", dl.LineNum)
 			}
 
-			line += lipgloss.NewStyle().
-				Width(textWidth).
-				Foreground(lipgloss.Color(textColor)).
-				Render(text)
+			// Column 2: Marker (2 chars, colored by diff type)
+			markerText := dl.Marker + " "
+
+			// Determine color for code and marker
+			var codeColor string
+			switch dl.LineType {
+			case "added":
+				codeColor = theme.DiffAddedLineColor
+			case "removed":
+				codeColor = theme.DiffRemovedLineColor
+			default:
+				codeColor = theme.ContentTextColor
+			}
+
+			// Check if line is in visual selection
+			var isInVisualSelection bool
+			if visualModeActive && isActive {
+				minLine := visualModeStart
+				maxLine := lineCursor
+				if minLine > maxLine {
+					minLine, maxLine = maxLine, minLine
+				}
+				isInVisualSelection = i >= minLine && i <= maxLine
+			}
+
+			// Column 1: Line number (always dimmed)
+			lineNumCol := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(theme.DimmedTextColor)).
+				Width(4).
+				Render(lineNumText)
+
+			// Column 2: Marker (colored by diff type)
+			markerCol := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(codeColor)).
+				Width(2).
+				Render(markerText)
+
+			// Column 3: Code (with cursor or visual selection)
+			var codeCol string
+			if isInVisualSelection && visualModeActive {
+				// Visual selection highlight
+				codeCol = lipgloss.NewStyle().
+					Width(contentWidth - 6). // -6 for lineNum(4) + marker(2)
+					Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+					Background(lipgloss.Color(theme.MenuSelectionBackground)).
+					Render(dl.Code)
+			} else if isCursor {
+				// Cursor highlight (bold)
+				codeCol = lipgloss.NewStyle().
+					Width(contentWidth - 6). // -6 for lineNum(4) + marker(2)
+					Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+					Background(lipgloss.Color(theme.MenuSelectionBackground)).
+					Bold(true).
+					Render(dl.Code)
+			} else {
+				codeCol = lipgloss.NewStyle().
+					Foreground(lipgloss.Color(codeColor)).
+					Render(dl.Code)
+			}
+
+			line = lineNumCol + markerCol + codeCol
+		} else {
+			// Plain text mode
+			line = ""
+
+			// Line number
+			if showLineNumbers {
+				num := ""
+				if i >= 0 && i < totalLines {
+					num = fmt.Sprintf("%d", i+1)
+				}
+				lineNumCol := lipgloss.NewStyle().
+					Width(lineNumWidth).
+					Align(lipgloss.Right).
+					Foreground(lipgloss.Color(theme.DimmedTextColor)).
+					Render(num)
+				line = lineNumCol + " "
+			}
+
+			// Text - apply width to all lines
+			text := lines[i]
+
+			if isCursor {
+				line += lipgloss.NewStyle().
+					Width(textWidth).
+					Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+					Background(lipgloss.Color(theme.MenuSelectionBackground)).
+					Bold(true).
+					Render(text)
+			} else {
+				line += lipgloss.NewStyle().
+					Width(textWidth).
+					Foreground(lipgloss.Color(theme.ContentTextColor)).
+					Render(text)
+			}
 		}
 
 		renderedLines = append(renderedLines, line)
@@ -385,4 +336,37 @@ func renderEmptyPane(width, height int, isActive bool, theme *Theme) string {
 		BorderForeground(lipgloss.Color(borderColor)).
 		Padding(0, 1).
 		Render("")
+}
+
+// GetSelectedLinesFromDiff returns the lines in visual selection from diff content
+// Used by copy/yank functionality
+func GetSelectedLinesFromDiff(diffContent string, visualModeStart int, visualModeEnd int) []string {
+	diffLines := parseDiffContent(diffContent)
+	if len(diffLines) == 0 {
+		return []string{}
+	}
+
+	// Normalize start/end
+	minLine := visualModeStart
+	maxLine := visualModeEnd
+	if minLine > maxLine {
+		minLine, maxLine = maxLine, minLine
+	}
+
+	// Bounds check
+	if minLine < 0 {
+		minLine = 0
+	}
+	if maxLine >= len(diffLines) {
+		maxLine = len(diffLines) - 1
+	}
+
+	var selectedLines []string
+	for i := minLine; i <= maxLine && i < len(diffLines); i++ {
+		dl := diffLines[i]
+		// Build line with marker + code (no line number for copying)
+		selectedLines = append(selectedLines, dl.Marker+dl.Code)
+	}
+
+	return selectedLines
 }

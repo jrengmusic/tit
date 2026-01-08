@@ -233,6 +233,9 @@ var FooterHints = map[string]string{
 	"error_staging_file":     "Error staging %s: %s",
 	"already_marked_column":  "Already marked in this column",
 	"marked_file_column":     "Marked: %s → %s",
+	"visual_mode_active":     "-- VISUAL --",
+	"copy_success":           "✓ Copied to clipboard",
+	"copy_failed":            "✗ Copy failed",
 }
 
 // DialogMessages centralizes dialog box content (titles + explanations)

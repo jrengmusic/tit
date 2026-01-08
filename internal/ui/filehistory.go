@@ -190,17 +190,22 @@ func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, heig
 		diffContent = "(no diff available)"
 	}
 
-	// Use RenderDiffPane for proper 3-column diff layout
+	// Use RenderTextPane with isDiff=true for proper 3-column diff layout
+	// This reuses the proven scrolling and height calculations from Session 52
 	isActive := state.FocusedPane == PaneDiff
 
-	rendered, newScrollOffset := RenderDiffPane(
+	rendered, newScrollOffset := RenderTextPane(
 		diffContent,
 		width,
 		height,
 		state.DiffLineCursor,
 		state.DiffScrollOff,
+		false,  // showLineNumbers - diff has its own line# column
 		isActive,
+		true,   // isDiff - enable 3-column diff parsing and styling
 		&theme,
+		state.VisualModeActive,
+		state.VisualModeStart,
 	)
 
 	// Update scroll offset

@@ -1042,22 +1042,70 @@ func (a *Application) handleFileHistoryTab(app *Application) (tea.Model, tea.Cmd
 	return app, nil
 }
 
-// handleFileHistoryCopy handles copy action in file(s) history mode (placeholder)
+// handleFileHistoryCopy handles copy action in file(s) history mode
+// Copies selected lines from diff pane to clipboard
 func (a *Application) handleFileHistoryCopy(app *Application) (tea.Model, tea.Cmd) {
-	// Placeholder for Phase 8 - copy selected lines from diff
-	app.footerHint = "Copy functionality (Phase 8)"
+	if app.fileHistoryState == nil || app.fileHistoryState.FocusedPane != ui.PaneDiff {
+		return app, nil
+	}
+
+	// Get selected lines based on visual mode
+	var linesToCopy []string
+	if app.fileHistoryState.VisualModeActive {
+		// Visual mode: copy selected range
+		linesToCopy = ui.GetSelectedLinesFromDiff(app.fileHistoryState.DiffContent, app.fileHistoryState.VisualModeStart, app.fileHistoryState.DiffLineCursor)
+		// Exit visual mode after copy
+		app.fileHistoryState.VisualModeActive = false
+	} else {
+		// Normal mode: copy current line
+		linesToCopy = ui.GetSelectedLinesFromDiff(app.fileHistoryState.DiffContent, app.fileHistoryState.DiffLineCursor, app.fileHistoryState.DiffLineCursor)
+	}
+
+	// Copy to clipboard if we have lines
+	if len(linesToCopy) > 0 {
+		textToCopy := strings.Join(linesToCopy, "\n")
+		if err := clipboard.WriteAll(textToCopy); err == nil {
+			app.footerHint = FooterHints["copy_success"]
+		} else {
+			app.footerHint = FooterHints["copy_failed"]
+		}
+	}
+
 	return app, nil
 }
 
-// handleFileHistoryVisualMode handles visual mode in file(s) history mode (placeholder)
+// handleFileHistoryVisualMode handles visual mode toggle in file(s) history mode
+// Toggles visual selection mode, starting from current cursor position
 func (a *Application) handleFileHistoryVisualMode(app *Application) (tea.Model, tea.Cmd) {
-	// Placeholder for Phase 8 - toggle visual selection mode
-	app.footerHint = "Visual mode (Phase 8)"
+	if app.fileHistoryState == nil || app.fileHistoryState.FocusedPane != ui.PaneDiff {
+		return app, nil
+	}
+
+	// Toggle visual mode
+	if app.fileHistoryState.VisualModeActive {
+		// Already in visual mode - exit
+		app.fileHistoryState.VisualModeActive = false
+		app.footerHint = ""
+	} else {
+		// Enter visual mode from current cursor
+		app.fileHistoryState.VisualModeActive = true
+		app.fileHistoryState.VisualModeStart = app.fileHistoryState.DiffLineCursor
+		app.footerHint = FooterHints["visual_mode_active"]
+	}
+
 	return app, nil
 }
 
-// handleFileHistoryEsc returns to menu from file(s) history mode
+// handleFileHistoryEsc handles ESC in file(s) history mode
+// If in visual mode, exit visual mode. Otherwise, return to menu.
 func (a *Application) handleFileHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
+	if app.fileHistoryState != nil && app.fileHistoryState.VisualModeActive {
+		// Exit visual mode, stay in file history
+		app.fileHistoryState.VisualModeActive = false
+		app.footerHint = ""
+		return app, nil
+	}
+	// Not in visual mode, return to menu
 	return app.returnToMenu()
 }
 

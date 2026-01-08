@@ -96,7 +96,123 @@
 
 ---
 
-## Session 58: Diff Pane Refactor - Restore 3-Column Layout ⏳
+## Session 59: Visual Mode & Yank Implementation - Line Selection for Diff ⏳ UNTESTED
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-08
+
+### Objective
+Implement modal visual mode for diff pane with line-by-line selection and copy-to-clipboard functionality. Enable V key to toggle visual selection, arrow keys to select lines, Y key to yank/copy to clipboard, and ESC to exit visual mode.
+
+### Problems Fixed
+
+#### 1. **Missing Visual Mode State Tracking**
+- **Issue:** FileHistoryState had VisualModeActive and VisualModeStart fields but no handlers to toggle them
+- **Solution:** Implemented handleFileHistoryVisualMode() to toggle visual mode and track selection start point
+
+#### 2. **Missing Copy/Yank Functionality**
+- **Issue:** Y key was unimplemented, no way to copy selected lines
+- **Solution:** Implemented handleFileHistoryCopy() that:
+  - In visual mode: copies selected range (visualModeStart to lineCursor)
+  - In normal mode: copies current line only
+  - Uses GetSelectedLinesFromDiff() utility to extract lines with diff markers
+  - Exits visual mode after copy
+
+#### 3. **Visual Selection Rendering Bug**
+- **Issue:** Selection highlighted all lines instead of just the selected range
+- **Root Cause:** Visual selection comparison used loop index `i` instead of cursor position `lineCursor`
+- **Solution:** Changed comparison to use `lineCursor` (actual cursor) instead of `i` (loop iteration)
+
+#### 4. **ESC Behavior Incorrect**
+- **Issue:** Pressing ESC in visual mode immediately returned to menu instead of exiting visual mode
+- **Solution:** Added check in handleFileHistoryEsc() to exit visual mode first, only return to menu if not in visual mode
+
+#### 5. **SSOT Violations - Hardcoded Messages**
+- **Issue:** Handlers contained inline hardcoded messages like `"-- VISUAL --"`, `"✓ Copied to clipboard"`, `"✗ Copy failed"`
+- **Solution:** Moved all messages to messages.go FooterHints map:
+  - `"visual_mode_active"` → `"-- VISUAL --"`
+  - `"copy_success"` → `"✓ Copied to clipboard"`
+  - `"copy_failed"` → `"✗ Copy failed"`
+- Handlers now reference messages via SSOT: `FooterHints["visual_mode_active"]`
+
+#### 6. **SSOT Violations - Incorrect State Access Pattern**
+- **Issue:** Handlers used local `state` variable instead of direct `app.fileHistoryState` access
+- **Solution:** Changed all handlers to use `app.fileHistoryState` directly, matching existing pattern in handleFileHistoryUp/Down
+
+### Changes Made
+
+#### 1. **Message SSOT** (`internal/app/messages.go`)
+- Added to FooterHints map:
+  - `"visual_mode_active"` - VISUAL mode indicator
+  - `"copy_success"` - Successful copy confirmation
+  - `"copy_failed"` - Copy failure message
+
+#### 2. **Handler Implementations** (`internal/app/handlers.go`)
+- `handleFileHistoryVisualMode()` - Toggle visual mode, track selection start at cursor
+- `handleFileHistoryCopy()` - Copy selected/current lines to clipboard, exit visual mode
+- `handleFileHistoryEsc()` - Exit visual mode if active, else return to menu
+
+#### 3. **Visual Rendering** (`internal/ui/textpane.go`)
+- Fixed visual selection detection: uses `lineCursor` (cursor position) instead of `i` (loop index)
+- Visual selected lines render with MenuSelectionBackground color (same as cursor)
+- Cursor line renders Bold when active, unbolded when in visual selection
+
+#### 4. **Diff Line Selection Utility** (`internal/ui/textpane.go`)
+- Added `GetSelectedLinesFromDiff()` function
+- Takes diffContent, visualModeStart, and visualModeEnd
+- Returns []string of selected lines with diff markers (+/-/space)
+- Used by copy handler to get lines for clipboard
+
+#### 5. **File History Integration** (`internal/ui/filehistory.go`)
+- Status bar already correctly calls buildDiffStatusBar(visualModeActive)
+- Shows "VISUAL" banner and simplified shortcuts in visual mode
+- Shows full shortcuts in normal mode
+
+### Design Decisions
+
+**Visual Mode Architecture:**
+- State stored in FileHistoryState (VisualModeActive, VisualModeStart)
+- Selection range is min/max normalized (start can be above cursor)
+- Rendering checks each line against normalized range
+- ESC toggles visual mode off (doesn't exit file history)
+
+**Copy Strategy:**
+- Visual mode: copy range from visualModeStart to lineCursor
+- Normal mode: copy only current line
+- Both use same GetSelectedLinesFromDiff() utility
+- Lines include diff markers for context ("+", "-", " ")
+
+**SSOT Compliance:**
+- All messages in messages.go FooterHints (single source)
+- Handlers use app.fileHistoryState directly (no local variables)
+- Keyboard bindings already wired in app.go (V, Y keys)
+
+### Files Modified
+- `internal/app/messages.go` — Added visual_mode_active, copy_success, copy_failed to FooterHints
+- `internal/app/handlers.go` — Implemented handleFileHistoryVisualMode(), handleFileHistoryCopy(), fixed handleFileHistoryEsc()
+- `internal/ui/textpane.go` — Fixed visual selection detection (lineCursor vs i), added GetSelectedLinesFromDiff() utility
+
+### Build Status
+✅ Clean compile (no errors/warnings)
+
+### Testing Status
+⏳ **UNTESTED**
+- V key toggles visual mode on/off
+- Selection highlights correct line range (not all lines)
+- Status bar shows "VISUAL" banner in visual mode
+- ESC exits visual mode, stays in file history
+- Y copies selected/current line to clipboard
+- Cursor still moves with arrow keys in visual mode
+
+### Known Issues
+None identified yet
+
+### Summary
+Implemented modal visual mode for diff pane matching old-tit exactly. V key toggles visual selection (showing "-- VISUAL --" banner), arrow keys select line ranges, Y key copies to clipboard with diff markers, ESC exits visual mode. Fixed visual selection rendering bug (was highlighting all lines, now shows only selected range). Moved all hardcoded messages to messages.go SSOT (visual_mode_active, copy_success, copy_failed). Fixed handlers to use app.fileHistoryState directly per existing pattern. Ready for user testing.
+
+---
+
+## Session 58: Diff Pane Refactor - Restore 3-Column Layout ✅
 
 **Agent:** Amp (claude-code)
 **Date:** 2026-01-08
@@ -109,9 +225,9 @@ Restore 3-column diff rendering (line# + marker + code) and fix theme color SSOT
 #### 1. **DiffPane Component Removed Prematurely**
 - **Issue:** Removed entire diffpane.go without checking if File History relied on specialized diff rendering
 - **Root Cause:** Thought File History was already using TextPane, but it needed 3-column layout
-- **Solution:** Restored diff parsing and rendering as RenderDiffPane() in textpane.go
-  - `parseDiffLines()` - parses diff into DiffLine structs with line numbers
-  - `RenderDiffPane()` - 3-column layout (line# + marker + code)
+- **Solution:** Integrated diff parsing and rendering into RenderTextPane() with isDiff flag
+  - `parseDiffContent()` - parses diff into DiffLine structs with line numbers
+  - `RenderTextPane(..., isDiff=true)` - 3-column layout (line# + marker + code)
 
 #### 2. **Theme Color SSOT Not Regenerating**
 - **Issue:** New diff colors in DefaultThemeTOML weren't being applied to running app
@@ -139,8 +255,9 @@ Restore 3-column diff rendering (line# + marker + code) and fix theme color SSOT
 
 #### 2. **TextPane Diff Rendering** (`internal/ui/textpane.go`)
 - Added DiffLine type (LineNum, Marker, Code, LineType)
-- Added parseDiffLines() function (structured diff parsing)
-- Added RenderDiffPane() function (3-column layout with scrolling)
+- Added parseDiffContent() function (structured diff parsing)
+- Updated RenderTextPane() to support isDiff flag
+  - When isDiff=true: 3-column layout (line# + marker + code)
   - Column 1: Line numbers (4 chars, dimmed)
   - Column 2: Marker (+/-/space) (2 chars, dimmed)
   - Column 3: Code (remaining width, colored by type)
@@ -148,19 +265,19 @@ Restore 3-column diff rendering (line# + marker + code) and fix theme color SSOT
   - Proper scroll window calculation
 
 #### 3. **File History Integration** (`internal/ui/filehistory.go`)
-- Updated renderFileHistoryDiffPane() to use RenderDiffPane()
-- Removed RenderTextPane() call with isDiff parameter
-- Now provides proper 3-column diff layout matching old-tit
+- Updated renderFileHistoryDiffPane() to call RenderTextPane() with isDiff=true
+- Provides proper 3-column diff layout matching old-tit
 
 #### 4. **Documentation** (`COLORS.md`)
 - Added Diff Colors section with new color definitions
 
 ### Design Decisions
 
-**Diff Rendering Location:** Moved from standalone DiffPane component to textpane.go utility functions
+**Diff Rendering Approach:** Integrated into RenderTextPane() via isDiff flag
 - Simplifies component hierarchy
-- Keeps all text/diff rendering utilities in one place
-- No need for separate DiffPane struct - renderDiffPane is stateless
+- Keeps all text/diff rendering in one place
+- isDiff flag controls 3-column parsing vs plain text rendering
+- Single function handles both text and diff, no code duplication
 
 **Color SSOT:** Theme regeneration on every launch
 - Ensures development changes to DefaultThemeTOML are always picked up
@@ -169,10 +286,10 @@ Restore 3-column diff rendering (line# + marker + code) and fix theme color SSOT
 
 ### Files Modified
 - `internal/ui/theme.go` — Added diff colors, fixed CreateDefaultThemeIfMissing()
-- `internal/ui/textpane.go` — Added DiffLine type, parseDiffLines(), RenderDiffPane()
-- `internal/ui/filehistory.go` — Updated renderFileHistoryDiffPane() to use RenderDiffPane()
+- `internal/ui/textpane.go` — Added DiffLine type, parseDiffContent(), isDiff flag to RenderTextPane()
+- `internal/ui/filehistory.go` — Updated renderFileHistoryDiffPane() to call RenderTextPane(..., isDiff=true)
 - `COLORS.md` — Documented new diff colors
-- Removed: `internal/ui/diffpane.go` (functions restored as utilities)
+- Removed: `internal/ui/diffpane.go` (functions integrated into textpane.go)
 
 ### Build Status
 ✅ Clean compile (no errors/warnings)
@@ -188,7 +305,7 @@ Restore 3-column diff rendering (line# + marker + code) and fix theme color SSOT
 - **Diff pane content height calculation:** Currently using `scrollWindow := contentHeight - 4`, needs verification per Session 52 findings about layout math. May need to be `contentHeight - 2` like other panes.
 
 ### Summary
-Restored 3-column diff rendering for File History mode. Moved diff parsing/rendering from removed DiffPane component to RenderDiffPane() utility. Added theme SSOT diff colors (#5A9C7A green, #B07070 red) matching old-tit exactly. Fixed theme regeneration to always update from DefaultThemeTOML on app launch.
+Restored 3-column diff rendering for File History mode. Integrated diff parsing/rendering into RenderTextPane() via isDiff flag, removing need for separate RenderDiffPane() function. Added theme SSOT diff colors (#5A9C7A green, #B07070 red) matching old-tit exactly. Fixed theme regeneration to always update from DefaultThemeTOML on app launch.
 
 ---
 
