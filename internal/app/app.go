@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,7 +74,8 @@ type Application struct {
 	// State display info maps
 	workingTreeInfo      map[git.WorkingTree]StateInfo
 	timelineInfo         map[git.Timeline]StateInfo
-	
+	operationInfo        map[git.Operation]StateInfo
+
 	// History mode state
 	historyState *ui.HistoryState
 
@@ -185,7 +187,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	}
 
 	// Build state info maps
-	workingTreeInfo, timelineInfo := BuildStateInfo(theme)
+	workingTreeInfo, timelineInfo, operationInfo := BuildStateInfo(theme)
 
 	app := &Application{
 		sizing:               sizing,
@@ -201,6 +203,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		consoleAutoScroll:    true, // Start with auto-scroll enabled
 		workingTreeInfo:      workingTreeInfo,
 		timelineInfo:         timelineInfo,
+		operationInfo:        operationInfo,
 		historyState: &ui.HistoryState{
 			Commits:           make([]ui.CommitInfo, 0),
 			SelectedIdx:       0,
@@ -238,14 +241,30 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	// BUT: only if we're NOT currently in TimeTraveling state (which means we're actively traveling, not incomplete)
 	hasTimeTravelMarker := git.FileExists(".git/TIT_TIME_TRAVEL") && isRepo
 	shouldRestore := hasTimeTravelMarker && app.gitState.Operation != git.TimeTraveling
-	
+
 	// DEBUG: Log restoration decision to file
 	markerPath := ".git/TIT_TIME_TRAVEL"
 	markerStat, markerErr := os.Stat(markerPath)
-	debugMsg := fmt.Sprintf("[INIT] hasTimeTravelMarker=%v, isRepo=%v, Operation=%v, shouldRestore=%v, cwd=%s, marker_stat=%v, marker_err=%v\n", 
+	debugMsg := fmt.Sprintf("[INIT] hasTimeTravelMarker=%v, isRepo=%v, Operation=%v, shouldRestore=%v, cwd=%s, marker_stat=%v, marker_err=%v\n",
 		hasTimeTravelMarker, isRepo, app.gitState.Operation, shouldRestore, os.Getenv("PWD"), markerStat != nil, markerErr)
 	os.WriteFile("/tmp/tit-init-debug.log", []byte(debugMsg), 0644)
-	
+
+	// Load timeTravelInfo if actively time traveling
+	// CRITICAL: If TimeTraveling but can't load info, that's CORRUPT STATE
+	// Force restoration immediately to recover
+	if app.gitState.Operation == git.TimeTraveling && hasTimeTravelMarker {
+		ttInfo, err := git.LoadTimeTravelInfo()
+		if err != nil {
+			// CORRUPT STATE: TimeTraveling but can't load info
+			// Force restoration to recover
+			shouldRestore = true
+			debugMsg += fmt.Sprintf("[CORRUPT] TimeTraveling but LoadTimeTravelInfo failed: %v\n", err)
+			os.WriteFile("/tmp/tit-init-debug.log", []byte(debugMsg), 0644)
+		} else {
+			app.timeTravelInfo = ttInfo
+		}
+	}
+
 	if shouldRestore {
 		// Show console and perform restoration
 		app.mode = ModeConsole
@@ -708,31 +727,56 @@ func (a *Application) GetGitState() interface{} {
 	return a.gitState
 }
 
-// RenderStateHeader renders the full git state header (6 rows) using lipgloss
+// RenderStateHeader renders the full git state header (5 rows) using lipgloss
+// Row 1: CWD (left) | OPERATION (right)
+// Row 2: REMOTE (left) | BRANCH (right)
+// Row 3: Separator line
+// Row 4: WORKING TREE (left) | TIMELINE (right) - 2 columns, 2 rows each
+// Row 5: WT Description (left) | TL Description (right)
 func (a *Application) RenderStateHeader() string {
 	cwd, _ := os.Getwd()
 	state := a.gitState
+
 	if state == nil || state.Operation == git.NotRepo {
 		// Don't render state header if not in a repo
 		return ""
 	}
 
-	// Guard: Skip rendering if WorkingTree/Timeline are empty (happens during dirty operations)
+	// Guard: Skip rendering if WorkingTree is empty (happens during dirty operations)
 	// DetectState() returns partial state for dirty operations (only Operation is set)
-	// Also skip for TimeTraveling (menu is self-documenting)
-	if state.WorkingTree == "" || state.Timeline == "" || state.Operation == git.TimeTraveling {
+	if state.WorkingTree == "" {
 		return ""
 	}
 
-	// Row 1: CWD with emoji, no truncation, full width
-	cwdRow := lipgloss.NewStyle().
-		Width(ui.ContentInnerWidth).
-		Padding(0, 0).
-		Bold(true).
-		Foreground(lipgloss.Color(a.theme.LabelTextColor)).
-		Render("📁 " + cwd)
+	halfWidth := ui.ContentInnerWidth / 2
 
-	// Row 2: Remote URL
+	// Row 1: CWD (left) | OPERATION (right)
+	cwdLabel := "📁 " + cwd
+	opInfo := a.operationInfo[state.Operation]
+	opLabel := opInfo.Emoji + " " + opInfo.Label
+
+	// Show operation only if not Normal (special state)
+	opColor := a.theme.DimmedTextColor
+	if state.Operation != git.Normal {
+		opColor = opInfo.Color
+	}
+
+	row1 := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		lipgloss.NewStyle().
+			Width(halfWidth).
+			Bold(true).
+			Foreground(lipgloss.Color(a.theme.LabelTextColor)).
+			Render(cwdLabel),
+		lipgloss.NewStyle().
+			Width(halfWidth).
+			Bold(true).
+			Foreground(lipgloss.Color(opColor)).
+			Align(lipgloss.Right).
+			Render(opLabel),
+	)
+
+	// Row 2: REMOTE (left) | BRANCH (right)
 	remoteLabel := "🔌 NO REMOTE"
 	remoteColor := a.theme.DimmedTextColor
 	if state.Remote == git.HasRemote {
@@ -742,55 +786,123 @@ func (a *Application) RenderStateHeader() string {
 			remoteColor = a.theme.AccentTextColor
 		}
 	}
-	remoteRow := lipgloss.NewStyle().
-		Width(ui.ContentInnerWidth).
-		Padding(0, 0).
-		Foreground(lipgloss.Color(remoteColor)).
-		Render("╚ " + remoteLabel)
 
-	// Row 3: Blank spacer
-	spacerRow := ""
+	branchLabel := "🌿 " + state.CurrentBranch
+	branchColor := a.theme.LabelTextColor
 
-	// Row 4: Working tree and timeline status
-	wtInfo := a.workingTreeInfo[state.WorkingTree]
-	tlInfo := a.timelineInfo[state.Timeline]
+	// Special case: TimeTraveling shows "Detached HEAD"
+	if state.Operation == git.TimeTraveling {
+		branchLabel = "🔀 Detached HEAD"
+		branchColor = a.theme.AccentTextColor
+	}
 
-	wtLabel := wtInfo.Emoji + " " + wtInfo.Label
-	tlLabel := tlInfo.Emoji + " " + tlInfo.Label
-
-	statusRow := lipgloss.JoinHorizontal(
+	row2 := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		lipgloss.NewStyle().
-			Width(ui.ContentInnerWidth/2).
+			Width(halfWidth).
+			Foreground(lipgloss.Color(remoteColor)).
+			Render(remoteLabel),
+		lipgloss.NewStyle().
+			Width(halfWidth).
+			Bold(true).
+			Foreground(lipgloss.Color(branchColor)).
+			Align(lipgloss.Right).
+			Render(branchLabel),
+	)
+
+	// Row 3: Separator line (horizontal rule)
+	separatorLine := lipgloss.NewStyle().
+		Width(ui.ContentInnerWidth).
+		Foreground(lipgloss.Color(a.theme.BoxBorderColor)).
+		Render(strings.Repeat("─", ui.ContentInnerWidth))
+
+	// Row 4: WORKING TREE (left) | TIMELINE or Commit info (right)
+	// 2 columns, equal width, left aligned
+	wtInfo := a.workingTreeInfo[state.WorkingTree]
+	wtLabel := wtInfo.Emoji + " " + wtInfo.Label
+
+	var rightLabel string
+	var rightColor string
+
+	if state.Operation == git.TimeTraveling {
+		// Show commit hash instead of timeline
+		// INVARIANT: TimeTraveling MUST have valid timeTravelInfo (enforced at init)
+		if a.timeTravelInfo == nil {
+			panic("INVARIANT VIOLATION: Operation=TimeTraveling but timeTravelInfo=nil")
+		}
+		if len(a.timeTravelInfo.CurrentCommit.Hash) < 7 {
+			panic(fmt.Sprintf("INVARIANT VIOLATION: TimeTraveling commit hash too short: '%s'", a.timeTravelInfo.CurrentCommit.Hash))
+		}
+
+		shortHash := a.timeTravelInfo.CurrentCommit.Hash[:7]
+		rightLabel = "📌 Commit: " + shortHash
+		rightColor = a.theme.AccentTextColor
+	} else {
+		// Show timeline status (if applicable)
+		if state.Timeline == "" {
+			// Timeline N/A (no remote, no comparison possible)
+			rightLabel = "🔌 N/A"
+			rightColor = a.theme.DimmedTextColor
+		} else {
+			tlInfo := a.timelineInfo[state.Timeline]
+			rightLabel = tlInfo.Emoji + " " + tlInfo.Label
+			rightColor = tlInfo.Color
+		}
+	}
+
+	row4 := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		lipgloss.NewStyle().
+			Width(halfWidth).
 			Bold(true).
 			Foreground(lipgloss.Color(wtInfo.Color)).
 			Render(wtLabel),
 		lipgloss.NewStyle().
-			Width(ui.ContentInnerWidth/2).
+			Width(halfWidth).
 			Bold(true).
-			Foreground(lipgloss.Color(tlInfo.Color)).
-			Render(tlLabel),
+			Foreground(lipgloss.Color(rightColor)).
+			Render(rightLabel),
 	)
 
-	// Row 5: Descriptions
+	// Row 5: Descriptions (2 columns, equal width, left aligned)
 	wtDesc := wtInfo.Description(state.CommitsAhead, state.CommitsBehind)
-	tlDesc := tlInfo.Description(state.CommitsAhead, state.CommitsBehind)
 
-	descRow := lipgloss.JoinHorizontal(
+	var rightDesc string
+	if state.Operation == git.TimeTraveling {
+		// Show commit date
+		// INVARIANT: TimeTraveling MUST have valid timeTravelInfo (enforced at init)
+		if a.timeTravelInfo == nil {
+			panic("INVARIANT VIOLATION: Operation=TimeTraveling but timeTravelInfo=nil in description")
+		}
+		if a.timeTravelInfo.CurrentCommit.Time.IsZero() {
+			panic("INVARIANT VIOLATION: TimeTraveling commit time is zero")
+		}
+
+		rightDesc = a.timeTravelInfo.CurrentCommit.Time.Format("Mon, 2 Jan 2006 15:04:05")
+	} else {
+		// Show timeline description (if applicable)
+		if state.Timeline == "" {
+			rightDesc = "No remote configured."
+		} else {
+			tlInfo := a.timelineInfo[state.Timeline]
+			rightDesc = tlInfo.Description(state.CommitsAhead, state.CommitsBehind)
+		}
+	}
+
+	row5 := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		lipgloss.NewStyle().
-			Width(ui.ContentInnerWidth/2).
+			Width(halfWidth).
+			Foreground(lipgloss.Color(a.theme.ContentTextColor)).
 			Render(wtDesc),
 		lipgloss.NewStyle().
-			Width(ui.ContentInnerWidth/2).
-			Render(tlDesc),
+			Width(halfWidth).
+			Foreground(lipgloss.Color(a.theme.ContentTextColor)).
+			Render(rightDesc),
 	)
 
-	// Row 6: Blank
-	blankRow := ""
-
 	// Combine all rows
-	headerContent := cwdRow + "\n" + remoteRow + "\n" + spacerRow + "\n" + statusRow + "\n" + descRow + "\n" + blankRow
+	headerContent := row1 + "\n" + row2 + "\n" + separatorLine + "\n" + row4 + "\n" + row5
 
 	return ui.RenderBox(ui.BoxConfig{
 		Content:     headerContent,

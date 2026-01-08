@@ -165,16 +165,16 @@ var MenuItems = map[string]MenuItem{
 		ID:       "time_travel_history",
 		Shortcut: "l",
 		Emoji:    "🕒",
-		Label:    "Browse history",
+		Label:    "Commit history",
 		Hint:     "View commit history while time traveling",
 		Enabled:  true,
 	},
-	"time_travel_view_diff": {
-		ID:       "time_travel_view_diff",
-		Shortcut: "d",
-		Emoji:    "🔍",
-		Label:    "View diff",
-		Hint:     "Show changes vs original branch",
+	"time_travel_files_history": {
+		ID:       "time_travel_files_history",
+		Shortcut: "g",
+		Emoji:    "📄",
+		Label:    "File(s) history",
+		Hint:     "Browse file changes and diffs",
 		Enabled:  true,
 	},
 	"time_travel_merge": {
@@ -188,7 +188,7 @@ var MenuItems = map[string]MenuItem{
 	"time_travel_return": {
 		ID:       "time_travel_return",
 		Shortcut: "r",
-		Emoji:    "⬅️",
+		Emoji:    "🔙",
 		Label:    "Return",
 		Hint:     "Return without merging changes",
 		Enabled:  true,

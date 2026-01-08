@@ -48,6 +48,15 @@ timelineSynchronized = "#01C2D2"      # caribbeanBlue
 timelineLocalAhead = "#00C8D8"        # blueBikini
 timelineLocalBehind = "#F2AB53"       # safflower
 
+# Operation Colors
+operationReady = "#4ECB71"            # emerald green (ready state)
+operationNotRepo = "#FC704C"          # preciousPersimmon (error/not repo)
+operationTimeTravel = "#F2AB53"       # safflower (time travel - warm orange)
+operationConflicted = "#FC704C"       # preciousPersimmon (conflicts)
+operationMerging = "#00C8D8"          # blueBikini (merge in progress)
+operationRebasing = "#00C8D8"         # blueBikini (rebase in progress)
+operationDirtyOp = "#FC704C"          # preciousPersimmon (dirty operation)
+
 # Menu
 menuSelectionBackground = "#7EB8C5"    # brighter muted teal (background when highlighted)
 
@@ -109,6 +118,15 @@ type ThemeDefinition struct {
 		TimelineLocalAhead   string `toml:"timelineLocalAhead"`
 		TimelineLocalBehind  string `toml:"timelineLocalBehind"`
 
+		// Operation Colors
+		OperationReady      string `toml:"operationReady"`
+		OperationNotRepo    string `toml:"operationNotRepo"`
+		OperationTimeTravel string `toml:"operationTimeTravel"`
+		OperationConflicted string `toml:"operationConflicted"`
+		OperationMerging    string `toml:"operationMerging"`
+		OperationRebasing   string `toml:"operationRebasing"`
+		OperationDirtyOp    string `toml:"operationDirtyOp"`
+
 		// UI Elements
 		MenuSelectionBackground string `toml:"menuSelectionBackground"`
 
@@ -167,6 +185,15 @@ type Theme struct {
 	TimelineSynchronized string
 	TimelineLocalAhead   string
 	TimelineLocalBehind  string
+
+	// Operation Colors
+	OperationReady      string
+	OperationNotRepo    string
+	OperationTimeTravel string
+	OperationConflicted string
+	OperationMerging    string
+	OperationRebasing   string
+	OperationDirtyOp    string
 
 	// UI Elements
 	MenuSelectionBackground string
@@ -236,6 +263,15 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		TimelineSynchronized: themeDef.Palette.TimelineSynchronized,
 		TimelineLocalAhead:   themeDef.Palette.TimelineLocalAhead,
 		TimelineLocalBehind:  themeDef.Palette.TimelineLocalBehind,
+
+		// Operation Colors
+		OperationReady:      themeDef.Palette.OperationReady,
+		OperationNotRepo:    themeDef.Palette.OperationNotRepo,
+		OperationTimeTravel: themeDef.Palette.OperationTimeTravel,
+		OperationConflicted: themeDef.Palette.OperationConflicted,
+		OperationMerging:    themeDef.Palette.OperationMerging,
+		OperationRebasing:   themeDef.Palette.OperationRebasing,
+		OperationDirtyOp:    themeDef.Palette.OperationDirtyOp,
 
 		// UI Elements
 		MenuSelectionBackground: themeDef.Palette.MenuSelectionBackground,

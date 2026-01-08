@@ -15,7 +15,7 @@ Every moment in TIT is described by exactly 4 git axes:
 ```go
 type State struct {
     WorkingTree      git.WorkingTree // Clean | Dirty
-    Timeline         git.Timeline    // InSync | Ahead | Behind | Diverged | NoRemote
+    Timeline         git.Timeline    // InSync | Ahead | Behind | Diverged | "" (N/A)
     Operation        git.Operation   // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation | TimeTraveling
     Remote           git.Remote      // NoRemote | HasRemote
     CurrentBranch    string          // Local branch name
@@ -24,6 +24,41 @@ type State struct {
 ```
 
 **State Detection:** `git.DetectState()` queries git commands (no config file tracking).
+
+### State Semantics
+
+**Timeline** represents the **comparison** between local branch and remote tracking branch:
+- **InSync:** Local and remote point to same commit
+- **Ahead:** Local has commits not on remote
+- **Behind:** Remote has commits not on local
+- **Diverged:** Both have unique commits
+- **Empty string (""):** Timeline N/A - no comparison possible when:
+  - `Remote = NoRemote` (no remote configured)
+  - `Operation = TimeTraveling` (detached HEAD, no tracking relationship)
+
+**Timeline is ONLY detected when:**
+```go
+if state.Operation == Normal && state.Remote == HasRemote {
+    // Detect timeline comparison
+    state.Timeline = detectTimeline()
+} else {
+    // Timeline N/A
+    state.Timeline = ""
+}
+```
+
+**Remote** is a precondition check, not a timeline status:
+- `NoRemote`: No remote repository configured
+- `HasRemote`: Remote exists (timeline comparison possible)
+
+**Operation** describes the git repository state:
+- `Normal`: Ready for operations
+- `NotRepo`: Not a git repository
+- `Conflicted`: Conflicts must be resolved
+- `Merging`: Merge in progress
+- `Rebasing`: Rebase in progress
+- `DirtyOperation`: Operation interrupted by uncommitted changes
+- `TimeTraveling`: Detached HEAD, exploring commit history
 
 ### Time Travel Metadata
 
@@ -329,19 +364,60 @@ type StateInfo struct {
 BuildStateInfo(theme) returns:
 - WorkingTree map: Clean/Dirty → StateInfo with description from StateDescriptions
 - Timeline map: InSync/Ahead/Behind/Diverged → StateInfo with description from StateDescriptions
+- Operation map: Normal/TimeTraveling/Conflicted/etc → StateInfo with description from StateDescriptions
 ```
 
-**Rendering flow:**
+**Header Rendering (4-Row Layout):**
+
+```
+Row 1: CWD (left)              | OPERATION (right)
+Row 2: REMOTE (left)           | BRANCH (right)
+Row 3: WORKING TREE (left)     | TIMELINE (right) OR Commit info when time traveling
+Row 4: Descriptions (left)     | Timeline/Commit description (right)
+```
+
+**Normal Operation (Operation = Normal):**
+```
+📁 /Users/jreng/Documents/Poems/inf/tit    ✅ Ready
+🔗 github.com/user/repo                    🌿 main
+✅ Clean                                   🔗 Sync
+Your files match the remote.              Local and remote are in sync.
+```
+
+**Time Traveling (Operation = TimeTraveling):**
+```
+📁 /Users/jreng/Documents/Poems/inf/tit    ⏱️ Time Travel
+🔗 github.com/user/repo                    🔀 Detached HEAD
+✅ Clean                                   📌 Commit: c53233c
+Your files match the remote.              Mon, 7 Jan 2026 04:45:12
+```
+
+**No Remote (Remote = NoRemote):**
+```
+📁 /Users/jreng/Documents/Poems/inf/tit    ✅ Ready
+🔌 NO REMOTE                               🌿 main
+✅ Clean                                   🔌 N/A
+Your files match the remote.              No remote configured.
+```
+
+**Rendering Flow:**
 ```
 RenderStateHeader()
     ↓
-Looks up WorkingTree state info via stateinfo map
+Check Operation: TimeTraveling?
+    ├─ Yes: Show "Detached HEAD" for branch, commit hash + date for timeline
+    └─ No: Show CurrentBranch, check Timeline
+        ├─ Timeline = "": Show "N/A" (no remote)
+        └─ Timeline != "": Show timeline status (InSync/Ahead/Behind/Diverged)
     ↓
-Calls Description(ahead, behind) function
+Lookup state info via stateinfo maps:
+    - operationInfo[state.Operation]
+    - workingTreeInfo[state.WorkingTree]
+    - timelineInfo[state.Timeline] (if applicable)
     ↓
-Function returns StateDescriptions[key] formatted with counts
+Call Description() functions with (ahead, behind) counts
     ↓
-Display: "Branch: main | Dirty | You have 2 unsynced commits."
+Format as 4-row two-column layout
 ```
 
 ---

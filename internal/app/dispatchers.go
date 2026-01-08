@@ -56,12 +56,13 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"replace_local":        a.dispatchReplaceLocal,
 		"resolve_conflicts":    a.dispatchResolveConflicts,
 		"abort_operation":      a.dispatchAbortOperation,
-		"continue_operation":   a.dispatchContinueOperation,
-		"history":              a.dispatchHistory,
-		"file_history":         a.dispatchFileHistory,
-		"time_travel_history":  a.dispatchTimeTravelHistory,
-		"time_travel_merge":    a.dispatchTimeTravelMerge,
-		"time_travel_return":   a.dispatchTimeTravelReturn,
+		"continue_operation":        a.dispatchContinueOperation,
+		"history":                   a.dispatchHistory,
+		"file_history":              a.dispatchFileHistory,
+		"time_travel_history":       a.dispatchTimeTravelHistory,
+		"time_travel_files_history": a.dispatchFileHistory,
+		"time_travel_merge":         a.dispatchTimeTravelMerge,
+		"time_travel_return":        a.dispatchTimeTravelReturn,
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {

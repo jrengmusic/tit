@@ -253,7 +253,7 @@ func (a *Application) menuTimeTraveling() []MenuItem {
 
 	items := []MenuItem{
 		GetMenuItem("time_travel_history"),
-		GetMenuItem("time_travel_view_diff"),
+		GetMenuItem("time_travel_files_history"),
 	}
 
 	// Add merge option with original branch label

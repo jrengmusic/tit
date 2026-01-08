@@ -14,8 +14,8 @@ type StateInfo struct {
 	Description func(ahead, behind int) string
 }
 
-// BuildStateInfo creates maps of WorkingTree and Timeline states to display info
-func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Timeline]StateInfo) {
+// BuildStateInfo creates maps of WorkingTree, Timeline, and Operation states to display info
+func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Timeline]StateInfo, map[git.Operation]StateInfo) {
 	workingTreeInfo := map[git.WorkingTree]StateInfo{
 		git.Clean: {
 			Label: "Clean",
@@ -36,14 +36,6 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 	}
 
 	timelineInfo := map[git.Timeline]StateInfo{
-		git.TimelineNoRemote: {
-			Label: "No remote",
-			Emoji: "🔌",
-			Color: theme.FooterTextColor,
-			Description: func(ahead, behind int) string {
-				return StateDescriptions["timeline_no_remote"]
-			},
-		},
 		git.InSync: {
 			Label: "Sync",
 			Emoji: "🔗",
@@ -78,5 +70,65 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 		},
 	}
 
-	return workingTreeInfo, timelineInfo
+	operationInfo := map[git.Operation]StateInfo{
+		git.Normal: {
+			Label: "READY",
+			Emoji: "🟢",
+			Color: theme.OperationReady,
+			Description: func(ahead, behind int) string {
+				return StateDescriptions["operation_normal"]
+			},
+		},
+		git.NotRepo: {
+			Label: "NOT REPO",
+			Emoji: "🔴",
+			Color: theme.OperationNotRepo,
+			Description: func(ahead, behind int) string {
+				return StateDescriptions["operation_not_repo"]
+			},
+		},
+		git.Conflicted: {
+			Label: "CONFLICTED",
+			Emoji: "⚡",
+			Color: theme.OperationConflicted,
+			Description: func(ahead, behind int) string {
+				return StateDescriptions["operation_conflicted"]
+			},
+		},
+		git.Merging: {
+			Label: "MERGING",
+			Emoji: "🔀",
+			Color: theme.OperationMerging,
+			Description: func(ahead, behind int) string {
+				return StateDescriptions["operation_merging"]
+			},
+		},
+		git.Rebasing: {
+			Label: "REBASING",
+			Emoji: "🔄",
+			Color: theme.OperationRebasing,
+			Description: func(ahead, behind int) string {
+				return StateDescriptions["operation_rebasing"]
+			},
+		},
+		git.DirtyOperation: {
+			Label: "DIRTY OP",
+			Emoji: "⚡",
+			Color: theme.OperationDirtyOp,
+			Description: func(ahead, behind int) string {
+				return StateDescriptions["operation_dirty_op"]
+			},
+		},
+		git.TimeTraveling: {
+			Label: "TIME TRAVEL",
+			Emoji: "🌀",
+			Color: theme.OperationTimeTravel,
+			Description: func(ahead, behind int) string {
+				// Note: Will be formatted with commit hash and date in renderStateHeader
+				return StateDescriptions["operation_time_travel"]
+			},
+		},
+	}
+
+	return workingTreeInfo, timelineInfo, operationInfo
 }

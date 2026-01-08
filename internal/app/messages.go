@@ -304,9 +304,15 @@ var DialogMessages = map[string][2]string{
 var StateDescriptions = map[string]string{
 	"working_tree_clean":  "Your files match the remote.",
 	"working_tree_dirty":  "You have uncommitted changes.",
-	"timeline_no_remote":  "No remote repository configured.",
 	"timeline_in_sync":    "Local and remote are in sync.",
 	"timeline_ahead":      "You have %d unsynced commit(s).",
 	"timeline_behind":     "The remote has %d new commit(s).",
 	"timeline_diverged":   "Both have new commits. Ahead %d, Behind %d.",
+	"operation_normal":    "Repository ready for operations.",
+	"operation_not_repo":  "Not a git repository.",
+	"operation_conflicted": "Conflicts must be resolved.",
+	"operation_merging":   "Merge in progress.",
+	"operation_rebasing":  "Rebase in progress.",
+	"operation_dirty_op":  "Operation interrupted by uncommitted changes.",
+	"operation_time_travel": "Exploring commit %s from %s.",
 }

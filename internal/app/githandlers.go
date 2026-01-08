@@ -377,11 +377,19 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_merge_success"]
-	
+
+	// Restart cache loading if back to Normal operation
+	// Cache was paused during time travel, need to reload
+	if !a.cacheLoadingStarted && state.Operation == git.Normal {
+		a.cacheLoadingStarted = true
+		go a.preloadHistoryMetadata()
+		go a.preloadFileHistoryDiffs()
+	}
+
 	// Transition to menu mode
 	a.mode = ModeMenu
 	a.menuItems = a.GenerateMenu()
-	
+
 	return a, nil
 }
 
@@ -416,11 +424,19 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_return_success"]
-	
+
+	// Restart cache loading if back to Normal operation
+	// Cache was paused during time travel, need to reload
+	if !a.cacheLoadingStarted && state.Operation == git.Normal {
+		a.cacheLoadingStarted = true
+		go a.preloadHistoryMetadata()
+		go a.preloadFileHistoryDiffs()
+	}
+
 	// Transition to menu mode
 	a.mode = ModeMenu
 	a.menuItems = a.GenerateMenu()
-	
+
 	return a, nil
 }
 

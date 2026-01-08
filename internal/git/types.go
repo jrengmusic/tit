@@ -12,11 +12,11 @@ const (
 type Timeline string
 
 const (
-	InSync           Timeline = "InSync"
-	Ahead            Timeline = "Ahead"
-	Behind           Timeline = "Behind"
-	Diverged         Timeline = "Diverged"
-	TimelineNoRemote Timeline = "NoRemote"
+	InSync   Timeline = "InSync"
+	Ahead    Timeline = "Ahead"
+	Behind   Timeline = "Behind"
+	Diverged Timeline = "Diverged"
+	// Empty string ("") = Timeline N/A (no remote OR detached HEAD)
 )
 
 type Operation string

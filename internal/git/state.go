@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // IsInitializedRepo checks if current working directory is a git repository
@@ -74,35 +75,44 @@ func DetectState() (*State, error) {
 		}
 	}
 
-	// Detect working tree state
+	// Detect working tree state (always applicable)
 	workingTree, err := detectWorkingTree()
 	if err != nil {
 		return nil, fmt.Errorf("detecting working tree: %w", err)
 	}
 	state.WorkingTree = workingTree
 
-	// Detect timeline state
-	timeline, ahead, behind, err := detectTimeline()
-	if err != nil {
-		return nil, fmt.Errorf("detecting timeline: %w", err)
-	}
-	state.Timeline = timeline
-	state.CommitsAhead = ahead
-	state.CommitsBehind = behind
-
-	// Detect operation state
+	// Detect operation state (determines if timeline is applicable)
 	operation, err := detectOperation()
 	if err != nil {
 		return nil, fmt.Errorf("detecting operation: %w", err)
 	}
 	state.Operation = operation
 
-	// Detect remote presence
+	// Detect remote presence (determines if timeline is applicable)
 	remote, err := detectRemote()
 	if err != nil {
 		return nil, fmt.Errorf("detecting remote: %w", err)
 	}
 	state.Remote = remote
+
+	// Detect timeline state (CONDITIONAL: only when on branch with tracking)
+	// Timeline = comparison between local vs remote tracking branch
+	// Not applicable when: Operation != Normal OR Remote = NoRemote
+	if state.Operation == Normal && state.Remote == HasRemote {
+		timeline, ahead, behind, err := detectTimeline()
+		if err != nil {
+			return nil, fmt.Errorf("detecting timeline: %w", err)
+		}
+		state.Timeline = timeline
+		state.CommitsAhead = ahead
+		state.CommitsBehind = behind
+	} else {
+		// Timeline N/A (no remote OR detached HEAD/time traveling)
+		state.Timeline = ""
+		state.CommitsAhead = 0
+		state.CommitsBehind = 0
+	}
 
 	// Get current branch and commit hashes
 	// Use symbolic-ref for branch name (works even with zero commits)
@@ -207,11 +217,8 @@ func detectWorkingTree() (WorkingTree, error) {
 
 // detectTimeline checks relationship between local and remote branches
 func detectTimeline() (Timeline, int, int, error) {
-	// Check if remote exists first
-	remoteStatus, _ := detectRemote()
-	if remoteStatus == NoRemote {
-		return TimelineNoRemote, 0, 0, nil
-	}
+	// PRECONDITION: Only called when Remote = HasRemote (checked by DetectState)
+	// Timeline = comparison between local branch vs remote tracking branch
 
 	// Try to get upstream tracking branch
 	cmd := exec.Command("git", "rev-parse", "@{u}")
@@ -494,14 +501,43 @@ func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
 		stashID = strings.TrimSpace(lines[1])
 	}
 	
-	debugLog := fmt.Sprintf("[LOAD_TT_INFO] SUCCESS: branch=%q, stashID=%q, rawData=%q\n", branch, stashID, string(data))
+	// Get current commit info (we're in detached HEAD during time travel)
+	currentHash, err := executeGitCommand("rev-parse", "HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current commit hash: %w", err)
+	}
+	currentHash = strings.TrimSpace(currentHash)
+
+	// Get current commit metadata (subject and time)
+	currentSubject, err := executeGitCommand("log", "-1", "--format=%s", currentHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current commit subject: %w", err)
+	}
+	currentSubject = strings.TrimSpace(currentSubject)
+
+	currentTimeStr, err := executeGitCommand("log", "-1", "--format=%aI", currentHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current commit time: %w", err)
+	}
+	currentTime, err := time.Parse(time.RFC3339, strings.TrimSpace(currentTimeStr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse commit time: %w", err)
+	}
+
+	debugLog := fmt.Sprintf("[LOAD_TT_INFO] SUCCESS: branch=%q, stashID=%q, currentHash=%q, currentSubject=%q, rawData=%q\n",
+		branch, stashID, currentHash, currentSubject, string(data))
 	f, _ := os.OpenFile("/tmp/tit-load-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	f.WriteString(debugLog)
 	f.Close()
-	
+
 	return &TimeTravelInfo{
-		OriginalBranch:  branch,
+		OriginalBranch: branch,
 		OriginalStashID: stashID,
+		CurrentCommit: CommitInfo{
+			Hash:    currentHash,
+			Subject: currentSubject,
+			Time:    currentTime,
+		},
 	}, nil
 }
 
