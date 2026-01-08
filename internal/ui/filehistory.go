@@ -33,6 +33,7 @@ type FileHistoryState struct {
 	FilesScrollOff    int          // Scroll offset for files list
 	DiffScrollOff     int          // Scroll offset for diff pane
 	DiffLineCursor    int          // Line cursor for diff pane (for TextPane)
+	DiffContent       string        // Current diff content (populated by handlers on file/commit selection)
 	VisualModeActive  bool         // True when visual mode is active (for selecting lines)
 	VisualModeStart   int          // Starting line of visual selection
 }
@@ -182,18 +183,12 @@ func renderFileHistoryFilesPane(state *FileHistoryState, theme Theme, width, hei
 
 // renderFileHistoryDiffPane renders the diff pane using TextPane
 func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, height int) string {
-	// Get diff content - placeholder for now, will be populated from cache in handlers
-	// TODO: Get actual diff from cache based on selected commit + file
-	diffContent := `diff --git a/internal/app/handlers.go b/internal/app/handlers.go
-@@ -35,7 +38,9 @@
- value := strings.TrimSpace(parts[1])
-
- // Generate result
--result := fmt.Sprintf("ORIGINAL LINE - KEY=%s, VALUE=%s", key, value)
-+result := fmt.Sprintf("MODIFIED LINE - KEY=%s, VALUE=%s", key, value)
-+// Added comment here
-
- return result, nil`
+	// Get diff content from state (populated by handlers on file/commit selection)
+	// If no diff yet, show placeholder
+	diffContent := state.DiffContent
+	if diffContent == "" {
+		diffContent = "(no diff available)"
+	}
 
 	// Use TextPane with diff mode enabled
 	isActive := state.FocusedPane == PaneDiff

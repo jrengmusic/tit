@@ -96,6 +96,101 @@
 
 ---
 
+## Session 57: File History Cache Integration - Direct Diff Lookup ⏳
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-08
+
+### Objective
+Fix file history diff pane to fetch diffs from cache on file/commit selection, matching old-tit's behavior exactly. Replace hardcoded placeholder text with real cache lookups.
+
+### Problems Fixed
+
+#### 1. **Hardcoded Placeholder Text in Diff Pane**
+- **Issue:** `renderFileHistoryDiffPane()` showed dummy diff instead of actual content
+- **Root Cause:** Rendering function had no access to cache or selected file/commit context
+- **Solution:** Add `DiffContent` field to `FileHistoryState` to hold current diff, populated by handlers via cache lookup
+
+#### 2. **Missing Diff Lookup on File/Commit Selection**
+- **Issue:** Switching files/commits didn't populate diff content
+- **Root Cause:** Handlers updated state but didn't look up and populate diff
+- **Solution:** Created `updateFileHistoryDiff()` helper function that:
+  - Validates commit/file selection (bounds checking)
+  - Determines version (parent vs wip) based on `gitState.WorkingTree`
+  - Builds cache key: `hash:path:version`
+  - Thread-safe direct lookup from `app.fileHistoryDiffCache`
+  - Populates `state.DiffContent` with result (or empty if not cached)
+
+#### 3. **Version Logic (Clean vs Dirty State)**
+- **Implementation:** Matches old-tit exactly:
+  - If `gitState.WorkingTree == git.Dirty` → use "wip" diff (commit vs working tree)
+  - Otherwise → use "parent" diff (commit vs parent commit)
+  - Accounts for unstaged files in working tree
+
+### Changes Made
+
+#### 1. **UI State Structure** (`internal/ui/filehistory.go`)
+- Added `DiffContent string` field to `FileHistoryState`
+- Updated `renderFileHistoryDiffPane()` to display `state.DiffContent` instead of placeholder
+- Shows "(no diff available)" if cache miss or not yet populated
+
+#### 2. **Handler Logic** (`internal/app/handlers.go`)
+- Added `updateFileHistoryDiff()` helper function (44 lines):
+  - Bounds checking on commit/file selection
+  - Version determination based on working tree state
+  - Direct cache lookup with mutex protection
+  - Graceful fallback for uncached diffs (>100 file commits)
+- Updated `handleFileHistoryUp()` (PaneFiles case):
+  - Calls `a.updateFileHistoryDiff()` after file selection changes
+- Updated `handleFileHistoryDown()` (PaneFiles case):
+  - Calls `a.updateFileHistoryDiff()` after file selection changes
+- Updated `handleFileHistoryUp()` (PaneCommits case):
+  - Calls `a.updateFileHistoryDiff()` after commit selection + file reset
+- Updated `handleFileHistoryDown()` (PaneCommits case):
+  - Calls `a.updateFileHistoryDiff()` after commit selection + file reset
+
+#### 3. **Dispatcher** (`internal/app/dispatchers.go`)
+- Added `DiffContent: ""` field initialization to state
+- Added call to `a.updateFileHistoryDiff()` after state initialization
+- Ensures initial diff is populated when entering File History mode
+
+### Design Decisions
+
+**Direct Lookup Pattern:** Cache lookup happens in handler, not rendering function
+- Handlers have access to `app` and git state
+- Rendering functions are pure (read-only from state)
+- Supports future features (visual mode, selections) that need state mutations
+
+**Version Determination:** Uses `gitState.WorkingTree` at lookup time
+- Dynamic: changes immediately if user modifies working tree
+- Matches spec §15 (state-dependent diff display)
+- Accounts for both parent diffs and WIP diffs
+
+**Graceful Fallback:** Shows "(no diff available)" for uncached diffs
+- Commits with >100 files skip diff caching (performance optimization)
+- Files still show in list, just no diff view
+- Matches old-tit's behavior
+
+### Files Modified
+- `internal/ui/filehistory.go` — Added DiffContent field, updated rendering
+- `internal/app/handlers.go` — Added updateFileHistoryDiff() helper, updated all handlers
+- `internal/app/dispatchers.go` — Initialize DiffContent, populate initial diff
+
+### Build Status
+✅ Clean compile (no errors/warnings)
+
+### Testing Status
+⏳ **PENDING USER TEST**: 
+- Switch commits → verify first file diff displays
+- Switch files (up/down) → verify diff updates
+- Verify version logic (dirty vs clean working tree)
+- Check cache hit rate (>100 file commits)
+
+### Summary
+File History diff pane now fetches actual diffs from cache on file/commit selection. Handler-driven lookup with mutex-protected cache access. Version logic (parent vs wip) determined by current working tree state. Graceful fallback for uncached diffs. Matches old-tit behavior exactly.
+
+---
+
 ## Session 56: File History Layout Polish & Multi-Pane Pattern Documentation ✅
 
 **Agent:** Claude Sonnet 4.5 (claude.ai/code)

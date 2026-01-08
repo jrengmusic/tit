@@ -355,9 +355,13 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 		FilesScrollOff:    0,
 		DiffScrollOff:     0,
 		DiffLineCursor:    0,
+		DiffContent:       "", // Will be populated below
 		VisualModeActive:  false,
 		VisualModeStart:   0,
 	}
+	
+	// Populate initial diff for first commit + first file
+	a.updateFileHistoryDiff()
 	
 	// Show appropriate hint
 	if len(commits) == 0 {

@@ -892,6 +892,53 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 	return app, nil
 }
 
+// updateFileHistoryDiff looks up and sets the current diff content in state
+// Called whenever commit or file selection changes
+// Direct cache lookup: hash:path:version → diff content
+func (a *Application) updateFileHistoryDiff() {
+	if a.fileHistoryState == nil {
+		return
+	}
+
+	// Check bounds - need both commit and file selected
+	if len(a.fileHistoryState.Commits) == 0 || a.fileHistoryState.SelectedCommitIdx >= len(a.fileHistoryState.Commits) {
+		a.fileHistoryState.DiffContent = ""
+		return
+	}
+
+	if len(a.fileHistoryState.Files) == 0 || a.fileHistoryState.SelectedFileIdx >= len(a.fileHistoryState.Files) {
+		a.fileHistoryState.DiffContent = ""
+		return
+	}
+
+	// Get selected commit and file
+	commit := a.fileHistoryState.Commits[a.fileHistoryState.SelectedCommitIdx]
+	file := a.fileHistoryState.Files[a.fileHistoryState.SelectedFileIdx]
+
+	// Determine version based on current working tree state (same logic as old-tit)
+	// If working tree is Dirty (has unstaged changes) → use "wip" diff (commit vs working tree)
+	// Otherwise → use "parent" diff (commit vs parent commit)
+	version := "parent"
+	if a.gitState.WorkingTree == git.Dirty {
+		version = "wip"
+	}
+
+	// Build cache key: hash:path:version
+	cacheKey := commit.Hash + ":" + file.Path + ":" + version
+
+	// Direct cache lookup (thread-safe)
+	a.diffCacheMutex.Lock()
+	diffContent, exists := a.fileHistoryDiffCache[cacheKey]
+	a.diffCacheMutex.Unlock()
+
+	if exists && diffContent != "" {
+		a.fileHistoryState.DiffContent = diffContent
+	} else {
+		// Not cached yet (can happen if commit has >100 files)
+		a.fileHistoryState.DiffContent = ""
+	}
+}
+
 // handleFileHistoryUp navigates up in file(s) history mode
 func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd) {
 	if app.fileHistoryState == nil {
@@ -920,11 +967,15 @@ func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd)
 					app.fileHistoryState.Files = convertedFiles
 				}
 			}
+			// Update diff for new commit (file selection was reset to 0, so first file diff is shown)
+			a.updateFileHistoryDiff()
 		}
 	case ui.PaneFiles:
 		// Navigate up in files list
 		if app.fileHistoryState.SelectedFileIdx > 0 {
 			app.fileHistoryState.SelectedFileIdx--
+			// Update diff for newly selected file
+			a.updateFileHistoryDiff()
 		}
 	case ui.PaneDiff:
 		// Navigate up in diff pane (move cursor up)
@@ -963,11 +1014,15 @@ func (a *Application) handleFileHistoryDown(app *Application) (tea.Model, tea.Cm
 					app.fileHistoryState.Files = convertedFiles
 				}
 			}
+			// Update diff for new commit (file selection was reset to 0, so first file diff is shown)
+			a.updateFileHistoryDiff()
 		}
 	case ui.PaneFiles:
 		// Navigate down in files list
 		if app.fileHistoryState.SelectedFileIdx < len(app.fileHistoryState.Files)-1 {
 			app.fileHistoryState.SelectedFileIdx++
+			// Update diff for newly selected file
+			a.updateFileHistoryDiff()
 		}
 	case ui.PaneDiff:
 		// Navigate down in diff pane (move cursor down)
