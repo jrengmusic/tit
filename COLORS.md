@@ -38,6 +38,10 @@ All colors in TIT are centralized in the theme system. No hardcoded colors in co
 ### UI Elements
 - `MenuSelectionBackground` - Menu selection highlight (#7EB8C5)
 
+### Diff Colors
+- `DiffAddedLineColor` - Added lines in diffs, history view (#5A9C7A - muted green)
+- `DiffRemovedLineColor` - Removed lines in diffs, history view (#B07070 - muted red/burgundy)
+
 ## Usage Pattern
 
 All components receive `theme Theme` parameter and reference colors as:

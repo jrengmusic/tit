@@ -201,15 +201,6 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 		return app, nil
 	}
 
-	// Check if visual mode is active in diff pane
-	if app.conflictResolveState != nil &&
-	   app.conflictResolveState.DiffPane != nil &&
-	   app.conflictResolveState.DiffPane.VisualModeActive {
-		// Exit visual mode, stay in ConflictResolve
-		app.conflictResolveState.DiffPane.VisualModeActive = false
-		return app, nil
-	}
-
 	// Route abort based on operation type
 	if app.conflictResolveState != nil {
 		if app.conflictResolveState.Operation == "pull_merge" {

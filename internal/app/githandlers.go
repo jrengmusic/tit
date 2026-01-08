@@ -335,7 +335,6 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		ScrollOffsets:       make([]int, 3),
 		LineCursors:         make([]int, 3),
 		Operation:           operation,
-		DiffPane:            nil,
 	}
 	
 	for _, filePath := range conflictFiles {

@@ -19,7 +19,4 @@ type ConflictResolveState struct {
 	ColumnLabels       []string // Labels for each column (e.g., ["LOCAL", "REMOTE"])
 	ScrollOffsets      []int    // Scroll position for each bottom pane (length = NumColumns)
 	LineCursors        []int    // Line cursor for each bottom pane (length = NumColumns)
-
-	// DiffPane component (for future use if needed)
-	DiffPane *ui.DiffPane
 }

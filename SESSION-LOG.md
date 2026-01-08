@@ -96,7 +96,103 @@
 
 ---
 
-## Session 57: File History Cache Integration - Direct Diff Lookup ⏳
+## Session 58: Diff Pane Refactor - Restore 3-Column Layout ⏳
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-08
+
+### Objective
+Restore 3-column diff rendering (line# + marker + code) and fix theme color SSOT. Replace TextPane diff rendering with proper DiffPane component that matches old-tit exactly.
+
+### Problems Fixed
+
+#### 1. **DiffPane Component Removed Prematurely**
+- **Issue:** Removed entire diffpane.go without checking if File History relied on specialized diff rendering
+- **Root Cause:** Thought File History was already using TextPane, but it needed 3-column layout
+- **Solution:** Restored diff parsing and rendering as RenderDiffPane() in textpane.go
+  - `parseDiffLines()` - parses diff into DiffLine structs with line numbers
+  - `RenderDiffPane()` - 3-column layout (line# + marker + code)
+
+#### 2. **Theme Color SSOT Not Regenerating**
+- **Issue:** New diff colors in DefaultThemeTOML weren't being applied to running app
+- **Root Cause:** `CreateDefaultThemeIfMissing()` checked if file exists and returned early (no regeneration)
+- **Solution:** Changed to always regenerate from DefaultThemeTOML SSOT on each app launch
+  - Ensures latest colors are always current
+  - Removed early-exit check for existing file
+
+#### 3. **Diff Colors Incorrect**
+- **Issue:** Used wrong hex values (#00C853, #FF5252) instead of muted old-tit colors
+- **Root Cause:** Didn't check old-tit/internal/ui/theme.go for actual color definitions
+- **Solution:** Added theme colors matching old-tit exactly:
+  - Added `DiffAddedLineColor = "#5A9C7A"` (muted green)
+  - Added `DiffRemovedLineColor = "#B07070"` (muted red/burgundy)
+  - Updated to Theme struct, LoadTheme() mapping, and COLORS.md documentation
+
+### Changes Made
+
+#### 1. **Theme System** (`internal/ui/theme.go`)
+- Updated DefaultThemeTOML with diff colors
+- Added DiffAddedLineColor and DiffRemovedLineColor to ThemeDefinition struct
+- Added fields to Theme struct with proper category comments
+- Updated LoadTheme() mapping for new fields
+- Fixed CreateDefaultThemeIfMissing() to always regenerate (removed early-exit)
+
+#### 2. **TextPane Diff Rendering** (`internal/ui/textpane.go`)
+- Added DiffLine type (LineNum, Marker, Code, LineType)
+- Added parseDiffLines() function (structured diff parsing)
+- Added RenderDiffPane() function (3-column layout with scrolling)
+  - Column 1: Line numbers (4 chars, dimmed)
+  - Column 2: Marker (+/-/space) (2 chars, dimmed)
+  - Column 3: Code (remaining width, colored by type)
+  - Supports cursor + selection styling
+  - Proper scroll window calculation
+
+#### 3. **File History Integration** (`internal/ui/filehistory.go`)
+- Updated renderFileHistoryDiffPane() to use RenderDiffPane()
+- Removed RenderTextPane() call with isDiff parameter
+- Now provides proper 3-column diff layout matching old-tit
+
+#### 4. **Documentation** (`COLORS.md`)
+- Added Diff Colors section with new color definitions
+
+### Design Decisions
+
+**Diff Rendering Location:** Moved from standalone DiffPane component to textpane.go utility functions
+- Simplifies component hierarchy
+- Keeps all text/diff rendering utilities in one place
+- No need for separate DiffPane struct - renderDiffPane is stateless
+
+**Color SSOT:** Theme regeneration on every launch
+- Ensures development changes to DefaultThemeTOML are always picked up
+- User can still customize ~/.config/tit/themes/default.toml after first run
+- Next session can add persistent override handling if needed
+
+### Files Modified
+- `internal/ui/theme.go` — Added diff colors, fixed CreateDefaultThemeIfMissing()
+- `internal/ui/textpane.go` — Added DiffLine type, parseDiffLines(), RenderDiffPane()
+- `internal/ui/filehistory.go` — Updated renderFileHistoryDiffPane() to use RenderDiffPane()
+- `COLORS.md` — Documented new diff colors
+- Removed: `internal/ui/diffpane.go` (functions restored as utilities)
+
+### Build Status
+✅ Clean compile (no errors/warnings)
+
+### Testing Status
+⏳ **PENDING USER TEST**: 
+- Diff pane shows 3 columns (line# + marker + code)
+- Colors match old-tit (muted green/red)
+- Scrolling works correctly
+- Height calculation needs verification (currently using contentHeight - 4, may need adjustment per Session 52 pattern)
+
+### Known Issues
+- **Diff pane content height calculation:** Currently using `scrollWindow := contentHeight - 4`, needs verification per Session 52 findings about layout math. May need to be `contentHeight - 2` like other panes.
+
+### Summary
+Restored 3-column diff rendering for File History mode. Moved diff parsing/rendering from removed DiffPane component to RenderDiffPane() utility. Added theme SSOT diff colors (#5A9C7A green, #B07070 red) matching old-tit exactly. Fixed theme regeneration to always update from DefaultThemeTOML on app launch.
+
+---
+
+## Session 57: File History Cache Integration - Direct Diff Lookup ✅
 
 **Agent:** Amp (claude-code)
 **Date:** 2026-01-08

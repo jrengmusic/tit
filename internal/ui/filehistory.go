@@ -181,7 +181,7 @@ func renderFileHistoryFilesPane(state *FileHistoryState, theme Theme, width, hei
 	return listPane.Render(items, width, height, state.FocusedPane == PaneFiles, 0, 1)
 }
 
-// renderFileHistoryDiffPane renders the diff pane using TextPane
+// renderFileHistoryDiffPane renders the diff pane with 3-column layout (line# + marker + code)
 func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, height int) string {
 	// Get diff content from state (populated by handlers on file/commit selection)
 	// If no diff yet, show placeholder
@@ -190,18 +190,16 @@ func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, heig
 		diffContent = "(no diff available)"
 	}
 
-	// Use TextPane with diff mode enabled
+	// Use RenderDiffPane for proper 3-column diff layout
 	isActive := state.FocusedPane == PaneDiff
 
-	rendered, newScrollOffset := RenderTextPane(
+	rendered, newScrollOffset := RenderDiffPane(
 		diffContent,
 		width,
 		height,
 		state.DiffLineCursor,
 		state.DiffScrollOff,
-		false,  // No line numbers (diff already has its own format)
 		isActive,
-		true,   // isDiff mode - colors lines with +/- green/red
 		&theme,
 	)
 

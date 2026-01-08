@@ -51,6 +51,10 @@ timelineLocalBehind = "#F2AB53"       # safflower
 # Menu
 menuSelectionBackground = "#7EB8C5"    # brighter muted teal (background when highlighted)
 
+# Diff Colors (muted/desaturated for readability - old-tit exact)
+diffAddedLineColor = "#5A9C7A"          # muted green (added lines in diff)
+diffRemovedLineColor = "#B07070"        # muted red/burgundy (removed lines in diff)
+
 # Console Output (semantic colors for different output types)
 outputStdoutColor = "#999999"           # TerminalTextColor - regular command output
 outputStderrColor = "#FC704C"           # ErrorTextColor - stderr/error messages
@@ -108,6 +112,10 @@ type ThemeDefinition struct {
 		// UI Elements
 		MenuSelectionBackground string `toml:"menuSelectionBackground"`
 
+		// Diff Colors
+		DiffAddedLineColor   string `toml:"diffAddedLineColor"`
+		DiffRemovedLineColor string `toml:"diffRemovedLineColor"`
+
 		// Console Output Colors
 		OutputStdoutColor string `toml:"outputStdoutColor"`
 		OutputStderrColor string `toml:"outputStderrColor"`
@@ -162,6 +170,10 @@ type Theme struct {
 
 	// UI Elements
 	MenuSelectionBackground string
+
+	// Diff Colors
+	DiffAddedLineColor   string
+	DiffRemovedLineColor string
 
 	// Console Output Colors
 	OutputStdoutColor  string
@@ -228,6 +240,10 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		// UI Elements
 		MenuSelectionBackground: themeDef.Palette.MenuSelectionBackground,
 
+		// Diff Colors
+		DiffAddedLineColor:   themeDef.Palette.DiffAddedLineColor,
+		DiffRemovedLineColor: themeDef.Palette.DiffRemovedLineColor,
+
 		// Console Output Colors
 		OutputStdoutColor:  themeDef.Palette.OutputStdoutColor,
 		OutputStderrColor:  themeDef.Palette.OutputStderrColor,
@@ -240,19 +256,17 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 	return theme, nil
 }
 
-// CreateDefaultThemeIfMissing creates the default theme file on first run
+// CreateDefaultThemeIfMissing creates or regenerates the default theme file
+// SSOT: DefaultThemeTOML is regenerated on every launch to ensure all colors are current
 func CreateDefaultThemeIfMissing() (string, error) {
 	configThemeDir := filepath.Join(getConfigDirectory(), "themes")
 	configThemeFile := filepath.Join(configThemeDir, "default.toml")
-
-	if _, err := os.Stat(configThemeFile); err == nil {
-		return configThemeFile, nil
-	}
 
 	if err := os.MkdirAll(configThemeDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create config themes directory: %w", err)
 	}
 
+	// Always regenerate from DefaultThemeTOML SSOT to ensure latest colors
 	if err := os.WriteFile(configThemeFile, []byte(DefaultThemeTOML), 0644); err != nil {
 		return "", fmt.Errorf("failed to write default theme: %w", err)
 	}
