@@ -12,26 +12,7 @@ import (
 	"tit/internal/ui"
 )
 
-// FileHistoryPane represents which pane is focused in file(s) history mode
-type FileHistoryPane int
-
-const (
-	PaneCommits FileHistoryPane = iota
-	PaneFiles
-	PaneDiff
-)
-
-// FileHistoryState represents the state of the file(s) history browser
-type FileHistoryState struct {
-	Commits           []git.CommitInfo  // List of recent commits
-	Files             []ui.FileInfo     // Files in selected commit
-	SelectedCommitIdx int               // Currently selected commit (0-indexed)
-	SelectedFileIdx   int               // Currently selected file (0-indexed)
-	FocusedPane       FileHistoryPane   // Which pane has focus
-	CommitsScrollOff  int               // Scroll offset for commits list
-	FilesScrollOff    int               // Scroll offset for files list
-	DiffScrollOff     int               // Scroll offset for diff pane
-}
+// Use ui.FileHistoryState and ui.FileHistoryPane (no duplication)
 
 // Application represents the main TIT app state
 type Application struct {
@@ -95,9 +76,9 @@ type Application struct {
 	
 	// History mode state
 	historyState *ui.HistoryState
-	
+
 	// File(s) History mode state
-	fileHistoryState *FileHistoryState
+	fileHistoryState *ui.FileHistoryState
 	
 	// Cache fields (Phase 2)
 	historyMetadataCache  map[string]*git.CommitDetails  // hash → commit metadata
@@ -216,15 +197,18 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 			DetailsLineCursor: 0,
 			DetailsScrollOff:  0,
 		},
-		fileHistoryState: &FileHistoryState{
-			Commits:           make([]git.CommitInfo, 0),
+		fileHistoryState: &ui.FileHistoryState{
+			Commits:           make([]ui.CommitInfo, 0),
 			Files:             make([]ui.FileInfo, 0),
 			SelectedCommitIdx: 0,
 			SelectedFileIdx:   0,
-			FocusedPane:       PaneCommits,  // Start with commits pane focused
+			FocusedPane:       ui.PaneCommits,  // Start with commits pane focused
 			CommitsScrollOff:  0,
 			FilesScrollOff:    0,
 			DiffScrollOff:     0,
+			DiffLineCursor:    0,
+			VisualModeActive:  false,
+			VisualModeStart:   0,
 		},
 		// Initialize cache fields (Phase 2)
 		historyMetadataCache:  make(map[string]*git.CommitDetails),

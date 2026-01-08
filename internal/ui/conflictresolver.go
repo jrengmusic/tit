@@ -127,7 +127,7 @@ func RenderConflictResolveGeneric(
 		}
 
 		// Render content column with cursor using SSOT TextPane
-		paneRendered, newScrollOffset := RenderTextPane(content, columnWidth, bottomRowHeight, lineCursor, scrollOffset, true, isActive, &theme)
+		paneRendered, newScrollOffset := RenderTextPane(content, columnWidth, bottomRowHeight, lineCursor, scrollOffset, true, isActive, false, &theme)
 		
 		// Update scroll offset in array
 		if col < len(scrollOffsets) {

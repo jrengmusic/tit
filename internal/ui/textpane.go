@@ -16,6 +16,7 @@ func RenderTextPane(
 	scrollOffset int,
 	showLineNumbers bool,
 	isActive bool,
+	isDiff bool,
 	theme *Theme,
 ) (rendered string, newScrollOffset int) {
 
@@ -109,9 +110,23 @@ func RenderTextPane(
 				Bold(true).
 				Render(text)
 		} else {
+			// Diff mode: color +/- lines
+			var textColor string
+			if isDiff {
+				if strings.HasPrefix(text, "+") {
+					textColor = "#00ff00" // Green for added
+				} else if strings.HasPrefix(text, "-") {
+					textColor = "#ff0000" // Red for removed
+				} else {
+					textColor = theme.ContentTextColor
+				}
+			} else {
+				textColor = theme.ContentTextColor
+			}
+
 			line += lipgloss.NewStyle().
 				Width(textWidth).
-				Foreground(lipgloss.Color(theme.ContentTextColor)).
+				Foreground(lipgloss.Color(textColor)).
 				Render(text)
 		}
 

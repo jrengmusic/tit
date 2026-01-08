@@ -32,9 +32,13 @@ type FileHistoryState struct {
 	CommitsScrollOff  int          // Scroll offset for commits list
 	FilesScrollOff    int          // Scroll offset for files list
 	DiffScrollOff     int          // Scroll offset for diff pane
+	DiffLineCursor    int          // Line cursor for diff pane (for TextPane)
+	VisualModeActive  bool         // True when visual mode is active (for selecting lines)
+	VisualModeStart   int          // Starting line of visual selection
 }
 
-// RenderFileHistorySplitPane renders the file(s) history split-pane view (3 columns side-by-side)
+// RenderFileHistorySplitPane renders the file(s) history split-pane view (3-pane layout)
+// Layout: Top row (Commits + Files side-by-side), Bottom row (Diff full-width)
 // Returns content exactly `width` chars wide and `height - 2` lines tall (for outer border)
 // Parameters:
 //   - state: interface{} (FileHistoryState from app package)
@@ -53,43 +57,44 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 		return "Error: invalid file history state"
 	}
 
-	// Calculate pane height based on desired visible items
-	// We want ~15 visible commits in the list
-	// List structure: border(2) + title(1) + separator(1) + items(15) = 19 lines
-	desiredVisibleItems := 15
-	paneHeight := desiredVisibleItems + 4 // +4 for title, separator, and borders
+	// Calculate dimensions (same as ConflictResolver)
+	// Return height - 2 lines (wrapper will add border(2))
+	// Layout: topRow + bottomRow + status = height - 2
+	// Available for panes: (height - 2) - status(1) = height - 3
+	// But lipgloss adds extra padding, so reduce by 4 more
+	totalPaneHeight := height - 7
+	topRowHeight := totalPaneHeight / 3
+	bottomRowHeight := totalPaneHeight - topRowHeight
 
-	// Calculate column widths based on CONTENT NEEDS
-	// Divide width equally among 3 panes
-	commitPaneWidth := (width / 3)
-	filesPaneWidth := (width / 3)
-	diffPaneWidth := width - commitPaneWidth - filesPaneWidth // Remaining width for diff
+	// Adjust: add 2 to top row, reduce from bottom row
+	topRowHeight += 2
+	bottomRowHeight -= 2
 
-	// Ensure minimum widths
-	if commitPaneWidth < 20 {
-		commitPaneWidth = 20
+	// Calculate column widths for top row (2 columns: Commits + Files)
+	// No gaps, borders touch directly
+	commitPaneWidth := 24  // Fixed width for commits (same as History mode)
+	filesPaneWidth := width - commitPaneWidth  // Remaining width for files
+
+	// Render top row panes (Commits + Files)
+	commitsPaneContent := renderFileHistoryCommitsPane(fileHistoryState, theme, commitPaneWidth, topRowHeight)
+	filesPaneContent := renderFileHistoryFilesPane(fileHistoryState, theme, filesPaneWidth, topRowHeight)
+
+	// Join top row columns - lipgloss will place them side-by-side with borders touching
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top, commitsPaneContent, filesPaneContent)
+
+	// Render bottom row (Diff pane - full width, single column)
+	bottomRow := renderFileHistoryDiffPane(fileHistoryState, theme, width, bottomRowHeight)
+
+	// Build status bar (context-sensitive)
+	var statusBar string
+	if fileHistoryState.FocusedPane == PaneDiff {
+		statusBar = buildDiffStatusBar(fileHistoryState.VisualModeActive, width, theme)
+	} else {
+		statusBar = buildFileHistoryStatusBar(fileHistoryState.FocusedPane, width, theme)
 	}
-	if filesPaneWidth < 20 {
-		filesPaneWidth = 20
-	}
-	if diffPaneWidth < 30 {
-		diffPaneWidth = 30
-	}
 
-	// Render all three columns at same height
-	commitsPaneContent := renderFileHistoryCommitsPane(fileHistoryState, theme, commitPaneWidth, paneHeight)
-	filesPaneContent := renderFileHistoryFilesPane(fileHistoryState, theme, filesPaneWidth, paneHeight)
-	diffPaneContent := renderFileHistoryDiffPane(fileHistoryState, theme, diffPaneWidth, paneHeight)
-
-	// Join columns horizontally (side-by-side)
-	mainRow := lipgloss.JoinHorizontal(lipgloss.Top, commitsPaneContent, filesPaneContent, diffPaneContent)
-
-	// Build status bar
-	statusBar := buildFileHistoryStatusBar(fileHistoryState.FocusedPane, width, theme)
-
-	// Stack: mainRow + statusBar
-	// Total height will be (height - 3) + 1 = height - 2 (correct for outer wrapper)
-	return mainRow + "\n" + statusBar
+	// Stack everything with no gaps: topRow + bottomRow + statusBar
+	return topRow + "\n" + bottomRow + "\n" + statusBar
 }
 
 // renderFileHistoryCommitsPane renders the commits list pane (left)
@@ -127,8 +132,8 @@ func renderFileHistoryCommitsPane(state *FileHistoryState, theme Theme, width, h
 	listPane.AdjustScroll(state.SelectedCommitIdx, visibleLines)
 
 	// Render list pane (active when commits pane is focused)
-	// Pass 0, 3 for column positioning (first of 3 columns)
-	return listPane.Render(items, width, height, state.FocusedPane == PaneCommits, 0, 3)
+	// Pass 0, 1 for column params (not used in 2-row layout)
+	return listPane.Render(items, width, height, state.FocusedPane == PaneCommits, 0, 1)
 }
 
 // renderFileHistoryFilesPane renders the files list pane (middle)
@@ -171,26 +176,47 @@ func renderFileHistoryFilesPane(state *FileHistoryState, theme Theme, width, hei
 	listPane.AdjustScroll(state.SelectedFileIdx, visibleLines)
 
 	// Render list pane (active when files pane is focused)
-	// Pass 1, 3 for column positioning (second of 3 columns)
-	return listPane.Render(items, width, height, state.FocusedPane == PaneFiles, 1, 3)
+	// Pass 0, 1 for column params (not used in 2-row layout)
+	return listPane.Render(items, width, height, state.FocusedPane == PaneFiles, 0, 1)
 }
 
-// renderFileHistoryDiffPane renders the diff pane (right)
+// renderFileHistoryDiffPane renders the diff pane using TextPane
 func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, height int) string {
-	// For now, use a placeholder diff content
-	// In Phase 6, this will be populated from the diff cache
-	diffContent := "@@ -1,10 +1,12 @@\n package main\n\n func main() {\n+  fmt.Println(\"Hello, World!\")\n }\n"
+	// Get diff content - placeholder for now, will be populated from cache in handlers
+	// TODO: Get actual diff from cache based on selected commit + file
+	diffContent := `diff --git a/internal/app/handlers.go b/internal/app/handlers.go
+@@ -35,7 +38,9 @@
+ value := strings.TrimSpace(parts[1])
 
-	// Create diff pane
-	diffPane := NewDiffPane(&theme)
-	diffPane.ScrollOffset = state.DiffScrollOff
+ // Generate result
+-result := fmt.Sprintf("ORIGINAL LINE - KEY=%s, VALUE=%s", key, value)
++result := fmt.Sprintf("MODIFIED LINE - KEY=%s, VALUE=%s", key, value)
++// Added comment here
 
-	// Render diff pane (active when diff pane is focused)
+ return result, nil`
+
+	// Use TextPane with diff mode enabled
 	isActive := state.FocusedPane == PaneDiff
-	return diffPane.Render(diffContent, isActive, width, height)
+
+	rendered, newScrollOffset := RenderTextPane(
+		diffContent,
+		width,
+		height,
+		state.DiffLineCursor,
+		state.DiffScrollOff,
+		false,  // No line numbers (diff already has its own format)
+		isActive,
+		true,   // isDiff mode - colors lines with +/- green/red
+		&theme,
+	)
+
+	// Update scroll offset
+	state.DiffScrollOff = newScrollOffset
+
+	return rendered
 }
 
-// buildFileHistoryStatusBar builds the status bar with keyboard shortcuts
+// buildFileHistoryStatusBar builds the status bar for file history mode
 func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme Theme) string {
 	shortcutStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.AccentTextColor)).
@@ -200,36 +226,92 @@ func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme The
 	sepStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.DimmedTextColor))
 
-	// Build shortcuts based on focused pane
-	var parts []string
-	switch focusedPane {
-	case PaneCommits:
-		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" navigate commits"),
-		}
-	case PaneFiles:
-		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" navigate files"),
-		}
-	case PaneDiff:
-		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll diff"),
-		}
+	// Status bar shortcuts
+	parts := []string{
+		shortcutStyle.Render("↑↓") + descStyle.Render(" navigate"),
+		shortcutStyle.Render("TAB") + descStyle.Render(" cycle panes"),
+		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
 	}
 
-	parts = append(parts,
-		shortcutStyle.Render("TAB") + descStyle.Render(" cycle panes"),
-		shortcutStyle.Render("Y") + descStyle.Render(" copy"),
-		shortcutStyle.Render("V") + descStyle.Render(" visual"),
+	statusBar := strings.Join(parts, sepStyle.Render("  │  "))
+
+	// Center the status bar
+	statusWidth := lipgloss.Width(statusBar)
+	if statusWidth > width {
+		return statusBar
+	}
+
+	leftPad := (width - statusWidth) / 2
+	rightPad := width - statusWidth - leftPad
+
+	if leftPad < 0 {
+		leftPad = 0
+	}
+	if rightPad < 0 {
+		rightPad = 0
+	}
+
+	statusBar = strings.Repeat(" ", leftPad) + statusBar + strings.Repeat(" ", rightPad)
+
+	return statusBar
+}
+
+// buildDiffStatusBar builds the status bar for diff pane (when focused)
+// Shows different hints in visual mode vs normal mode (matches old-tit)
+func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
+	shortcutStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.AccentTextColor)).
+		Bold(true)
+	descStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.ContentTextColor))
+
+	var statusBar string
+
+	if visualModeActive {
+		// VISUAL mode: simplified, left-aligned
+		visualStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+			Background(lipgloss.Color(theme.AccentTextColor)).
+			Bold(true)
+
+		parts := []string{
+			visualStyle.Render("VISUAL"),
+			shortcutStyle.Render("↑↓") + descStyle.Render(" select"),
+			shortcutStyle.Render("Y") + descStyle.Render(" copy"),
+			shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+		}
+		statusBar = strings.Join(parts, descStyle.Render("  "))
+		return statusBar // Left-aligned, no padding
+	}
+
+	// NORMAL mode: full shortcuts, centered
+	parts := []string{
+		shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
+		shortcutStyle.Render("TAB") + descStyle.Render(" cycle"),
 		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
-	)
+		shortcutStyle.Render("V") + descStyle.Render(" visual"),
+		shortcutStyle.Render("Y") + descStyle.Render(" copy"),
+	}
 
-	statusText := strings.Join(parts, sepStyle.Render("  │  "))
+	statusBar = strings.Join(parts, descStyle.Render("  "))
 
-	// Center and size status bar
-	statusStyle := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center)
+	// Center the status bar
+	statusWidth := lipgloss.Width(statusBar)
+	if statusWidth > width {
+		return statusBar
+	}
 
-	return statusStyle.Render(statusText)
+	leftPad := (width - statusWidth) / 2
+	rightPad := width - statusWidth - leftPad
+
+	if leftPad < 0 {
+		leftPad = 0
+	}
+	if rightPad < 0 {
+		rightPad = 0
+	}
+
+	statusBar = strings.Repeat(" ", leftPad) + statusBar + strings.Repeat(" ", rightPad)
+
+	return statusBar
 }

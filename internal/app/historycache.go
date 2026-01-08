@@ -130,15 +130,18 @@ func (a *Application) invalidateHistoryCaches() {
 		DetailsScrollOff:  0,
 	}
 
-	a.fileHistoryState = &FileHistoryState{
-		Commits:           make([]git.CommitInfo, 0),
+	a.fileHistoryState = &ui.FileHistoryState{
+		Commits:           make([]ui.CommitInfo, 0),
 		Files:             make([]ui.FileInfo, 0),
 		SelectedCommitIdx: 0,
 		SelectedFileIdx:   0,
-		FocusedPane:       PaneCommits,
+		FocusedPane:       ui.PaneCommits,
 		CommitsScrollOff:  0,
 		FilesScrollOff:    0,
 		DiffScrollOff:     0,
+		DiffLineCursor:    0,
+		VisualModeActive:  false,
+		VisualModeStart:   0,
 	}
 
 	// Restart loading (non-blocking, async goroutines)

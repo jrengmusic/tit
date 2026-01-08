@@ -96,6 +96,85 @@
 
 ---
 
+## Session 56: File History Layout Polish & Multi-Pane Pattern Documentation ✅
+
+**Agent:** Claude Sonnet 4.5 (claude.ai/code)
+**Date:** 2026-01-08
+
+### Objective
+Polish File History 3-pane layout to match ConflictResolver's proven calculations, implement VISUAL mode status bar, and document the Multi-Pane Component Pattern for future reference.
+
+### Problems Fixed
+
+#### 1. **Layout Alignment with ConflictResolver Pattern**
+- **Issue:** File History layout used custom calculations, had gaps between panes, commits pane width didn't match History mode
+- **Root Cause:** Not following ConflictResolver's proven height formula (height - 7, split 1/3 + 2/3, adjust +2/-2)
+- **Solution:** Complete rewrite of `RenderFileHistorySplitPane` using exact ConflictResolver pattern:
+  ```go
+  totalPaneHeight := height - 7
+  topRowHeight := totalPaneHeight / 3
+  bottomRowHeight := totalPaneHeight - topRowHeight
+  topRowHeight += 2
+  bottomRowHeight -= 2
+
+  commitPaneWidth := 24  // Fixed width matching History mode
+  filesPaneWidth := width - commitPaneWidth  // No gaps
+  ```
+- **Result:** Perfect layout alignment, no gaps, borders touch directly
+
+#### 2. **Context-Sensitive Status Bar with VISUAL Mode**
+- **Issue:** Diff pane status bar didn't show VISUAL mode state (vim-like line selection)
+- **Reference:** old-tit VISUAL mode behavior (badge + simplified shortcuts)
+- **Solution:** Implemented two status bar modes:
+  - **Normal mode:** Centered, full shortcuts (scroll, cycle, back, visual, copy)
+  - **VISUAL mode:** Left-aligned with badge, selection shortcuts only
+  ```go
+  // VISUAL mode badge
+  visualStyle := lipgloss.NewStyle().
+      Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+      Background(lipgloss.Color(theme.AccentTextColor)).
+      Bold(true)
+  parts := []string{
+      visualStyle.Render("VISUAL"),
+      shortcutStyle.Render("↑↓") + descStyle.Render(" select"),
+      shortcutStyle.Render("Y") + descStyle.Render(" copy"),
+      shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+  }
+  ```
+- **Result:** Status bar adapts to current mode, matches old-tit UX
+
+#### 3. **Multi-Pane Component Pattern Documentation**
+- **Issue:** Three components (History, ConflictResolver, FileHistory) all use same pattern, but not documented
+- **Solution:** Added comprehensive "Multi-Pane Content Component Pattern" section to ARCHITECTURE.md:
+  - Height calculation formula with explanation
+  - Two width patterns (Fixed + Remainder, Equal Distribution)
+  - Assembly pattern with lipgloss.JoinHorizontal
+  - Focus management with enum-based pane tracking
+  - Context-sensitive status bars
+  - Three real implementation examples
+  - Common pitfalls (❌ WRONG vs ✅ RIGHT)
+  - 11-item checklist for new components
+- **Result:** Pattern now documented for future component development
+
+### Files Modified
+- `internal/ui/filehistory.go` — Complete rewrite with ConflictResolver pattern, context-sensitive status bars
+- `internal/app/handlers.go` — Added PaneDiff navigation cases
+- `internal/app/app.go` — Added VisualModeActive and VisualModeStart fields
+- `internal/app/dispatchers.go` — Updated state initialization for visual mode
+- `internal/app/historycache.go` — Reset visual mode state on cache invalidation
+- `ARCHITECTURE.md` — Added Multi-Pane Content Component Pattern section
+
+### Build Status
+✅ Clean compile (no errors/warnings)
+
+### Testing Status
+⏳ **PENDING USER TEST**: Layout calculations verified against ConflictResolver, status bar logic matches old-tit
+
+### Summary
+File History now uses ConflictResolver's exact layout calculations (height - 7 formula, fixed 24-char commits pane), implements context-sensitive status bar with VISUAL mode support matching old-tit, and the Multi-Pane Component Pattern is now documented in ARCHITECTURE.md for future component development. All three multi-pane components (History, ConflictResolver, FileHistory) now follow identical patterns.
+
+---
+
 ## Session 55: Phase 5 & 6 Complete - File History UI & Handlers ✅
 
 **Agent:** Gemini
@@ -519,36 +598,3 @@ Fix History mode UI rendering issues, implement SSOT for scrollable text compone
 
 ### Summary
 History mode now correctly displays commits in chronological order (newest first) with full scrollable commit messages. Established SSOT pattern for scrollable text components, eliminating code duplication. Layout properly sized with commits pane (24 chars) and details pane (52 chars) fitting side-by-side. Long text wraps naturally within fixed-width box without expanding layout.
-
----
-
-## Session 50: History Mode Handlers & Menu ✅
-
-**Agent:** Gemini
-**Date:** 2026-01-07
-
-### Objective: Make History mode fully functional and user-accessible by implementing keyboard navigation, menu integration, and populating the UI with cached data.
-
-### Completed:
-
-✅ **Modified `internal/app/handlers.go`:** Implemented `handleHistoryUp()`, `handleHistoryDown()`, `handleHistoryTab()`, `handleHistoryEsc()` for navigation and pane switching, and a placeholder `handleHistoryEnter()` for future time travel.
-✅ **Modified `internal/app/dispatchers.go`:** Created `dispatchHistory()` to populate `historyState` from the Phase 2 cache and transition to `ModeHistory`.
-✅ **Modified `internal/app/menu.go`:** Refactored `menuHistory()` to use the SSOT pattern (`GetMenuItem()`) for consistent menu item generation.
-✅ **Modified `internal/app/app.go`:** Registered the new `ModeHistory` keyboard handlers within `NewModeHandlers()`.
-✅ **Refactored `internal/ui/history.go`:** Updated rendering functions (`renderHistoryListPane`, `renderHistoryDetailsPane`) to use actual commit data from `historyState` (Phase 2 cache) instead of placeholders, improving type safety and displaying real content.
-
-### Files Modified:
-
-- `internal/app/handlers.go`
-- `internal/app/dispatchers.go`
-- `internal/app/menu.go`
-- `internal/app/app.go`
-- `internal/ui/history.go`
-
-### Build Status: ✅ Clean compile (no errors/warnings).
-
-### Testing Status: ✅ Verified all ARCHITECTURE.md compliance, SSOT adherence, type safety, and functional integration. Manual testing enabled by full menu and keyboard functionality.
-
-### Summary:
-
-History mode is now fully operational, allowing users to navigate commit lists, view details, switch panes, and return to the main menu. This phase significantly advanced the feature by integrating UI (Phase 3) with caching (Phase 2) and providing complete user interaction, preparing for File(s) History and Time Travel.

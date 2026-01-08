@@ -345,15 +345,18 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 	}
 	
 	// Initialize state
-	app.fileHistoryState = &FileHistoryState{
-		Commits:           gitCommits,
+	app.fileHistoryState = &ui.FileHistoryState{
+		Commits:           commits,
 		Files:             files,
 		SelectedCommitIdx: 0,
 		SelectedFileIdx:   0,
-		FocusedPane:       PaneCommits, // Start with commits pane focused
+		FocusedPane:       ui.PaneCommits, // Start with commits pane focused
 		CommitsScrollOff:  0,
 		FilesScrollOff:    0,
 		DiffScrollOff:     0,
+		DiffLineCursor:    0,
+		VisualModeActive:  false,
+		VisualModeStart:   0,
 	}
 	
 	// Show appropriate hint

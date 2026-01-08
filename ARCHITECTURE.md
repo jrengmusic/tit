@@ -601,6 +601,360 @@ A: DiffPane is overkill for basic conflict resolution. renderGenericContentPane 
 
 ---
 
+## Multi-Pane Content Component Pattern
+
+**Purpose:** Standard pattern for building complex content views with multiple panes, context-sensitive status bars, and focus management. Used by History, Conflict Resolver, and File History modes.
+
+### Core Pattern Overview
+
+All multi-pane components follow this proven structure:
+
+```
+┌─────────────────────────────────────────┐
+│ Top Row: One or more panes side-by-side│
+├─────────────────────────────────────────┤
+│ Bottom Row: One or more panes           │
+├─────────────────────────────────────────┤
+│ Status Bar: Context-sensitive shortcuts │
+└─────────────────────────────────────────┘
+```
+
+### Height Calculations (CRITICAL - Exact Formula)
+
+**All multi-pane components MUST use this exact calculation:**
+
+```go
+// Return height - 2 lines (wrapper will add border(2))
+// Layout: topRow + bottomRow + status = height - 2
+// Available for panes: (height - 2) - status(1) = height - 3
+// But lipgloss adds extra padding, so reduce by 4 more
+totalPaneHeight := height - 7
+topRowHeight := totalPaneHeight / 3
+bottomRowHeight := totalPaneHeight - topRowHeight
+
+// Adjust: add 2 to top row, reduce from bottom row
+topRowHeight += 2
+bottomRowHeight -= 2
+```
+
+**Why this specific formula:**
+- `height - 7`: Accounts for border(2) + status(1) + lipgloss padding(4)
+- `1/3` split: Top row gets 1/3, bottom row gets 2/3
+- `+2/-2` adjustment: Fine-tune to prevent gaps/overflow
+- Proven in ConflictResolver, copied to FileHistory
+
+### Width Calculations
+
+**Two patterns based on component needs:**
+
+#### Pattern A: Fixed + Remainder (History, FileHistory)
+```go
+// Commits pane: fixed 24 chars (fits "07-Jan 02:11 957f977")
+commitPaneWidth := 24
+detailsPaneWidth := width - commitPaneWidth  // No gap, borders touch
+```
+
+#### Pattern B: Equal Distribution (ConflictResolver)
+```go
+// N columns share width equally
+baseColumnWidth := width / numColumns
+remainder := width % numColumns
+
+// Distribute remainder to rightmost columns
+for col := 0; col < numColumns; col++ {
+    columnWidth := baseColumnWidth
+    if col >= numColumns - remainder {
+        columnWidth++  // Last columns get +1 if needed
+    }
+}
+```
+
+### Assembly Pattern
+
+**CRITICAL: Use lipgloss.JoinHorizontal + direct string concatenation**
+
+```go
+// Step 1: Render all panes
+leftPane := renderLeftPane(state, theme, leftWidth, topRowHeight)
+rightPane := renderRightPane(state, theme, rightWidth, topRowHeight)
+bottomPane := renderBottomPane(state, theme, width, bottomRowHeight)
+
+// Step 2: Join top row panes horizontally (borders touch)
+topRow := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+
+// Step 3: Build status bar (context-sensitive)
+statusBar := buildStatusBar(state.FocusedPane, width, theme)
+
+// Step 4: Assemble with direct string concatenation (NO gaps)
+return topRow + "\n" + bottomPane + "\n" + statusBar
+```
+
+**Why this pattern:**
+- `lipgloss.JoinHorizontal`: Handles side-by-side panes correctly
+- Direct `"\n"` concatenation: No gaps, consistent with wrapper expectations
+- Each pane includes ALL borders (lipgloss makes them touch seamlessly)
+
+### Focus Management Pattern
+
+**State tracking:**
+```go
+type YourState struct {
+    FocusedPane  YourPaneEnum  // Which pane has focus
+    // ... pane-specific scroll/cursor fields
+}
+
+type YourPaneEnum int
+const (
+    PaneLeft YourPaneEnum = iota
+    PaneRight
+    PaneBottom
+)
+```
+
+**TAB key cycling:**
+```go
+func handleYourModeTab(app *Application) (tea.Model, tea.Cmd) {
+    // Cycle through all panes
+    numPanes := 3  // Or whatever your mode has
+    app.yourState.FocusedPane = (app.yourState.FocusedPane + 1) % numPanes
+    return app, nil
+}
+```
+
+**Focus-based rendering:**
+```go
+// In pane renderer
+isActive := (state.FocusedPane == PaneLeft)
+borderColor := theme.ConflictPaneUnfocusedBorder
+if isActive {
+    borderColor = theme.ConflictPaneFocusedBorder
+}
+```
+
+### Context-Sensitive Status Bar Pattern
+
+**Status bar switches based on focused pane:**
+
+```go
+// In main render function
+var statusBar string
+if state.FocusedPane == PaneSpecial {
+    statusBar = buildSpecialStatusBar(state, width, theme)
+} else {
+    statusBar = buildNormalStatusBar(state.FocusedPane, width, theme)
+}
+```
+
+**Normal mode example:**
+```go
+func buildNormalStatusBar(focusedPane YourPaneEnum, width int, theme Theme) string {
+    parts := []string{
+        shortcutStyle.Render("↑↓") + descStyle.Render(" navigate"),
+        shortcutStyle.Render("TAB") + descStyle.Render(" cycle panes"),
+        shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+    }
+    statusBar := strings.Join(parts, descStyle.Render("  "))
+
+    // Center the status bar
+    statusWidth := lipgloss.Width(statusBar)
+    leftPad := (width - statusWidth) / 2
+    rightPad := width - statusWidth - leftPad
+    return strings.Repeat(" ", leftPad) + statusBar + strings.Repeat(" ", rightPad)
+}
+```
+
+**Special mode example (FileHistory VISUAL mode):**
+```go
+func buildVisualStatusBar(width int, theme Theme) string {
+    visualStyle := lipgloss.NewStyle().
+        Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+        Background(lipgloss.Color(theme.AccentTextColor)).
+        Bold(true)
+
+    parts := []string{
+        visualStyle.Render("VISUAL"),  // Inverted badge
+        shortcutStyle.Render("↑↓") + descStyle.Render(" select"),
+        shortcutStyle.Render("Y") + descStyle.Render(" copy"),
+        shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+    }
+    return strings.Join(parts, descStyle.Render("  "))  // Left-aligned, no padding
+}
+```
+
+### Implementation Examples
+
+#### Example 1: History Mode (2-Pane Side-by-Side)
+
+**Layout:**
+```
+┌────────────┬─────────────────────────────────┐
+│  Commits   │  Details                        │
+│  List      │  (Author, Date, Message)        │
+│  (24 wide) │  (Remaining width)              │
+└────────────┴─────────────────────────────────┘
+ ↑↓ navigate | TAB switch pane | ESC back
+```
+
+**Key characteristics:**
+- Fixed 24-char commits pane (fits "07-Jan 02:11 957f977")
+- Details pane takes remaining width
+- Single status bar (no mode switching)
+- Simple 2-pane focus cycle
+
+#### Example 2: Conflict Resolver (N-Column)
+
+**Layout:**
+```
+┌─────────────┬─────────────┬─────────────┐
+│   LOCAL     │   REMOTE    │  INCOMING   │  Top row
+│ [✓] file.go │ [ ] file.go │ [ ] file.go │  (file lists)
+└─────────────┴─────────────┴─────────────┘
+┌─────────────┬─────────────┬─────────────┐
+│  1 package  │  1 package  │  1 package  │  Bottom row
+│  2 main     │  2 main     │  2 main     │  (content)
+└─────────────┴─────────────┴─────────────┘
+ ↑↓ scroll | TAB cycle | SPACE mark | ENTER apply
+```
+
+**Key characteristics:**
+- N columns distributed equally (width / numColumns)
+- Top row: N file lists (shared selection)
+- Bottom row: N content panes (independent scrolling)
+- Focus cycles through 2N panes (0 to 2N-1)
+
+#### Example 3: File History (3-Pane Hybrid)
+
+**Layout:**
+```
+┌────────────┬─────────────────────────────────┐
+│  Commits   │  Files                          │  Top row
+│  List      │  (Changed files in commit)      │  (24 + remaining)
+│  (24 wide) │                                 │
+└────────────┴─────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  Diff (full width)                           │  Bottom row
+│  (Shows file changes)                        │  (full width)
+└──────────────────────────────────────────────┘
+ ↑↓ scroll | TAB cycle | V visual | Y copy | ESC
+```
+
+**Key characteristics:**
+- Hybrid layout: 2 panes top, 1 pane bottom
+- Fixed 24-char commits pane (same as History)
+- Files pane takes remaining top width
+- Diff pane full width on bottom
+- Context-sensitive status bar (normal vs VISUAL mode)
+- 3-pane focus cycle (commits → files → diff → commits)
+
+### Registration Pattern
+
+**Key handlers in `internal/app/app.go`:**
+
+```go
+ModeYourMode: NewModeHandlers().
+    On("up", a.handleYourModeUp).
+    On("down", a.handleYourModeDown).
+    On("k", a.handleYourModeUp).     // Vim binding
+    On("j", a.handleYourModeDown).   // Vim binding
+    On("tab", a.handleYourModeTab).  // Focus cycling
+    On("esc", a.handleYourModeEsc).  // Return to menu
+    Build(),
+```
+
+### Navigation Handler Pattern
+
+**Up/Down handlers route based on focused pane:**
+
+```go
+func handleYourModeUp(app *Application) (tea.Model, tea.Cmd) {
+    switch app.yourState.FocusedPane {
+    case PaneList:
+        // Navigate list item up
+        if app.yourState.SelectedIdx > 0 {
+            app.yourState.SelectedIdx--
+        }
+    case PaneContent:
+        // Scroll content up
+        if app.yourState.ContentScrollOff > 0 {
+            app.yourState.ContentScrollOff--
+        }
+    }
+    return app, nil
+}
+```
+
+### Common Pitfalls to Avoid
+
+❌ **Manual line-by-line joining:**
+```go
+// WRONG - Manual loops, padding, trimming
+for i := 0; i < maxLines; i++ {
+    combinedLine := leftLine + " " + rightLine  // Gap!
+    allLines = append(allLines, combinedLine)
+}
+```
+
+✅ **lipgloss.JoinHorizontal:**
+```go
+// RIGHT - Let lipgloss handle borders
+topRow := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+```
+
+❌ **Adding gaps between panes:**
+```go
+// WRONG - Creates visible gap
+filesPaneWidth := width - commitPaneWidth - 1  // -1 gap
+topRow := commitLine + " " + filesLine        // Space between
+```
+
+✅ **Panes touching directly:**
+```go
+// RIGHT - Borders touch, no gaps
+filesPaneWidth := width - commitPaneWidth
+topRow := lipgloss.JoinHorizontal(lipgloss.Top, commits, files)
+```
+
+❌ **Hardcoded height calculations:**
+```go
+// WRONG - Magic numbers
+topRowHeight := height / 3
+bottomRowHeight := height * 2 / 3  // Doesn't account for status bar
+```
+
+✅ **Proven formula:**
+```go
+// RIGHT - Use exact formula from ConflictResolver
+totalPaneHeight := height - 7
+topRowHeight := totalPaneHeight / 3
+bottomRowHeight := totalPaneHeight - topRowHeight
+topRowHeight += 2
+bottomRowHeight -= 2
+```
+
+### Checklist for New Multi-Pane Components
+
+- [ ] Use height calculation formula exactly (height - 7, split 1/3 + 2/3, adjust +2/-2)
+- [ ] Choose width pattern (fixed + remainder OR equal distribution)
+- [ ] Use lipgloss.JoinHorizontal for side-by-side panes
+- [ ] Assemble with direct string concatenation (no gaps)
+- [ ] Create focus enum (PaneLeft, PaneRight, etc.)
+- [ ] Implement TAB cycling (% numPanes)
+- [ ] Add focus-based border colors to each pane renderer
+- [ ] Build context-sensitive status bars
+- [ ] Register up/down/tab/esc key handlers
+- [ ] Route up/down based on focused pane (list nav vs content scroll)
+- [ ] Test with different terminal sizes (borders must not overflow)
+
+### Files Implementing This Pattern
+
+| Component | File | Top Row | Bottom Row | Panes | Status Modes |
+|-----------|------|---------|------------|-------|--------------|
+| History | `internal/ui/history.go` | Commits + Details | (none) | 2 | 1 (normal) |
+| Conflict Resolver | `internal/ui/conflictresolver.go` | N file lists | N content panes | 2N | 1 (normal) |
+| File History | `internal/ui/filehistory.go` | Commits + Files | Diff | 3 | 2 (normal + VISUAL) |
+
+---
+
 ## Dispatcher Pattern (Menu Item → Mode)
 
 Dispatchers route menu actions to appropriate modes:

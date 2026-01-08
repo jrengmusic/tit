@@ -899,7 +899,7 @@ func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	switch app.fileHistoryState.FocusedPane {
-	case PaneCommits:
+	case ui.PaneCommits:
 		// Navigate up in commits list
 		if app.fileHistoryState.SelectedCommitIdx > 0 {
 			app.fileHistoryState.SelectedCommitIdx--
@@ -921,15 +921,15 @@ func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd)
 				}
 			}
 		}
-	case PaneFiles:
+	case ui.PaneFiles:
 		// Navigate up in files list
 		if app.fileHistoryState.SelectedFileIdx > 0 {
 			app.fileHistoryState.SelectedFileIdx--
 		}
-	case PaneDiff:
-		// Scroll diff up
-		if app.fileHistoryState.DiffScrollOff > 0 {
-			app.fileHistoryState.DiffScrollOff--
+	case ui.PaneDiff:
+		// Navigate up in diff pane (move cursor up)
+		if app.fileHistoryState.DiffLineCursor > 0 {
+			app.fileHistoryState.DiffLineCursor--
 		}
 	}
 	return app, nil
@@ -942,7 +942,7 @@ func (a *Application) handleFileHistoryDown(app *Application) (tea.Model, tea.Cm
 	}
 
 	switch app.fileHistoryState.FocusedPane {
-	case PaneCommits:
+	case ui.PaneCommits:
 		// Navigate down in commits list
 		if app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits)-1 {
 			app.fileHistoryState.SelectedCommitIdx++
@@ -964,14 +964,14 @@ func (a *Application) handleFileHistoryDown(app *Application) (tea.Model, tea.Cm
 				}
 			}
 		}
-	case PaneFiles:
+	case ui.PaneFiles:
 		// Navigate down in files list
 		if app.fileHistoryState.SelectedFileIdx < len(app.fileHistoryState.Files)-1 {
 			app.fileHistoryState.SelectedFileIdx++
 		}
-	case PaneDiff:
-		// Scroll diff down
-		app.fileHistoryState.DiffScrollOff++
+	case ui.PaneDiff:
+		// Navigate down in diff pane (move cursor down)
+		app.fileHistoryState.DiffLineCursor++
 	}
 	return app, nil
 }

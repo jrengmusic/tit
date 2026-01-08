@@ -142,6 +142,7 @@ func renderHistoryDetailsPane(state *HistoryState, theme Theme, width, height in
 		state.DetailsScrollOff,   // Current scroll offset
 		false,                    // No line numbers (not code)
 		!state.PaneFocused,       // Active when list is NOT focused
+		false,                    // Not diff mode
 		&theme,
 	)
 	
