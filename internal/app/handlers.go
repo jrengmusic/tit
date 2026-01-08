@@ -25,6 +25,19 @@ func (a *Application) validateAndProceed(
     return onSuccess(a)
 }
 
+// convertGitFilesToUIFileInfo converts git.FileInfo to ui.FileInfo for state management
+// Used when populating file lists from git operations
+func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
+	converted := make([]ui.FileInfo, len(gitFiles))
+	for i, gitFile := range gitFiles {
+		converted[i] = ui.FileInfo{
+			Path:   gitFile.Path,
+			Status: gitFile.Status,
+		}
+	}
+	return converted
+}
+
 // handleKeyCtrlC handles Ctrl+C globally
 // During async operations: shows "operation in progress" message
 // During critical operations (!isExitAllowed): blocks exit to prevent broken git state
@@ -956,15 +969,7 @@ func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd)
 			if app.fileHistoryState.SelectedCommitIdx >= 0 && app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits) {
 				commitHash := app.fileHistoryState.Commits[app.fileHistoryState.SelectedCommitIdx].Hash
 				if gitFileList, exists := app.fileHistoryFilesCache[commitHash]; exists {
-					// Convert git.FileInfo to ui.FileInfo
-					var convertedFiles []ui.FileInfo
-					for _, gitFile := range gitFileList {
-						convertedFiles = append(convertedFiles, ui.FileInfo{
-							Path:   gitFile.Path,
-							Status: gitFile.Status,
-						})
-					}
-					app.fileHistoryState.Files = convertedFiles
+					app.fileHistoryState.Files = convertGitFilesToUIFileInfo(gitFileList)
 				}
 			}
 			// Update diff for new commit (file selection was reset to 0, so first file diff is shown)
@@ -1003,15 +1008,7 @@ func (a *Application) handleFileHistoryDown(app *Application) (tea.Model, tea.Cm
 			if app.fileHistoryState.SelectedCommitIdx >= 0 && app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits) {
 				commitHash := app.fileHistoryState.Commits[app.fileHistoryState.SelectedCommitIdx].Hash
 				if gitFileList, exists := app.fileHistoryFilesCache[commitHash]; exists {
-					// Convert git.FileInfo to ui.FileInfo
-					var convertedFiles []ui.FileInfo
-					for _, gitFile := range gitFileList {
-						convertedFiles = append(convertedFiles, ui.FileInfo{
-							Path:   gitFile.Path,
-							Status: gitFile.Status,
-						})
-					}
-					app.fileHistoryState.Files = convertedFiles
+					app.fileHistoryState.Files = convertGitFilesToUIFileInfo(gitFileList)
 				}
 			}
 			// Update diff for new commit (file selection was reset to 0, so first file diff is shown)

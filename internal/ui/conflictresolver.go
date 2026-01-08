@@ -185,8 +185,6 @@ func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, t
 		Bold(true)
 	descStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.ContentTextColor))
-	sepStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.DimmedTextColor))
 
 	// Build shortcuts based on focused pane
 	var parts []string
@@ -208,14 +206,12 @@ func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, t
 		shortcutStyle.Render("ESC") + descStyle.Render(" abort"),
 	)
 
-	statusText := strings.Join(parts, sepStyle.Render("  │  "))
-
-	// Use lipgloss to center and size status bar (match width)
-	statusStyle := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center)
-
-	return statusStyle.Render(statusText)
+	return BuildStatusBar(StatusBarConfig{
+		Parts:    parts,
+		Width:    width,
+		Centered: true,
+		Theme:    &theme,
+	})
 }
 
 // colorizeIncomingPaneTitle colors the hash portion of "COMMIT ABC1234" using AccentTextColor

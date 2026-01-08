@@ -931,6 +931,78 @@ topRowHeight += 2
 bottomRowHeight -= 2
 ```
 
+### Padding & Text Centering
+
+❌ **Manual string.Repeat padding (error-prone):**
+```go
+// WRONG - Easy to get wrong, hard to maintain
+leftPad := (width - textWidth) / 2
+rightPad := width - textWidth - leftPad
+if leftPad < 0 { leftPad = 0 }    // Bounds checking scattered
+if rightPad < 0 { rightPad = 0 }  // Easy to forget
+statusBar = strings.Repeat(" ", leftPad) + text + strings.Repeat(" ", rightPad)
+```
+
+✅ **Use lipgloss styling (clear intent):**
+```go
+// RIGHT - Clear, handles edge cases automatically
+style := lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
+result := style.Render(text)
+```
+
+✅ **Or use helper utility (Implemented in Session 59):**
+```go
+// RIGHT - Reusable, testable
+result := ui.CenterAlignLine(text, width)
+```
+
+**Status in codebase (Session 59 - Complete):**
+- ✅ statusbar.go - Unified BuildStatusBar() handles all centering
+- ✅ history.go - Uses lipgloss.Width().Align(lipgloss.Center)
+- ✅ filehistory.go - Uses BuildStatusBar() after refactor
+- ✅ conflictresolver.go - Uses BuildStatusBar() after refactor
+
+### Type Conversions Across Packages
+
+❌ **Duplicate conversion code (violation of DRY):**
+```go
+// handlers.go - Two handlers with identical code (lines 959-968 and 1008-1017)
+for _, gitFile := range gitFileList {
+    convertedFiles = append(convertedFiles, ui.FileInfo{
+        Path:   gitFile.Path,
+        Status: gitFile.Status,
+    })
+}
+// ... same code appears again in different handler
+```
+
+✅ **Extract to utility helper (Implemented in Session 59):**
+```go
+// handlers.go - Implemented after line 26
+func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
+    converted := make([]ui.FileInfo, len(gitFiles))
+    for i, gf := range gitFiles {
+        converted[i] = ui.FileInfo{Path: gf.Path, Status: gf.Status}
+    }
+    return converted
+}
+
+// Both handlers now use same function:
+state.Files = convertGitFilesToUIFileInfo(gitFileList)  // handleFileHistoryUp
+state.Files = convertGitFilesToUIFileInfo(gitFileList)  // handleFileHistoryDown
+```
+
+**Status (Session 59 - Complete):**
+- ✅ `convertGitFilesToUIFileInfo()` implemented in handlers.go (line 27-39)
+- ✅ Both call sites updated (handleFileHistoryUp, handleFileHistoryDown)
+- ✅ ~20 lines of duplication eliminated
+
+**Benefits realized:** 
+- Single source of truth for conversion logic
+- If git.FileInfo adds fields, update conversion in one place
+- Easier to test the conversion logic
+- Follows DRY principle
+
 ### Checklist for New Multi-Pane Components
 
 - [ ] Use height calculation formula exactly (height - 7, split 1/3 + 2/3, adjust +2/-2)
@@ -1462,6 +1534,136 @@ githandlers.go catches, displays error in console
     ↓
 User sees specific reason why commit failed (not generic "Operation failed")
 ```
+
+---
+
+## Utility Functions & Helper Patterns
+
+### Text Formatting Utilities
+
+All text formatting helpers live in `internal/ui/formatters.go`:
+
+- `PadText(text, width)` - Right-pad text to fixed width
+- `CenterAlignLine(text, width)` - Center text within width (already exists in formatters.go)
+- `TruncateText(text, width)` - Truncate to width with ellipsis
+
+**Usage pattern:**
+```go
+import "tit/internal/ui"
+
+// Right-pad to width
+padded := ui.PadText("hello", 10)      // "hello     "
+
+// Center to width
+centered := ui.CenterText("hi", 10)    // "    hi    "
+
+// Truncate with ellipsis
+short := ui.TruncateText(longText, 20) // Ends with "..."
+```
+
+**Why separate?** Centralizes text calculations, makes them reusable, easier to maintain if width logic changes.
+
+### Status Bar Building
+
+Status bars across different modes follow a **consistent pattern** via unified builder.
+
+**Consolidated builder (Implemented in Session 59):**
+```go
+// internal/ui/statusbar.go
+type StatusBarConfig struct {
+    Parts      []string       // Pre-rendered parts
+    Width      int            // Terminal width
+    Centered   bool           // Center or left-align
+    Theme      *Theme
+}
+
+func BuildStatusBar(config StatusBarConfig) string {
+    // Handles joining with separators, centering/padding
+}
+```
+
+**Usage pattern across all modes:**
+1. Define shortcut styles (bold, accent color)
+2. Define description styles (content/dimmed colors)
+3. Build parts array with styled shortcuts + descriptions
+4. Call `BuildStatusBar()` with parts, width, theme
+
+**Refactored implementations (Session 59 - Complete):**
+- ✅ `buildHistoryStatusBar()` (history.go:158) - Uses BuildStatusBar
+- ✅ `buildFileHistoryStatusBar()` (filehistory.go:218) - Uses BuildStatusBar
+- ✅ `buildDiffStatusBar()` (filehistory.go:259) - Uses BuildStatusBar (with visual mode special case)
+- ✅ `buildGenericConflictStatusBar()` (conflictresolver.go:182) - Uses BuildStatusBar
+
+**Benefits realized:**
+- ~50 lines of duplication eliminated
+- Consistent centering logic across all panes
+- Theme color changes propagate to all status bars
+
+### Type Conversion Helpers
+
+Convert between git types and UI types to avoid import cycles:
+
+**Pattern in `internal/app/handlers.go`:**
+```go
+// Convert git.FileInfo to ui.FileInfo (both have Path, Status fields)
+func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
+    converted := make([]ui.FileInfo, len(gitFiles))
+    for i, gf := range gitFiles {
+        converted[i] = ui.FileInfo{Path: gf.Path, Status: gf.Status}
+    }
+    return converted
+}
+
+// Usage in both handleFileHistoryUp and handleFileHistoryDown
+app.fileHistoryState.Files = convertGitFilesToUIFileInfo(gitFileList)
+```
+
+**Why here?** 
+- Avoids circular imports (ui can't import app, app can't import ui)
+- Handlers are the boundary where git and UI types meet
+- Other handlers can reuse if needed
+
+### File History State Management
+
+The `updateFileHistoryDiff()` function (handlers.go:898) exemplifies cache lookup pattern:
+
+```go
+func (a *Application) updateFileHistoryDiff() {
+    // 1. Bounds check
+    if len(a.fileHistoryState.Files) == 0 {
+        a.fileHistoryState.DiffContent = ""
+        return
+    }
+
+    // 2. Determine version based on git state
+    version := "parent"  // Default
+    if a.gitState.WorkingTree == git.Dirty {
+        version = "wip"   // Modified: show vs working tree
+    }
+
+    // 3. Build cache key following SSOT: hash:path:version
+    cacheKey := commit.Hash + ":" + file.Path + ":" + version
+
+    // 4. Thread-safe cache lookup
+    a.diffCacheMutex.Lock()
+    diffContent, exists := a.fileHistoryDiffCache[cacheKey]
+    a.diffCacheMutex.Unlock()
+
+    // 5. Update state
+    if exists && diffContent != "" {
+        a.fileHistoryState.DiffContent = diffContent
+    } else {
+        a.fileHistoryState.DiffContent = ""  // Not cached yet
+    }
+}
+```
+
+**Pattern for similar cache operations:**
+1. Validate bounds (no nil access)
+2. Determine variant (version/type suffix for cache key)
+3. Build SSOT cache key with separators
+4. Lock → lookup → unlock (thread-safe)
+5. Update state with result or empty fallback
 
 ---
 

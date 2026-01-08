@@ -221,8 +221,6 @@ func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme The
 		Bold(true)
 	descStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.ContentTextColor))
-	sepStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.DimmedTextColor))
 
 	// Status bar shortcuts
 	parts := []string{
@@ -231,27 +229,12 @@ func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme The
 		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
 	}
 
-	statusBar := strings.Join(parts, sepStyle.Render("  │  "))
-
-	// Center the status bar
-	statusWidth := lipgloss.Width(statusBar)
-	if statusWidth > width {
-		return statusBar
-	}
-
-	leftPad := (width - statusWidth) / 2
-	rightPad := width - statusWidth - leftPad
-
-	if leftPad < 0 {
-		leftPad = 0
-	}
-	if rightPad < 0 {
-		rightPad = 0
-	}
-
-	statusBar = strings.Repeat(" ", leftPad) + statusBar + strings.Repeat(" ", rightPad)
-
-	return statusBar
+	return BuildStatusBar(StatusBarConfig{
+		Parts:    parts,
+		Width:    width,
+		Centered: true,
+		Theme:    &theme,
+	})
 }
 
 // buildDiffStatusBar builds the status bar for diff pane (when focused)
@@ -262,8 +245,6 @@ func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
 		Bold(true)
 	descStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.ContentTextColor))
-
-	var statusBar string
 
 	if visualModeActive {
 		// VISUAL mode: simplified, left-aligned
@@ -278,8 +259,8 @@ func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
 			shortcutStyle.Render("Y") + descStyle.Render(" copy"),
 			shortcutStyle.Render("ESC") + descStyle.Render(" back"),
 		}
-		statusBar = strings.Join(parts, descStyle.Render("  "))
-		return statusBar // Left-aligned, no padding
+		// For visual mode, use custom join (no separator styling)
+		return strings.Join(parts, descStyle.Render("  ")) // Left-aligned, no padding
 	}
 
 	// NORMAL mode: full shortcuts, centered
@@ -291,25 +272,10 @@ func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
 		shortcutStyle.Render("Y") + descStyle.Render(" copy"),
 	}
 
-	statusBar = strings.Join(parts, descStyle.Render("  "))
-
-	// Center the status bar
-	statusWidth := lipgloss.Width(statusBar)
-	if statusWidth > width {
-		return statusBar
-	}
-
-	leftPad := (width - statusWidth) / 2
-	rightPad := width - statusWidth - leftPad
-
-	if leftPad < 0 {
-		leftPad = 0
-	}
-	if rightPad < 0 {
-		rightPad = 0
-	}
-
-	statusBar = strings.Repeat(" ", leftPad) + statusBar + strings.Repeat(" ", rightPad)
-
-	return statusBar
+	return BuildStatusBar(StatusBarConfig{
+		Parts:    parts,
+		Width:    width,
+		Centered: true,
+		Theme:    &theme,
+	})
 }

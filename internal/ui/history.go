@@ -161,8 +161,6 @@ func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme) string 
 		Bold(true)
 	descStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.ContentTextColor))
-	sepStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.DimmedTextColor))
 
 	// Build shortcuts based on focused pane
 	var parts []string
@@ -183,13 +181,11 @@ func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme) string 
 		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
 	)
 
-	statusText := strings.Join(parts, sepStyle.Render("  │  "))
-
-	// Center and size status bar
-	statusStyle := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center)
-
-	return statusStyle.Render(statusText)
+	return BuildStatusBar(StatusBarConfig{
+		Parts:    parts,
+		Width:    width,
+		Centered: true,
+		Theme:    &theme,
+	})
 }
 
