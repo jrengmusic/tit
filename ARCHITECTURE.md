@@ -107,6 +107,105 @@ type Application struct {
 
 ---
 
+## Cache Contract: History Always Available
+
+### The Contract
+
+**Principle:** History modes (Commit history, File(s) history) MUST ALWAYS show data instantly. No loading delays, no empty views, no lazy loading.
+
+**Implementation:**
+
+Cache precomputation is **MANDATORY** at:
+1. **App startup** - Full scan of all commits before showing menu
+2. **After ANY git-changing operation** - Commit, push, pull, merge, time travel merge/return
+3. **BEFORE showing completion message** - User never sees empty history after an operation
+
+### Cache Data
+
+**Two parallel caches (independently built):**
+
+1. **Commit History Cache** (`historyMetadataCache` map)
+   - Key: commit hash
+   - Value: full commit metadata (subject, author, date)
+   - Built by: `preloadHistoryMetadata()` (scans `git log`)
+
+2. **File History Cache** (`fileHistoryFilesCache` + `fileHistoryDiffsCache` maps)
+   - Key: commit hash
+   - Value: files changed + diffs for each file
+   - Built by: `preloadFileHistoryDiffs()` (scans `git show` for each commit)
+
+### Build Rules
+
+**Timing:**
+```go
+// App init
+if !shouldRestore {
+    a.cacheLoadingStarted = true
+    go a.preloadHistoryMetadata()
+    go a.preloadFileHistoryDiffs()
+}
+
+// After time travel checkout succeeds
+buffer.Append("Building history cache...", ui.TypeStatus)
+a.cacheLoadingStarted = true
+go a.preloadHistoryMetadata()
+go a.preloadFileHistoryDiffs()
+```
+
+**Operation guard REMOVED:**
+- ❌ OLD: `if app.gitState.Operation == git.Normal` (only build during Normal)
+- ✅ NEW: No operation check (build for ALL states: Normal, TimeTraveling, Conflicted, etc.)
+- EXCEPT: Skip only during error recovery (`shouldRestore == true`)
+
+**Async but mandatory:**
+- Goroutines run in background (never block UI thread)
+- BUT: Menu items are disabled until cache ready
+- Users see progress: `⏳ Commit history [Building... 12/30]`
+
+### UI Feedback
+
+**Menu state while building:**
+```
+Normal state (cache ready):
+  🕒 Commit history                        ← Enabled, selectable
+
+Building state (cache loading):
+  ⏳ Commit history [Building... 12/30]    ← Disabled, shows progress
+
+No data state (cache load failed):
+  ⚠️ Commit history [No commits found]     ← Disabled, error state
+```
+
+### Invariants
+
+1. **No Empty Views:** If `dispatchHistory()` called, data always exists in cache
+2. **No Lazy Loading:** No on-the-fly git queries during rendering
+3. **Consistent State:** Cache reflects current git HEAD (rebuilt after every operation)
+4. **Fail Fast:** If cache load fails, menu shows disabled state with reason
+5. **Read-Only:** Cache data never modified during browsing (immutable snapshots)
+
+### Cache Lifetime
+
+```
+App starts
+  ↓
+Cache rebuilds (app.go init)
+  ↓
+Menu shows (items disabled until cache ready)
+  ↓
+User operates (commit/push/merge/etc)
+  ↓
+Operation completes, git state changes
+  ↓
+Cache rebuilds automatically (githandlers.go)
+  ↓
+Menu becomes active again with fresh data
+  ↓
+Repeat
+```
+
+---
+
 ## Three-Layer Event Model
 
 ### 1. Input → Application Update

@@ -6,35 +6,18 @@
 
 ## Test Repository Setup
 
-**Create a clean test repo with specific history:**
+**Test repo location:**
 
 ```bash
-cd /tmp && rm -rf tit-test && mkdir tit-test && cd tit-test
-git init
-git config user.email "test@test.com"
-git config user.name "Test User"
+/Users/jreng/Documents/Poems/inf/t
+```
 
-# Commit M1 (main base)
-echo "version 1.0" > version.txt
-git add version.txt && git commit -m "M1: Initial version"
+This repo already has M1-M14 history. Use it for all Phase 1-6 tests.
 
-# Commit M2
-echo "version 1.1" > version.txt
-git add version.txt && git commit -m "M2: Bump to 1.1"
-
-# Commit M3
-echo "version 1.2" > version.txt
-git add version.txt && git commit -m "M3: Bump to 1.2"
-
-# Commit M4
-echo "feature: add api" > feature.txt
-git add feature.txt && git commit -m "M4: Add API endpoint"
-
-# Commit M5 (current, HEAD)
-echo "api v1" > feature.txt
-git add feature.txt && git commit -m "M5: Finalize API"
-
-git log --oneline  # Should show M5, M4, M3, M2, M1
+**History summary:**
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+git log --oneline  # M1-M14 commits available
 ```
 
 **Create branches for specific testing:**
@@ -67,31 +50,34 @@ git checkout main  # Back to main at M5
 ### Test 1.1: Happy Path - Time Travel to M2
 
 **Setup:**
-- On branch main at M5 (clean working tree)
-- Terminal ready, tit running
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+~/Documents/Poems/inf/tit/tit_x64
+```
 
 **Steps:**
-1. Select "Browse commit history"
-2. Navigate up to M2
+1. Select "Commit history"
+2. Navigate up to M2: Bump to 1.1
 3. Press ENTER
-4. See confirmation dialog: "abc1234... M2: Bump to 1.1"
+4. See confirmation dialog
 5. Press ENTER to confirm
 6. See console: "Time traveling... → Time travel successful"
 7. Press ESC
 8. See menu with 3 items:
-   - 🕐 Browse history
-   - ⬅️  Return to main
+   - 🕐 Commit history
+   - 🔙 Return to main
    - 📦 Merge & return to main
 
 **Expected:**
 - ✅ Console shows complete message
-- ✅ Header shows: `🕐 TIME TRAVELING | Commit: abc1234 (X days ago)`
+- ✅ Header shows time travel indicator (🕐)
 - ✅ Menu items appear (not grayed out)
 - ✅ Can read files at M2 state
 
 **Verify Git State:**
 ```bash
-git rev-parse HEAD  # Should show M2 hash
+cd /Users/jreng/Documents/Poems/inf/t
+git rev-parse HEAD  # Should show M2 hash (0000d86)
 git symbolic-ref --short HEAD  # Should fail (detached)
 ls -la .git/TIT_TIME_TRAVEL  # Should exist, contains "main"
 ```
@@ -100,10 +86,14 @@ ls -la .git/TIT_TIME_TRAVEL  # Should exist, contains "main"
 
 ### Test 1.2: ESC at Confirmation Dialog
 
-**Setup:** Same as 1.1, but at step 4
+**Setup:**
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+~/Documents/Poems/inf/tit/tit_x64
+```
 
 **Steps:**
-1. Select "Browse commit history"
+1. Select "Commit history"
 2. Navigate to M2
 3. Press ENTER (confirmation dialog appears)
 4. Press ESC
@@ -112,7 +102,13 @@ ls -la .git/TIT_TIME_TRAVEL  # Should exist, contains "main"
 - ✅ Confirmation dialog closes
 - ✅ Back in history mode at M2
 - ✅ No checkout happened
-- ✅ Still on main at M5 (verify with `git rev-parse HEAD`)
+- ✅ Still on main at M5
+
+**Verify:**
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+git rev-parse HEAD  # Should show M5 (5daf3a9)
+```
 
 ---
 
@@ -179,27 +175,36 @@ ls -la .git/TIT_TIME_TRAVEL  # Should exist, contains "main"
 ### Test 2.1: Happy Path - Time Travel with Dirty Tree
 
 **Setup:**
-- On main at M5
-- Add dirty changes: `echo "wip" >> version.txt` (uncommitted)
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+echo "wip" >> version.txt
+~/Documents/Poems/inf/tit/tit_x64
+```
 
 **Steps:**
-1. Select "Browse commit history"
+1. Select "Commit history"
 2. Navigate to M2
 3. Press ENTER
-4. See confirmation dialog: "M2: Bump to 1.1"
-5. Press ENTER
-6. See dialog: "You have uncommitted changes"
-7. Explanation shows stash info
-8. Press ENTER (Stash & continue)
-9. See console: "Stashing → Time traveling..."
-10. Press ESC → menu at M2
+4. See confirmation dialog
+5. Press ENTER to confirm
+6. See dirty protocol dialog: "You have uncommitted changes"
+7. Press ENTER (Stash & continue)
+8. See console: "Stashing → Time traveling..."
+9. Press ESC → menu at M2
 
 **Expected:**
 - ✅ Dirty protocol dialog shown
-- ✅ Changes stashed: `git stash list` shows "TIT_TIME_TRAVEL_ORIG_WIP"
+- ✅ Changes stashed: `git stash list` shows stash entry
 - ✅ Console shows both stash + checkout
 - ✅ At M2, working tree is clean
-- ✅ `.git/TIT_TIME_TRAVEL` contains "main" and "stash@{0}"
+- ✅ `.git/TIT_TIME_TRAVEL` exists
+
+**Verify:**
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+git stash list  # Should show stash
+git status  # Should be clean
+```
 
 ---
 

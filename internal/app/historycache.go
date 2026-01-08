@@ -201,16 +201,13 @@ func (a *Application) invalidateHistoryCaches() tea.Cmd {
 		VisualModeStart:   0,
 	}
 
-	// Restart loading (CONTRACT: MUST rebuild before operation complete)
-	a.cacheLoadingStarted = false
-	if a.gitState.Operation == git.Normal {
-		a.cacheLoadingStarted = true
-		// Return batch command to run both caches in parallel
-		return tea.Batch(
-			a.cmdPreloadHistoryMetadata(),
-			a.cmdPreloadFileHistoryDiffs(),
-		)
-	}
+	// CONTRACT: Restart loading for ALL states (Normal, TimeTraveling, etc.)
+	// Operation guard REMOVED - cache must rebuild regardless of git state
+	a.cacheLoadingStarted = true
 
-	return nil
+	// Return batch command to run both caches in parallel
+	return tea.Batch(
+		a.cmdPreloadHistoryMetadata(),
+		a.cmdPreloadFileHistoryDiffs(),
+	)
 }
