@@ -221,11 +221,13 @@ func (a *Application) menuTimeline() []MenuItem {
 	return items
 }
 
-// menuHistory returns history actions
-// CONTRACT: Disables menu items and shows progress while cache is building
-func (a *Application) menuHistory() []MenuItem {
-	items := []MenuItem{}
-
+// getHistoryItemsWithCacheState returns history items with cache state applied
+// CONTRACT: Centralized cache checking - no duplication across menu generators
+// Takes item IDs for history and file history, returns items with:
+// - Disabled state while building
+// - Progress indicators: ⏳ [Building... 12/30]
+// - Enabled state when cache ready
+func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID string) []MenuItem {
 	// Get cache status (thread-safe)
 	a.historyCacheMutex.Lock()
 	metadataReady := a.cacheMetadata
@@ -239,8 +241,10 @@ func (a *Application) menuHistory() []MenuItem {
 	diffsTotal := a.cacheDiffsTotal
 	a.diffCacheMutex.Unlock()
 
+	items := []MenuItem{}
+
 	// History menu item - CONTRACT: disabled while building, shows progress
-	historyItem := GetMenuItem("history")
+	historyItem := GetMenuItem(historyID)
 	if !metadataReady {
 		historyItem.Enabled = false
 		historyItem.Emoji = "⏳"
@@ -255,7 +259,7 @@ func (a *Application) menuHistory() []MenuItem {
 	items = append(items, historyItem)
 
 	// File history menu item - CONTRACT: disabled while building, shows progress
-	fileHistoryItem := GetMenuItem("file_history")
+	fileHistoryItem := GetMenuItem(fileHistoryID)
 	if !diffsReady {
 		fileHistoryItem.Enabled = false
 		fileHistoryItem.Emoji = "⏳"
@@ -272,8 +276,14 @@ func (a *Application) menuHistory() []MenuItem {
 	return items
 }
 
-// menuTimeTraveling returns menu for TimeTraveling operation state
+// menuHistory returns history actions
 // CONTRACT: Disables menu items and shows progress while cache is building
+func (a *Application) menuHistory() []MenuItem {
+	return a.getHistoryItemsWithCacheState("history", "file_history")
+}
+
+// menuTimeTraveling returns menu for TimeTraveling operation state
+// CONTRACT: Uses centralized cache checking (no hardcoded items)
 func (a *Application) menuTimeTraveling() []MenuItem {
 	// Get original branch from .git/TIT_TIME_TRAVEL file (not from detached HEAD)
 	originalBranch := "unknown"
@@ -286,51 +296,8 @@ func (a *Application) menuTimeTraveling() []MenuItem {
 		}
 	}
 
-	// Get cache status (thread-safe)
-	a.historyCacheMutex.Lock()
-	metadataReady := a.cacheMetadata
-	metadataProgress := a.cacheMetadataProgress
-	metadataTotal := a.cacheMetadataTotal
-	a.historyCacheMutex.Unlock()
-
-	a.diffCacheMutex.Lock()
-	diffsReady := a.cacheDiffs
-	diffsProgress := a.cacheDiffsProgress
-	diffsTotal := a.cacheDiffsTotal
-	a.diffCacheMutex.Unlock()
-
-	// History menu item - CONTRACT: disabled while building, shows progress
-	historyItem := GetMenuItem("time_travel_history")
-	if !metadataReady {
-		historyItem.Enabled = false
-		historyItem.Emoji = "⏳"
-		if metadataTotal > 0 {
-			historyItem.Label = fmt.Sprintf("Commit history [Building... %d/%d]", metadataProgress, metadataTotal)
-		} else {
-			historyItem.Label = "Commit history [Building...]"
-		}
-	} else {
-		historyItem.Enabled = true
-	}
-
-	// File history menu item - CONTRACT: disabled while building, shows progress
-	fileHistoryItem := GetMenuItem("time_travel_files_history")
-	if !diffsReady {
-		fileHistoryItem.Enabled = false
-		fileHistoryItem.Emoji = "⏳"
-		if diffsTotal > 0 {
-			fileHistoryItem.Label = fmt.Sprintf("File(s) history [Building... %d/%d]", diffsProgress, diffsTotal)
-		} else {
-			fileHistoryItem.Label = "File(s) history [Building...]"
-		}
-	} else {
-		fileHistoryItem.Enabled = true
-	}
-
-	items := []MenuItem{
-		historyItem,
-		fileHistoryItem,
-	}
+	// Get history items with cache state applied (centralized logic)
+	items := a.getHistoryItemsWithCacheState("time_travel_history", "time_travel_files_history")
 
 	// Add merge option with original branch label
 	mergeItem := GetMenuItem("time_travel_merge")
