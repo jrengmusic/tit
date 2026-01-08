@@ -3,6 +3,8 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"tit/internal/git"
 )
 
@@ -28,11 +30,13 @@ func (a *Application) GenerateMenu() []MenuItem {
 	}
 
 	menuGenerators := map[git.Operation]MenuGenerator{
-		git.NotRepo:    (*Application).menuNotRepo,
-		git.Conflicted: (*Application).menuConflicted,
-		git.Merging:    (*Application).menuOperation,
-		git.Rebasing:   (*Application).menuOperation,
-		git.Normal:     (*Application).menuNormal,
+		git.NotRepo:       (*Application).menuNotRepo,
+		git.Conflicted:    (*Application).menuConflicted,
+		git.Merging:       (*Application).menuOperation,
+		git.Rebasing:      (*Application).menuOperation,
+		git.DirtyOperation: (*Application).menuDirtyOperation,
+		git.Normal:        (*Application).menuNormal,
+		git.TimeTraveling: (*Application).menuTimeTraveling,
 	}
 
 	if generator, exists := menuGenerators[a.gitState.Operation]; exists {
@@ -81,6 +85,14 @@ func detectConflictedOperation() string {
 func (a *Application) menuOperation() []MenuItem {
 	return []MenuItem{
 		GetMenuItem("continue_operation"),
+		GetMenuItem("abort_operation"),
+	}
+}
+
+// menuDirtyOperation returns menu for DirtyOperation state (stashed operation in progress)
+func (a *Application) menuDirtyOperation() []MenuItem {
+	return []MenuItem{
+		GetMenuItem("view_operation_status"),
 		GetMenuItem("abort_operation"),
 	}
 }
@@ -223,6 +235,37 @@ func (a *Application) menuHistory() []MenuItem {
 	fileHistoryItem.Enabled = true
 	items = append(items, fileHistoryItem)
 	
+	return items
+}
+
+// menuTimeTraveling returns menu for TimeTraveling operation state
+func (a *Application) menuTimeTraveling() []MenuItem {
+	// Get original branch from .git/TIT_TIME_TRAVEL file (not from detached HEAD)
+	originalBranch := "unknown"
+	travelInfoPath := filepath.Join(".git", "TIT_TIME_TRAVEL")
+	data, err := os.ReadFile(travelInfoPath)
+	if err == nil {
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(lines) > 0 && lines[0] != "" {
+			originalBranch = lines[0]
+		}
+	}
+
+	items := []MenuItem{
+		GetMenuItem("time_travel_history"),
+		GetMenuItem("time_travel_view_diff"),
+	}
+
+	// Add merge option with original branch label
+	mergeItem := GetMenuItem("time_travel_merge")
+	mergeItem.Label = fmt.Sprintf("📦 Merge back to %s", originalBranch)
+	items = append(items, mergeItem)
+
+	// Add return option with original branch label
+	returnItem := GetMenuItem("time_travel_return")
+	returnItem.Label = fmt.Sprintf("⬅️ Return to %s", originalBranch)
+	items = append(items, returnItem)
+
 	return items
 }
 

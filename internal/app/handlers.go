@@ -901,7 +901,43 @@ func (a *Application) handleHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
 
 // handleHistoryEnter handles ENTER key in history mode (Phase 7: Time Travel)
 func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) {
-	// Phase 7: Time travel - for now just return
+	if app.historyState == nil || app.historyState.SelectedIdx < 0 {
+		return app, nil
+	}
+	
+	// Get selected commit
+	commit := app.historyState.Commits[app.historyState.SelectedIdx]
+	
+	// Show time travel confirmation dialog
+	app.mode = ModeConfirmation
+	app.confirmType = "time_travel"
+	app.confirmContext = map[string]string{
+		"commit_hash":   commit.Hash,
+		"commit_subject": commit.Subject,
+	}
+	
+	// Create confirmation dialog using SSOT
+	// Format: hash (first 7 chars) on first line, subject on second line
+	shortHash := commit.Hash
+	if len(shortHash) > 7 {
+		shortHash = shortHash[:7]
+	}
+	
+	// Extract only first line of commit message (subject)
+	subject := commit.Subject
+	if idx := strings.Index(subject, "\n"); idx >= 0 {
+		subject = subject[:idx]
+	}
+	
+	config := ui.ConfirmationConfig{
+		Title:       ConfirmationTitles["time_travel"],
+		Explanation: fmt.Sprintf(ConfirmationExplanations["time_travel"], shortHash, subject),
+		YesLabel:    ConfirmationLabels["time_travel"][0],
+		NoLabel:     ConfirmationLabels["time_travel"][1],
+		ActionID:    "time_travel",
+	}
+	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
+	
 	return app, nil
 }
 

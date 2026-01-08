@@ -160,6 +160,50 @@ var MenuItems = map[string]MenuItem{
 		Enabled:  true,
 	},
 
+	// Time traveling
+	"time_travel_history": {
+		ID:       "time_travel_history",
+		Shortcut: "l",
+		Emoji:    "🕒",
+		Label:    "Browse history",
+		Hint:     "View commit history while time traveling",
+		Enabled:  true,
+	},
+	"time_travel_view_diff": {
+		ID:       "time_travel_view_diff",
+		Shortcut: "d",
+		Emoji:    "👁️",
+		Label:    "View diff",
+		Hint:     "Show changes vs original branch",
+		Enabled:  true,
+	},
+	"time_travel_merge": {
+		ID:       "time_travel_merge",
+		Shortcut: "m",
+		Emoji:    "📦",
+		Label:    "Merge back",
+		Hint:     "Merge changes back to original branch",
+		Enabled:  true,
+	},
+	"time_travel_return": {
+		ID:       "time_travel_return",
+		Shortcut: "r",
+		Emoji:    "⬅️",
+		Label:    "Return",
+		Hint:     "Return without merging changes",
+		Enabled:  true,
+	},
+
+	// Dirty operation (when stashed operation is in progress)
+	"view_operation_status": {
+		ID:       "view_operation_status",
+		Shortcut: "v",
+		Emoji:    "🔄",
+		Label:    "View operation status",
+		Hint:     "Show details of the operation in progress",
+		Enabled:  true,
+	},
+
 	// Init/Clone location
 	"init_here": {
 		ID:       "init_here",

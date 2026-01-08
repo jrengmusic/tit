@@ -296,6 +296,134 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	return a, nil
 }
 
+// handleTimeTravelCheckout handles git.TimeTravelCheckoutMsg
+func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (tea.Model, tea.Cmd) {
+	buffer := ui.GetBuffer()
+	
+	if !msg.Success {
+		buffer.Append(fmt.Sprintf("Time travel failed: %s", msg.Error), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		
+		// Try to cleanup time travel info file
+		git.ClearTimeTravelInfo()
+		
+		// Return to history mode
+		a.mode = ModeHistory
+		return a, nil
+	}
+	
+	// Time travel successful - reload git state
+	state, err := git.DetectState()
+	if err != nil {
+		buffer.Append(fmt.Sprintf("Failed to detect state after time travel: %v", err), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		
+		// Try to cleanup time travel info file
+		git.ClearTimeTravelInfo()
+		
+		// Return to history mode
+		a.mode = ModeHistory
+		return a, nil
+	}
+	
+	a.gitState = state
+	buffer.Append("Time travel successful. Press ESC to return to menu.", ui.TypeStatus)
+	a.asyncOperationActive = false
+	a.isExitAllowed = true
+	a.footerHint = "Time travel successful. Press ESC to return to menu."
+	
+	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
+	// Mode remains ModeConsole, git state is now Operation = TimeTraveling
+	// ESC handler will detect this and show time travel menu
+	
+	return a, nil
+}
+
+// handleTimeTravelMerge handles git.TimeTravelMergeMsg
+func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Model, tea.Cmd) {
+	buffer := ui.GetBuffer()
+	
+	if !msg.Success {
+		buffer.Append(fmt.Sprintf("Time travel merge failed: %s", msg.Error), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		
+		// If conflicts detected, set up conflict resolver
+		if msg.ConflictDetected {
+			return a.setupConflictResolver("time_travel_merge", []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+		}
+		
+		// Return to menu
+		a.mode = ModeMenu
+		return a, nil
+	}
+	
+	// Time travel merge successful - reload git state
+	state, err := git.DetectState()
+	if err != nil {
+		buffer.Append(fmt.Sprintf("Failed to detect state after time travel merge: %v", err), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		
+		// Return to menu
+		a.mode = ModeMenu
+		return a, nil
+	}
+	
+	a.gitState = state
+	buffer.Append("Time travel merge successful", ui.TypeStatus)
+	a.asyncOperationActive = false
+	a.isExitAllowed = true
+	a.footerHint = "Time travel merge successful. Press ESC to return to menu."
+	
+	// Transition to menu mode
+	a.mode = ModeMenu
+	a.menuItems = a.GenerateMenu()
+	
+	return a, nil
+}
+
+// handleTimeTravelReturn handles git.TimeTravelReturnMsg
+func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.Model, tea.Cmd) {
+	buffer := ui.GetBuffer()
+	
+	if !msg.Success {
+		buffer.Append(fmt.Sprintf("Time travel return failed: %s", msg.Error), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		
+		// Return to menu
+		a.mode = ModeMenu
+		return a, nil
+	}
+	
+	// Time travel return successful - reload git state
+	state, err := git.DetectState()
+	if err != nil {
+		buffer.Append(fmt.Sprintf("Failed to detect state after time travel return: %v", err), ui.TypeStderr)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		
+		// Return to menu
+		a.mode = ModeMenu
+		return a, nil
+	}
+	
+	a.gitState = state
+	buffer.Append("Time travel return successful", ui.TypeStatus)
+	a.asyncOperationActive = false
+	a.isExitAllowed = true
+	a.footerHint = "Time travel return successful. Press ESC to return to menu."
+	
+	// Transition to menu mode
+	a.mode = ModeMenu
+	a.menuItems = a.GenerateMenu()
+	
+	return a, nil
+}
+
 // setupConflictResolver initializes conflict resolver UI for any conflict-resolving operation
 // Parameters:
 //   - operation: operation identifier (e.g., "pull_merge", "dirty_pull_changeset_apply", "cherry_pick")

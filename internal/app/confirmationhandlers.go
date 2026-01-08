@@ -2,8 +2,10 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/git"
 	"tit/internal/ui"
 )
 
@@ -19,6 +21,7 @@ const (
 	ConfirmPullMerge         ConfirmationType = "pull_merge"
 	ConfirmPullMergeDiverged ConfirmationType = "pull_merge_diverged"
 	ConfirmDirtyPull         ConfirmationType = "dirty_pull"
+	ConfirmTimeTravel        ConfirmationType = "time_travel"
 )
 
 // ConfirmationAction is a function that handles a confirmed action
@@ -33,6 +36,7 @@ var confirmationActions = map[string]ConfirmationAction{
 	string(ConfirmDirtyPull):         (*Application).executeConfirmDirtyPull,
 	string(ConfirmPullMerge):         (*Application).executeConfirmPullMerge,
 	string(ConfirmPullMergeDiverged): (*Application).executeConfirmPullMerge,
+	string(ConfirmTimeTravel):        (*Application).executeConfirmTimeTravel,
 }
 
 // confirmationRejectActions maps confirmation types to their NO handlers
@@ -44,6 +48,7 @@ var confirmationRejectActions = map[string]ConfirmationAction{
 	string(ConfirmDirtyPull):         (*Application).executeRejectDirtyPull,
 	string(ConfirmPullMerge):         (*Application).executeRejectPullMerge,
 	string(ConfirmPullMergeDiverged): (*Application).executeRejectPullMerge,
+	string(ConfirmTimeTravel):        (*Application).executeRejectTimeTravel,
 }
 
 // ========================================
@@ -290,6 +295,112 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 // executeRejectPullMerge handles NO response to pull merge confirmation
 func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 	// User cancelled pull merge
+	a.confirmationDialog = nil
+	return a.returnToMenu()
+}
+
+// ========================================
+// Time Travel Confirmation Handlers
+// ========================================
+
+// executeConfirmTimeTravel handles YES response to time travel confirmation
+func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
+	// User confirmed time travel
+	a.confirmationDialog = nil
+	
+	// Get commit hash from context
+	commitHash := a.confirmContext["commit_hash"]
+	
+	// Get current branch (original branch before time travel)
+	currentBranchResult := git.Execute("rev-parse", "--abbrev-ref", "HEAD")
+	if !currentBranchResult.Success {
+		a.footerHint = "Failed to get current branch"
+		return a, nil
+	}
+	
+	originalBranch := strings.TrimSpace(currentBranchResult.Stdout)
+	
+	// Check if working tree is dirty
+	if a.gitState.WorkingTree == git.Dirty {
+		// Handle dirty working tree - stash changes first
+		return a.executeTimeTravelWithDirtyTree(originalBranch, commitHash)
+	} else {
+		// Clean working tree - proceed directly
+		return a.executeTimeTravelClean(originalBranch, commitHash)
+	}
+}
+
+// executeTimeTravelClean handles time travel from clean working tree
+func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Time traveling... (ESC to abort)"
+	a.previousMode = ModeHistory
+	a.previousMenuIndex = 0
+	
+	// Start time travel checkout operation
+	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
+}
+
+// executeTimeTravelWithDirtyTree handles time travel from dirty working tree
+func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
+	// Stash changes first
+	stashResult := git.Execute("stash", "push", "-u", "-m", "TIT_TIME_TRAVEL")
+	if !stashResult.Success {
+		a.footerHint = "Failed to stash changes"
+		return a, nil
+	}
+	
+	// Get stash ID
+	stashListResult := git.Execute("stash", "list")
+	if !stashListResult.Success {
+		a.footerHint = "Failed to get stash list"
+		return a, nil
+	}
+	
+	// Find the stash we just created (should be stash@{0})
+	stashID := ""
+	lines := strings.Split(stashListResult.Stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "TIT_TIME_TRAVEL") {
+			parts := strings.Fields(line)
+			if len(parts) > 0 {
+				stashID = parts[0]
+				break
+			}
+		}
+	}
+	
+	// Write time travel info with stash ID
+	err := git.WriteTimeTravelInfo(originalBranch, stashID)
+	if err != nil {
+		a.footerHint = fmt.Sprintf("Failed to write time travel info: %v", err)
+		return a, nil
+	}
+	
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Time traveling... (ESC to abort)"
+	a.previousMode = ModeHistory
+	a.previousMenuIndex = 0
+	
+	// Start time travel checkout operation
+	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
+}
+
+// executeRejectTimeTravel handles NO response to time travel confirmation
+func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
+	// User cancelled time travel
 	a.confirmationDialog = nil
 	return a.returnToMenu()
 }

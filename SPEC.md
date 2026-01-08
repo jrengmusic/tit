@@ -77,11 +77,15 @@ Every decision in TIT derives from **four axes**:
 
 ## 4. State Priority Rules
 
-**Priority 1: Operation State** (Most Restrictive)
-- `Conflicted` → Show ONLY conflict resolution menu
-- `Merging/Rebasing` → Show ONLY operation control menu
-- `DirtyOperation` → Show ONLY dirty operation control menu
-- `TimeTraveling` → Show ONLY time travel menu
+**Priority 0: Pre-Flight Checks (Before Any Menu)**
+- If `Conflicted` OR `Merging` OR `Rebasing` OR `DirtyOperation` → Show error screen, prevent TIT startup
+- These are pre-existing abnormal states. User must resolve externally.
+
+**Priority 1: Operation State** (For Valid Startups)
+- `NotRepo` → Init/Clone
+- `TimeTraveling` → Time travel menu (Browse history, Merge back, Return)
+  - **Entered via:** History mode → select commit → ENTER
+  - **NOT a standalone menu item** - accessed only through History
 - `Normal` → Proceed to check other axes
 
 **Priority 2: Remote Presence**
@@ -93,7 +97,37 @@ Every decision in TIT derives from **four axes**:
 
 ---
 
-## 5. State → Menu Mapping
+## 5. Pre-Flight Checks (Startup)
+
+Before showing any menu, TIT checks if git repository is in a mid-operation state:
+
+```
+Conflicted ──┐
+Merging    ──┼──→ ⚠️ ERROR: Repository in mid-operation
+Rebasing   ──┤
+DirtyOperation ┘
+```
+
+**If detected:**
+```
+⚠️ Git repository is in the middle of a [operation] operation
+
+Your repository cannot be managed by TIT while an operation is in progress.
+Please complete or abort the operation using standard git commands:
+
+  git merge --continue  (after resolving conflicts)
+  git merge --abort     (to discard the merge)
+  git rebase --continue / --abort
+  git stash pop         (for stash operations)
+
+[Exit TIT]
+```
+
+**Why:** These are pre-existing abnormal conditions, not states TIT manages. TIT operates on clean/normal repositories only.
+
+---
+
+## 6. State → Menu Mapping (Normal Operation Only)
 
 ### When Operation = NotRepo
 
@@ -101,10 +135,10 @@ Every decision in TIT derives from **four axes**:
 
 **Smart location dispatch:**
 - **If CWD is empty** → Show two options:
-  - 🔨 Initialize here
-  - 📥 Clone repository
+   - 🔨 Initialize here
+   - 📥 Clone repository
 - **If CWD not empty** → Skip menu, directly dispatch to:
-  - 📥 Clone as subdirectory (only option for init/clone)
+   - 📥 Clone as subdirectory (only option for init/clone)
 
 **Why:** Can't init in non-empty directory. No single-option menus.
 
@@ -112,38 +146,32 @@ Every decision in TIT derives from **four axes**:
 - ✅ Initialize repository (CWD must be empty)
 - 📥 Clone repository
 
-### When Operation = Conflicted
-**Show ONLY:**
-- 🧩 View conflicted files
-- ✏️ Resolve conflicts externally (opens $EDITOR)
-- ▶️ Continue operation (after resolving)
-- ⛔ Abort operation (safe rollback)
-
-### When Operation = Merging/Rebasing (no conflicts)
-**Show ONLY:**
-- ▶️ Continue operation
-- ⛔ Abort operation
-- 🔄 View operation details
-
-### When Operation = DirtyOperation
-**Show ONLY:**
-- 🔄 View operation status
-- ⛔ Abort dirty operation (restores exact original state)
-
 ### When Operation = TimeTraveling
 
+**Accessed from:** History mode (select commit → ENTER)
+
 **Show ONLY:**
-- 🕒 Jump to different commit
-- 👁️ View diff (vs original branch)
+- 🕒 Browse history (view other commits while time traveling)
 - 📦 Merge changes back to [branch]
 - ⬅️ Return to [branch] (discard changes)
 
-**Note:** Time travel is **read-only exploration**. You can:
-- View code at any point in history
-- Build and test old commits
-- Make changes locally (tracked in working tree)
+**How to enter time travel:**
+1. From main menu: Select "Commit history"
+2. Navigate to desired commit
+3. Press ENTER to confirm time travel
+4. If working tree is dirty → Dirty operation protocol (stash changes)
+5. On confirm → Detached HEAD at selected commit (Operation = TimeTraveling)
 
-**You CANNOT commit while in time travel.** To keep changes, merge them back to your active branch.
+**While time traveling:**
+- **Read-only exploration:** View code at any point in history
+- **Local changes allowed:** Can make modifications (tracked as WorkingTree = Dirty)
+- **Cannot commit:** Changes must be merged back to original branch
+- **Can browse:** Use History mode to jump to different commits
+- **Can view diffs:** Via File History mode (shows commit vs parent or vs working tree)
+
+**To exit time travel:**
+- **Merge back:** Keep local changes, merge to original branch
+- **Return:** Discard changes, return to original branch
 
 ### When Operation = Normal
 
@@ -185,7 +213,7 @@ Every decision in TIT derives from **four axes**:
 
 ---
 
-## 6. Dirty Operation Protocol
+## 7. Dirty Operation Protocol
 
 **Purpose:** Apply any change-set (pull, merge, time travel) while preserving uncommitted work.
 
@@ -254,7 +282,7 @@ rm .git/TIT_DIRTY_OP
 
 ---
 
-## 7. Branch Switching
+## 8. Branch Switching
 
 **Available from Normal state.**
 
@@ -309,7 +337,7 @@ git checkout -b <new-branch>
 
 ---
 
-## 8. Merge Branch Assistance
+## 9. Merge Branch Assistance
 
 **Purpose:** Merge another branch into current branch with safety and clarity.
 
@@ -361,7 +389,7 @@ git merge --abort
 
 ---
 
-## 9. Time Travel Specification
+## 10. Time Travel Specification
 
 ### 9.1 Entering Time Travel
 
@@ -525,7 +553,7 @@ Returning to main will DISCARD these changes.
 
 ---
 
-## 10. Commit History Browser (2-Column)
+## 11. Commit History Browser (2-Column)
 
 **Purpose:** Browse commit timeline, optionally time travel to old commits.
 
@@ -545,17 +573,25 @@ Returning to main will DISCARD these changes.
 
 **Navigation:**
 - ↑↓: Navigate commits
-- Enter: Time travel to selected commit (read-only exploration)
+- Tab: Switch between Commits list and Details pane
+- Enter: Enter time travel mode at selected commit
 - ESC: Return to main menu
 
 **Footer hint:**
 ```
-Press Enter to explore this commit (time travel mode)
+Press Enter to explore this commit in time travel mode
 ```
+
+**Time travel flow (on ENTER):**
+1. Show confirmation dialog explaining read-only nature
+2. If working tree dirty → Show dirty operation protocol (stash changes)
+3. On confirm → Checkout commit (dirty tree already stashed)
+4. Operation state changes to `TimeTraveling`
+5. Menu now shows time travel options (Browse history, Merge back, Return)
 
 ---
 
-## 11. File(s) History Browser (3-Pane)
+## 12. File(s) History Browser (3-Pane)
 
 **Purpose:** Browse file changes over time.
 
@@ -601,7 +637,7 @@ Press Enter to explore this commit (time travel mode)
 
 ---
 
-## 12. First-Time Setup
+## 13. First-Time Setup
 
 ### 12.1 Check Git Installation
 ```bash
@@ -686,7 +722,7 @@ TIT requires a working tree.
 
 ---
 
-## 13. UI Layout
+## 14. UI Layout
 
 ```
 ┌────────────────────────────────────────┐
@@ -712,7 +748,7 @@ TIT requires a working tree.
 
 ---
 
-## 14. Keyboard Shortcuts
+## 15. Keyboard Shortcuts
 
 ### 14.1 Global Keys
 
@@ -740,7 +776,7 @@ TIT requires a working tree.
 
 ---
 
-## 15. Color Theme
+## 16. Color Theme
 
 **Theme file:** `~/.config/tit/themes/default.toml`
 
@@ -758,22 +794,23 @@ border = "#34495E"
 
 ---
 
-## 16. Design Invariants
+## 17. Design Invariants
 
-1. **Menu = Contract:** If action appears, it must succeed
+1. **Menu = Contract:** If action appears in menu, it must succeed. Never show operations that could fail or leave dangling state.
 2. **State Machine:** UI is pure function of Git state
 3. **No Staging:** All changes commit together
 4. **Single Active Branch:** TIT operates on current branch only
 5. **Branch Switching:** Users can switch branches anytime (when clean)
 6. **Safe Exploration:** Time travel is read-only until merge-back
-7. **Dirty Operations:** Always preservable with abort
+7. **Dirty Operations:** Automatically managed by TIT. No manual abort in menu—git state safe even if user exits.
 8. **Beautiful:** Lip Gloss rendering, themed colors
 9. **Guaranteed Success:** TIT never shows operations that could fail
 10. **No Configuration:** State always reflects actual Git state
+11. **No Dangling States:** Merge/Rebase/DirtyOperation has no abort menu option. User must complete or exit TIT (git state preserved).
 
 ---
 
-## 17. Implementation Plan
+## 18. Implementation Plan
 
 See `IMPLEMENTATION_PLAN.md` for step-by-step porting strategy from old TIT to new TIT.
 

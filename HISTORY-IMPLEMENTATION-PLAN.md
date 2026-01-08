@@ -29,10 +29,10 @@ This document outlines the **porting/implementation of History and File(s) Histo
 | **4** | History Mode Handlers & Menu | 700 | Phase 1, 2, 3 |
 | **5** | File(s) History UI & Rendering | 700 | Phase 1, 2, 3 |
 | **6** | File(s) History Handlers & Menu | 600 | Phase 1, 2, 3, 5 |
-| **7** | Time Travel Integration | 800 | Phase 4, 6, SPEC.md § 9 |
+| **7** | Time Travel (6 sub-phases) | 950 | Phase 4, 6, TIME-TRAVEL-IMPLEMENTATION-PLAN.md |
 | **8** | Cache Invalidation & Integration | 400 | All phases |
 | **9** | Testing & Verification | 300 | All phases |
-| **Total** | | ~5,500 | Sequential phases |
+| **Total** | | ~5,650 | Sequential phases |
 
 ---
 
@@ -80,9 +80,9 @@ This document outlines the **porting/implementation of History and File(s) Histo
 - **State = (WorkingTree, Timeline, Operation, Remote)**
 - **Operation State Priority:** If `Operation = TimeTraveling`, show ONLY time travel menu
 - **Time Travel §9:** Replaces cherry-pick
-  - Enter: From History mode via ENTER on commit + confirmation
-  - While traveling: Browse history, make local changes, merge back
-  - Exit: Return to branch or merge changes
+   - Enter: From History mode via ENTER on commit + confirmation (dirty protocol if needed)
+   - While traveling: Browse commits, view diffs via File History, make local changes
+   - Exit: Merge back (with conflict handling) or return (discard changes)
 
 ---
 
@@ -636,24 +636,31 @@ type FileInfo struct {
 
 ### Phase 7: Time Travel Integration
 
-**Files to modify:**
-1. `internal/git/execute.go` - Add git checkout + TIT_TIME_TRAVEL file ops
-2. `internal/app/menu.go` - Add `menuTimeTraveling()` function
-3. `internal/app/handlers.go` - Add time travel handlers
-   - `handleHistoryEnter()` → Time travel entry (moved from Phase 4)
-   - `handleTimeTravelMerge()` - Merge changes back
-   - `handleTimeTravelReturn()` - Return without merge
-4. `internal/app/messages.go` - Add time travel operation messages
-5. `internal/app/githandlers.go` - Add time travel operation result handling
+**Scope:** Full time travel implementation with clean/dirty tree handling, merge with conflict detection, and safe state preservation.
+
+**Implementation:** See dedicated **TIME-TRAVEL-IMPLEMENTATION-PLAN.md** (6 incremental phases, ~950 lines).
+
+**High-level flow:**
+1. **Phase 1:** Basic time travel (clean tree) - Load `TimeTravelInfo`, show menu
+2. **Phase 2:** Dirty tree handling - Dirty operation protocol + stash
+3. **Phase 3:** Merge back (no conflicts) - Stash T1, merge, apply stashes in sequence
+4. **Phase 4:** Merge conflicts + resolution - Sequential ConflictResolver for 3 possible conflicts
+5. **Phase 5:** Browse while time traveling - Jump to different commits
+6. **Phase 6:** Return without merge - Discard changes, restore original stash
+
+**Key decisions:**
+- ✅ Clean tree only for entry (dirty tree → dirty protocol)
+- ✅ 3 sequential conflict points possible (ABC→main, T1, S1)
+- ✅ ESC at any point restores original state
+- ✅ Menu shows 3 items only: Browse history, Merge back, Return
+- ✅ No "View diff" menu item (use File History instead)
 
 **Acceptance Criteria:**
-- [ ] In History mode, ENTER shows time travel confirmation dialog
-- [ ] Confirmation dialog explains read-only nature + merge option
-- [ ] Confirm → `git checkout <hash>`, mode = `TimeTraveling`
-- [ ] Menu changes to show ONLY time travel options
-- [ ] History menu still accessible (can browse while time traveling)
-- [ ] Merge back option works (stash local changes + merge + checkout original)
-- [ ] Return option works (discard local changes + checkout original)
+- [ ] All 6 phases implemented and tested per TIME-TRAVEL-TESTING-CHECKLIST.md
+- [ ] 30+ test scenarios pass (Phase 1-6, edge cases, full flows, regressions)
+- [ ] No work lost on cancel/ESC at any step
+- [ ] Sequential conflicts handled correctly
+- [ ] Original stash always preserved/restored
 
 ---
 

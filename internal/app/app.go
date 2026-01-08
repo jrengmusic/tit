@@ -305,6 +305,18 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GitOperationMsg:
 		// AUDIO THREAD - Worker returned git operation result
 		return a.handleGitOperation(msg)
+	
+	case git.TimeTravelCheckoutMsg:
+		// Time travel checkout operation completed
+		return a.handleTimeTravelCheckout(msg)
+		
+	case git.TimeTravelMergeMsg:
+		// Time travel merge operation completed
+		return a.handleTimeTravelMerge(msg)
+		
+	case git.TimeTravelReturnMsg:
+		// Time travel return operation completed
+		return a.handleTimeTravelReturn(msg)
 	}
 
 	return a, nil

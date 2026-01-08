@@ -16,7 +16,7 @@ Every moment in TIT is described by exactly 4 git axes:
 type State struct {
     WorkingTree      git.WorkingTree // Clean | Dirty
     Timeline         git.Timeline    // InSync | Ahead | Behind | Diverged | NoRemote
-    Operation        git.Operation   // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation
+    Operation        git.Operation   // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation | TimeTraveling
     Remote           git.Remote      // NoRemote | HasRemote
     CurrentBranch    string          // Local branch name
     LocalBranchOnRemote bool         // Whether current branch tracked on remote
@@ -24,6 +24,45 @@ type State struct {
 ```
 
 **State Detection:** `git.DetectState()` queries git commands (no config file tracking).
+
+### Time Travel Metadata
+
+When `Operation = TimeTraveling`, the application tracks additional metadata:
+
+```go
+type TimeTravelInfo struct {
+    OriginalBranch  string  // Branch we departed from (e.g., "main")
+    OriginalHead    string  // Commit hash before time travel started
+    CurrentCommit   string  // Currently checked-out commit hash
+    StashID         string  // If dirty at entry: ID of stashed work ("" if clean entry)
+}
+```
+
+**Lifecycle:**
+1. **Entry:** When user ENTER on commit in History mode
+   - Capture `OriginalBranch` and `OriginalHead` before checkout
+   - If working tree dirty: stash changes, capture `StashID`
+   - Checkout target commit, set `Operation = TimeTraveling`
+2. **While Traveling:** User can browse history (jump to different commits) via History mode
+   - `CurrentCommit` updates on each jump
+   - `OriginalBranch`, `OriginalHead`, `StashID` remain unchanged
+3. **Exit via Merge:** Merge time-travel changes back
+   - Merge `CurrentCommit` into `OriginalBranch` (may have conflicts)
+   - Apply any stashed work back (may have conflicts)
+4. **Exit via Return:** Discard changes, go back
+   - Checkout `OriginalBranch` (at `OriginalHead`)
+   - Restore stashed work if it exists
+
+**Storage in Application:**
+```go
+type Application struct {
+    gitState       git.State
+    timeTravelInfo *TimeTravelInfo  // Non-nil only when Operation = TimeTraveling
+    // ... other fields
+}
+```
+
+**Safety invariant:** ESC at any point restores exact original state by restoring original branch and reapplying stash.
 
 ---
 
@@ -146,26 +185,53 @@ Terminal displays result
 | ModeSelectBranch | Choose branch after clone | Menu selection |
 | ModeConfirmation | Confirm destructive operation | left/right/h/l/y/n/enter |
 | ModeConflictResolve | N-column parallel conflict resolution | ↑↓ (nav/scroll), TAB (cycle), SPACE (mark), ENTER (apply) |
-| ModeHistory | Commit/file history browser | (TBD - Phase 5) |
+| ModeHistory | Commit history browser (2-pane) | ↑↓ (nav), TAB (pane), ENTER (time travel), ESC (menu) |
+| ModeFileHistory | File history browser (3-pane) | ↑↓ (nav), TAB (cycle), V (visual), Y (copy), ESC (menu) |
+| ModeTimeTraveling | Time travel menu (active when `Operation = TimeTraveling`) | Menu navigation (j/k/enter) |
 
 ---
 
 ## Menu System
 
-### MenuGenerator Pattern
+### MenuGenerator Pattern & The Contract Principle
 
-Each git state maps to a menu generator function:
+**CRITICAL PRINCIPLE: Menu = Contract**
+
+If an action appears in the menu, it MUST succeed. Never show operations that could:
+- Fail due to git state
+- Leave repo in dangling/incomplete state (merge/rebase/stash in progress)
+- Require manual user cleanup
+
+**TIT Startup Check (Before Any Menu):**
+
+If git state detection finds any of these:
+- `Conflicted` (merge/rebase/conflict in progress)
+- `Merging` (merge in progress, no conflicts)
+- `Rebasing` (rebase in progress)
+- `DirtyOperation` (stash mid-operation)
+
+→ TIT shows fatal error screen and **refuses to start**. User must resolve externally:
+```bash
+git merge --continue / --abort
+git rebase --continue / --abort
+git stash pop
+```
+
+**Why:** These are pre-existing abnormal states, not states TIT creates or manages. TIT operates only on clean/normal repositories.
+
+**Valid MenuGenerators (Only for Normal Startups):**
 
 ```go
 type MenuGenerator func(*Application) []MenuItem
 
 menuGenerators := map[git.Operation]MenuGenerator{
-    git.NotRepo:    (*Application).menuNotRepo,
-    git.Conflicted: (*Application).menuConflicted,
-    git.Merging:    (*Application).menuOperation,
-    git.Rebasing:   (*Application).menuOperation,
-    git.Normal:     (*Application).menuNormal,
+    git.NotRepo:        (*Application).menuNotRepo,
+    git.Normal:         (*Application).menuNormal,
+    git.TimeTraveling:  (*Application).menuTimeTraveling,  // Only entered via History mode
 }
+
+// These states cause startup failure, never reach menuGenerators:
+// git.Conflicted, git.Merging, git.Rebasing, git.DirtyOperation
 ```
 
 ### MenuItem SSOT System
@@ -221,13 +287,18 @@ Layout() displays footer with current hint
 
 ### Generators in `internal/app/menu.go`
 
+**Valid startups only:**
 - `menuNotRepo()` - Init/Clone (not in repo)
-- `menuConflicted()` - Resolve/Abort (conflicts detected)
-- `menuOperation()` - Continue/Abort (merge/rebase in progress)
 - `menuNormal()` - Full menu (normal state)
   - `menuWorkingTree()` - Commit (when Dirty)
   - `menuTimeline()` - Push/Pull based on Timeline
-  - `menuHistory()` - Commit history browser
+  - `menuHistory()` - Commit history browser (time travel entry point)
+- `menuTimeTraveling()` - Browse history, Merge back, Return (only when `Operation = TimeTraveling`)
+
+**Never called (pre-flight check blocks startup):**
+- ~~`menuConflicted()`~~ - Startup prevents any menu if Conflicted
+- ~~`menuOperation()`~~ - Startup prevents any menu if Merging/Rebasing
+- ~~`menuDirtyOperation()`~~ - Startup prevents any menu if DirtyOperation in progress
 
 ### State Display System (StateDescriptions SSOT)
 

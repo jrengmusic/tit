@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/ui"
 )
 
@@ -474,4 +475,150 @@ func GetCommitDiff(hash, path, version string) (string, error) {
 	}
 
 	return result.Stdout, nil
+}
+
+// ExecuteTimeTravelCheckout performs a time travel checkout operation
+// Creates .git/TIT_TIME_TRAVEL file with original branch info
+// Returns: TimeTravelCheckoutMsg
+func ExecuteTimeTravelCheckout(originalBranch, commitHash string) func() tea.Msg {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append(fmt.Sprintf("Time traveling to commit %s...", commitHash), ui.TypeStatus)
+
+		// Get current branch (for verification)
+		currentBranchResult := Execute("rev-parse", "--abbrev-ref", "HEAD")
+		if !currentBranchResult.Success {
+			buffer.Append(fmt.Sprintf("Error getting current branch: %s", currentBranchResult.Stderr), ui.TypeStderr)
+			return TimeTravelCheckoutMsg{
+				Success:        false,
+				OriginalBranch: originalBranch,
+				CommitHash:     commitHash,
+				Error:          fmt.Sprintf("Failed to get current branch: %s", currentBranchResult.Stderr),
+			}
+		}
+
+		// Checkout the target commit
+		checkoutResult := Execute("checkout", commitHash)
+		if !checkoutResult.Success {
+			buffer.Append(fmt.Sprintf("Error checking out commit: %s", checkoutResult.Stderr), ui.TypeStderr)
+			return TimeTravelCheckoutMsg{
+				Success:        false,
+				OriginalBranch: originalBranch,
+				CommitHash:     commitHash,
+				Error:          fmt.Sprintf("Failed to checkout commit: %s", checkoutResult.Stderr),
+			}
+		}
+
+		// Write time travel info file
+		err := WriteTimeTravelInfo(originalBranch, "")
+		if err != nil {
+			buffer.Append(fmt.Sprintf("Error writing time travel info: %v", err), ui.TypeStderr)
+			// Try to checkout back to original branch
+			Execute("checkout", originalBranch)
+			return TimeTravelCheckoutMsg{
+				Success:        false,
+				OriginalBranch: originalBranch,
+				CommitHash:     commitHash,
+				Error:          fmt.Sprintf("Failed to write time travel info: %v", err),
+			}
+		}
+
+		buffer.Append("Time travel successful", ui.TypeStatus)
+		return TimeTravelCheckoutMsg{
+			Success:        true,
+			OriginalBranch: originalBranch,
+			CommitHash:     commitHash,
+			Error:          "",
+		}
+	}
+}
+
+// ExecuteTimeTravelMerge performs a merge of time travel changes back to original branch
+// Returns: TimeTravelMergeMsg
+func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Msg {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append(fmt.Sprintf("Merging time travel changes back to %s...", originalBranch), ui.TypeStatus)
+
+		// Checkout original branch
+		checkoutResult := Execute("checkout", originalBranch)
+		if !checkoutResult.Success {
+			buffer.Append(fmt.Sprintf("Error checking out original branch: %s", checkoutResult.Stderr), ui.TypeStderr)
+			return TimeTravelMergeMsg{
+				Success:        false,
+				OriginalBranch: originalBranch,
+				TimeTravelHash: timeTravelHash,
+				Error:          fmt.Sprintf("Failed to checkout original branch: %s", checkoutResult.Stderr),
+			}
+		}
+
+		// Merge the time travel commit
+		mergeResult := Execute("merge", timeTravelHash)
+		if !mergeResult.Success {
+			buffer.Append(fmt.Sprintf("Merge completed with status: %s", mergeResult.Stderr), ui.TypeInfo)
+			
+			// Check for conflicts
+			conflictFiles, err := ListConflictedFiles()
+			if err != nil {
+				buffer.Append("No conflicts detected", ui.TypeStatus)
+			} else {
+				buffer.Append(fmt.Sprintf("Conflicts detected in %d files", len(conflictFiles)), ui.TypeStderr)
+				return TimeTravelMergeMsg{
+					Success:           false,
+					OriginalBranch:    originalBranch,
+					TimeTravelHash:    timeTravelHash,
+					Error:             "Merge conflicts detected",
+					ConflictDetected:  true,
+					ConflictedFiles:   conflictFiles,
+				}
+			}
+		}
+
+		// Clear time travel info
+		err := ClearTimeTravelInfo()
+		if err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel info: %v", err), ui.TypeStderr)
+		}
+
+		buffer.Append("Time travel merge successful", ui.TypeStatus)
+		return TimeTravelMergeMsg{
+			Success:        true,
+			OriginalBranch: originalBranch,
+			TimeTravelHash: timeTravelHash,
+			Error:          "",
+		}
+	}
+}
+
+// ExecuteTimeTravelReturn returns from time travel without merging changes
+// Returns: TimeTravelReturnMsg
+func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Append(fmt.Sprintf("Returning from time travel to %s...", originalBranch), ui.TypeStatus)
+
+		// Checkout original branch
+		checkoutResult := Execute("checkout", originalBranch)
+		if !checkoutResult.Success {
+			buffer.Append(fmt.Sprintf("Error checking out original branch: %s", checkoutResult.Stderr), ui.TypeStderr)
+			return TimeTravelReturnMsg{
+				Success:        false,
+				OriginalBranch: originalBranch,
+				Error:          fmt.Sprintf("Failed to checkout original branch: %s", checkoutResult.Stderr),
+			}
+		}
+
+		// Clear time travel info
+		err := ClearTimeTravelInfo()
+		if err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel info: %v", err), ui.TypeStderr)
+		}
+
+		buffer.Append("Time travel return successful", ui.TypeStatus)
+		return TimeTravelReturnMsg{
+			Success:        true,
+			OriginalBranch: originalBranch,
+			Error:          "",
+		}
+	}
 }

@@ -55,12 +55,10 @@ func DetectState() (*State, error) {
 		return &State{Operation: NotRepo}, nil
 	}
 
-	// Check for dirty operation in progress
+	// Check for dirty operation in progress (PRIORITY 1: Before time travel check)
 	if IsDirtyOperationActive() {
-		// Return Conflicted state (dirty operation blocks all menus)
-		// We reuse Conflicted because it shows the conflict resolution UI
 		return &State{
-			Operation: Conflicted,
+			Operation: DirtyOperation,
 		}, nil
 	}
 
@@ -329,9 +327,13 @@ func detectOperation() (Operation, error) {
 		}
 	}
 
-	// Priority 2: Check for ongoing operations
+	// Priority 2: Check for time traveling (TIT-specific)
 	gitDir := ".git"
+	if _, err := os.Stat(filepath.Join(gitDir, "TIT_TIME_TRAVEL")); err == nil {
+		return TimeTraveling, nil
+	}
 
+	// Priority 3: Check for ongoing operations
 	// Check for merge in progress
 	if _, err := os.Stat(filepath.Join(gitDir, "MERGE_HEAD")); err == nil {
 		return Merging, nil
@@ -387,4 +389,60 @@ func CurrentBranchExistsOnRemote() bool {
 // by looking for the .git/TIT_DIRTY_OP snapshot file
 func detectDirtyOperation() bool {
 	return IsDirtyOperationActive()
+}
+
+// GetTimeTravelInfo reads the .git/TIT_TIME_TRAVEL file and returns the original branch
+// Returns: originalBranch, stashID, error
+func GetTimeTravelInfo() (string, string, error) {
+	gitDir := ".git"
+	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
+	
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read time travel info: %w", err)
+	}
+	
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	if len(lines) < 1 {
+		return "", "", fmt.Errorf("invalid time travel info format")
+	}
+	
+	originalBranch := strings.TrimSpace(lines[0])
+	stashID := ""
+	if len(lines) >= 2 {
+		stashID = strings.TrimSpace(lines[1])
+	}
+	
+	return originalBranch, stashID, nil
+}
+
+// WriteTimeTravelInfo writes the .git/TIT_TIME_TRAVEL file with original branch and optional stash ID
+func WriteTimeTravelInfo(originalBranch, stashID string) error {
+	gitDir := ".git"
+	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
+	
+	content := originalBranch + "\n"
+	if stashID != "" {
+		content += stashID + "\n"
+	}
+	
+	err := os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write time travel info: %w", err)
+	}
+	
+	return nil
+}
+
+// ClearTimeTravelInfo removes the .git/TIT_TIME_TRAVEL file
+func ClearTimeTravelInfo() error {
+	gitDir := ".git"
+	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
+	
+	err := os.Remove(filePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to clear time travel info: %w", err)
+	}
+	
+	return nil
 }

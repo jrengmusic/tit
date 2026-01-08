@@ -22,6 +22,8 @@ type GitOperationMsg struct {
 	ConflictedFiles   []string // List of files with conflicts
 }
 
+
+
 // GitOperationCompleteMsg signals that a git operation completed
 type GitOperationCompleteMsg struct {
 	Success bool
@@ -205,6 +207,7 @@ var ConfirmationTitles = map[string]string{
 	"dirty_pull":        "Save your changes?",
 	"pull_merge":        "Pull from remote?",
 	"pull_merge_diverged": "Pull diverged branches?",
+	"time_travel":       "Time Travel Confirmation",
 }
 
 // ConfirmationExplanations centralizes confirmation dialog explanations
@@ -214,6 +217,7 @@ var ConfirmationExplanations = map[string]string{
 	"dirty_pull": "You have uncommitted changes. To pull, they must be temporarily saved.\n\nAfter the pull, we'll try to reapply them.\n(This may cause conflicts if the changes overlap.)",
 	"pull_merge": "This will merge remote changes into your local branch.\n\nIf both branches modified the same files, conflicts may occur.\nYou'll be able to resolve them interactively.",
 	"pull_merge_diverged": "Your branches have diverged (both have new commits).\n\nThis will merge remote changes into your local branch.\n\nIf both modified the same files, conflicts may occur.",
+	"time_travel": "%s\n\n%s\n\nExplore in read-only mode?",
 }
 
 // ConfirmationLabels centralizes confirmation dialog button labels by action
@@ -223,6 +227,7 @@ var ConfirmationLabels = map[string][2]string{
 	"dirty_pull":        {"Save changes", "Discard changes"},
 	"pull_merge":        {"Proceed", "Cancel"},
 	"pull_merge_diverged": {"Proceed", "Cancel"},
+	"time_travel":       {"Time travel", "Cancel"},
 }
 
 // FooterHints centralizes footer hint messages

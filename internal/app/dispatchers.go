@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -58,6 +59,9 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"continue_operation":   a.dispatchContinueOperation,
 		"history":              a.dispatchHistory,
 		"file_history":         a.dispatchFileHistory,
+		"time_travel_history":  a.dispatchTimeTravelHistory,
+		"time_travel_merge":    a.dispatchTimeTravelMerge,
+		"time_travel_return":   a.dispatchTimeTravelReturn,
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -406,4 +410,46 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
 
 	return nil
+}
+
+// dispatchTimeTravelHistory handles the "Browse History" action during time travel
+func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
+	// Enter history mode to browse commits while time traveling
+	app.mode = ModeHistory
+	return nil
+}
+
+// dispatchTimeTravelMerge handles the "Merge back" action during time travel
+func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
+	// Get current commit hash (the time travel commit)
+	result := git.Execute("rev-parse", "HEAD")
+	if !result.Success {
+		app.footerHint = "Failed to get current commit hash"
+		return nil
+	}
+	
+	timeTravelHash := strings.TrimSpace(result.Stdout)
+	
+	// Get original branch from time travel info
+	originalBranch, _, err := git.GetTimeTravelInfo()
+	if err != nil {
+		app.footerHint = "Failed to get time travel info"
+		return nil
+	}
+	
+	// Execute time travel merge operation
+	return git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
+}
+
+// dispatchTimeTravelReturn handles the "Return without merge" action during time travel
+func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
+	// Get original branch from time travel info
+	originalBranch, _, err := git.GetTimeTravelInfo()
+	if err != nil {
+		app.footerHint = "Failed to get time travel info"
+		return nil
+	}
+	
+	// Execute time travel return operation
+	return git.ExecuteTimeTravelReturn(originalBranch)
 }
