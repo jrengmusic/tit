@@ -449,9 +449,9 @@ Timeline: ●━━━━━━━◉━━━━━━━◉━━━━━━�
 
 **Available actions:**
 - 🕒 Jump to different commit
-- 👁️ View diff (vs your branch)
+- 📄 File(s) history (view file changes and diffs)
 - 📦 Merge changes back to main
-- ⬅️ Return to main (discard changes)
+- 🔙 Return to main (discard changes)
 
 **Behavior:**
 - Working tree changes allowed (tracked as Modified)

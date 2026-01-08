@@ -66,27 +66,33 @@ When `Operation = TimeTraveling`, the application tracks additional metadata:
 
 ```go
 type TimeTravelInfo struct {
-    OriginalBranch  string  // Branch we departed from (e.g., "main")
-    OriginalHead    string  // Commit hash before time travel started
-    CurrentCommit   string  // Currently checked-out commit hash
-    StashID         string  // If dirty at entry: ID of stashed work ("" if clean entry)
+    OriginalBranch  string     // Branch we departed from (e.g., "main")
+    OriginalHead    string     // Commit hash before time travel started
+    CurrentCommit   CommitInfo // Currently checked-out commit (Hash, Subject, Time)
+    OriginalStashID string     // If dirty at entry: ID of stashed work ("" if clean entry)
 }
 ```
 
 **Lifecycle:**
 1. **Entry:** When user ENTER on commit in History mode
    - Capture `OriginalBranch` and `OriginalHead` before checkout
-   - If working tree dirty: stash changes, capture `StashID`
+   - If working tree dirty: stash changes, capture `OriginalStashID`
    - Checkout target commit, set `Operation = TimeTraveling`
+   - Populate `CurrentCommit` from detached HEAD state
 2. **While Traveling:** User can browse history (jump to different commits) via History mode
    - `CurrentCommit` updates on each jump
-   - `OriginalBranch`, `OriginalHead`, `StashID` remain unchanged
+   - `OriginalBranch`, `OriginalHead`, `OriginalStashID` remain unchanged
 3. **Exit via Merge:** Merge time-travel changes back
-   - Merge `CurrentCommit` into `OriginalBranch` (may have conflicts)
+   - Merge `CurrentCommit.Hash` into `OriginalBranch` (may have conflicts)
    - Apply any stashed work back (may have conflicts)
 4. **Exit via Return:** Discard changes, go back
    - Checkout `OriginalBranch` (at `OriginalHead`)
    - Restore stashed work if it exists
+
+**Loading from detached HEAD:** When TIT starts in TimeTraveling state (`.git/TIT_TIME_TRAVEL` exists), `LoadTimeTravelInfo()` reconstructs `CurrentCommit` by querying git:
+- `git rev-parse HEAD` → Hash
+- `git log -1 --format=%s` → Subject
+- `git log -1 --format=%aI` → Time (parsed as RFC3339)
 
 **Storage in Application:**
 ```go
@@ -367,38 +373,48 @@ BuildStateInfo(theme) returns:
 - Operation map: Normal/TimeTraveling/Conflicted/etc → StateInfo with description from StateDescriptions
 ```
 
-**Header Rendering (4-Row Layout):**
+**Header Rendering (5-Row Layout with Separator):**
 
 ```
 Row 1: CWD (left)              | OPERATION (right)
 Row 2: REMOTE (left)           | BRANCH (right)
-Row 3: WORKING TREE (left)     | TIMELINE (right) OR Commit info when time traveling
-Row 4: Descriptions (left)     | Timeline/Commit description (right)
+Row 3: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ (separator line)
+Row 4: WORKING TREE (left)     | TIMELINE (right) OR Commit info when time traveling
+Row 5: Descriptions (left)     | Timeline/Commit description (right)
 ```
 
 **Normal Operation (Operation = Normal):**
 ```
-📁 /Users/jreng/Documents/Poems/inf/tit    ✅ Ready
+📁 /Users/jreng/Documents/Poems/inf/tit    🟢 READY
 🔗 github.com/user/repo                    🌿 main
-✅ Clean                                   🔗 Sync
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CLEAN                                   🔗 SYNC
 Your files match the remote.              Local and remote are in sync.
 ```
 
 **Time Traveling (Operation = TimeTraveling):**
 ```
-📁 /Users/jreng/Documents/Poems/inf/tit    ⏱️ Time Travel
+📁 /Users/jreng/Documents/Poems/inf/tit    🌀 TIME TRAVEL
 🔗 github.com/user/repo                    🔀 Detached HEAD
-✅ Clean                                   📌 Commit: c53233c
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CLEAN                                   📌 Commit: c53233c
 Your files match the remote.              Mon, 7 Jan 2026 04:45:12
 ```
 
 **No Remote (Remote = NoRemote):**
 ```
-📁 /Users/jreng/Documents/Poems/inf/tit    ✅ Ready
+📁 /Users/jreng/Documents/Poems/inf/tit    🟢 READY
 🔌 NO REMOTE                               🌿 main
-✅ Clean                                   🔌 N/A
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CLEAN                                   🔌 N/A
 Your files match the remote.              No remote configured.
 ```
+
+**Key changes from Session 65:**
+- Operation labels now ALL CAPS (READY, TIME TRAVEL, NOT REPO)
+- Updated emoji: ✅ → 🟢 (operation ready), ⏱️ → 🌀 (time travel)
+- Separator line between remote/branch row and state rows
+- WorkingTree and Timeline labels also ALL CAPS
 
 **Rendering Flow:**
 ```
@@ -590,6 +606,17 @@ for col := 0; col < numColumns; col++ {
 - Focus changes border color, making active pane clearly visible
 
 ### Theme Colors
+
+**Operation colors** (`internal/ui/theme.go`) - Added in Session 65:
+```toml
+operationReady = "#4ECB71"          # Emerald green (READY state)
+operationNotRepo = "#FC704C"        # preciousPersimmon (NOT REPO / errors)
+operationTimeTravel = "#F2AB53"     # Safflower (TIME TRAVEL - warm orange)
+operationConflicted = "#FC704C"     # preciousPersimmon (conflicts)
+operationMerging = "#00C8D8"        # blueBikini (merge in progress)
+operationRebasing = "#00C8D8"       # blueBikini (rebase in progress)
+operationDirtyOp = "#FC704C"        # preciousPersimmon (dirty operation)
+```
 
 **Conflict-specific colors** (`internal/ui/theme.go`):
 ```toml
