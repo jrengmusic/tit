@@ -162,9 +162,15 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			return a, nil
 		}
 		a.gitState = state
+
+		// CONTRACT: Rebuild cache before showing completion (commit changes history)
+		cacheCmd := a.invalidateHistoryCaches()
+
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
+
+		return a, cacheCmd
 
 	case OpForcePush:
 		// Force push completed - reload state, stay in console  
@@ -334,11 +340,16 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_success"]
 	
+	// CONTRACT: Rebuild cache for new detached HEAD state (history always ready)
+	buffer.Append("Building history cache...", ui.TypeStatus)
+	a.cacheLoadingStarted = true
+	cacheCmd := a.invalidateHistoryCaches()
+
 	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
 	// Mode remains ModeConsole, git state is now Operation = TimeTraveling
 	// ESC handler will detect this and show time travel menu
-	
-	return a, nil
+
+	return a, cacheCmd
 }
 
 // handleTimeTravelMerge handles git.TimeTravelMergeMsg
@@ -378,19 +389,19 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_merge_success"]
 
-	// Restart cache loading if back to Normal operation
-	// Cache was paused during time travel, need to reload
+	// CONTRACT: Restart cache loading if back to Normal operation
+	// Cache was paused during time travel, need to rebuild
+	var cacheCmd tea.Cmd
 	if !a.cacheLoadingStarted && state.Operation == git.Normal {
 		a.cacheLoadingStarted = true
-		go a.preloadHistoryMetadata()
-		go a.preloadFileHistoryDiffs()
+		cacheCmd = a.invalidateHistoryCaches()
 	}
 
 	// Transition to menu mode
 	a.mode = ModeMenu
 	a.menuItems = a.GenerateMenu()
 
-	return a, nil
+	return a, cacheCmd
 }
 
 // handleTimeTravelReturn handles git.TimeTravelReturnMsg
@@ -425,19 +436,19 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_return_success"]
 
-	// Restart cache loading if back to Normal operation
-	// Cache was paused during time travel, need to reload
+	// CONTRACT: Restart cache loading if back to Normal operation
+	// Cache was paused during time travel, need to rebuild
+	var cacheCmd tea.Cmd
 	if !a.cacheLoadingStarted && state.Operation == git.Normal {
 		a.cacheLoadingStarted = true
-		go a.preloadHistoryMetadata()
-		go a.preloadFileHistoryDiffs()
+		cacheCmd = a.invalidateHistoryCaches()
 	}
 
 	// Transition to menu mode
 	a.mode = ModeMenu
 	a.menuItems = a.GenerateMenu()
 
-	return a, nil
+	return a, cacheCmd
 }
 
 // setupConflictResolver initializes conflict resolver UI for any conflict-resolving operation

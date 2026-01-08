@@ -90,12 +90,18 @@ type Application struct {
 	historyMetadataCache  map[string]*git.CommitDetails  // hash → commit metadata
 	fileHistoryDiffCache  map[string]string               // hash:path:version → diff content
 	fileHistoryFilesCache map[string][]git.FileInfo      // hash → file list
-	
-	// Cache status flags
+
+	// Cache status flags (CONTRACT: MANDATORY precomputation, no on-the-fly)
 	cacheLoadingStarted bool  // Guard against re-preloading
 	cacheMetadata       bool  // true when history metadata cache populated
 	cacheDiffs          bool  // true when file(s) history diffs cache populated
-	
+
+	// Cache progress tracking (for UI feedback during build)
+	cacheMetadataProgress    int  // Current commit processed for metadata
+	cacheMetadataTotal       int  // Total commits to process
+	cacheDiffsProgress       int  // Current commit processed for diffs
+	cacheDiffsTotal          int  // Total commits to process
+
 	// Mutexes for thread-safe cache access
 	historyCacheMutex    sync.Mutex
 	fileHistoryCacheMutex sync.Mutex
@@ -284,12 +290,12 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	// Register menu shortcuts dynamically
 	app.rebuildMenuShortcuts()
 
-	// Start pre-loading caches (non-blocking, async goroutines)
-	// Only start if in normal operation (not merging/rebasing/conflicted/time-traveling)
-	if app.gitState.Operation == git.Normal && !shouldRestore {
+	// Start pre-loading caches (CONTRACT: MANDATORY on startup)
+	// Cache building will be triggered in Init() via tea.Cmd
+	// Read-only operations, safe for any git state
+	if !shouldRestore {
 		app.cacheLoadingStarted = true
-		go app.preloadHistoryMetadata()
-		go app.preloadFileHistoryDiffs()
+		// Cache build started in Init() method via tea.Batch
 	}
 
 	// If restoration needed, set up the async operation
@@ -530,7 +536,11 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GitOperationMsg:
 		// AUDIO THREAD - Worker returned git operation result
 		return a.handleGitOperation(msg)
-	
+
+	case CacheProgressMsg:
+		// Cache building progress update
+		return a.handleCacheProgress(msg)
+
 	case RestoreTimeTravelMsg:
 		// Time travel restoration completed (Phase 0)
 		return a.handleRestoreTimeTravel(msg)
@@ -705,12 +715,42 @@ func (a *Application) View() string {
 
 // Init initializes the application
 func (a *Application) Init() tea.Cmd {
-	return tea.EnableBracketedPaste
+	// CONTRACT: Start cache building immediately on app startup
+	// Cache MUST be ready before history menus can be used
+	commands := []tea.Cmd{tea.EnableBracketedPaste}
+
+	if a.cacheLoadingStarted {
+		commands = append(commands,
+			a.cmdPreloadHistoryMetadata(),
+			a.cmdPreloadFileHistoryDiffs(),
+		)
+	}
+
+	return tea.Batch(commands...)
 }
 
 // GetFooterHint returns the footer hint text
 func (a *Application) GetFooterHint() string {
 	return a.footerHint
+}
+
+// handleCacheProgress handles cache building progress updates
+func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.Cmd) {
+	// Cache progress received - regenerate menu to show updated progress
+	// Menu generator will read progress fields and show disabled state with progress
+
+	if msg.Complete {
+		// Cache complete - regenerate menu to show enabled state
+		menu := a.GenerateMenu()
+		a.menuItems = menu
+		if len(menu) > 0 && a.selectedIndex < len(menu) {
+			a.footerHint = menu[a.selectedIndex].Hint
+		}
+		a.rebuildMenuShortcuts()
+	}
+
+	// Always regenerate menu on progress update (menu reads progress fields)
+	return a, nil
 }
 
 // updateFooterHintFromMenu updates footer with hint of currently selected menu item
@@ -1109,10 +1149,15 @@ func (a *Application) rebuildMenuShortcuts() {
 // handleMenuUp moves selection up
 func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
 	if len(app.menuItems) > 0 {
+		startIdx := app.selectedIndex
 		app.selectedIndex = (app.selectedIndex - 1 + len(app.menuItems)) % len(app.menuItems)
-		// Skip separators
-		for app.selectedIndex >= 0 && app.menuItems[app.selectedIndex].Separator {
+		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
+		for app.menuItems[app.selectedIndex].Separator || !app.menuItems[app.selectedIndex].Enabled {
 			app.selectedIndex = (app.selectedIndex - 1 + len(app.menuItems)) % len(app.menuItems)
+			// Prevent infinite loop if all items disabled
+			if app.selectedIndex == startIdx {
+				break
+			}
 		}
 		// Update footer hint
 		if app.selectedIndex < len(app.menuItems) {
@@ -1125,10 +1170,15 @@ func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
 // handleMenuDown moves selection down
 func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
 	if len(app.menuItems) > 0 {
+		startIdx := app.selectedIndex
 		app.selectedIndex = (app.selectedIndex + 1) % len(app.menuItems)
-		// Skip separators
-		for app.selectedIndex < len(app.menuItems) && app.menuItems[app.selectedIndex].Separator {
+		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
+		for app.menuItems[app.selectedIndex].Separator || !app.menuItems[app.selectedIndex].Enabled {
 			app.selectedIndex = (app.selectedIndex + 1) % len(app.menuItems)
+			// Prevent infinite loop if all items disabled
+			if app.selectedIndex == startIdx {
+				break
+			}
 		}
 		// Update footer hint
 		if app.selectedIndex < len(app.menuItems) {
@@ -1144,10 +1194,12 @@ func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
 		return app, nil
 	}
 	item := app.menuItems[app.selectedIndex]
+
+	// CONTRACT: Cannot execute separators or disabled items (cache still building)
 	if item.Separator || !item.Enabled {
 		return app, nil
 	}
-	
+
 	// Dispatch action
 	return app, app.dispatchAction(item.ID)
 }

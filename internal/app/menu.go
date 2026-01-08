@@ -222,19 +222,53 @@ func (a *Application) menuTimeline() []MenuItem {
 }
 
 // menuHistory returns history actions
+// CONTRACT: Disables menu items and shows progress while cache is building
 func (a *Application) menuHistory() []MenuItem {
 	items := []MenuItem{}
-	
-	// History menu item - always enabled (cache loads in background)
+
+	// Get cache status (thread-safe)
+	a.historyCacheMutex.Lock()
+	metadataReady := a.cacheMetadata
+	metadataProgress := a.cacheMetadataProgress
+	metadataTotal := a.cacheMetadataTotal
+	a.historyCacheMutex.Unlock()
+
+	a.diffCacheMutex.Lock()
+	diffsReady := a.cacheDiffs
+	diffsProgress := a.cacheDiffsProgress
+	diffsTotal := a.cacheDiffsTotal
+	a.diffCacheMutex.Unlock()
+
+	// History menu item - CONTRACT: disabled while building, shows progress
 	historyItem := GetMenuItem("history")
-	historyItem.Enabled = true
+	if !metadataReady {
+		historyItem.Enabled = false
+		historyItem.Emoji = "⏳"
+		if metadataTotal > 0 {
+			historyItem.Label = fmt.Sprintf("Commit history [Building... %d/%d]", metadataProgress, metadataTotal)
+		} else {
+			historyItem.Label = "Commit history [Building...]"
+		}
+	} else {
+		historyItem.Enabled = true
+	}
 	items = append(items, historyItem)
-	
-	// File history menu item - always enabled
+
+	// File history menu item - CONTRACT: disabled while building, shows progress
 	fileHistoryItem := GetMenuItem("file_history")
-	fileHistoryItem.Enabled = true
+	if !diffsReady {
+		fileHistoryItem.Enabled = false
+		fileHistoryItem.Emoji = "⏳"
+		if diffsTotal > 0 {
+			fileHistoryItem.Label = fmt.Sprintf("File(s) history [Building... %d/%d]", diffsProgress, diffsTotal)
+		} else {
+			fileHistoryItem.Label = "File(s) history [Building...]"
+		}
+	} else {
+		fileHistoryItem.Enabled = true
+	}
 	items = append(items, fileHistoryItem)
-	
+
 	return items
 }
 

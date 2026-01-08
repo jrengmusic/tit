@@ -3,7 +3,6 @@ package app
 import (
 	"os"
 	"sort"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -422,35 +421,40 @@ func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
 
 // dispatchTimeTravelMerge handles the "Merge back" action during time travel
 func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
-	// Get current commit hash (the time travel commit)
-	result := git.Execute("rev-parse", "HEAD")
-	if !result.Success {
-		app.footerHint = "Failed to get current commit hash"
-		return nil
-	}
-	
-	timeTravelHash := strings.TrimSpace(result.Stdout)
-	
-	// Get original branch from time travel info
-	originalBranch, _, err := git.GetTimeTravelInfo()
-	if err != nil {
-		app.footerHint = "Failed to get time travel info"
-		return nil
-	}
-	
-	// Execute time travel merge operation
-	return git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
+	// Show confirmation dialog before merging
+	app.mode = ModeConfirmation
+	labels := ConfirmationLabels[string(ConfirmTimeTravelMerge)]
+	app.confirmationDialog = ui.NewConfirmationDialog(
+		ui.ConfirmationConfig{
+			Title:       ConfirmationTitles[string(ConfirmTimeTravelMerge)],
+			Explanation: ConfirmationExplanations[string(ConfirmTimeTravelMerge)],
+			YesLabel:    labels[0],
+			NoLabel:     labels[1],
+			ActionID:    string(ConfirmTimeTravelMerge),
+		},
+		ui.ContentInnerWidth,
+		&app.theme,
+	)
+	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
+	return nil
 }
 
 // dispatchTimeTravelReturn handles the "Return without merge" action during time travel
 func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
-	// Get original branch from time travel info
-	originalBranch, _, err := git.GetTimeTravelInfo()
-	if err != nil {
-		app.footerHint = "Failed to get time travel info"
-		return nil
-	}
-	
-	// Execute time travel return operation
-	return git.ExecuteTimeTravelReturn(originalBranch)
+	// Show confirmation dialog before returning
+	app.mode = ModeConfirmation
+	labels := ConfirmationLabels[string(ConfirmTimeTravelReturn)]
+	app.confirmationDialog = ui.NewConfirmationDialog(
+		ui.ConfirmationConfig{
+			Title:       ConfirmationTitles[string(ConfirmTimeTravelReturn)],
+			Explanation: ConfirmationExplanations[string(ConfirmTimeTravelReturn)],
+			YesLabel:    labels[0],
+			NoLabel:     labels[1],
+			ActionID:    string(ConfirmTimeTravelReturn),
+		},
+		ui.ContentInnerWidth,
+		&app.theme,
+	)
+	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
+	return nil
 }

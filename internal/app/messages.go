@@ -43,6 +43,14 @@ type InputSubmittedMsg struct {
 	Value  string
 }
 
+// CacheProgressMsg reports cache building progress (for UI updates)
+type CacheProgressMsg struct {
+	CacheType string // "metadata" or "diffs"
+	Current   int    // Current item processed
+	Total     int    // Total items to process
+	Complete  bool   // true when cache is fully built
+}
+
 // FooterMessageType enum for different footer message states
 type FooterMessageType int
 
@@ -221,12 +229,14 @@ var ButtonLabels = map[string]string{
 
 // ConfirmationTitles centralizes confirmation dialog titles
 var ConfirmationTitles = map[string]string{
-	"force_push":        "Force Push Confirmation",
-	"hard_reset":        "Replace Local Confirmation",
-	"dirty_pull":        "Save your changes?",
-	"pull_merge":        "Pull from remote?",
-	"pull_merge_diverged": "Pull diverged branches?",
-	"time_travel":       "Time Travel Confirmation",
+	"force_push":           "Force Push Confirmation",
+	"hard_reset":           "Replace Local Confirmation",
+	"dirty_pull":           "Save your changes?",
+	"pull_merge":           "Pull from remote?",
+	"pull_merge_diverged":  "Pull diverged branches?",
+	"time_travel":          "Time Travel Confirmation",
+	"time_travel_return":   "Return to main without merge?",
+	"time_travel_merge":    "Merge and return to main?",
 }
 
 // ConfirmationExplanations centralizes confirmation dialog explanations
@@ -237,16 +247,20 @@ var ConfirmationExplanations = map[string]string{
 	"pull_merge": "This will merge remote changes into your local branch.\n\nIf both branches modified the same files, conflicts may occur.\nYou'll be able to resolve them interactively.",
 	"pull_merge_diverged": "Your branches have diverged (both have new commits).\n\nThis will merge remote changes into your local branch.\n\nIf both modified the same files, conflicts may occur.",
 	"time_travel": "%s\n\n%s\n\nExplore in read-only mode?",
+	"time_travel_return": "Any changes you made while time traveling will be DISCARDED.\n\nYour original work (if any) will be restored.",
+	"time_travel_merge": "This will merge time travel changes back to main.\n\nConflicts may occur if the changes overlap.",
 }
 
 // ConfirmationLabels centralizes confirmation dialog button labels by action
 var ConfirmationLabels = map[string][2]string{
-	"force_push":        {"Force push", "Cancel"},
-	"hard_reset":        {"Reset to remote", "Cancel"},
-	"dirty_pull":        {"Save changes", "Discard changes"},
-	"pull_merge":        {"Proceed", "Cancel"},
-	"pull_merge_diverged": {"Proceed", "Cancel"},
-	"time_travel":       {"Time travel", "Cancel"},
+	"force_push":           {"Force push", "Cancel"},
+	"hard_reset":           {"Reset to remote", "Cancel"},
+	"dirty_pull":           {"Save changes", "Discard changes"},
+	"pull_merge":           {"Proceed", "Cancel"},
+	"pull_merge_diverged":  {"Proceed", "Cancel"},
+	"time_travel":          {"Time travel", "Cancel"},
+	"time_travel_return":   {"Return to main", "Cancel"},
+	"time_travel_merge":    {"Merge & return", "Cancel"},
 }
 
 // FooterHints centralizes footer hint messages

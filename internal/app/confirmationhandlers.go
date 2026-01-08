@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
@@ -13,15 +14,17 @@ import (
 type ConfirmationType string
 
 const (
-	ConfirmNestedRepoInit    ConfirmationType = "nested_repo_init"
-	ConfirmForcePush         ConfirmationType = "force_push"
-	ConfirmHardReset         ConfirmationType = "hard_reset"
-	ConfirmDestructiveOp     ConfirmationType = "destructive_op"
-	ConfirmAlert             ConfirmationType = "alert"
-	ConfirmPullMerge         ConfirmationType = "pull_merge"
-	ConfirmPullMergeDiverged ConfirmationType = "pull_merge_diverged"
-	ConfirmDirtyPull         ConfirmationType = "dirty_pull"
-	ConfirmTimeTravel        ConfirmationType = "time_travel"
+	ConfirmNestedRepoInit     ConfirmationType = "nested_repo_init"
+	ConfirmForcePush          ConfirmationType = "force_push"
+	ConfirmHardReset          ConfirmationType = "hard_reset"
+	ConfirmDestructiveOp      ConfirmationType = "destructive_op"
+	ConfirmAlert              ConfirmationType = "alert"
+	ConfirmPullMerge          ConfirmationType = "pull_merge"
+	ConfirmPullMergeDiverged  ConfirmationType = "pull_merge_diverged"
+	ConfirmDirtyPull          ConfirmationType = "dirty_pull"
+	ConfirmTimeTravel         ConfirmationType = "time_travel"
+	ConfirmTimeTravelReturn   ConfirmationType = "time_travel_return"
+	ConfirmTimeTravelMerge    ConfirmationType = "time_travel_merge"
 )
 
 // ConfirmationAction is a function that handles a confirmed action
@@ -29,26 +32,30 @@ type ConfirmationAction func(*Application) (tea.Model, tea.Cmd)
 
 // confirmationActions maps confirmation types to their YES handlers
 var confirmationActions = map[string]ConfirmationAction{
-	string(ConfirmNestedRepoInit):    (*Application).executeConfirmNestedRepoInit,
-	string(ConfirmForcePush):         (*Application).executeConfirmForcePush,
-	string(ConfirmHardReset):         (*Application).executeConfirmHardReset,
-	string(ConfirmAlert):             (*Application).executeAlert,
-	string(ConfirmDirtyPull):         (*Application).executeConfirmDirtyPull,
-	string(ConfirmPullMerge):         (*Application).executeConfirmPullMerge,
-	string(ConfirmPullMergeDiverged): (*Application).executeConfirmPullMerge,
-	string(ConfirmTimeTravel):        (*Application).executeConfirmTimeTravel,
+	string(ConfirmNestedRepoInit):     (*Application).executeConfirmNestedRepoInit,
+	string(ConfirmForcePush):          (*Application).executeConfirmForcePush,
+	string(ConfirmHardReset):          (*Application).executeConfirmHardReset,
+	string(ConfirmAlert):              (*Application).executeAlert,
+	string(ConfirmDirtyPull):          (*Application).executeConfirmDirtyPull,
+	string(ConfirmPullMerge):          (*Application).executeConfirmPullMerge,
+	string(ConfirmPullMergeDiverged):  (*Application).executeConfirmPullMerge,
+	string(ConfirmTimeTravel):         (*Application).executeConfirmTimeTravel,
+	string(ConfirmTimeTravelReturn):   (*Application).executeConfirmTimeTravelReturn,
+	string(ConfirmTimeTravelMerge):    (*Application).executeConfirmTimeTravelMerge,
 }
 
 // confirmationRejectActions maps confirmation types to their NO handlers
 var confirmationRejectActions = map[string]ConfirmationAction{
-	string(ConfirmNestedRepoInit):    (*Application).executeRejectNestedRepoInit,
-	string(ConfirmForcePush):         (*Application).executeRejectForcePush,
-	string(ConfirmHardReset):         (*Application).executeRejectHardReset,
-	string(ConfirmAlert):             (*Application).executeAlert, // Any key dismisses alert
-	string(ConfirmDirtyPull):         (*Application).executeRejectDirtyPull,
-	string(ConfirmPullMerge):         (*Application).executeRejectPullMerge,
-	string(ConfirmPullMergeDiverged): (*Application).executeRejectPullMerge,
-	string(ConfirmTimeTravel):        (*Application).executeRejectTimeTravel,
+	string(ConfirmNestedRepoInit):     (*Application).executeRejectNestedRepoInit,
+	string(ConfirmForcePush):          (*Application).executeRejectForcePush,
+	string(ConfirmHardReset):          (*Application).executeRejectHardReset,
+	string(ConfirmAlert):              (*Application).executeAlert, // Any key dismisses alert
+	string(ConfirmDirtyPull):          (*Application).executeRejectDirtyPull,
+	string(ConfirmPullMerge):          (*Application).executeRejectPullMerge,
+	string(ConfirmPullMergeDiverged):  (*Application).executeRejectPullMerge,
+	string(ConfirmTimeTravel):         (*Application).executeRejectTimeTravel,
+	string(ConfirmTimeTravelReturn):   (*Application).executeRejectTimeTravelReturn,
+	string(ConfirmTimeTravelMerge):    (*Application).executeRejectTimeTravelMerge,
 }
 
 // ========================================
@@ -344,6 +351,39 @@ func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
 
 // executeTimeTravelClean handles time travel from clean working tree
 func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
+	// Write time travel info (no stash ID for clean tree)
+	err := git.WriteTimeTravelInfo(originalBranch, "")
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to write time travel info: %v", err))
+	}
+	
+	// Build TimeTravelInfo directly (fail fast if git calls fail)
+	// This prevents silent failures and inconsistent state
+	commitSubject := strings.TrimSpace(git.Execute("log", "-1", "--format=%s", commitHash).Stdout)
+	if commitSubject == "" {
+		panic(fmt.Sprintf("FATAL: Failed to get commit subject for %s", commitHash))
+	}
+	
+	commitTimeStr := strings.TrimSpace(git.Execute("log", "-1", "--format=%aI", commitHash).Stdout)
+	if commitTimeStr == "" {
+		panic(fmt.Sprintf("FATAL: Failed to get commit time for %s", commitHash))
+	}
+	
+	commitTime, err := time.Parse(time.RFC3339, commitTimeStr)
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to parse commit time: %v", err))
+	}
+	
+	a.timeTravelInfo = &git.TimeTravelInfo{
+		OriginalBranch:  originalBranch,
+		OriginalStashID: "",
+		CurrentCommit: git.CommitInfo{
+			Hash:    commitHash,
+			Subject: commitSubject,
+			Time:    commitTime,
+		},
+	}
+	
 	// Transition to console to show streaming output
 	a.asyncOperationActive = true
 	a.asyncOperationAborted = false
@@ -395,8 +435,34 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	// Write time travel info with stash ID
 	err := git.WriteTimeTravelInfo(originalBranch, stashID)
 	if err != nil {
-		a.footerHint = fmt.Sprintf(ErrorMessages["failed_write_time_travel_info"], err)
-		return a, nil
+		panic(fmt.Sprintf("FATAL: Failed to write time travel info: %v", err))
+	}
+	
+	// Build TimeTravelInfo directly from commit hash (fail fast if git calls fail)
+	// This prevents silent failures and inconsistent state
+	commitSubject := strings.TrimSpace(git.Execute("log", "-1", "--format=%s", commitHash).Stdout)
+	if commitSubject == "" {
+		panic(fmt.Sprintf("FATAL: Failed to get commit subject for %s", commitHash))
+	}
+	
+	commitTimeStr := strings.TrimSpace(git.Execute("log", "-1", "--format=%aI", commitHash).Stdout)
+	if commitTimeStr == "" {
+		panic(fmt.Sprintf("FATAL: Failed to get commit time for %s", commitHash))
+	}
+	
+	commitTime, err := time.Parse(time.RFC3339, commitTimeStr)
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to parse commit time: %v", err))
+	}
+	
+	a.timeTravelInfo = &git.TimeTravelInfo{
+		OriginalBranch:  originalBranch,
+		OriginalStashID: stashID,
+		CurrentCommit: git.CommitInfo{
+			Hash:    commitHash,
+			Subject: commitSubject,
+			Time:    commitTime,
+		},
 	}
 	
 	// Transition to console to show streaming output
@@ -423,4 +489,67 @@ func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 	// User cancelled time travel
 	a.confirmationDialog = nil
 	return a.returnToMenu()
+}
+
+// ========================================
+// Time Travel Return Confirmation
+// ========================================
+
+// executeConfirmTimeTravelReturn handles YES response to return-to-main confirmation
+func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
+	a.confirmationDialog = nil
+	
+	// Get original branch from time travel info
+	originalBranch, _, err := git.GetTimeTravelInfo()
+	if err != nil {
+		a.footerHint = "Failed to get time travel info"
+		return a, nil
+	}
+	
+	// Execute time travel return operation
+	return a, git.ExecuteTimeTravelReturn(originalBranch)
+}
+
+// executeRejectTimeTravelReturn handles NO response to return-to-main confirmation
+func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
+	// User cancelled return
+	a.confirmationDialog = nil
+	a.mode = ModeMenu
+	return a, nil
+}
+
+// ========================================
+// Time Travel Merge Confirmation
+// ========================================
+
+// executeConfirmTimeTravelMerge handles YES response to merge-and-return confirmation
+func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
+	a.confirmationDialog = nil
+	
+	// Get current commit hash
+	result := git.Execute("rev-parse", "HEAD")
+	if !result.Success {
+		a.footerHint = "Failed to get current commit"
+		return a, nil
+	}
+	
+	timeTravelHash := strings.TrimSpace(result.Stdout)
+	
+	// Get original branch from time travel info
+	originalBranch, _, err := git.GetTimeTravelInfo()
+	if err != nil {
+		a.footerHint = "Failed to get time travel info"
+		return a, nil
+	}
+	
+	// Execute time travel merge operation
+	return a, git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
+}
+
+// executeRejectTimeTravelMerge handles NO response to merge-and-return confirmation
+func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
+	// User cancelled merge
+	a.confirmationDialog = nil
+	a.mode = ModeMenu
+	return a, nil
 }
