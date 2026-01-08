@@ -9,13 +9,119 @@
 
 | Phase | Feature | Commits | Stash | Merge | Conflicts | Lines |
 |-------|---------|---------|-------|-------|-----------|-------|
+| **0** | Pre-startup restoration (safety net) | ❌ | ✅ | ❌ | ❌ | 100 |
 | **1** | Basic time travel (clean tree) | ✅ | ❌ | ❌ | ❌ | 200 |
 | **2** | Dirty tree handling | ✅ | ✅ | ❌ | ❌ | 150 |
 | **3** | Merge back (no conflicts) | ✅ | ✅ | ✅ | ❌ | 200 |
 | **4** | Merge conflicts + resolution | ✅ | ✅ | ✅ | ✅ | 250 |
 | **5** | Browse while time traveling | ✅ | ✅ | ✅ | ✅ | 100 |
 | **6** | Return (discard changes) | ✅ | ✅ | ✅ | ✅ | 50 |
-| **Total** | | | | | | ~950 |
+| **Total** | | | | | | ~1,050 |
+
+---
+
+## Phase 0: Pre-Startup Restoration (Safety Net)
+
+**CRITICAL:** If TIT exits while time traveling, startup must restore original state.
+
+**Code Changes:**
+
+### 0.1 Add Startup Check
+
+`internal/app/app.go` - in `New()` function, after git state detection but BEFORE menu generation:
+
+```go
+func New(/* ... */) *Application {
+    // ... existing init ...
+    
+    // Detect git state
+    gitState, err := git.DetectState()
+    if err != nil {
+        // Handle error
+    }
+    a.gitState = gitState
+    
+    // CRITICAL: Check for incomplete time travel from previous session
+    if fileExists(".git/TIT_TIME_TRAVEL") {
+        // User exited TIT while time traveling
+        // Restore original branch immediately
+        if err := a.restoreFromTimeTravel(); err != nil {
+            // Show error, but don't block startup
+            a.footerHint = "Warning: Could not restore time travel state"
+        }
+    }
+    
+    // Now proceed with normal startup
+    // ...
+}
+```
+
+### 0.2 Implement Restoration Function
+
+`internal/app/app.go`:
+
+```go
+func (a *Application) restoreFromTimeTravel() error {
+    // Read .git/TIT_TIME_TRAVEL marker
+    ttInfo, err := git.LoadTimeTravelInfo()
+    if err != nil {
+        return err
+    }
+    
+    buffer := ui.GetBuffer()
+    buffer.Append("Restoring from incomplete time travel session...", ui.TypeStatus)
+    
+    // Step 1: Discard any changes made during time travel
+    git.Execute("checkout", ".")
+    git.Execute("clean", "-fd")
+    
+    // Step 2: Return to original branch
+    result := git.Execute("checkout", ttInfo.OriginalBranch)
+    if !result.Success {
+        return fmt.Errorf("failed to checkout %s", ttInfo.OriginalBranch)
+    }
+    buffer.Append(fmt.Sprintf("Returned to %s", ttInfo.OriginalBranch), ui.TypeStatus)
+    
+    // Step 3: Restore original stashed work if any
+    if ttInfo.OriginalStashID != "" {
+        result := git.Execute("stash", "apply", ttInfo.OriginalStashID)
+        if !result.Success {
+            buffer.Append("Warning: Could not restore original work", ui.TypeStatus)
+        } else {
+            buffer.Append("Original work restored", ui.TypeStatus)
+            git.Execute("stash", "drop", ttInfo.OriginalStashID)
+        }
+    }
+    
+    // Step 4: Clean up marker
+    os.Remove(".git/TIT_TIME_TRAVEL")
+    
+    buffer.Append("Ready to continue. Press ESC to dismiss.", ui.TypeStatus)
+    
+    return nil
+}
+```
+
+### 0.3 Update TimeTravelInfo Type
+
+`internal/git/types.go`:
+
+```go
+type TimeTravelInfo struct {
+    OriginalBranch    string      // Branch we came from
+    OriginalHead      string      // Commit hash before time travel
+    CurrentCommit     CommitInfo  // Current commit while traveling
+    OriginalStashID   string      // If user had dirty tree: stash ID
+}
+```
+
+**Acceptance Criteria (Phase 0):**
+- [ ] On startup: check for `.git/TIT_TIME_TRAVEL` marker
+- [ ] If found: automatically restore original branch
+- [ ] Restore original stashed work if applicable
+- [ ] Clean up marker file
+- [ ] User sees status messages in console
+- [ ] No menu shown until restoration complete
 
 ---
 
@@ -903,15 +1009,15 @@ type CheckoutMsg struct {
 
 | File | Changes | Lines |
 |------|---------|-------|
-| `internal/git/types.go` | Add TimeTravelInfo, messages | +30 |
+| `internal/git/types.go` | Add TimeTravelInfo, messages (Phase 0 adds OriginalStashID) | +35 |
 | `internal/git/execute.go` | Merge, return, jump operations | +150 |
-| `internal/app/app.go` | Add timeTravelInfo field, register handlers | +20 |
+| `internal/app/app.go` | Pre-startup restoration, timeTravelInfo field, register handlers | +80 |
 | `internal/app/handlers.go` | Time travel handlers (merge, return, browse) | +120 |
 | `internal/app/confirmationhandlers.go` | Dirty protocol, merge confirm, return confirm | +180 |
 | `internal/app/menu.go` | menuTimeTraveling(), customize labels | +60 |
 | `internal/app/githandlers.go` | handleTimeTravelCheckout extended, merge/return handlers | +100 |
 | `internal/ui/layout.go` | Time travel header display | +20 |
-| **Total** | | **~680 lines** |
+| **Total** | | **~745 lines** |
 
 ---
 

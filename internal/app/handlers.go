@@ -901,6 +901,10 @@ func (a *Application) handleHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
 
 // handleHistoryEnter handles ENTER key in history mode (Phase 7: Time Travel)
 func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) {
+	// DEBUG: Verify handler was called
+	buffer := ui.GetBuffer()
+	buffer.Append("[DEBUG] handleHistoryEnter called, mode="+string(app.mode), ui.TypeStatus)
+	
 	if app.historyState == nil || app.historyState.SelectedIdx < 0 {
 		return app, nil
 	}
@@ -910,6 +914,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 	
 	// Show time travel confirmation dialog
 	app.mode = ModeConfirmation
+	buffer.Append("[DEBUG] Set mode=ModeConfirmation", ui.TypeStatus)
 	app.confirmType = "time_travel"
 	app.confirmContext = map[string]string{
 		"commit_hash":   commit.Hash,

@@ -53,7 +53,13 @@ Every decision in TIT derives from **four axes**:
 | `Ahead` | Local ahead (unpushed commits) |
 | `Behind` | Local behind (unpulled commits) |
 | `Diverged` | Both have unique commits |
-| `NoRemote` | No remote configured |
+| *(empty)* | **N/A** - No comparison possible (no remote OR detached HEAD) |
+
+**Note:** Timeline is a comparison state. It only applies when:
+- On a branch (not detached HEAD)
+- Branch has remote tracking configured
+
+When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not applicable).
 
 ### Operation — Git operation state
 | Code | Meaning |
@@ -89,8 +95,8 @@ Every decision in TIT derives from **four axes**:
 - `Normal` → Proceed to check other axes
 
 **Priority 2: Remote Presence**
-- `NoRemote` → Hide sync actions, show "Add remote"
-- `HasRemote` → Enable sync menus based on Timeline
+- `Remote = NoRemote` → Hide sync actions, show "Add remote"
+- `Remote = HasRemote` → Enable sync menus based on Timeline
 
 **Priority 3: Timeline + WorkingTree**
 - Determines which action menus appear
@@ -183,10 +189,10 @@ Please complete or abort the operation using standard git commands:
 
 #### Timeline Sync Actions
 
-**When Timeline = NoRemote:**
+**When Remote = NoRemote:**
 - 🌐 Add remote
 
-**When Timeline = InSync:**
+**When Remote = HasRemote and Timeline = InSync:**
 - 📥 Pull from remote (refresh)
 
 **When Timeline = Ahead:**

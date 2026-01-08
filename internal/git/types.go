@@ -71,3 +71,11 @@ type FileInfo struct {
 	Path   string // File path relative to repo root
 	Status string // Single character: M, A, D, R, C, T, U
 }
+
+// TimeTravelInfo stores metadata for an active time travel session
+type TimeTravelInfo struct {
+	OriginalBranch  string     // Branch we departed from (e.g., "main")
+	OriginalHead    string     // Commit hash before time travel started
+	CurrentCommit   CommitInfo // Currently checked-out commit while time traveling
+	OriginalStashID string     // If user had dirty tree: stash ID (empty if clean entry)
+}

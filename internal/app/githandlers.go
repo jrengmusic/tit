@@ -301,7 +301,7 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	buffer := ui.GetBuffer()
 	
 	if !msg.Success {
-		buffer.Append(fmt.Sprintf("Time travel failed: %s", msg.Error), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
 		
@@ -316,7 +316,7 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	// Time travel successful - reload git state
 	state, err := git.DetectState()
 	if err != nil {
-		buffer.Append(fmt.Sprintf("Failed to detect state after time travel: %v", err), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_travel"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
 		
@@ -329,10 +329,10 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	}
 	
 	a.gitState = state
-	buffer.Append("Time travel successful. Press ESC to return to menu.", ui.TypeStatus)
+	buffer.Append(FooterHints["time_travel_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = "Time travel successful. Press ESC to return to menu."
+	a.footerHint = FooterHints["time_travel_success"]
 	
 	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
 	// Mode remains ModeConsole, git state is now Operation = TimeTraveling
@@ -346,7 +346,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	buffer := ui.GetBuffer()
 	
 	if !msg.Success {
-		buffer.Append(fmt.Sprintf("Time travel merge failed: %s", msg.Error), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_merge_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
 		
@@ -363,7 +363,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	// Time travel merge successful - reload git state
 	state, err := git.DetectState()
 	if err != nil {
-		buffer.Append(fmt.Sprintf("Failed to detect state after time travel merge: %v", err), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_merge"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
 		
@@ -373,10 +373,10 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	}
 	
 	a.gitState = state
-	buffer.Append("Time travel merge successful", ui.TypeStatus)
+	buffer.Append(FooterHints["time_travel_merge_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = "Time travel merge successful. Press ESC to return to menu."
+	a.footerHint = FooterHints["time_travel_merge_success"]
 	
 	// Transition to menu mode
 	a.mode = ModeMenu
@@ -390,7 +390,7 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	buffer := ui.GetBuffer()
 	
 	if !msg.Success {
-		buffer.Append(fmt.Sprintf("Time travel return failed: %s", msg.Error), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_return_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
 		
@@ -402,7 +402,7 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	// Time travel return successful - reload git state
 	state, err := git.DetectState()
 	if err != nil {
-		buffer.Append(fmt.Sprintf("Failed to detect state after time travel return: %v", err), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_return"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
 		
@@ -412,10 +412,10 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	}
 	
 	a.gitState = state
-	buffer.Append("Time travel return successful", ui.TypeStatus)
+	buffer.Append(FooterHints["time_travel_return_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = "Time travel return successful. Press ESC to return to menu."
+	a.footerHint = FooterHints["time_travel_return_success"]
 	
 	// Transition to menu mode
 	a.mode = ModeMenu

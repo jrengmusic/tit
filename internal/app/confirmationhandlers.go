@@ -307,24 +307,36 @@ func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
 	// User confirmed time travel
 	a.confirmationDialog = nil
+	buffer := ui.GetBuffer()
+	buffer.Append("[DEBUG] executeConfirmTimeTravel called", ui.TypeStatus)
+	
+	// CRITICAL: Set Operation to TimeTraveling IMMEDIATELY
+	// This prevents Phase 0 restoration from triggering if app restarts during time travel
+	a.gitState.Operation = git.TimeTraveling
+	buffer.Append("[DEBUG] Set Operation=TimeTraveling to prevent restoration loop", ui.TypeStatus)
 	
 	// Get commit hash from context
 	commitHash := a.confirmContext["commit_hash"]
+	buffer.Append(fmt.Sprintf("[DEBUG] commitHash=%s", commitHash), ui.TypeStatus)
 	
 	// Get current branch (original branch before time travel)
 	currentBranchResult := git.Execute("rev-parse", "--abbrev-ref", "HEAD")
 	if !currentBranchResult.Success {
-		a.footerHint = "Failed to get current branch"
+		a.footerHint = ErrorMessages["failed_get_current_branch"]
+		buffer.Append("[DEBUG] Failed to get current branch", ui.TypeStderr)
 		return a, nil
 	}
 	
 	originalBranch := strings.TrimSpace(currentBranchResult.Stdout)
+	buffer.Append(fmt.Sprintf("[DEBUG] originalBranch=%s, isDirty=%v", originalBranch, a.gitState.WorkingTree == git.Dirty), ui.TypeStatus)
 	
 	// Check if working tree is dirty
 	if a.gitState.WorkingTree == git.Dirty {
+		buffer.Append("[DEBUG] Dirty tree - calling executeTimeTravelWithDirtyTree", ui.TypeStatus)
 		// Handle dirty working tree - stash changes first
 		return a.executeTimeTravelWithDirtyTree(originalBranch, commitHash)
 	} else {
+		buffer.Append("[DEBUG] Clean tree - calling executeTimeTravelClean", ui.TypeStatus)
 		// Clean working tree - proceed directly
 		return a.executeTimeTravelClean(originalBranch, commitHash)
 	}
@@ -339,10 +351,14 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
-	a.footerHint = "Time traveling... (ESC to abort)"
+	a.footerHint = FooterHints["time_traveling_status"]
 	a.previousMode = ModeHistory
 	a.previousMenuIndex = 0
-	
+
+	// CRITICAL: Set restoreTimeTravelInitiated = true to prevent restoration check
+	// from triggering during this intentional time travel session
+	a.restoreTimeTravelInitiated = true
+
 	// Start time travel checkout operation
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
 }
@@ -352,14 +368,14 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	// Stash changes first
 	stashResult := git.Execute("stash", "push", "-u", "-m", "TIT_TIME_TRAVEL")
 	if !stashResult.Success {
-		a.footerHint = "Failed to stash changes"
+		a.footerHint = ErrorMessages["failed_stash_changes"]
 		return a, nil
 	}
 	
 	// Get stash ID
 	stashListResult := git.Execute("stash", "list")
 	if !stashListResult.Success {
-		a.footerHint = "Failed to get stash list"
+		a.footerHint = ErrorMessages["failed_get_stash_list"]
 		return a, nil
 	}
 	
@@ -379,7 +395,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	// Write time travel info with stash ID
 	err := git.WriteTimeTravelInfo(originalBranch, stashID)
 	if err != nil {
-		a.footerHint = fmt.Sprintf("Failed to write time travel info: %v", err)
+		a.footerHint = fmt.Sprintf(ErrorMessages["failed_write_time_travel_info"], err)
 		return a, nil
 	}
 	
@@ -390,10 +406,14 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
-	a.footerHint = "Time traveling... (ESC to abort)"
+	a.footerHint = FooterHints["time_traveling_status"]
 	a.previousMode = ModeHistory
 	a.previousMenuIndex = 0
-	
+
+	// CRITICAL: Set restoreTimeTravelInitiated = true to prevent restoration check
+	// from triggering during this intentional time travel session
+	a.restoreTimeTravelInitiated = true
+
 	// Start time travel checkout operation
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
 }

@@ -431,6 +431,12 @@ func WriteTimeTravelInfo(originalBranch, stashID string) error {
 		return fmt.Errorf("failed to write time travel info: %w", err)
 	}
 	
+	// DEBUG: Log what was written
+	debugLog := fmt.Sprintf("[WRITE_TT_INFO] branch=%q, stashID=%q, content=%q\n", originalBranch, stashID, content)
+	f, _ := os.OpenFile("/tmp/tit-write-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f.WriteString(debugLog)
+	f.Close()
+	
 	return nil
 }
 
@@ -445,4 +451,62 @@ func ClearTimeTravelInfo() error {
 	}
 	
 	return nil
+}
+
+// LoadTimeTravelInfo loads time travel metadata from .git/TIT_TIME_TRAVEL
+// Returns nil if marker doesn't exist (normal case)
+func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
+	gitDir := ".git"
+	markerPath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
+	
+	// Check if marker exists
+	if !FileExists(markerPath) {
+		debugLog := fmt.Sprintf("[LOAD_TT_INFO] marker does not exist\n")
+		f, _ := os.OpenFile("/tmp/tit-load-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(debugLog)
+		f.Close()
+		return nil, nil
+	}
+	
+	// Read marker file as plain text (simpler format)
+	data, err := os.ReadFile(markerPath)
+	if err != nil {
+		debugLog := fmt.Sprintf("[LOAD_TT_INFO] read error: %v\n", err)
+		f, _ := os.OpenFile("/tmp/tit-load-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(debugLog)
+		f.Close()
+		return nil, fmt.Errorf("failed to read time travel marker: %w", err)
+	}
+	
+	// Parse two lines: branch and optional stash ID
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) < 1 {
+		debugLog := fmt.Sprintf("[LOAD_TT_INFO] marker is empty\n")
+		f, _ := os.OpenFile("/tmp/tit-load-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(debugLog)
+		f.Close()
+		return nil, fmt.Errorf("time travel marker is empty")
+	}
+	
+	branch := strings.TrimSpace(lines[0])
+	stashID := ""
+	if len(lines) > 1 {
+		stashID = strings.TrimSpace(lines[1])
+	}
+	
+	debugLog := fmt.Sprintf("[LOAD_TT_INFO] SUCCESS: branch=%q, stashID=%q, rawData=%q\n", branch, stashID, string(data))
+	f, _ := os.OpenFile("/tmp/tit-load-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f.WriteString(debugLog)
+	f.Close()
+	
+	return &TimeTravelInfo{
+		OriginalBranch:  branch,
+		OriginalStashID: stashID,
+	}, nil
+}
+
+// FileExists checks if a file exists
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

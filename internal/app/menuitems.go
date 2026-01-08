@@ -172,7 +172,7 @@ var MenuItems = map[string]MenuItem{
 	"time_travel_view_diff": {
 		ID:       "time_travel_view_diff",
 		Shortcut: "d",
-		Emoji:    "👁️",
+		Emoji:    "🔍",
 		Label:    "View diff",
 		Hint:     "Show changes vs original branch",
 		Enabled:  true,

@@ -80,6 +80,10 @@ type Application struct {
 	// File(s) History mode state
 	fileHistoryState *ui.FileHistoryState
 	
+	// Time Travel state
+	timeTravelInfo *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
+	restoreTimeTravelInitiated bool // True once restoration has been started
+	
 	// Cache fields (Phase 2)
 	historyMetadataCache  map[string]*git.CommitDetails  // hash → commit metadata
 	fileHistoryDiffCache  map[string]string               // hash:path:version → diff content
@@ -173,6 +177,13 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		}
 	}
 
+	// CRITICAL: Check for incomplete time travel from previous session (Phase 0)
+	// If TIT exited while time traveling, restore to original state
+	if git.FileExists(".git/TIT_TIME_TRAVEL") && isRepo {
+		// Will be handled after app creation to show status
+		// (defer restoration until after UI is ready)
+	}
+
 	// Build state info maps
 	workingTreeInfo, timelineInfo := BuildStateInfo(theme)
 
@@ -222,10 +233,32 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	// Build and cache key handler registry once
 	app.keyHandlers = app.buildKeyHandlers()
 
-	// Pre-generate menu and load initial hint
+	// CRITICAL: Check for incomplete time travel restoration (Phase 0)
+	// If TIT exited while time traveling, restore immediately
+	// BUT: only if we're NOT currently in TimeTraveling state (which means we're actively traveling, not incomplete)
+	hasTimeTravelMarker := git.FileExists(".git/TIT_TIME_TRAVEL") && isRepo
+	shouldRestore := hasTimeTravelMarker && app.gitState.Operation != git.TimeTraveling
+	
+	// DEBUG: Log restoration decision to file
+	markerPath := ".git/TIT_TIME_TRAVEL"
+	markerStat, markerErr := os.Stat(markerPath)
+	debugMsg := fmt.Sprintf("[INIT] hasTimeTravelMarker=%v, isRepo=%v, Operation=%v, shouldRestore=%v, cwd=%s, marker_stat=%v, marker_err=%v\n", 
+		hasTimeTravelMarker, isRepo, app.gitState.Operation, shouldRestore, os.Getenv("PWD"), markerStat != nil, markerErr)
+	os.WriteFile("/tmp/tit-init-debug.log", []byte(debugMsg), 0644)
+	
+	if shouldRestore {
+		// Show console and perform restoration
+		app.mode = ModeConsole
+		app.asyncOperationActive = true
+		app.previousMode = ModeMenu
+		app.footerHint = "Restoring from incomplete time travel session..."
+	}
+
+	// Pre-generate menu and load initial hint (for post-restoration)
 	menu := app.GenerateMenu()
 	app.menuItems = menu
-	if len(menu) > 0 {
+	if len(menu) > 0 && !shouldRestore {
+		// Only set hint if not restoring
 		app.footerHint = menu[0].Hint
 	}
 
@@ -234,17 +267,184 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 
 	// Start pre-loading caches (non-blocking, async goroutines)
 	// Only start if in normal operation (not merging/rebasing/conflicted/time-traveling)
-	if app.gitState.Operation == git.Normal {
+	if app.gitState.Operation == git.Normal && !shouldRestore {
 		app.cacheLoadingStarted = true
 		go app.preloadHistoryMetadata()
 		go app.preloadFileHistoryDiffs()
 	}
 
+	// If restoration needed, set up the async operation
+	if shouldRestore {
+		// Will be executed via Update() on first render
+		app.asyncOperationActive = true
+	}
+
 	return app
 }
 
+// RestoreFromTimeTravel handles recovery from incomplete time travel sessions (Phase 0)
+// Called if TIT detected .git/TIT_TIME_TRAVEL marker on startup
+// Returns a tea.Cmd that performs the restoration and shows status
+func (a *Application) RestoreFromTimeTravel() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+		buffer.Append(FooterHints["restoring_time_travel"], ui.TypeStatus)
+
+		// Load time travel info
+		ttInfo, err := git.LoadTimeTravelInfo()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_load_time_travel_info"], err), ui.TypeStderr)
+			return RestoreTimeTravelMsg{
+				Success: false,
+				Error:   err.Error(),
+			}
+		}
+
+		if ttInfo == nil {
+			// Marker exists but no info - cleanup and continue
+			git.ClearTimeTravelInfo()
+			buffer.Append(FooterHints["marker_corrupted"], ui.TypeStatus)
+			return RestoreTimeTravelMsg{
+				Success: true,
+				Error:   "",
+			}
+		}
+
+		// Step 1: Discard any changes made during time travel
+		buffer.Append(FooterHints["step_1_discarding"], ui.TypeStatus)
+		checkoutResult := git.Execute("checkout", ".")
+		if !checkoutResult.Success {
+			buffer.Append(FooterHints["warning_discard_changes"], ui.TypeStatus)
+		}
+
+		cleanResult := git.Execute("clean", "-fd")
+		if !cleanResult.Success {
+			buffer.Append(FooterHints["warning_remove_untracked"], ui.TypeStatus)
+		}
+
+		// Step 2: Return to original branch
+		buffer.Append(fmt.Sprintf(FooterHints["step_2_returning"], ttInfo.OriginalBranch), ui.TypeStatus)
+		checkoutBranchResult := git.Execute("checkout", ttInfo.OriginalBranch)
+		if !checkoutBranchResult.Success {
+			buffer.Append(fmt.Sprintf(ErrorMessages["error_checkout_branch"], ttInfo.OriginalBranch), ui.TypeStderr)
+			return RestoreTimeTravelMsg{
+				Success: false,
+				Error:   "Failed to checkout original branch",
+			}
+		}
+
+		// Step 3: Restore original stashed work if any
+		if ttInfo.OriginalStashID != "" {
+			buffer.Append(FooterHints["step_3_restoring_work"], ui.TypeStatus)
+			applyResult := git.Execute("stash", "apply", ttInfo.OriginalStashID)
+			if !applyResult.Success {
+				buffer.Append(FooterHints["warning_restore_work"], ui.TypeStatus)
+			} else {
+				buffer.Append(FooterHints["original_work_restored"], ui.TypeStatus)
+				dropResult := git.Execute("stash", "drop", ttInfo.OriginalStashID)
+				if !dropResult.Success {
+					buffer.Append(FooterHints["warning_cleanup_stash"], ui.TypeStatus)
+				}
+			}
+		}
+
+		// Step 4: Clean up marker
+		buffer.Append(FooterHints["step_4_cleaning_marker"], ui.TypeStatus)
+		err = git.ClearTimeTravelInfo()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(FooterHints["warning_remove_marker"], err), ui.TypeStatus)
+		}
+
+		buffer.Append(FooterHints["restoration_complete"], ui.TypeStatus)
+
+		return RestoreTimeTravelMsg{
+			Success: true,
+			Error:   "",
+		}
+	}
+}
+
+// handleRestoreTimeTravel processes the result of time travel restoration (Phase 0)
+func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Model, tea.Cmd) {
+	a.asyncOperationActive = false
+	a.restoreTimeTravelInitiated = false
+
+	if !msg.Success {
+		buffer := ui.GetBuffer()
+		buffer.Append(fmt.Sprintf(FooterHints["restoration_error"], msg.Error), ui.TypeStderr)
+		a.footerHint = "Press ESC to acknowledge error"
+		// Stay in console mode so user can read error
+		return a, nil
+	}
+
+	// Reload git state after successful restoration
+	state, err := git.DetectState()
+	if err != nil {
+		buffer := ui.GetBuffer()
+		buffer.Append(fmt.Sprintf(FooterHints["error_detect_state"], err), ui.TypeStderr)
+	} else {
+		a.gitState = state
+	}
+
+	// Regenerate menu for new state
+	menu := a.GenerateMenu()
+	a.menuItems = menu
+	a.selectedIndex = 0
+	if len(menu) > 0 {
+		a.footerHint = menu[0].Hint
+	}
+
+	// Stay in console mode until user presses ESC to acknowledge
+	a.footerHint = "Restoration complete. Press ESC to continue"
+	return a, nil
+}
+
+// Package-level counter for Update() calls
+var updateCallCount int = 0
+
 // Update handles all messages
 func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	updateCallCount++
+	// CRITICAL: If restoration is needed, initiate it on first update (Phase 0)
+	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
+	markerPath := ".git/TIT_TIME_TRAVEL"
+	markerStat, markerErr := os.Stat(markerPath)
+	
+	debugLog := fmt.Sprintf("[UPDATE #%d] asyncActive=%v, mode=%v, hasMarker=%v, marker_stat=%v, marker_err=%v\n", 
+		updateCallCount, a.asyncOperationActive, a.mode, hasMarker, markerStat != nil, markerErr)
+	// Append to log file instead of overwriting
+	f, _ := os.OpenFile("/tmp/tit-update-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f.WriteString(debugLog)
+	f.Close()
+	
+	// Log each condition separately
+	cond1 := a.asyncOperationActive
+	cond2 := a.mode == ModeConsole
+	cond3 := !a.restoreTimeTravelInitiated
+	cond4 := hasMarker
+	
+	condLog := fmt.Sprintf("[CONDITIONS #%d] cond1(asyncActive)=%v, cond2(mode==console)=%v, cond3(!restored)=%v, cond4(hasMarker)=%v, all=%v\n",
+		updateCallCount, cond1, cond2, cond3, cond4, cond1 && cond2 && cond3 && cond4)
+	// Append to log file
+	f2, _ := os.OpenFile("/tmp/tit-conditions-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f2.WriteString(condLog)
+	f2.Close()
+	
+	// Double-check before calling RestoreFromTimeTravel
+	if cond1 && cond2 && cond3 && cond4 {
+		// Verify marker still exists right before restoration
+		markerExists := git.FileExists(".git/TIT_TIME_TRAVEL")
+		debugLog := fmt.Sprintf("[UPDATE #%d] RESTORE TRIGGERED: asyncActive=%v, mode=%v, hasMarker=%v, markerExists=%v\n", 
+			updateCallCount, a.asyncOperationActive, a.mode, hasMarker, markerExists)
+		// Append to log
+		f, _ := os.OpenFile("/tmp/tit-restore-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(debugLog)
+		f.Close()
+		a.restoreTimeTravelInitiated = true
+		return a, a.RestoreFromTimeTravel()
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
@@ -262,6 +462,12 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		keyStr := msg.String()
+		
+		// DEBUG: Log key press and mode
+		if keyStr == "enter" {
+			debugLog := fmt.Sprintf("[KEY] mode=%v, key=%s, hasHandler=%v\n", a.mode, keyStr, a.keyHandlers[a.mode] != nil && a.keyHandlers[a.mode][keyStr] != nil)
+			os.WriteFile("/tmp/tit-key-debug.log", []byte(debugLog), 0644)
+		}
 		
 		// Handle ctrl+j (shift+enter equivalent) for newline in multiline input
 		if a.isInputMode() && (keyStr == "ctrl+j" || keyStr == "shift+enter") {
@@ -305,6 +511,10 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GitOperationMsg:
 		// AUDIO THREAD - Worker returned git operation result
 		return a.handleGitOperation(msg)
+	
+	case RestoreTimeTravelMsg:
+		// Time travel restoration completed (Phase 0)
+		return a.handleRestoreTimeTravel(msg)
 	
 	case git.TimeTravelCheckoutMsg:
 		// Time travel checkout operation completed
@@ -509,7 +719,8 @@ func (a *Application) RenderStateHeader() string {
 
 	// Guard: Skip rendering if WorkingTree/Timeline are empty (happens during dirty operations)
 	// DetectState() returns partial state for dirty operations (only Operation is set)
-	if state.WorkingTree == "" || state.Timeline == "" {
+	// Also skip for TimeTraveling (menu is self-documenting)
+	if state.WorkingTree == "" || state.Timeline == "" || state.Operation == git.TimeTraveling {
 		return ""
 	}
 
