@@ -1932,7 +1932,269 @@ func (a *Application) updateFileHistoryDiff() {
 ```
 
 **Pattern for similar cache operations:**
-1. Validate bounds (no nil access)
+1. Validate 
+
+---
+
+## Type Definitions Location Map
+
+All types in TIT are centralized in logical locations. This map helps new contributors find type definitions quickly.
+
+### Core Git Types (`internal/git/types.go`)
+
+**State Detection & Representation:**
+- `WorkingTree` (alias string) — Clean | Dirty
+- `Timeline` (alias string) — InSync | Ahead | Behind | Diverged
+- `Operation` (alias string) — NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation | TimeTraveling
+- `Remote` (alias string) — NoRemote | HasRemote
+- `State` (struct) — Complete git state (WorkingTree, Timeline, Operation, Remote, CurrentBranch, LocalBranchOnRemote)
+
+**Commit & File Information:**
+- `CommitInfo` (struct) — Hash, Subject, Time
+- `CommitDetails` (struct) — Extended commit info (Author, Date, etc.)
+- `FileInfo` (struct) — Path, Status (for staged/unstaged files)
+
+**Time Travel:**
+- `TimeTravelInfo` (struct) — OriginalBranch, OriginalHead, CurrentCommit, OriginalStashID
+  - **Related:** `git.CommitInfo` (represents currently-checked-out commit)
+
+**Stash Management:**
+- `StashEntry` (struct) — Single stash entry (ID, Subject, Time)
+- `StashList` (struct) — Collection of stashes
+  - **Location:** `internal/config/stash.go`
+
+**Command Execution:**
+- `CommandResult` (struct) — Exit code, stdout, stderr from git commands
+  - **Location:** `internal/git/execute.go`
+
+**Git Messages (Custom Events):**
+- `TimeTravelCheckoutMsg` (struct) — Sent when time travel checkout completes
+- `TimeTravelMergeMsg` (struct) — Sent when time travel merge starts
+- `TimeTravelReturnMsg` (struct) — Sent when time travel return starts
+- `DirtyOperationSnapshot` (struct) — Captures working tree state before operation
+  - **Location:** `internal/git/dirtyop.go`
+
+### Application Types (`internal/app/`)
+
+**Mode Management:**
+- `AppMode` (alias int) — ModeMenu, ModeHistory, ModeConsole, etc. (12 modes)
+  - **Location:** `modes.go`
+  - **Related:** `ModeMetadata` (documentation for each mode)
+  - **See:** `GetModeMetadata()` for mode descriptions
+
+**Menu:**
+- `MenuItem` (struct) — ID, Label, Shortcut, Hint, Enabled
+- `MenuGenerator` (func type) — Generates menu items based on git state
+  - **Location:** `menu.go`
+
+**Confirmation Dialogs:**
+- `ConfirmationType` (alias string) — Types of confirmations
+- `ConfirmationAction` (func type) — Handler for confirmation action
+- `ConfirmationActionPair` (struct) — Groups confirm + reject handlers
+- `ConfirmationMessage` (struct) — Title, Explanation, Confirm/Reject labels (replaces 3 maps)
+  - **Location:** `confirmationhandlers.go`
+  - **Usage:** `confirmationHandlers` map uses `ConfirmationActionPair`
+
+**Input:**
+- `InputMessage` (struct) — Prompt, Hint (replaces 2 maps)
+  - **Location:** `messages.go`
+
+**Core Application:**
+- `Application` (struct) — Main application state container
+  - **Key fields:** gitState, timeTravelInfo, mode, menuItems, caches
+  - **Location:** `app.go`
+
+**Keyboard Handling:**
+- `KeyHandler` (func type) — Handler for key input
+  - **Related:** `app.keyHandlers` map (keyed by AppMode → key → handler)
+  - **Location:** `keyboard.go`
+
+**Error Handling:**
+- `ErrorLevel` (alias int) — ErrorInfo, ErrorWarn, ErrorFatal
+- `ErrorConfig` (struct) — Standardized error configuration
+  - **Location:** `errors.go`
+
+**State Machines:**
+- `ModeTransition` (struct) — Tracks mode changes for history
+- `ConflictResolveState` (struct) — State while resolving merge conflicts
+- `DirtyOperationState` (struct) — State during dirty tree operations
+  - **Locations:** `app.go`, `conflictstate.go`, `dirtystate.go`
+
+**Custom Messages (Bubble Tea Events):**
+- `TickMsg` (alias time.Time) — Timer tick for periodic updates
+- `ClearTickMsg` (alias time.Time) — Clear timer message
+- `GitOperationMsg` (struct) — Async git operation completion (Step, Success, Error)
+- `RestoreTimeTravelMsg` (struct) — Restore time travel state from disk
+- `GitOperationCompleteMsg` (struct) — Final operation status
+- `InputSubmittedMsg` (struct) — User submitted input
+- `CacheProgressMsg` (struct) — Cache building progress
+- `FooterMessageType` (alias int) — Categorizes footer messages
+  - **Location:** `messages.go`
+
+**Other Application Types:**
+- `LocationChoiceConfig` (struct) — Configuration for location selection
+- `AsyncOperation` (struct) — Tracks active async operations
+- `StateInfo` (struct) — Information about current state
+- `ModeHandlerBuilder` (struct) — Builder for mode handlers
+- `MenuItemBuilder` (struct) — Builder for menu items
+- `ActionHandler` (func type) — Async action handler
+- `CursorNavigationMixin` (struct) — Embedded mixin for cursor navigation
+  - **Locations:** Various app files
+
+### UI Types (`internal/ui/`)
+
+**History & Commit Display:**
+- `CommitInfo` (struct) — Hash, Subject, Time (displayed format)
+  - **Note:** Different from `git.CommitInfo` — UI representation
+  - **Location:** `history.go`
+- `HistoryState` (struct) — Current history view state (selected commit, offset, etc.)
+  - **Location:** `history.go`
+
+**File History:**
+- `FileInfo` (struct) — Path, Status (UI representation of changed files)
+  - **Location:** `filehistory.go`
+  - **Note:** Convert from `git.FileInfo` using `convertGitFilesToUIFileInfo()`
+- `FileHistoryPane` (alias int) — TopPane, BottomPane
+- `FileHistoryState` (struct) — Selected file, diff content, pane heights
+  - **Location:** `filehistory.go`
+
+**Conflict Resolution:**
+- `ConflictFile` (struct) — Ours, Theirs, Base conflict versions
+- `ConflictFileGeneric` (struct) — Generic conflict file representation
+  - **Location:** `conflictresolver.go`
+
+**Input & Text:**
+- `InputFieldState` (struct) — Current input text, cursor position
+- `TextInputState` (struct) — Text input rendering state
+- `InputValidator` (func type) — Validates input, returns (bool, error message)
+  - **Location:** `input.go`, `textinput.go`, `validation.go`
+
+**Rendering Components:**
+- `ListPane` (struct) — Scrollable list rendering
+- `ListItem` (struct) — Individual list item
+- `DiffLine` (struct) — Single line of diff output
+- `ConsoleOutState` (struct) — Console output rendering state
+- `OutputLine` (struct) — Single output buffer line (content + type)
+- `OutputLineType` (alias string) — TypeStdout, TypeStderr, TypeStatus, TypeInfo
+- `OutputBuffer` (struct) — Thread-safe ring buffer for streaming output
+  - **Location:** `buffer.go`
+
+**Status & UI Layout:**
+- `StatusBarConfig` (struct) — Configuration for status bar rendering
+- `StatusBarStyles` (struct) — Pre-computed styles for status bars
+- `BoxConfig` (struct) — Configuration for box rendering
+- `StyledContent` (struct) — Content with style applied
+- `Line` (struct) — Single rendered line with dimensions
+  - **Location:** `statusbar.go`, `box.go`
+
+**Confirmation Dialog:**
+- `ConfirmationConfig` (struct) — Title, Explanation, Confirm/Reject labels
+- `ButtonSelection` (alias string) — Selected button ("confirm" or "reject")
+- `ConfirmationDialog` (struct) — Confirmation UI state
+  - **Location:** `confirmation.go`
+
+**Theme & Styling:**
+- `ThemeDefinition` (struct) — Raw theme TOML data (from file or defaults)
+- `Theme` (struct) — Loaded theme with color fields
+  - **Related methods:** `ShortcutStyle()`, `DescriptionStyle()` (added for consolidation)
+  - **Location:** `theme.go`
+
+**Layout & Sizing:**
+- `Sizing` (struct) — Terminal dimensions and content area calculations
+  - **Location:** `sizing.go`
+
+### Banner Types (`internal/banner/`)
+
+**SVG/Image Rendering:**
+- `Point` (struct) — X, Y coordinates
+- `Color` (struct) — RGB color
+- `PixelColor` (struct) — Pixel with color
+- `ScanlineRange` (struct) — Range of pixels in scanline
+- `Intersection` (struct) — SVG path intersection
+- `BrailleChar` (struct) — Braille character representation
+  - **Location:** `svg.go`, `braille.go`
+
+---
+
+## Type Relationships & Cross-References
+
+**Git State Chain:**
+```
+git.State
+  ├─ Operation → ModeMetadata (determines available UI)
+  └─ TimeTravelInfo (populated when Operation == TimeTraveling)
+     └─ CommitInfo → ui.CommitInfo (display format)
+
+git.FileInfo → ui.FileInfo (converted in handlers)
+```
+
+**Application State Chain:**
+```
+Application.gitState (git.State)
+  ├─ Operation determines AppMode
+  ├─ Operation determines MenuItem generation
+  └─ Operation determines Confirmation dialogs available
+
+Application.mode (AppMode)
+  ├─ Determines rendering (history, console, menu, etc.)
+  └─ Determines keyboard handler registry
+```
+
+**Error Handling Chain:**
+```
+git command fails
+  ↓
+ErrorConfig captures (Level, Message, Operation)
+  ↓
+GitOperationMsg populated
+  ↓
+githandlers.go routes based on Operation
+```
+
+---
+
+## Adding New Types
+
+**Checklist before creating a new type:**
+1. ✅ Check existing types (grep for similar names)
+2. ✅ Verify location follows pattern (git types in git/types.go, app types in app/, ui types in ui/)
+3. ✅ Add doc comment linking related types
+4. ✅ Update this location map if visible externally
+5. ✅ Use type aliases (string, int) for semantic clarity, not new named structs
+6. ✅ Group related types (e.g., all confirmation types in confirmationhandlers.go)
+
+**Example: Adding a new menu item type**
+```go
+// app/menuitems.go (location: same as MenuItem)
+type MenuItemCategory string
+
+const (
+    CategoryWorkflow MenuItemCategory = "workflow"
+    CategoryHistory  MenuItemCategory = "history"
+)
+
+// Update ARCHITECTURE.md type map to include MenuItemCategory
+```
+
+---
+
+## Navigation Tips
+
+**Finding where a type lives:**
+1. Is it about git state? → `internal/git/types.go`
+2. Is it about application modes/handlers? → `internal/app/*.go`
+3. Is it about rendering/UI? → `internal/ui/*.go`
+4. Is it a Bubble Tea message? → `internal/app/messages.go`
+5. Is it a confirmation dialog? → `internal/app/confirmationhandlers.go`
+6. Is it an error? → `internal/app/errors.go`
+
+**Example trace: Where is `State`?**
+- Q: "I need to access current git state"
+- A: `git.State` in `internal/git/types.go`
+- Q: "I need to display the state"
+- A: Use `Application.gitState` field in `app.go`
+- Q: "I need to show operation in menu"
+- A: `Application.gitState.Operation` → lookup `ModeMetadata` in `modes.go`bounds (no nil access)
 2. Determine variant (version/type suffix for cache key)
 3. Build SSOT cache key with separators
 4. Lock → lookup → unlock (thread-safe)

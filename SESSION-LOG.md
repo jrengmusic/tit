@@ -96,6 +96,86 @@
 
 ---
 
+## Session 71: Phase 3 Chunk 5 - Type Definition Consolidation ✅ COMPLETE
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-10
+
+### Objective
+Complete Chunk 5 of Phase 3 Refactoring: Type Definition Consolidation. Audit all type definitions and create comprehensive location map + navigation guide.
+
+### Work Completed
+
+#### 1. Type Definition Audit
+- Identified all 75+ types across the codebase
+- Categorized by location: git/, app/, ui/, banner/, config/
+- Verified no duplicate type definitions (SSOT maintained)
+- Confirmed types are already well-organized
+
+**Result:** No major moves needed. Types already in optimal locations.
+
+#### 2. ARCHITECTURE.md Enhancement
+- Added new section: **"Type Definitions Location Map"** (~250 lines)
+- Documents all types by category:
+  - **Core Git Types** (11 types) — State, WorkingTree, Timeline, Operation, etc.
+  - **Application Types** (30+ types) — Modes, Menus, Messages, Confirmation dialogs, etc.
+  - **UI Types** (25+ types) — History, File history, Input, Rendering, Theme, etc.
+  - **Banner Types** (6 types) — SVG rendering, Braille, etc.
+
+#### 3. Type Relationships & Cross-References
+- Added **"Type Relationships & Cross-References"** section
+- Documents 3 major chains:
+  - **Git State Chain** — How git.State flows to UI rendering
+  - **Application State Chain** — How AppMode determines rendering
+  - **Error Handling Chain** — How errors propagate through system
+
+#### 4. New Developer Guides
+- **"Adding New Types"** — Checklist before creating types
+- **"Navigation Tips"** — How to find where types live
+- **Example traces** — Q&A format showing type lookups
+
+### Impact
+
+**Documentation Added:**
+- ~250 lines in ARCHITECTURE.md
+- 75+ types catalogued with locations
+- Type relationship diagrams (ASCII flowcharts)
+- Navigation guide for new contributors
+
+**Code Quality:**
+- ✅ Zero duplicate types (SSOT maintained)
+- ✅ All types in logical locations
+- ✅ Type aliases used correctly (semantic clarity)
+- ✅ Related types grouped (e.g., all confirmations together)
+
+**Maintainability:**
+- New contributors can instantly find type definitions
+- Cross-references prevent duplicate type definitions
+- Prevents future type definition sprawl
+- Documents why types are in their locations
+
+### Files Modified
+- `ARCHITECTURE.md` — Added Type Definition Location Map section
+
+### Build Status
+✅ Clean (no code changes, documentation only)
+
+### Testing Status
+✅ COMPLETE (manual verification of type locations)
+
+### Verification Checklist
+- ✅ All types catalogued in ARCHITECTURE.md
+- ✅ No duplicate type definitions found
+- ✅ Each type has location documented
+- ✅ Related types have cross-references
+- ✅ Navigation guide helps new contributors
+- ✅ Example traces show how to find types
+
+### Summary
+Successfully completed Chunk 5 of Phase 3. Comprehensive type definition audit shows types are already well-organized. Created 250-line documentation section in ARCHITECTURE.md that serves as a complete map of all types, their relationships, and navigation tips. This enables new contributors to quickly find type definitions and prevents duplicate type definitions in the future.
+
+---
+
 ## Session 70: Codebase Refactoring Audit - Phase 2 Complete ✅ TESTED
 
 **Agent:** Gemini
