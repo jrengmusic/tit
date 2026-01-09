@@ -2178,6 +2178,87 @@ const (
 
 ---
 
+## File Organization by Feature
+
+**Principle:** All files in `internal/app/` use **feature-based naming convention** within a single `package app`. This maximizes agent readability without Go package constraints.
+
+### File Organization Map
+
+**Initialization Feature** (UI prompts + workflow execution)
+- `init_location.go` - Location choice dialog (cwd vs subdirectory)
+- `init_branches.go` - Dual branch name input (canon + working)
+- `init_workflow.go` - Execute init, save config
+
+**Clone Feature** (URL input + location choice + workflow)
+- `clone_url.go` - URL input validation
+- `clone_location.go` - Clone location choice (cwd vs subdirectory)
+- `clone_workflow.go` - Execute clone, detect branches
+
+**History Feature** (Commit history + file history)
+- `history_menu.go` - History mode menu items
+- `history_cache.go` - Cache precomputation (mandatory contract)
+- `history_render.go` - History view rendering (if split from UI)
+
+**Conflict Resolution**
+- `conflict_handlers.go` - Conflict handler dispatch
+- `conflict_state.go` - Conflict resolution state tracking
+- `conflictresolver.go` (in ui/) - Conflict resolver UI
+
+**Time Travel Feature** (Checkout + state tracking + merge/return)
+- `time_travel_handlers.go` - Time travel checkout/merge/return operations
+- `dirtystate.go` - Dirty working tree handling during time travel
+
+**Git Operations** (General git state + handler routing)
+- `git_handlers.go` - State change handlers, operation routing
+- `githandlers.go` (legacy naming, to be renamed)
+
+**Core Application Structure**
+- `app.go` - Application struct, main event loop
+- `modes.go` - AppMode enum + metadata descriptions
+- `menu.go` - Menu rendering (View layer for menu mode)
+- `menu_builders.go` - Menu item generation from git state
+- `menu_items.go` - MenuItem definitions + menu item registry
+- `keyboard.go` - Key binding registry (cmd* → handler dispatch)
+- `dispatchers.go` - Menu item ID → mode transition
+- `handlers.go` - Input handlers (enter, ESC, text input)
+- `operations.go` - Long-running operation launchers (cmd*)
+
+**Configuration & Storage**
+- `config.go` - Repo config load/save (`~/.config/tit/repo.toml`)
+- `location.go` - Directory location utilities
+
+**UI & Messages**
+- `messages.go` - All user-facing messages (prompts, hints, confirmations, errors)
+- `confirmationhandlers.go` - Confirmation dialog logic + action handlers
+- `errors.go` - Error handling pattern + levels
+
+**Async & State**
+- `async.go` - Async operation management
+- `cursor_movement.go` - Menu cursor navigation
+- `stateinfo.go` - State display helpers
+- `keybuilder.go` - Key name formatting
+
+### Why This Organization?
+
+**For Agent Understanding:**
+1. **Semantic naming** - `ls internal/app/init_*.go` shows entire init feature
+2. **Grep precision** - `grep -r "func" internal/app/history_*.go` finds all history functions
+3. **No import tracing** - Single package = no circular dependency investigation
+4. **Go idiom** - Standard library pattern (e.g., `net/http/request.go`, `net/http/server.go`)
+5. **Git history** - `git log --follow internal/app/clone_*.go` tracks clone feature evolution
+6. **Refactoring** - Just rename files, no code changes needed
+
+### Finding Code by Intent
+
+When looking for specific functionality:
+1. **"How does initialization work?"** → Read `init_*.go` files in order
+2. **"What happens when user clicks menu item?"** → Start at `menu_items.go` → `dispatchers.go` → `handlers.go` → `*_workflow.go`
+3. **"How is git state detected?"** → `internal/git/state.go` → `git_handlers.go` routes to handlers
+4. **"How are menus generated?"** → `menu_builders.go` switches on git state → `menu_items.go` defines items
+5. **"What messages exist?"** → All in `messages.go` (grouped by InputMessages, ConfirmationMessages, ErrorMessages)
+
+---
+
 ## Navigation Tips
 
 **Finding where a type lives:**

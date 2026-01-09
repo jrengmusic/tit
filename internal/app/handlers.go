@@ -604,8 +604,8 @@ func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.C
 	return app, app.cmdCommitPush(message)
 }
 
-// executeCommitWorkflow launches git commit in a worker and returns a command
-func (a *Application) executeCommitWorkflow(message string) tea.Cmd {
+// cmdCommitWorkflow launches git commit in a worker and returns a command
+func (a *Application) cmdCommitWorkflow(message string) tea.Cmd {
 	// UI THREAD - Capturing state before spawning worker
 	commitMessage := message
 
@@ -650,8 +650,8 @@ func (a *Application) executeCommitWorkflow(message string) tea.Cmd {
 	}
 }
 
-// executePushWorkflow launches git push in a worker and returns a command
-func (a *Application) executePushWorkflow() tea.Cmd {
+// cmdPushWorkflow launches git push in a worker and returns a command
+func (a *Application) cmdPushWorkflow() tea.Cmd {
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
 		result := git.ExecuteWithStreaming("push")
@@ -671,8 +671,8 @@ func (a *Application) executePushWorkflow() tea.Cmd {
 	}
 }
 
-// executePullMergeWorkflow launches git pull (merge) in a worker and returns a command
-func (a *Application) executePullMergeWorkflow() tea.Cmd {
+// cmdPullMergeWorkflow launches git pull (merge) in a worker and returns a command
+func (a *Application) cmdPullMergeWorkflow() tea.Cmd {
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
 		result := git.ExecuteWithStreaming("pull")
@@ -700,8 +700,8 @@ func (a *Application) executePullMergeWorkflow() tea.Cmd {
 	}
 }
 
-// executePullRebaseWorkflow launches git pull --rebase in a worker and returns a command
-func (a *Application) executePullRebaseWorkflow() tea.Cmd {
+// cmdPullRebaseWorkflow launches git pull --rebase in a worker and returns a command
+func (a *Application) cmdPullRebaseWorkflow() tea.Cmd {
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
 		result := git.ExecuteWithStreaming("pull", "--rebase")
@@ -764,9 +764,9 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	return app, app.cmdAddRemote(url)
 }
 
-// executeAddRemoteWorkflow just does the add remote step
+// cmdAddRemoteWorkflow just does the add remote step
 // Rest handled by three-step chain in githandlers.go (add_remote → fetch_remote → complete)
-func (a *Application) executeAddRemoteWorkflow(remoteURL string) tea.Cmd {
+func (a *Application) cmdAddRemoteWorkflow(remoteURL string) tea.Cmd {
 	url := remoteURL
 	return func() tea.Msg {
 		result := git.ExecuteWithStreaming("remote", "add", "origin", url)

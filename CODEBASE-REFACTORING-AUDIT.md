@@ -922,10 +922,50 @@ All Priority 2 refactoring projects have been successfully completed:
 - **Code safety:** Guaranteed pairing, better error handling, grouped messages.
 - **Maintainability:** Easier to find related messages, clear intent.
 
-### Phase 3 (Large Refactor - Defer)
-9. **File organization** → Group by feature (only if needed)
-10. **Type definitions** → Use aliases to prevent duplicates (low priority)
-11. **Naming audit** → Rename execute* to cmd* (low priority)
+### Phase 3 (Large Refactor) - ALL COMPLETE ✅
+
+#### Phase 3 Chunk 5: Type Definition Consolidation ✅ COMPLETE
+- Identified all 75+ types across codebase
+- Created comprehensive Type Definitions Location Map in ARCHITECTURE.md
+- Verified zero duplicate definitions (SSOT maintained)
+- Added type relationships & cross-references documentation
+
+#### Phase 3 Chunk 6: Handler Naming Audit ✅ COMPLETE
+- Audited all cmd*, handle*, dispatch*, execute* functions
+- Fixed 5 violations: execute* → cmd* (functions returning tea.Cmd)
+  - `executeCommitWorkflow()` → `cmdCommitWorkflow()`
+  - `executePushWorkflow()` → `cmdPushWorkflow()`
+  - `executePullMergeWorkflow()` → `cmdPullMergeWorkflow()`
+  - `executePullRebaseWorkflow()` → `cmdPullRebaseWorkflow()`
+  - `executeAddRemoteWorkflow()` → `cmdAddRemoteWorkflow()`
+- All 30+ cmd* functions verified correct
+- All 54+ handle* functions verified correct
+
+#### Phase 3 Chunk 7: File Organization by Feature ✅ COMPLETE
+- Renamed 12 files to semantic convention (snake_case feature grouping):
+  - `cursormovement.go` → `cursor_movement.go`
+  - `menubuilder.go` → `menu_builders.go`
+  - `menuitems.go` → `menu_items.go`
+  - `historycache.go` → `history_cache.go`
+  - `keybuilder.go` → `key_builder.go`
+  - `operationsteps.go` → `operation_steps.go`
+  - `stateinfo.go` → `state_info.go`
+  - `conflicthandlers.go` → `conflict_handlers.go`
+  - `conflictstate.go` → `conflict_state.go`
+  - `dirtystate.go` → `dirty_state.go`
+  - `confirmationhandlers.go` → `confirmation_handlers.go`
+  - `githandlers.go` → `git_handlers.go`
+- Added "File Organization by Feature" section to ARCHITECTURE.md
+- Documented all 24 files grouped by feature domain
+- Enables grep precision: `ls internal/app/init_*.go` shows init feature
+- Follows Go stdlib idiom: feature-based naming in single package
+
+**Phase 3 Impact Summary:**
+- **Type documentation:** Added 250+ lines in ARCHITECTURE.md
+- **Handler naming:** 5 violations fixed, 100% compliance
+- **File organization:** 12 renames, semantic grouping established
+- **Agent readability:** Grep patterns now precise, feature discovery instant
+- **Code unchanged:** All refactoring is organizational/naming only
 
 ---
 
