@@ -35,6 +35,43 @@ func NewListPane(title string, theme *Theme) *ListPane {
 	}
 }
 
+// ListPaneBuilder provides a fluent interface for rendering ListPane with consistent patterns
+// Consolidates repeated render calls across conflictresolver, filehistory, and other components
+type ListPaneBuilder struct {
+	pane       *ListPane
+	isActive   bool
+	columnPos  int
+	numColumns int
+}
+
+// NewListPaneBuilder creates a builder for the given pane
+func NewListPaneBuilder(pane *ListPane) *ListPaneBuilder {
+	return &ListPaneBuilder{
+		pane:       pane,
+		isActive:   false,
+		columnPos:  0,
+		numColumns: 1,
+	}
+}
+
+// Active marks the pane as active (focused)
+func (b *ListPaneBuilder) Active(isActive bool) *ListPaneBuilder {
+	b.isActive = isActive
+	return b
+}
+
+// Column sets the column position and total column count (for multi-column layouts)
+func (b *ListPaneBuilder) Column(pos, total int) *ListPaneBuilder {
+	b.columnPos = pos
+	b.numColumns = total
+	return b
+}
+
+// Render produces the final rendered output with all configured options
+func (b *ListPaneBuilder) Render(items []ListItem, width, height int) string {
+	return b.pane.Render(items, width, height, b.isActive, b.columnPos, b.numColumns)
+}
+
 // Render renders the list pane as a single bordered box string.
 // The box will be exactly width x height characters (including borders).
 func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, columnPos int, numColumns int) string {

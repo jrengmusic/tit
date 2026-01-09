@@ -220,6 +220,35 @@ func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
 	a.mode = ModeConfirmation
 }
 
+// showConfirmationFromMessage displays a confirmation dialog by looking up SSOT messages
+// Consolidates the common pattern: lookup title/explanation/labels → build config → show dialog
+// Usage: a.showConfirmationFromMessage(ConfirmForcePush, "")
+// Or with custom args: a.showConfirmationFromMessage(ConfirmTimeTravel, fmt.Sprintf("...%s", arg))
+func (a *Application) showConfirmationFromMessage(confirmType ConfirmationType, customExplanation string) {
+	actionID := string(confirmType)
+	
+	// Build config using SSOT messages
+	config := ui.ConfirmationConfig{
+		Title:    ConfirmationTitles[actionID],
+		ActionID: actionID,
+	}
+	
+	// Use custom explanation if provided, otherwise use SSOT
+	if customExplanation != "" {
+		config.Explanation = customExplanation
+	} else {
+		config.Explanation = ConfirmationExplanations[actionID]
+	}
+	
+	// Load labels (YES/NO button text)
+	if labels, ok := ConfirmationLabels[actionID]; ok {
+		config.YesLabel = labels[0]
+		config.NoLabel = labels[1]
+	}
+	
+	a.showConfirmation(config)
+}
+
 // showNestedRepoWarning displays warning when initializing in a nested repo
 func (a *Application) showNestedRepoWarning(path string) {
 	config := ui.ConfirmationConfig{
