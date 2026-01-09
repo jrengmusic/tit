@@ -448,11 +448,11 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.outputBuffer.Clear()
 	a.footerHint = GetFooterMessageText(MessageClone)
 
-	return a, a.executeCloneWorkflow()
+	return a, a.cmdCloneWorkflow()
 }
 
-// executeCloneWorkflow launches git clone in a worker and returns a command
-func (a *Application) executeCloneWorkflow() tea.Cmd {
+// cmdCloneWorkflow launches git clone in a worker and returns a command
+func (a *Application) cmdCloneWorkflow() tea.Cmd {
 	cloneURL := a.cloneURL
 	cloneMode := a.cloneMode
 
