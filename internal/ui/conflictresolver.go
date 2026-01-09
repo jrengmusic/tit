@@ -180,30 +180,26 @@ func convertFilesToListItems(files []ConflictFileGeneric, selectedFileIndex int,
 
 // buildGenericConflictStatusBar builds the status bar with keyboard shortcuts for N-column view
 func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, theme Theme) string {
-	shortcutStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.AccentTextColor)).
-		Bold(true)
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.ContentTextColor))
+	styles := NewStatusBarStyles(&theme)
 
 	// Build shortcuts based on focused pane
 	var parts []string
 	if focusedPane < numColumns {
 		// Top row (file list) - can navigate and mark
 		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" navigate"),
-			shortcutStyle.Render("SPACE") + descStyle.Render(" mark"),
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" navigate"),
+			styles.shortcutStyle.Render("SPACE") + styles.descStyle.Render(" mark"),
 		}
 	} else {
 		// Bottom row (content) - can scroll
 		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
 		}
 	}
 	parts = append(parts,
-		shortcutStyle.Render("TAB") + descStyle.Render(" switch pane"),
-		shortcutStyle.Render("ENTER") + descStyle.Render(" apply"),
-		shortcutStyle.Render("ESC") + descStyle.Render(" abort"),
+		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" switch pane"),
+		styles.shortcutStyle.Render("ENTER") + styles.descStyle.Render(" apply"),
+		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" abort"),
 	)
 
 	return BuildStatusBar(StatusBarConfig{

@@ -43,4 +43,11 @@ const (
 
 	// Input mode state tracking
 	OpInputModeSet = "input_mode_set"
+
+	// Time travel operations
+	OpTimeTravelCheckout        = "time_travel_checkout"
+	OpTimeTravelMerge           = "time_travel_merge"
+	OpFinalizeTravelMerge       = "finalize_time_travel_merge"
+	OpTimeTravelReturn          = "time_travel_return"
+	OpFinalizeTravelReturn      = "finalize_time_travel_return"
 )

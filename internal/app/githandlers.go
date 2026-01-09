@@ -112,7 +112,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.isExitAllowed = true // Re-enable exit after successful pull
 		return a, nil
 
-	case OpFinalizePullMerge, "finalize_time_travel_merge", "finalize_time_travel_return":
+	case OpFinalizePullMerge, OpFinalizeTravelMerge, OpFinalizeTravelReturn:
 		// Merge finalization succeeded: reload state and stay in console
 		// User must press ESC to return to menu (ensures merge completed before menu reachable)
 		state, err := git.DetectState()

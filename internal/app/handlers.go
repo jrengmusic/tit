@@ -465,17 +465,17 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 			// Clone here: init + remote add + fetch + force checkout
 			result := git.ExecuteWithStreaming("init")
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git init failed", Path: effectivePath}
+				return GitOperationMsg{Step: OpClone, Success: false, Error: "git init failed", Path: effectivePath}
 			}
 
 			result = git.ExecuteWithStreaming("remote", "add", "origin", cloneURL)
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git remote add failed", Path: effectivePath}
+				return GitOperationMsg{Step: OpClone, Success: false, Error: "git remote add failed", Path: effectivePath}
 			}
 
 			result = git.ExecuteWithStreaming("fetch", "--all", "--progress")
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git fetch failed", Path: effectivePath}
+				return GitOperationMsg{Step: OpClone, Success: false, Error: "git fetch failed", Path: effectivePath}
 			}
 
 			// Get default branch from remote
@@ -487,7 +487,7 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 			// Force checkout to overwrite untracked files (like .DS_Store)
 			result = git.ExecuteWithStreaming("checkout", "-f", defaultBranch)
 			if !result.Success {
-				return GitOperationMsg{Step: "clone", Success: false, Error: "git checkout failed", Path: effectivePath}
+				return GitOperationMsg{Step: OpClone, Success: false, Error: "git checkout failed", Path: effectivePath}
 			}
 		} else {
 			// Clone to subdir: git clone creates subdir with repo name automatically
@@ -495,7 +495,7 @@ func (a *Application) executeCloneWorkflow() tea.Cmd {
 			result := git.ExecuteWithStreaming("clone", "--progress", cloneURL)
 			if !result.Success {
 				return GitOperationMsg{
-					Step:    "clone",
+					Step:    OpClone,
 					Success: false,
 					Error:   fmt.Sprintf("Clone failed with exit code %d", result.ExitCode),
 					Path:    effectivePath,
@@ -977,8 +977,8 @@ func (a *Application) updateFileHistoryDiff() {
 		version = "wip"
 	}
 
-	// Build cache key: hash:path:version
-	cacheKey := commit.Hash + ":" + file.Path + ":" + version
+	// Build cache key using SSOT (prevents hardcoded formats)
+	cacheKey := DiffCacheKey(commit.Hash, file.Path, version)
 
 	// Direct cache lookup (thread-safe)
 	a.diffCacheMutex.Lock()

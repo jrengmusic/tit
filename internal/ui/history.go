@@ -156,29 +156,25 @@ func renderHistoryDetailsPane(state *HistoryState, theme Theme, width, height in
 
 // buildHistoryStatusBar builds the status bar with keyboard shortcuts (matches Conflict Resolver)
 func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme) string {
-	shortcutStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.AccentTextColor)).
-		Bold(true)
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.ContentTextColor))
+	styles := NewStatusBarStyles(&theme)
 
 	// Build shortcuts based on focused pane
 	var parts []string
 	if listPaneFocused {
 		// List pane - navigate commits
 		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" navigate"),
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" navigate"),
 		}
 	} else {
 		// Details pane - scroll content
 		parts = []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
 		}
 	}
 	parts = append(parts,
-		shortcutStyle.Render("TAB") + descStyle.Render(" switch pane"),
-		shortcutStyle.Render("ENTER") + descStyle.Render(" time travel"),
-		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" switch pane"),
+		styles.shortcutStyle.Render("ENTER") + styles.descStyle.Render(" time travel"),
+		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
 	)
 
 	return BuildStatusBar(StatusBarConfig{

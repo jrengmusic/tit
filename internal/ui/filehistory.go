@@ -216,17 +216,13 @@ func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, heig
 
 // buildFileHistoryStatusBar builds the status bar for file history mode
 func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme Theme) string {
-	shortcutStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.AccentTextColor)).
-		Bold(true)
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.ContentTextColor))
+	styles := NewStatusBarStyles(&theme)
 
 	// Status bar shortcuts
 	parts := []string{
-		shortcutStyle.Render("↑↓") + descStyle.Render(" navigate"),
-		shortcutStyle.Render("TAB") + descStyle.Render(" cycle panes"),
-		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+		styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" navigate"),
+		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" cycle panes"),
+		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
 	}
 
 	return BuildStatusBar(StatusBarConfig{
@@ -240,36 +236,27 @@ func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme The
 // buildDiffStatusBar builds the status bar for diff pane (when focused)
 // Shows different hints in visual mode vs normal mode (matches old-tit)
 func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
-	shortcutStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.AccentTextColor)).
-		Bold(true)
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.ContentTextColor))
+	styles := NewStatusBarStyles(&theme)
 
 	if visualModeActive {
 		// VISUAL mode: simplified, left-aligned
-		visualStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.MainBackgroundColor)).
-			Background(lipgloss.Color(theme.AccentTextColor)).
-			Bold(true)
-
 		parts := []string{
-			visualStyle.Render("VISUAL"),
-			shortcutStyle.Render("↑↓") + descStyle.Render(" select"),
-			shortcutStyle.Render("Y") + descStyle.Render(" copy"),
-			shortcutStyle.Render("ESC") + descStyle.Render(" back"),
+			styles.visualStyle.Render("VISUAL"),
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" select"),
+			styles.shortcutStyle.Render("Y") + styles.descStyle.Render(" copy"),
+			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
 		}
 		// For visual mode, use custom join (no separator styling)
-		return strings.Join(parts, descStyle.Render("  ")) // Left-aligned, no padding
+		return strings.Join(parts, styles.descStyle.Render("  ")) // Left-aligned, no padding
 	}
 
 	// NORMAL mode: full shortcuts, centered
 	parts := []string{
-		shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
-		shortcutStyle.Render("TAB") + descStyle.Render(" cycle"),
-		shortcutStyle.Render("ESC") + descStyle.Render(" back"),
-		shortcutStyle.Render("V") + descStyle.Render(" visual"),
-		shortcutStyle.Render("Y") + descStyle.Render(" copy"),
+		styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
+		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" cycle"),
+		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
+		styles.shortcutStyle.Render("V") + styles.descStyle.Render(" visual"),
+		styles.shortcutStyle.Render("Y") + styles.descStyle.Render(" copy"),
 	}
 
 	return BuildStatusBar(StatusBarConfig{

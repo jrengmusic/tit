@@ -40,3 +40,26 @@ func BuildStatusBar(config StatusBarConfig) string {
 	// Return as-is if not centered (left-aligned)
 	return statusText
 }
+
+// StatusBarStyles provides commonly used style objects for status bars
+// CONSOLIDATION: Extracted from multiple buildStatusBar functions to prevent duplication
+type StatusBarStyles struct {
+	shortcutStyle lipgloss.Style
+	descStyle     lipgloss.Style
+	visualStyle   lipgloss.Style
+}
+
+// NewStatusBarStyles creates a new StatusBarStyles instance using theme colors
+func NewStatusBarStyles(theme *Theme) StatusBarStyles {
+	return StatusBarStyles{
+		shortcutStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.AccentTextColor)).
+			Bold(true),
+		descStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.ContentTextColor)),
+		visualStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.MainBackgroundColor)).
+			Background(lipgloss.Color(theme.AccentTextColor)).
+			Bold(true),
+	}
+}

@@ -948,7 +948,7 @@ func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
 		if !result.Success {
 			buffer.Append(fmt.Sprintf("Failed to stage resolved files: %s", result.Stderr), ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    "finalize_time_travel_merge",
+				Step:    OpFinalizeTravelMerge,
 				Success: false,
 				Error:   "Failed to stage resolved files",
 			}
@@ -966,7 +966,7 @@ func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
 			if !result.Success {
 				buffer.Append(fmt.Sprintf("Failed to commit merge: %s", result.Stderr), ui.TypeStderr)
 				return GitOperationMsg{
-					Step:    "finalize_time_travel_merge",
+					Step:    OpFinalizeTravelMerge,
 					Success: false,
 					Error:   "Failed to commit merge",
 				}
@@ -995,7 +995,7 @@ func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
 
 		buffer.Append("Time travel merge completed successfully!", ui.TypeStatus)
 		return GitOperationMsg{
-			Step:    "finalize_time_travel_merge",
+			Step:    OpFinalizeTravelMerge,
 			Success: true,
 			Output:  "Time travel merge finalized",
 		}
@@ -1014,7 +1014,7 @@ func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
 		if !result.Success {
 			buffer.Append(fmt.Sprintf("Failed to stage resolved files: %s", result.Stderr), ui.TypeStderr)
 			return GitOperationMsg{
-				Step:    "finalize_time_travel_return",
+				Step:    OpFinalizeTravelReturn,
 				Success: false,
 				Error:   "Failed to stage resolved files",
 			}
@@ -1032,7 +1032,7 @@ func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
 			if !result.Success {
 				buffer.Append(fmt.Sprintf("Failed to commit: %s", result.Stderr), ui.TypeStderr)
 				return GitOperationMsg{
-					Step:    "finalize_time_travel_return",
+					Step:    OpFinalizeTravelReturn,
 					Success: false,
 					Error:   "Failed to commit resolved work",
 				}
@@ -1061,7 +1061,7 @@ func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
 
 		buffer.Append("Time travel return completed successfully!", ui.TypeStatus)
 		return GitOperationMsg{
-			Step:    "finalize_time_travel_return",
+			Step:    OpFinalizeTravelReturn,
 			Success: true,
 			Output:  "Time travel return finalized",
 		}

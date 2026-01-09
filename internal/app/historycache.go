@@ -2,10 +2,39 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
+
+// ===== CACHE KEY SCHEMA DEFINITIONS =====
+// Centralizes cache key formats and validation
+// CONSOLIDATION: Prevents hardcoded key formats scattered throughout code
+
+// Cache type constants
+const (
+	CacheTypeMetadata = "metadata"
+	CacheTypeDiffs    = "diffs"
+	CacheTypeFiles    = "files"
+)
+
+// DiffCacheKey constructs a diff cache key from hash, filepath, and version
+// Schema: "hash:filepath:version"
+// Example: "abc123def456:src/main.go:after"
+func DiffCacheKey(hash, filepath, version string) string {
+	return fmt.Sprintf("%s:%s:%s", hash, filepath, version)
+}
+
+// ParseDiffCacheKey parses a diff cache key back into its components
+// Returns (hash, filepath, version, error)
+func ParseDiffCacheKey(key string) (hash, filepath, version string, err error) {
+	parts := strings.Split(key, ":")
+	if len(parts) != 3 {
+		return "", "", "", fmt.Errorf("invalid diff cache key format: %s (expected 3 colon-separated parts)", key)
+	}
+	return parts[0], parts[1], parts[2], nil
+}
 
 // PreloadHistoryMetadata loads commit metadata for History mode (async)
 // CONTRACT: MANDATORY cache build before showing history
@@ -39,7 +68,7 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 
 			buffer.Append("History cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
-				CacheType: "metadata",
+				CacheType: CacheTypeMetadata,
 				Current:   0,
 				Total:     0,
 				Complete:  true,
@@ -74,7 +103,7 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 
 		buffer.Append(fmt.Sprintf("History metadata cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
-			CacheType: "metadata",
+			CacheType: CacheTypeMetadata,
 			Current:   len(commits),
 			Total:     len(commits),
 			Complete:  true,
@@ -111,7 +140,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 
 			buffer.Append("File history cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
-				CacheType: "diffs",
+				CacheType: CacheTypeDiffs,
 				Current:   0,
 				Total:     0,
 				Complete:  true,
@@ -150,7 +179,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 				if err == nil {
 					// Thread-safe: cache the diff
 					a.diffCacheMutex.Lock()
-					key := commit.Hash + ":" + file.Path + ":parent"
+					key := DiffCacheKey(commit.Hash, file.Path, "parent")
 					a.fileHistoryDiffCache[key] = parentDiff
 					a.diffCacheMutex.Unlock()
 				}
@@ -160,7 +189,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 				if err == nil {
 					// Thread-safe: cache the diff
 					a.diffCacheMutex.Lock()
-					key := commit.Hash + ":" + file.Path + ":wip"
+					key := DiffCacheKey(commit.Hash, file.Path, "wip")
 					a.fileHistoryDiffCache[key] = wipDiff
 					a.diffCacheMutex.Unlock()
 				}
@@ -179,7 +208,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 
 		buffer.Append(fmt.Sprintf("File history cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
-			CacheType: "diffs",
+			CacheType: CacheTypeDiffs,
 			Current:   len(commits),
 			Total:     len(commits),
 			Complete:  true,
