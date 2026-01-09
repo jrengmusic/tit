@@ -894,24 +894,33 @@ Zero breaking changes - all features work identically
 All Priority 2 refactoring projects have been successfully completed:
 
 ✅ **Project 1: Pair Confirmation Handlers** (30 min)
-    - Replaced 2 separate maps (confirmationActions, confirmationRejectActions) with single ConfirmationActionPair struct
-    - Guarantees confirm/reject pairing — compiler catches missing pairs
-    - ~60 lines → ~45 lines
+    - Replaced 2 separate maps (confirmationActions, confirmationRejectActions) with a single `ConfirmationActionPair` struct.
+    - Guarantees confirm/reject pairing (compiler-checked).
+    - Reduced code from ~60 lines to ~45 lines.
 
 ✅ **Project 2: Mode Metadata** (30 min)
-    - Added ModeMetadata struct (Name, Description, AcceptsInput, IsAsync)
-    - Documented all 12 modes in modeDescriptions map
-    - Added GetModeMetadata() getter, updated String() to use it
-    - Better debugging and documentation for future developers
+    - Added `ModeMetadata` struct (Name, Description, AcceptsInput, IsAsync).
+    - Documented all 12 modes in `modeDescriptions` map.
+    - Added `GetModeMetadata()` getter and refactored `String()` to use it, improving debugging and documentation.
 
 ✅ **Project 3: Error Handling Pattern** (45 min)
-    - Created internal/app/errors.go with ErrorConfig standardization
-    - 3 levels: ErrorInfo (debug), ErrorWarn (user-visible), ErrorFatal (panic)
-    - Added LogError() method + LogErrorSimple() convenience wrapper
-    - Migrated 2 error paths (app.go time travel restoration, confirmationhandlers.go fatal checks)
-    - Shows pattern for adopting across codebase
+    - Created `errors.go` with `ErrorConfig` for standardized error handling.
+    - Defined 3 levels: `ErrorInfo` (debug), `ErrorWarn` (user-visible), and `ErrorFatal` (panic).
+    - Added `LogError()` and `LogErrorSimple()` wrappers and migrated two error paths as examples.
 
-Impact: ~140 lines of infrastructure added, better safety and consistency. Ready for optional migration of remaining error paths across codebase.
+✅ **Project 4: Message Organization** (60 min)
+    - **InputMessages:** Paired prompts and hints in a struct, replacing 2 maps.
+    - **ConfirmationMessages:** Grouped titles, explanations, and labels in a struct, replacing 3 maps.
+    - Created backwards-compatible facades to ensure no breaking changes.
+    - Related messages are now grouped, improving findability and maintainability.
+
+---
+**Phase 2 Impact Summary:**
+- **Maps consolidated:** 11 → 7 (after domain grouping)
+- **New struct types:** 3 (ConfirmationActionPair, InputMessage, ConfirmationMessage)
+- **Backwards compatibility:** 100% (facades for old map access)
+- **Code safety:** Guaranteed pairing, better error handling, grouped messages.
+- **Maintainability:** Easier to find related messages, clear intent.
 
 ### Phase 3 (Large Refactor - Defer)
 9. **File organization** → Group by feature (only if needed)
