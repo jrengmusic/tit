@@ -1146,4 +1146,3 @@ func (a *Application) handleFileHistoryEsc(app *Application) (tea.Model, tea.Cmd
 	// Not in visual mode, return to menu
 	return app.returnToMenu()
 }
-

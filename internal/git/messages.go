@@ -21,6 +21,8 @@ type TimeTravelMergeMsg struct {
 // TimeTravelReturnMsg represents the result of returning from time travel without merge
 type TimeTravelReturnMsg struct {
 	Success           bool
-	OriginalBranch    string // Branch we returned to
+	OriginalBranch    string   // Branch we returned to
 	Error             string
+	ConflictDetected  bool     // true if stash apply conflicts detected
+	ConflictedFiles   []string // List of files with conflicts
 }

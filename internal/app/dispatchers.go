@@ -3,6 +3,7 @@ package app
 import (
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -415,46 +416,121 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 // dispatchTimeTravelHistory handles the "Browse History" action during time travel
 func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
 	// Enter history mode to browse commits while time traveling
+	// Use same logic as dispatchHistory to populate state from cache
 	app.mode = ModeHistory
+
+	// Use cached metadata to build commits list
+	app.historyCacheMutex.Lock()
+	defer app.historyCacheMutex.Unlock()
+
+	var commits []ui.CommitInfo
+
+	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
+	for hash, details := range app.historyMetadataCache {
+		commits = append(commits, ui.CommitInfo{
+			Hash:    hash,
+			Subject: details.Message, // Full message (not just first line)
+			Time:    parseCommitDate(details.Date),
+		})
+	}
+
+	// CRITICAL: Sort commits by time (newest first) - map iteration is unordered!
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Time.After(commits[j].Time)
+	})
+
+	// Always initialize state (even if commits empty)
+	app.historyState = &ui.HistoryState{
+		Commits:           commits,
+		SelectedIdx:       0,
+		PaneFocused:       true, // List pane focused initially
+		DetailsLineCursor: 0,    // Start at top of details
+		DetailsScrollOff:  0,    // No scroll initially
+	}
+
+	// Show appropriate hint
+	if len(commits) == 0 {
+		if app.cacheMetadata {
+			app.footerHint = "No commits found in history"
+		} else {
+			app.footerHint = "Loading commit history..."
+		}
+	}
+
 	return nil
 }
 
 // dispatchTimeTravelMerge handles the "Merge back" action during time travel
 func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
-	// Show confirmation dialog before merging
+	// Check if working tree is dirty
+	statusResult := git.Execute("status", "--porcelain")
+	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
+
+	// Determine which confirmation to show
+	var confirmType ConfirmationType
+	if hasDirtyTree {
+		confirmType = ConfirmTimeTravelMergeDirty // Ask: Commit & merge or Discard
+	} else {
+		confirmType = ConfirmTimeTravelMerge // Normal merge confirmation
+	}
+
+	// Show confirmation dialog
 	app.mode = ModeConfirmation
-	labels := ConfirmationLabels[string(ConfirmTimeTravelMerge)]
+	labels := ConfirmationLabels[string(confirmType)]
 	app.confirmationDialog = ui.NewConfirmationDialog(
 		ui.ConfirmationConfig{
-			Title:       ConfirmationTitles[string(ConfirmTimeTravelMerge)],
-			Explanation: ConfirmationExplanations[string(ConfirmTimeTravelMerge)],
+			Title:       ConfirmationTitles[string(confirmType)],
+			Explanation: ConfirmationExplanations[string(confirmType)],
 			YesLabel:    labels[0],
 			NoLabel:     labels[1],
-			ActionID:    string(ConfirmTimeTravelMerge),
+			ActionID:    string(confirmType),
 		},
 		ui.ContentInnerWidth,
 		&app.theme,
 	)
-	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
+	app.confirmationDialog.SelectNo() // Right (Cancel/Discard) selected by default
 	return nil
 }
 
 // dispatchTimeTravelReturn handles the "Return without merge" action during time travel
 func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
-	// Show confirmation dialog before returning
-	app.mode = ModeConfirmation
-	labels := ConfirmationLabels[string(ConfirmTimeTravelReturn)]
-	app.confirmationDialog = ui.NewConfirmationDialog(
-		ui.ConfirmationConfig{
-			Title:       ConfirmationTitles[string(ConfirmTimeTravelReturn)],
-			Explanation: ConfirmationExplanations[string(ConfirmTimeTravelReturn)],
-			YesLabel:    labels[0],
-			NoLabel:     labels[1],
-			ActionID:    string(ConfirmTimeTravelReturn),
-		},
-		ui.ContentInnerWidth,
-		&app.theme,
-	)
-	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
+	// Check if working tree is dirty
+	statusResult := git.Execute("status", "--porcelain")
+	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
+
+	if hasDirtyTree {
+		// Show dialog: Merge or Discard (ESC to cancel)
+		app.mode = ModeConfirmation
+		app.confirmationDialog = ui.NewConfirmationDialog(
+			ui.ConfirmationConfig{
+				Title:       "Return to main with uncommitted changes",
+				Explanation: "You have changes during time travel. Choose action:\n(Press ESC to cancel)",
+				YesLabel:    "Merge changes",
+				NoLabel:     "Discard changes",
+				ActionID:    "time_travel_return_dirty_choice",
+			},
+			ui.ContentInnerWidth,
+			&app.theme,
+		)
+		// Default to NO (Discard) as safer option
+		app.confirmationDialog.SelectNo()
+	} else {
+		// Clean tree: simple return confirmation
+		app.mode = ModeConfirmation
+		labels := ConfirmationLabels[string(ConfirmTimeTravelReturn)]
+		app.confirmationDialog = ui.NewConfirmationDialog(
+			ui.ConfirmationConfig{
+				Title:       ConfirmationTitles[string(ConfirmTimeTravelReturn)],
+				Explanation: ConfirmationExplanations[string(ConfirmTimeTravelReturn)],
+				YesLabel:    labels[0],
+				NoLabel:     labels[1],
+				ActionID:    string(ConfirmTimeTravelReturn),
+			},
+			ui.ContentInnerWidth,
+			&app.theme,
+		)
+		app.confirmationDialog.SelectNo()
+	}
+
 	return nil
 }

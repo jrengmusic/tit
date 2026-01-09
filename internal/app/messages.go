@@ -234,9 +234,11 @@ var ConfirmationTitles = map[string]string{
 	"dirty_pull":           "Save your changes?",
 	"pull_merge":           "Pull from remote?",
 	"pull_merge_diverged":  "Pull diverged branches?",
-	"time_travel":          "Time Travel Confirmation",
-	"time_travel_return":   "Return to main without merge?",
-	"time_travel_merge":    "Merge and return to main?",
+	"time_travel":              "Time Travel Confirmation",
+	"time_travel_return":       "Return to main without merge?",
+	"time_travel_merge":        "Merge and return to main?",
+	"time_travel_merge_dirty":  "Uncommitted Changes",
+	"time_travel_return_dirty": "Uncommitted Changes",
 }
 
 // ConfirmationExplanations centralizes confirmation dialog explanations
@@ -247,8 +249,10 @@ var ConfirmationExplanations = map[string]string{
 	"pull_merge": "This will merge remote changes into your local branch.\n\nIf both branches modified the same files, conflicts may occur.\nYou'll be able to resolve them interactively.",
 	"pull_merge_diverged": "Your branches have diverged (both have new commits).\n\nThis will merge remote changes into your local branch.\n\nIf both modified the same files, conflicts may occur.",
 	"time_travel": "%s\n\n%s\n\nExplore in read-only mode?",
-	"time_travel_return": "Any changes you made while time traveling will be DISCARDED.\n\nYour original work (if any) will be restored.",
-	"time_travel_merge": "This will merge time travel changes back to main.\n\nConflicts may occur if the changes overlap.",
+	"time_travel_return": "Any changes you made while time traveling will be STASHED (not discarded).\n\nYour original work (if any) will be restored.\n\nUse 'git stash apply stash@{0}' later to restore time travel changes.",
+	"time_travel_merge": "This will merge time travel changes back to main.\n\nConflicts may occur if the changes overlap.\n\nNote: Any uncommitted changes will be stashed first, then restored after merge.",
+	"time_travel_merge_dirty": "You modified files during time travel.\n\nCommit them and merge to main, or discard them?",
+	"time_travel_return_dirty": "You modified files during time travel.\n\nChanges will be discarded when returning to main.",
 }
 
 // ConfirmationLabels centralizes confirmation dialog button labels by action
@@ -258,9 +262,11 @@ var ConfirmationLabels = map[string][2]string{
 	"dirty_pull":           {"Save changes", "Discard changes"},
 	"pull_merge":           {"Proceed", "Cancel"},
 	"pull_merge_diverged":  {"Proceed", "Cancel"},
-	"time_travel":          {"Time travel", "Cancel"},
-	"time_travel_return":   {"Return to main", "Cancel"},
-	"time_travel_merge":    {"Merge & return", "Cancel"},
+	"time_travel":              {"Time travel", "Cancel"},
+	"time_travel_return":       {"Return to main", "Cancel"},
+	"time_travel_merge":        {"Merge & return", "Cancel"},
+	"time_travel_merge_dirty":  {"Commit & merge", "Discard"},
+	"time_travel_return_dirty": {"Discard & return", "Cancel"},
 }
 
 // FooterHints centralizes footer hint messages

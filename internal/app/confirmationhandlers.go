@@ -2,10 +2,12 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -22,9 +24,11 @@ const (
 	ConfirmPullMerge          ConfirmationType = "pull_merge"
 	ConfirmPullMergeDiverged  ConfirmationType = "pull_merge_diverged"
 	ConfirmDirtyPull          ConfirmationType = "dirty_pull"
-	ConfirmTimeTravel         ConfirmationType = "time_travel"
-	ConfirmTimeTravelReturn   ConfirmationType = "time_travel_return"
-	ConfirmTimeTravelMerge    ConfirmationType = "time_travel_merge"
+	ConfirmTimeTravel              ConfirmationType = "time_travel"
+	ConfirmTimeTravelReturn        ConfirmationType = "time_travel_return"
+	ConfirmTimeTravelMerge         ConfirmationType = "time_travel_merge"
+	ConfirmTimeTravelMergeDirty    ConfirmationType = "time_travel_merge_dirty"
+	ConfirmTimeTravelReturnDirty   ConfirmationType = "time_travel_return_dirty"
 )
 
 // ConfirmationAction is a function that handles a confirmed action
@@ -39,9 +43,12 @@ var confirmationActions = map[string]ConfirmationAction{
 	string(ConfirmDirtyPull):          (*Application).executeConfirmDirtyPull,
 	string(ConfirmPullMerge):          (*Application).executeConfirmPullMerge,
 	string(ConfirmPullMergeDiverged):  (*Application).executeConfirmPullMerge,
-	string(ConfirmTimeTravel):         (*Application).executeConfirmTimeTravel,
-	string(ConfirmTimeTravelReturn):   (*Application).executeConfirmTimeTravelReturn,
-	string(ConfirmTimeTravelMerge):    (*Application).executeConfirmTimeTravelMerge,
+	string(ConfirmTimeTravel):            (*Application).executeConfirmTimeTravel,
+	string(ConfirmTimeTravelReturn):      (*Application).executeConfirmTimeTravelReturn,
+	string(ConfirmTimeTravelMerge):       (*Application).executeConfirmTimeTravelMerge,
+	string(ConfirmTimeTravelMergeDirty):  (*Application).executeConfirmTimeTravelMergeDirtyCommit,
+	string(ConfirmTimeTravelReturnDirty): (*Application).executeConfirmTimeTravelReturnDirtyDiscard,
+	"time_travel_return_dirty_choice":    (*Application).executeConfirmTimeTravelMergeDirtyCommit, // YES = Merge
 }
 
 // confirmationRejectActions maps confirmation types to their NO handlers
@@ -53,9 +60,12 @@ var confirmationRejectActions = map[string]ConfirmationAction{
 	string(ConfirmDirtyPull):          (*Application).executeRejectDirtyPull,
 	string(ConfirmPullMerge):          (*Application).executeRejectPullMerge,
 	string(ConfirmPullMergeDiverged):  (*Application).executeRejectPullMerge,
-	string(ConfirmTimeTravel):         (*Application).executeRejectTimeTravel,
-	string(ConfirmTimeTravelReturn):   (*Application).executeRejectTimeTravelReturn,
-	string(ConfirmTimeTravelMerge):    (*Application).executeRejectTimeTravelMerge,
+	string(ConfirmTimeTravel):            (*Application).executeRejectTimeTravel,
+	string(ConfirmTimeTravelReturn):      (*Application).executeRejectTimeTravelReturn,
+	string(ConfirmTimeTravelMerge):       (*Application).executeRejectTimeTravelMerge,
+	string(ConfirmTimeTravelMergeDirty):  (*Application).executeConfirmTimeTravelMergeDirtyDiscard,
+	string(ConfirmTimeTravelReturnDirty): (*Application).executeRejectTimeTravelReturnDirty,
+	"time_travel_return_dirty_choice":    (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
 }
 
 // ========================================
@@ -316,26 +326,63 @@ func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
 	buffer := ui.GetBuffer()
 	buffer.Append("[DEBUG] executeConfirmTimeTravel called", ui.TypeStatus)
-	
-	// CRITICAL: Set Operation to TimeTraveling IMMEDIATELY
-	// This prevents Phase 0 restoration from triggering if app restarts during time travel
-	a.gitState.Operation = git.TimeTraveling
-	buffer.Append("[DEBUG] Set Operation=TimeTraveling to prevent restoration loop", ui.TypeStatus)
-	
+
 	// Get commit hash from context
 	commitHash := a.confirmContext["commit_hash"]
 	buffer.Append(fmt.Sprintf("[DEBUG] commitHash=%s", commitHash), ui.TypeStatus)
-	
-	// Get current branch (original branch before time travel)
-	currentBranchResult := git.Execute("rev-parse", "--abbrev-ref", "HEAD")
-	if !currentBranchResult.Success {
-		a.footerHint = ErrorMessages["failed_get_current_branch"]
-		buffer.Append("[DEBUG] Failed to get current branch", ui.TypeStderr)
-		return a, nil
+
+	// Get original branch - CHECK BEFORE modifying Operation state
+	// Case 1: Already time traveling (Operation == TimeTraveling) → read from TIT_TIME_TRAVEL file
+	// Case 2: Normal operation → get current branch from HEAD
+	var originalBranch string
+	wasAlreadyTimeTraveling := a.gitState.Operation == git.TimeTraveling
+
+	if wasAlreadyTimeTraveling {
+		// Already time traveling - read original branch from marker file
+		existingBranch, _, err := git.GetTimeTravelInfo()
+		if err != nil {
+			a.footerHint = ErrorMessages["failed_get_current_branch"]
+			buffer.Append("[DEBUG] Failed to read TIT_TIME_TRAVEL file", ui.TypeStderr)
+			return a, nil
+		}
+		originalBranch = existingBranch
+		buffer.Append(fmt.Sprintf("[DEBUG] Already time traveling, originalBranch from file=%s", originalBranch), ui.TypeStatus)
+	} else {
+		// Normal operation - get current branch from HEAD
+		currentBranchResult := git.Execute("rev-parse", "--abbrev-ref", "HEAD")
+		if !currentBranchResult.Success {
+			a.footerHint = ErrorMessages["failed_get_current_branch"]
+			buffer.Append("[DEBUG] Failed to get current branch", ui.TypeStderr)
+			return a, nil
+		}
+		originalBranch = strings.TrimSpace(currentBranchResult.Stdout)
+		buffer.Append(fmt.Sprintf("[DEBUG] Normal operation, originalBranch from HEAD=%s", originalBranch), ui.TypeStatus)
+
+		// CRITICAL: If at detached HEAD (originalBranch == "HEAD"), try to get actual branch
+		if originalBranch == "HEAD" {
+			// Try to get default branch from remote tracking
+			defaultBranchResult := git.Execute("symbolic-ref", "refs/remotes/origin/HEAD")
+			if defaultBranchResult.Success {
+				// Output is like "refs/remotes/origin/main", extract "main"
+				parts := strings.Split(strings.TrimSpace(defaultBranchResult.Stdout), "/")
+				if len(parts) > 0 {
+					originalBranch = parts[len(parts)-1]
+					buffer.Append(fmt.Sprintf("[DEBUG] Detached HEAD, using remote tracking branch: %s", originalBranch), ui.TypeStatus)
+				}
+			} else {
+				// Fallback to "main" (most common default)
+				originalBranch = "main"
+				buffer.Append(fmt.Sprintf("[DEBUG] Detached HEAD, using fallback: %s", originalBranch), ui.TypeStatus)
+			}
+		}
 	}
-	
-	originalBranch := strings.TrimSpace(currentBranchResult.Stdout)
-	buffer.Append(fmt.Sprintf("[DEBUG] originalBranch=%s, isDirty=%v", originalBranch, a.gitState.WorkingTree == git.Dirty), ui.TypeStatus)
+
+	// CRITICAL: Set Operation to TimeTraveling AFTER getting original branch
+	// This prevents Phase 0 restoration from triggering if app restarts during time travel
+	a.gitState.Operation = git.TimeTraveling
+	buffer.Append("[DEBUG] Set Operation=TimeTraveling to prevent restoration loop", ui.TypeStatus)
+
+	buffer.Append(fmt.Sprintf("[DEBUG] Final originalBranch=%s, isDirty=%v", originalBranch, a.gitState.WorkingTree == git.Dirty), ui.TypeStatus)
 	
 	// Check if working tree is dirty
 	if a.gitState.WorkingTree == git.Dirty {
@@ -405,38 +452,85 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 
 // executeTimeTravelWithDirtyTree handles time travel from dirty working tree
 func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
+	// Transition to console to show streaming output (MUST happen BEFORE buffer operations)
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = FooterHints["time_traveling_status"]
+	a.previousMode = ModeHistory
+	a.previousMenuIndex = 0
+	a.restoreTimeTravelInitiated = true
+
+	buffer := ui.GetBuffer()
+	buffer.Append("[DEBUG] executeTimeTravelWithDirtyTree called", ui.TypeStatus)
+
 	// Stash changes first
+	buffer.Append("Stashing changes...", ui.TypeStatus)
 	stashResult := git.Execute("stash", "push", "-u", "-m", "TIT_TIME_TRAVEL")
 	if !stashResult.Success {
+		buffer.Append(fmt.Sprintf("Failed to stash changes: %s", stashResult.Stderr), ui.TypeStderr)
 		a.footerHint = ErrorMessages["failed_stash_changes"]
+		a.asyncOperationActive = false
 		return a, nil
 	}
-	
+
+	buffer.Append("Stash created successfully", ui.TypeStatus)
+
 	// Get stash ID
 	stashListResult := git.Execute("stash", "list")
 	if !stashListResult.Success {
+		buffer.Append(fmt.Sprintf("Failed to get stash list: %s", stashListResult.Stderr), ui.TypeStderr)
 		a.footerHint = ErrorMessages["failed_get_stash_list"]
+		a.asyncOperationActive = false
 		return a, nil
 	}
 	
 	// Find the stash we just created (should be stash@{0})
-	stashID := ""
+	stashRef := ""
 	lines := strings.Split(stashListResult.Stdout, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "TIT_TIME_TRAVEL") {
 			parts := strings.Fields(line)
 			if len(parts) > 0 {
-				stashID = parts[0]
+				// Remove trailing colon from stash reference (e.g., "stash@{0}:" → "stash@{0}")
+				stashRef = strings.TrimSuffix(parts[0], ":")
+				buffer.Append(fmt.Sprintf("[DEBUG] Found stash reference: %s", stashRef), ui.TypeStatus)
 				break
 			}
 		}
 	}
-	
-	// Write time travel info with stash ID
-	err := git.WriteTimeTravelInfo(originalBranch, stashID)
-	if err != nil {
-		panic(fmt.Sprintf("FATAL: Failed to write time travel info: %v", err))
+
+	if stashRef == "" {
+		buffer.Append("[DEBUG] WARNING: No stash found with TIT_TIME_TRAVEL message!", ui.TypeStderr)
 	}
+
+	// Convert stash reference to SHA hash (stable, doesn't shift like stash@{N})
+	// This prevents bugs when stash indices shift due to new stashes being created
+	if stashRef == "" {
+		panic("FATAL: No stash reference found after creating stash. This should never happen.")
+	}
+
+	buffer.Append(fmt.Sprintf("[DEBUG] Converting %s to hash...", stashRef), ui.TypeStatus)
+	hashResult := git.Execute("rev-parse", stashRef)
+	if !hashResult.Success {
+		panic(fmt.Sprintf("FATAL: Failed to convert stash reference to hash: %s", hashResult.Stderr))
+	}
+
+	stashHash := strings.TrimSpace(hashResult.Stdout)
+	buffer.Append(fmt.Sprintf("[DEBUG] Converted to hash: %s", stashHash), ui.TypeStatus)
+
+	// Get current working directory (absolute repo path)
+	repoPath, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
+	}
+
+	// Add stash entry to config tracking system
+	buffer.Append(fmt.Sprintf("[DEBUG] Adding stash entry - operation: time_travel, repo: %s, hash: %s", repoPath, stashHash), ui.TypeStatus)
+	config.AddStashEntry("time_travel", stashHash, repoPath, originalBranch, commitHash)
 	
 	// Build TimeTravelInfo directly from commit hash (fail fast if git calls fail)
 	// This prevents silent failures and inconsistent state
@@ -457,30 +551,15 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	
 	a.timeTravelInfo = &git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
-		OriginalStashID: stashID,
+		OriginalStashID: stashHash,
 		CurrentCommit: git.CommitInfo{
 			Hash:    commitHash,
 			Subject: commitSubject,
 			Time:    commitTime,
 		},
 	}
-	
-	// Transition to console to show streaming output
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
-	a.consoleAutoScroll = true
-	a.mode = ModeConsole
-	a.outputBuffer.Clear()
-	a.consoleState.Reset()
-	a.footerHint = FooterHints["time_traveling_status"]
-	a.previousMode = ModeHistory
-	a.previousMenuIndex = 0
 
-	// CRITICAL: Set restoreTimeTravelInitiated = true to prevent restoration check
-	// from triggering during this intentional time travel session
-	a.restoreTimeTravelInitiated = true
-
-	// Start time travel checkout operation
+	// Start time travel checkout operation (console already set up at function start)
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
 }
 
@@ -498,14 +577,44 @@ func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravelReturn handles YES response to return-to-main confirmation
 func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
-	
-	// Get original branch from time travel info
-	originalBranch, _, err := git.GetTimeTravelInfo()
+
+	// Get current working directory (repo path)
+	repoPath, err := os.Getwd()
 	if err != nil {
-		a.footerHint = "Failed to get time travel info"
-		return a, nil
+		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
 	}
-	
+
+	// Get original branch from config tracking system
+	// Note: Entry may not exist if tree was clean during time travel (no stash needed)
+	entry, found := config.GetStashEntry("time_travel", repoPath)
+	var originalBranch string
+
+	if found {
+		originalBranch = entry.OriginalBranch
+	} else {
+		// No entry in list.toml - fall back to reading from old marker file
+		// This handles: clean tree time travel, restoration, or old sessions
+		var err error
+		originalBranch, _, err = git.GetTimeTravelInfo()
+		if err != nil || originalBranch == "" {
+			panic("FATAL: Cannot determine original branch - no entry in list.toml and no marker file")
+		}
+	}
+
+	// Transition to console to show streaming output (consistent with other git operations)
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Returning to main..."
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel return!
+	a.restoreTimeTravelInitiated = true
+
 	// Execute time travel return operation
 	return a, git.ExecuteTimeTravelReturn(originalBranch)
 }
@@ -525,23 +634,53 @@ func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravelMerge handles YES response to merge-and-return confirmation
 func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
-	
+
 	// Get current commit hash
 	result := git.Execute("rev-parse", "HEAD")
 	if !result.Success {
 		a.footerHint = "Failed to get current commit"
 		return a, nil
 	}
-	
+
 	timeTravelHash := strings.TrimSpace(result.Stdout)
-	
-	// Get original branch from time travel info
-	originalBranch, _, err := git.GetTimeTravelInfo()
+
+	// Get current working directory (repo path)
+	repoPath, err := os.Getwd()
 	if err != nil {
-		a.footerHint = "Failed to get time travel info"
-		return a, nil
+		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
 	}
-	
+
+	// Get original branch from config tracking system
+	// Note: Entry may not exist if tree was clean during time travel (no stash needed)
+	entry, found := config.GetStashEntry("time_travel", repoPath)
+	var originalBranch string
+
+	if found {
+		originalBranch = entry.OriginalBranch
+	} else {
+		// No entry in list.toml - fall back to reading from old marker file
+		// This handles: clean tree time travel, restoration, or old sessions
+		var err error
+		originalBranch, _, err = git.GetTimeTravelInfo()
+		if err != nil || originalBranch == "" {
+			panic("FATAL: Cannot determine original branch - no entry in list.toml and no marker file")
+		}
+	}
+
+	// Transition to console to show streaming output (consistent with other git operations)
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Merging back to main..."
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel merge!
+	a.restoreTimeTravelInitiated = true
+
 	// Execute time travel merge operation
 	return a, git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
 }
@@ -549,6 +688,248 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 // executeRejectTimeTravelMerge handles NO response to merge-and-return confirmation
 func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
 	// User cancelled merge
+	a.confirmationDialog = nil
+	a.mode = ModeMenu
+	return a, nil
+}
+
+// ========================================
+// Time Travel Merge Dirty Confirmation
+// ========================================
+
+// executeConfirmTimeTravelMergeDirtyCommit handles "Commit & merge" choice
+// Auto-commits with generated message and immediately starts merge
+func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea.Cmd) {
+	a.confirmationDialog = nil
+
+	buffer := ui.GetBuffer()
+	buffer.Append("[DEBUG] === executeConfirmTimeTravelMergeDirtyCommit START ===", ui.TypeStatus)
+
+	// Get current commit hash for auto-generated message
+	result := git.Execute("rev-parse", "--short", "HEAD")
+	buffer.Append(fmt.Sprintf("[DEBUG] Get short hash: Success=%v, Stdout=%s", result.Success, result.Stdout), ui.TypeStatus)
+	if !result.Success {
+		a.footerHint = "Failed to get current commit"
+		a.mode = ModeMenu
+		return a, nil
+	}
+	shortHash := strings.TrimSpace(result.Stdout)
+
+	// Auto-generate commit message
+	commitMessage := fmt.Sprintf("TIT: Changes from time travel to %s", shortHash)
+	buffer.Append(fmt.Sprintf("[DEBUG] Auto-generated commit message: %s", commitMessage), ui.TypeStatus)
+
+	// Stage all changes (same as normal commit workflow)
+	stageResult := git.Execute("add", "-A")
+	buffer.Append(fmt.Sprintf("[DEBUG] Stage result: Success=%v", stageResult.Success), ui.TypeStatus)
+	if !stageResult.Success {
+		a.footerHint = fmt.Sprintf("Failed to stage changes: %s", stageResult.Stderr)
+		a.mode = ModeMenu
+		return a, nil
+	}
+
+	// Commit changes immediately
+	commitResult := git.Execute("commit", "-m", commitMessage)
+	buffer.Append(fmt.Sprintf("[DEBUG] Commit result: Success=%v", commitResult.Success), ui.TypeStatus)
+	if !commitResult.Success {
+		a.footerHint = fmt.Sprintf("Failed to commit: %s", commitResult.Stderr)
+		a.mode = ModeMenu
+		return a, nil
+	}
+
+	// Tree is now clean and changes committed - proceed directly with merge
+	// Get full commit hash for merge operation
+	fullHashResult := git.Execute("rev-parse", "HEAD")
+	buffer.Append(fmt.Sprintf("[DEBUG] Get full hash: Success=%v, Stdout=%s", fullHashResult.Success, fullHashResult.Stdout), ui.TypeStatus)
+	if !fullHashResult.Success {
+		a.footerHint = "Failed to get current commit"
+		a.mode = ModeMenu
+		return a, nil
+	}
+	timeTravelHash := strings.TrimSpace(fullHashResult.Stdout)
+
+	// Get current working directory (repo path)
+	repoPath, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
+	}
+	buffer.Append(fmt.Sprintf("[DEBUG] repoPath=%s", repoPath), ui.TypeStatus)
+
+	// Get original branch from config tracking system
+	entry, found := config.GetStashEntry("time_travel", repoPath)
+	var originalBranch string
+	buffer.Append(fmt.Sprintf("[DEBUG] Config lookup: found=%v", found), ui.TypeStatus)
+
+	if found {
+		originalBranch = entry.OriginalBranch
+		buffer.Append(fmt.Sprintf("[DEBUG] Original branch from config: %s", originalBranch), ui.TypeStatus)
+	} else {
+		var err error
+		originalBranch, _, err = git.GetTimeTravelInfo()
+		buffer.Append(fmt.Sprintf("[DEBUG] Original branch from marker: %s, err=%v", originalBranch, err), ui.TypeStatus)
+		if err != nil || originalBranch == "" {
+			panic("FATAL: Cannot determine original branch")
+		}
+	}
+
+	// Transition to console to show streaming output
+	buffer.Append("[DEBUG] Transitioning to ModeConsole...", ui.TypeStatus)
+	buffer.Append(fmt.Sprintf("[DEBUG] About to call ExecuteTimeTravelMerge(originalBranch=%s, timeTravelHash=%s)", originalBranch, timeTravelHash), ui.TypeStatus)
+
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()  // Clear buffer at operation start (not mid-operation)
+	a.consoleState.Reset()
+	a.footerHint = "Merging back to main..."
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel merge!
+	// Marker file still exists during merge, but this is NOT an incomplete session
+	a.restoreTimeTravelInitiated = true
+
+	// Execute time travel merge operation
+	buffer.Append("[DEBUG] === Calling ExecuteTimeTravelMerge ===", ui.TypeStatus)
+	return a, git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
+}
+
+// executeConfirmTimeTravelMergeDirtyDiscard handles "Discard" choice
+// Discards uncommitted changes immediately, then proceeds with merge
+func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, tea.Cmd) {
+	a.confirmationDialog = nil
+
+	// Discard working tree changes (hard reset)
+	resetResult := git.Execute("reset", "--hard", "HEAD")
+	if !resetResult.Success {
+		a.footerHint = fmt.Sprintf("Failed to discard changes: %s", resetResult.Stderr)
+		a.mode = ModeMenu
+		return a, nil
+	}
+
+	// Clean untracked files
+	cleanResult := git.Execute("clean", "-fd")
+	if !cleanResult.Success {
+		// Non-fatal - continue anyway
+		a.footerHint = "Warning: Failed to clean untracked files"
+	}
+
+	// Tree is now clean - proceed directly with merge (no second confirmation)
+	// Get current commit hash
+	result := git.Execute("rev-parse", "HEAD")
+	if !result.Success {
+		a.footerHint = "Failed to get current commit"
+		a.mode = ModeMenu
+		return a, nil
+	}
+
+	timeTravelHash := strings.TrimSpace(result.Stdout)
+
+	// Get current working directory (repo path)
+	repoPath, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
+	}
+
+	// Get original branch from config tracking system
+	entry, found := config.GetStashEntry("time_travel", repoPath)
+	var originalBranch string
+
+	if found {
+		originalBranch = entry.OriginalBranch
+	} else {
+		var err error
+		originalBranch, _, err = git.GetTimeTravelInfo()
+		if err != nil || originalBranch == "" {
+			panic("FATAL: Cannot determine original branch")
+		}
+	}
+
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Merging back to main..."
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel merge!
+	a.restoreTimeTravelInitiated = true
+
+	// Execute time travel merge operation
+	return a, git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
+}
+
+// ========================================
+// Time Travel Return Dirty Confirmation
+// ========================================
+
+// executeConfirmTimeTravelReturnDirtyDiscard handles "Discard & return" choice
+// Discards uncommitted changes immediately, then proceeds with return
+func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, tea.Cmd) {
+	a.confirmationDialog = nil
+
+	// Discard working tree changes (hard reset)
+	resetResult := git.Execute("reset", "--hard", "HEAD")
+	if !resetResult.Success {
+		a.footerHint = fmt.Sprintf("Failed to discard changes: %s", resetResult.Stderr)
+		a.mode = ModeMenu
+		return a, nil
+	}
+
+	// Clean untracked files
+	cleanResult := git.Execute("clean", "-fd")
+	if !cleanResult.Success {
+		// Non-fatal - continue anyway
+		a.footerHint = "Warning: Failed to clean untracked files"
+	}
+
+	// Tree is now clean - proceed directly with return (no second confirmation)
+	// Get current working directory (repo path)
+	repoPath, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
+	}
+
+	// Get original branch from config tracking system
+	entry, found := config.GetStashEntry("time_travel", repoPath)
+	var originalBranch string
+
+	if found {
+		originalBranch = entry.OriginalBranch
+	} else {
+		var err error
+		originalBranch, _, err = git.GetTimeTravelInfo()
+		if err != nil || originalBranch == "" {
+			panic("FATAL: Cannot determine original branch")
+		}
+	}
+
+	// Transition to console to show streaming output
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.consoleAutoScroll = true
+	a.mode = ModeConsole
+	a.outputBuffer.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Returning to main..."
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel return!
+	a.restoreTimeTravelInitiated = true
+
+	// Execute time travel return operation
+	return a, git.ExecuteTimeTravelReturn(originalBranch)
+}
+
+// executeRejectTimeTravelReturnDirty handles "Cancel" choice
+func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) {
+	// User cancelled return
 	a.confirmationDialog = nil
 	a.mode = ModeMenu
 	return a, nil

@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
@@ -111,7 +112,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.isExitAllowed = true // Re-enable exit after successful pull
 		return a, nil
 
-	case OpFinalizePullMerge:
+	case OpFinalizePullMerge, "finalize_time_travel_merge", "finalize_time_travel_return":
 		// Merge finalization succeeded: reload state and stay in console
 		// User must press ESC to return to menu (ensures merge completed before menu reachable)
 		state, err := git.DetectState()
@@ -335,13 +336,12 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	}
 	
 	a.gitState = state
-	buffer.Append(FooterHints["time_travel_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = FooterHints["time_travel_success"]
-	
+
 	// CONTRACT: Rebuild cache for new detached HEAD state (history always ready)
-	buffer.Append("Building history cache...", ui.TypeStatus)
+	// Don't show messages here - cache functions will show progress
+	// Final "Time travel successful" message shown after cache completes
 	a.cacheLoadingStarted = true
 	cacheCmd := a.invalidateHistoryCaches()
 
@@ -360,12 +360,47 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_merge_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
-		
+
 		// If conflicts detected, set up conflict resolver
 		if msg.ConflictDetected {
-			return a.setupConflictResolver("time_travel_merge", []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+			// Build dynamic labels with commit hash and date
+			// Column 1: BASE (common ancestor) - [hash date]
+			// Column 2: MAIN (current branch) - [hash date]
+			// Column 3: YOUR CHANGES
+
+			// Get merge base (common ancestor)
+			mergeBaseResult := git.Execute("merge-base", msg.OriginalBranch, msg.TimeTravelHash)
+			baseHash := "???????"
+			baseDate := ""
+			if mergeBaseResult.Success {
+				baseHash = strings.TrimSpace(mergeBaseResult.Stdout)[:7] // Short hash
+				dateResult := git.Execute("show", "-s", "--format=%cd", "--date=short", baseHash)
+				if dateResult.Success {
+					baseDate = strings.TrimSpace(dateResult.Stdout)
+				}
+			}
+
+			// Get main branch tip
+			mainHashResult := git.Execute("rev-parse", msg.OriginalBranch)
+			mainHash := "???????"
+			mainDate := ""
+			if mainHashResult.Success {
+				mainHash = strings.TrimSpace(mainHashResult.Stdout)[:7]
+				dateResult := git.Execute("show", "-s", "--format=%cd", "--date=short", mainHash)
+				if dateResult.Success {
+					mainDate = strings.TrimSpace(dateResult.Stdout)
+				}
+			}
+
+			labels := []string{
+				fmt.Sprintf("%s %s", baseHash, baseDate),
+				fmt.Sprintf("%s %s", mainHash, mainDate),
+				"YOUR CHANGES",
+			}
+
+			return a.setupConflictResolver("time_travel_merge", labels)
 		}
-		
+
 		// Return to menu
 		a.mode = ModeMenu
 		return a, nil
@@ -389,17 +424,17 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_merge_success"]
 
-	// CONTRACT: Restart cache loading if back to Normal operation
-	// Cache was paused during time travel, need to rebuild
+	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
+	// Cache was built from detached HEAD during time travel, need full branch history
 	var cacheCmd tea.Cmd
-	if !a.cacheLoadingStarted && state.Operation == git.Normal {
+	if state.Operation == git.Normal {
 		a.cacheLoadingStarted = true
 		cacheCmd = a.invalidateHistoryCaches()
 	}
 
-	// Transition to menu mode
-	a.mode = ModeMenu
-	a.menuItems = a.GenerateMenu()
+	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
+	// Mode remains ModeConsole, user presses ESC when ready
+	// (Consistent with time travel checkout, commit, push, etc.)
 
 	return a, cacheCmd
 }
@@ -412,7 +447,39 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_return_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
-		
+
+		// If conflicts detected, set up conflict resolver
+		if msg.ConflictDetected {
+			// Build dynamic labels
+			// For stash apply conflicts, git only uses 2 stages:
+			// - Stage 2 (LOCAL): Current main branch state
+			// - Stage 3 (REMOTE): Stashed changes
+			// No stage 1 (BASE) since stash is a diff, not a merge
+
+			// Get main branch tip
+			mainHashResult := git.Execute("rev-parse", msg.OriginalBranch)
+			mainHash := "???????"
+			mainDate := ""
+			if mainHashResult.Success {
+				mainHash = strings.TrimSpace(mainHashResult.Stdout)[:7]
+				dateResult := git.Execute("show", "-s", "--format=%cd", "--date=short", mainHash)
+				if dateResult.Success {
+					mainDate = strings.TrimSpace(dateResult.Stdout)
+				}
+			}
+
+			// Only 2 labels for 2-way conflict (no BASE)
+			// setupConflictResolver will auto-detect only stages 2 and 3 exist
+			// and use labels[1] and labels[2] (skipping labels[0])
+			labels := []string{
+				"", // Placeholder for BASE (won't be used)
+				fmt.Sprintf("%s %s", mainHash, mainDate), // MAIN branch (stage 2)
+				"YOUR CHANGES", // Stashed changes (stage 3)
+			}
+
+			return a.setupConflictResolver("time_travel_return", labels)
+		}
+
 		// Return to menu
 		a.mode = ModeMenu
 		return a, nil
@@ -436,17 +503,17 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	a.isExitAllowed = true
 	a.footerHint = FooterHints["time_travel_return_success"]
 
-	// CONTRACT: Restart cache loading if back to Normal operation
-	// Cache was paused during time travel, need to rebuild
+	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
+	// Cache was built from detached HEAD during time travel, need full branch history
 	var cacheCmd tea.Cmd
-	if !a.cacheLoadingStarted && state.Operation == git.Normal {
+	if state.Operation == git.Normal {
 		a.cacheLoadingStarted = true
 		cacheCmd = a.invalidateHistoryCaches()
 	}
 
-	// Transition to menu mode
-	a.mode = ModeMenu
-	a.menuItems = a.GenerateMenu()
+	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
+	// Mode remains ModeConsole, user presses ESC when ready
+	// (Consistent with time travel checkout, commit, push, etc.)
 
 	return a, cacheCmd
 }
@@ -480,46 +547,77 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		return a, nil
 	}
 	
-	// Read 3-way versions for each conflicted file
+	// Detect which stages exist by checking the first conflicted file
+	// This determines how many columns we'll show (2-way vs 3-way merge)
+	var stagesPresent []int
+	var activeLabels []string
+
+	if len(conflictFiles) > 0 {
+		// Check which stages exist for first file (all files should have same stage structure)
+		testFile := conflictFiles[0]
+
+		// Try stage 1 (BASE)
+		if _, err := git.ShowConflictVersion(testFile, 1); err == nil {
+			stagesPresent = append(stagesPresent, 1)
+		}
+
+		// Try stage 2 (LOCAL)
+		if _, err := git.ShowConflictVersion(testFile, 2); err == nil {
+			stagesPresent = append(stagesPresent, 2)
+		}
+
+		// Try stage 3 (REMOTE)
+		if _, err := git.ShowConflictVersion(testFile, 3); err == nil {
+			stagesPresent = append(stagesPresent, 3)
+		}
+
+		// Build active labels based on which stages exist
+		// columnLabels is indexed 0, 1, 2 for BASE, LOCAL, REMOTE
+		for _, stage := range stagesPresent {
+			labelIdx := stage - 1 // Stage 1->label[0], stage 2->label[1], stage 3->label[2]
+			if labelIdx < len(columnLabels) {
+				activeLabels = append(activeLabels, columnLabels[labelIdx])
+			}
+		}
+	}
+
+	numColumns := len(stagesPresent)
+	if numColumns == 0 {
+		// Fallback: assume 3-way merge
+		numColumns = 3
+		stagesPresent = []int{1, 2, 3}
+		activeLabels = columnLabels
+	}
+
+	// Read versions for each conflicted file
 	resolveState := &ConflictResolveState{
 		Files:               make([]ui.ConflictFileGeneric, 0, len(conflictFiles)),
 		SelectedFileIndex:   0,
 		FocusedPane:         0,
-		NumColumns:          3, // Base, Local, Remote
-		ColumnLabels:        columnLabels,
-		ScrollOffsets:       make([]int, 3),
-		LineCursors:         make([]int, 3),
+		NumColumns:          numColumns,
+		ColumnLabels:        activeLabels,
+		ScrollOffsets:       make([]int, numColumns),
+		LineCursors:         make([]int, numColumns),
 		Operation:           operation,
 	}
-	
+
 	for _, filePath := range conflictFiles {
-		// Get base version (stage 1)
-		baseContent, err := git.ShowConflictVersion(filePath, 1)
-		if err != nil {
-			baseContent = fmt.Sprintf("Error reading base: %v", err)
+		var versions []string
+
+		// Read only the stages that actually exist
+		for _, stage := range stagesPresent {
+			content, err := git.ShowConflictVersion(filePath, stage)
+			if err != nil {
+				content = fmt.Sprintf("Error reading stage %d: %v", stage, err)
+			}
+			versions = append(versions, content)
 		}
-		
-		// Get local version (stage 2)
-		localContent, err := git.ShowConflictVersion(filePath, 2)
-		if err != nil {
-			localContent = fmt.Sprintf("Error reading local: %v", err)
-		}
-		
-		// Get remote version (stage 3)
-		remoteContent, err := git.ShowConflictVersion(filePath, 3)
-		if err != nil {
-			remoteContent = fmt.Sprintf("Error reading remote: %v", err)
-		}
-		
+
 		// Build conflict file entry
 		conflictFile := ui.ConflictFileGeneric{
-			Path: filePath,
-			Versions: []string{
-				baseContent,
-				localContent,
-				remoteContent,
-			},
-			Chosen: -1, // Not yet marked
+			Path:     filePath,
+			Versions: versions,
+			Chosen:   -1, // Not yet marked
 		}
 		resolveState.Files = append(resolveState.Files, conflictFile)
 	}

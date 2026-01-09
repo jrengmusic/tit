@@ -240,21 +240,88 @@ git status  # Should be clean
 
 ---
 
-### Test 2.4: Make Changes While Time Traveling (Dirty Again)
+### Test 2.4a: Merge with "Commit & merge"
 
-**Setup:** Time traveling at M2, started from dirty tree
+**Setup:**
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+git reset --hard HEAD
+git clean -fd
+echo "original wip" >> version.txt
+~/Documents/Poems/inf/tit/tit_x64
+```
 
 **Steps:**
-1. At M2 (time traveling, with M5's stash S1)
-2. Edit a file: `echo "travel change" > travel.txt`
-3. Stage it: `git add travel.txt`
-4. Select "Merge & return to main"
+1. Time travel to M2 (original dirty work stashed)
+2. ESC (exit console)
+3. In another terminal:
+   ```bash
+   echo "travel feature" > travel.txt
+   git add travel.txt
+   git commit -m "travel: feature"
+   ```
+4. Back in tit, select "📦 Merge & return to main"
+5. Dialog appears: "[Commit & merge] [Discard]"
+6. Select "Commit & merge"
+7. Prompted for message (accept or edit)
+8. Press ENTER (commits travel changes, merges to main)
+9. Verify back on main with both original + travel changes
 
 **Expected:**
-- ✅ New changes detected
-- ✅ Confirmation shows merge info
-- ✅ On merge, changes are stashed before checkout
-- ✅ Both stashes handled (T1 time travel, S1 original)
+- ✅ Dialog appears with both options
+- ✅ Travel commit merged to main
+- ✅ Original dirty work restored
+- ✅ Both changes on main
+
+---
+
+### Test 2.4b: Merge with "Discard"
+
+**Setup:** Same as 2.4a (time travel, make changes, commit)
+
+**Steps:**
+1. Time travel to M2, make travel commit (same as 2.4a steps 1-3)
+2. Back in tit, select "📦 Merge & return to main"
+3. Dialog: "[Commit & merge] [Discard]"
+4. Select "Discard"
+5. Travel changes hard reset (lost)
+6. Merges to main (original work restored)
+
+**Expected:**
+- ✅ Dialog appears
+- ✅ Travel changes discarded (git hard reset)
+- ✅ Returns to main with original work
+
+---
+
+### Test 2.4c: Return with Dirty Changes
+
+**Setup:**
+```bash
+cd /Users/jreng/Documents/Poems/inf/t
+git reset --hard HEAD
+git clean -fd
+echo "original wip" >> version.txt
+~/Documents/Poems/inf/tit/tit_x64
+```
+
+**Steps:**
+1. Time travel to M2 (original dirty work stashed)
+2. ESC (exit console)
+3. In another terminal, make uncommitted changes:
+   ```bash
+   echo "uncommitted travel work" > uncommitted.txt
+   ```
+4. Back in tit, select "🔙 Return to main"
+5. Dialog appears: "[Discard & return] [Cancel]"
+6. Select "Discard & return"
+7. Uncommitted changes hard reset (lost)
+8. Returns to main with original work restored
+
+**Expected:**
+- ✅ Dialog appears explaining changes will be discarded
+- ✅ Uncommitted changes discarded (git hard reset)
+- ✅ Returns to main with original work
 
 ---
 
@@ -657,15 +724,34 @@ git status  # Should be clean
 
 | Phase | Tests | Status | Notes |
 |-------|-------|--------|-------|
-| **1** | 1.1-1.5 | ⬜ | Starting |
-| **2** | 2.1-2.4 | ⬜ | After Phase 1 |
-| **3** | 3.1-3.3 | ⬜ | After Phase 2 |
-| **4** | 4.1-4.3 | ⬜ | After Phase 3 |
+| **1** | 1.1 | ✅ | PASS - Time travel to M2 works |
+| **1** | 1.2 | ✅ | PASS - ESC at confirmation cancels |
+| **1** | 1.3 | ✅ | PASS - Jump between commits while traveling |
+| **1** | 1.4 | ✅ | PASS - Return to main, marker deleted |
+| **1** | 1.5 | ✅ | PASS - ESC at return confirmation stays traveling |
+| **2** | 2.1 | ✅ | PASS - Dirty stashed, restored on return |
+| **2** | 2.2 | ⊘ | SKIP - Design allows automatic stash |
+| **2** | 2.3 | ✅ | PASS - ESC at dirty protocol cancels |
+| **2** | 2.4a | ✅ | PASS - Merge with commit & merge |
+| **2** | 2.4b | ✅ | PASS - Merge with discard |
+| **2** | 2.4c | ✅ | PASS - Return with dirty changes discarded |
+| **3** | 3.1 | ✅ | PASS - Merge M2 to main (no conflict) |
+| **3** | 3.2 | ✅ | PASS - Merge with local changes |
+| **3** | 3.3 | ✅ | PASS - Cancel merge confirmation |
+| **4** | 4.1 | ✅ | PASS - Merge with conflict resolution |
+| **4** | 4.2-4.3 | ⬜ | Next |
 | **5** | 5.1-5.2 | ⬜ | After Phase 4 |
-| **6** | 6.1-6.4 | ⬜ | After Phase 5 |
-| **E** | E1-E4 | ⬜ | Throughout |
-| **F** | F1-F2 | ⬜ | Final verification |
-| **R** | R1 | ⬜ | Final regression |
+| **6** | 6.1 | ✅ | PASS - Return with no changes |
+| **6** | 6.2 | ✅ | PASS - Return with local changes discarded |
+| **6** | 6.3 | ✅ | PASS - Return with original stash restored |
+| **6** | 6.4 | ✅ | PASS - ESC at return confirmation |
+| **E** | E1 | ✅ | PASS - Very old commit (M1) |
+| **E** | E2 | ✅ | PASS - Multiple ESC sequences |
+| **E** | E3 | ✅ | PASS - Interrupt and restart |
+| **E** | E4 | ✅ | PASS - Concurrent stashes |
+| **F** | F1 | ✅ | PASS - Complete happy path |
+| **F** | F2 | ✅ | PASS - Complex path with merge |
+| **R** | R1 | ✅ | PASS - Normal operations still work |
 
 ---
 

@@ -186,6 +186,20 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		app.mode = ModeConsole
 		app.dirtyOperationState.SetPhase("finalizing")
 		return app, app.cmdDirtyPullFinalize()
+	} else if app.conflictResolveState.Operation == "time_travel_merge" {
+		// Time travel merge conflicts resolved: commit and clean up marker file
+		app.asyncOperationActive = true
+		app.mode = ModeConsole
+		app.outputBuffer.Clear()
+		app.consoleState.Reset()
+		return app, app.cmdFinalizeTimeTravelMerge()
+	} else if app.conflictResolveState.Operation == "time_travel_return" {
+		// Time travel return conflicts resolved: commit and clean up marker file
+		app.asyncOperationActive = true
+		app.mode = ModeConsole
+		app.outputBuffer.Clear()
+		app.consoleState.Reset()
+		return app, app.cmdFinalizeTimeTravelReturn()
 	}
 
 	// Default: return to menu

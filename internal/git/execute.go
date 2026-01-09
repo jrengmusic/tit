@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/config"
 	"tit/internal/ui"
 )
 
@@ -91,6 +93,30 @@ func Execute(args ...string) CommandResult {
 		ExitCode: exitCode,
 		Success:  exitCode == 0,
 	}
+}
+
+// FindStashRefByHash finds the stash reference (stash@{N}) for a given hash
+// Returns the stash reference if found, panics if not found (fail fast)
+func FindStashRefByHash(targetHash string) string {
+	// Iterate through stash@{0}..{9} looking for matching hash
+	// Limit to 10 stashes (reasonable - if user has more, they have bigger problems)
+	for i := 0; i < 10; i++ {
+		stashRef := fmt.Sprintf("stash@{%d}", i)
+		result := Execute("rev-parse", stashRef)
+
+		if !result.Success {
+			// No more stashes exist at this index
+			break
+		}
+
+		hash := strings.TrimSpace(result.Stdout)
+		if hash == targetHash {
+			return stashRef
+		}
+	}
+
+	// Stash not found - this should NEVER happen (indicates bug or user manually dropped stash)
+	panic(fmt.Sprintf("FATAL: Stash with hash %s not found in stash list. This indicates the stash was manually dropped or a bug in stash tracking.", targetHash))
 }
 
 // ExecuteWithStreaming runs a git command and streams output to the buffer
@@ -340,11 +366,16 @@ func ShowConflictVersion(filePath string, stage int) (string, error) {
 }
 
 // FetchRecentCommits fetches the last N commits with basic info
+// ref: git ref to log from (e.g., "main", "HEAD"). Empty string = HEAD (current position)
 // Returns: []CommitInfo with Hash, Subject, Time populated
-// Format: git log --pretty=%H%n%s%n%ai -N
+// Format: git log --pretty=%H%n%s%n%ai -N [ref]
 // Example output: hash1\nsubject1\nISO-date1\nhash2\nsubject2\nISO-date2\n...
-func FetchRecentCommits(limit int) ([]CommitInfo, error) {
-	result := Execute("log", fmt.Sprintf("-%d", limit), "--pretty=%H%n%s%n%ai")
+func FetchRecentCommits(limit int, ref string) ([]CommitInfo, error) {
+	args := []string{"log", fmt.Sprintf("-%d", limit), "--pretty=%H%n%s%n%ai"}
+	if ref != "" {
+		args = append(args, ref)
+	}
+	result := Execute(args...)
 	if !result.Success {
 		return nil, fmt.Errorf("failed to fetch recent commits: %s", result.Stderr)
 	}
@@ -538,12 +569,33 @@ func ExecuteTimeTravelCheckout(originalBranch, commitHash string) func() tea.Msg
 func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Msg {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
-		buffer.Append(fmt.Sprintf("Merging time travel changes back to %s...", originalBranch), ui.TypeStatus)
+		buffer.Append(fmt.Sprintf("[DEBUG] === START ExecuteTimeTravelMerge ===", originalBranch), ui.TypeStatus)
+		buffer.Append(fmt.Sprintf("[DEBUG] originalBranch=%s, timeTravelHash=%s", originalBranch, timeTravelHash), ui.TypeStatus)
+
+		// Get current working directory (repo path)
+		repoPath, err := os.Getwd()
+		if err != nil {
+			panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
+		}
+		buffer.Append(fmt.Sprintf("[DEBUG] repoPath=%s", repoPath), ui.TypeStatus)
+
+		// Get original stash hash (if any) from config tracking system
+		originalStashHash, hasStash := config.FindStashEntry("time_travel", repoPath)
+		if hasStash {
+			buffer.Append(fmt.Sprintf("[DEBUG] Found stash in config - hash: %s", originalStashHash), ui.TypeStatus)
+		} else {
+			buffer.Append("[DEBUG] No stash found in config (tree was clean before time travel)", ui.TypeStatus)
+		}
+
+		// Note: Dirty tree handling is done BEFORE calling this function
+		// User either committed changes or discarded them, so tree is now clean
 
 		// Checkout original branch
+		buffer.Append(fmt.Sprintf("[DEBUG] About to checkout %s...", originalBranch), ui.TypeStatus)
 		checkoutResult := Execute("checkout", originalBranch)
+		buffer.Append(fmt.Sprintf("[DEBUG] Checkout result: Success=%v, Stderr=%s", checkoutResult.Success, checkoutResult.Stderr), ui.TypeStatus)
 		if !checkoutResult.Success {
-			buffer.Append(fmt.Sprintf("Error checking out original branch: %s", checkoutResult.Stderr), ui.TypeStderr)
+			buffer.Append(fmt.Sprintf("[DEBUG] EARLY RETURN: Checkout failed", checkoutResult.Stderr), ui.TypeStderr)
 			return TimeTravelMergeMsg{
 				Success:        false,
 				OriginalBranch: originalBranch,
@@ -552,17 +604,38 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 			}
 		}
 
-		// Merge the time travel commit
+		// =================================================================
+		// PHASE 1: Merge time travel changes FIRST (before restoring stash)
+		// This provides cleaner separation - merge conflicts and stash conflicts are handled separately
+		// =================================================================
+		buffer.Append("[DEBUG] === PHASE 1: Merge ===", ui.TypeStatus)
+		buffer.Append(fmt.Sprintf("[DEBUG] About to merge %s...", timeTravelHash), ui.TypeStatus)
+
 		mergeResult := Execute("merge", timeTravelHash)
+		buffer.Append(fmt.Sprintf("[DEBUG] Merge result: Success=%v, Stdout=%s, Stderr=%s", mergeResult.Success, mergeResult.Stdout, mergeResult.Stderr), ui.TypeStatus)
+
 		if !mergeResult.Success {
-			buffer.Append(fmt.Sprintf("Merge completed with status: %s", mergeResult.Stderr), ui.TypeInfo)
-			
+			buffer.Append(fmt.Sprintf("[DEBUG] Merge returned Success=false, checking for conflicts..."), ui.TypeInfo)
+
 			// Check for conflicts
 			conflictFiles, err := ListConflictedFiles()
+			buffer.Append(fmt.Sprintf("[DEBUG] ListConflictedFiles: err=%v, files=%v", err, conflictFiles), ui.TypeStatus)
+
 			if err != nil {
-				buffer.Append("No conflicts detected", ui.TypeStatus)
+				// No conflicts detected - this is a merge error (not conflicts)
+				buffer.Append("[DEBUG] BRANCH: No conflicts detected (merge error)", ui.TypeStatus)
+				buffer.Append(fmt.Sprintf("[DEBUG] EARLY RETURN: Merge failed without conflicts", mergeResult.Stderr), ui.TypeStderr)
+				// Don't clear marker file - operation failed
+				return TimeTravelMergeMsg{
+					Success:        false,
+					OriginalBranch: originalBranch,
+					TimeTravelHash: timeTravelHash,
+					Error:          fmt.Sprintf("Merge failed: %s", mergeResult.Stderr),
+				}
 			} else {
-				buffer.Append(fmt.Sprintf("Conflicts detected in %d files", len(conflictFiles)), ui.TypeStderr)
+				buffer.Append(fmt.Sprintf("[DEBUG] BRANCH: Conflicts detected in %d files: %v", len(conflictFiles), conflictFiles), ui.TypeStderr)
+				buffer.Append("[DEBUG] EARLY RETURN: Entering conflict resolver", ui.TypeStderr)
+				// Don't clear marker file yet - conflicts need to be resolved first
 				return TimeTravelMergeMsg{
 					Success:           false,
 					OriginalBranch:    originalBranch,
@@ -573,14 +646,79 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 				}
 			}
 		}
+		buffer.Append("[DEBUG] Merge succeeded, continuing to Phase 2...", ui.TypeStatus)
 
-		// Clear time travel info
-		err := ClearTimeTravelInfo()
-		if err != nil {
-			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel info: %v", err), ui.TypeStderr)
+		// =================================================================
+		// PHASE 2: Restore original stash (if any) AFTER merge succeeds
+		// =================================================================
+		if hasStash {
+			buffer.Append("Phase 2: Restoring original work-in-progress...", ui.TypeStatus)
+			buffer.Append(fmt.Sprintf("Applying stash %s...", originalStashHash), ui.TypeStatus)
+
+			// Apply stash using hash (git stash apply accepts hash)
+			applyResult := Execute("stash", "apply", originalStashHash)
+			if !applyResult.Success {
+				buffer.Append(fmt.Sprintf("Stash apply failed: %s", applyResult.Stderr), ui.TypeStderr)
+
+				// Check for conflicts
+				conflictFiles, err := ListConflictedFiles()
+				if err != nil {
+					// Stash apply failed but not due to conflicts - don't drop the stash
+					buffer.Append("Stash apply failed (not conflicts) - stash will not be dropped", ui.TypeStderr)
+					return TimeTravelMergeMsg{
+						Success:        false,
+						OriginalBranch: originalBranch,
+						TimeTravelHash: timeTravelHash,
+						Error:          fmt.Sprintf("Failed to restore stash: %s", applyResult.Stderr),
+					}
+				} else {
+					// Stash apply had conflicts - enter conflict resolver
+					buffer.Append(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)), ui.TypeStderr)
+					buffer.Append("Resolve conflicts to complete stash restoration", ui.TypeInfo)
+					// Don't clear marker file yet - conflicts need to be resolved first
+					return TimeTravelMergeMsg{
+						Success:           false,
+						OriginalBranch:    originalBranch,
+						TimeTravelHash:    timeTravelHash,
+						Error:             "Stash apply conflicts detected",
+						ConflictDetected:  true,
+						ConflictedFiles:   conflictFiles,
+					}
+				}
+			}
+
+			buffer.Append("Stash applied successfully", ui.TypeStatus)
+
+			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
+			buffer.Append("[DEBUG] Finding stash reference by hash...", ui.TypeStatus)
+			stashRef := FindStashRefByHash(originalStashHash)
+			buffer.Append(fmt.Sprintf("[DEBUG] Found stash reference: %s", stashRef), ui.TypeStatus)
+
+			buffer.Append(fmt.Sprintf("Dropping stash %s...", stashRef), ui.TypeStatus)
+			dropResult := Execute("stash", "drop", stashRef)
+			if !dropResult.Success {
+				// Don't panic - just warn user
+				buffer.Append(fmt.Sprintf("Warning: Failed to drop stash %s: %s", stashRef, dropResult.Stderr), ui.TypeStderr)
+				buffer.Append("You may need to manually drop the stash later", ui.TypeInfo)
+			} else {
+				buffer.Append("Stash dropped successfully", ui.TypeStatus)
+			}
+
+			// Remove from config tracking system
+			buffer.Append("[DEBUG] Removing stash entry from config...", ui.TypeStatus)
+			config.RemoveStashEntry("time_travel", repoPath)
+			buffer.Append("[DEBUG] Stash entry removed from config", ui.TypeStatus)
 		}
 
-		buffer.Append("Time travel merge successful", ui.TypeStatus)
+		// =================================================================
+		// PHASE 3: Clean up marker file (only after all operations succeed)
+		// =================================================================
+		buffer.Append("Cleaning up time travel marker...", ui.TypeStatus)
+		if err := ClearTimeTravelInfo(); err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err), ui.TypeStderr)
+		}
+
+		// Don't append "successful" message here - handler will append it
 		return TimeTravelMergeMsg{
 			Success:        true,
 			OriginalBranch: originalBranch,
@@ -597,7 +735,25 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Append(fmt.Sprintf("Returning from time travel to %s...", originalBranch), ui.TypeStatus)
 
+		// Get current working directory (repo path)
+		repoPath, err := os.Getwd()
+		if err != nil {
+			panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
+		}
+
+		// Get original stash hash (if any) from config tracking system
+		originalStashHash, hasStash := config.FindStashEntry("time_travel", repoPath)
+		if hasStash {
+			buffer.Append(fmt.Sprintf("[DEBUG] Found stash in config - hash: %s", originalStashHash), ui.TypeStatus)
+		} else {
+			buffer.Append("[DEBUG] No stash found in config (tree was clean before time travel)", ui.TypeStatus)
+		}
+
+		// Note: Dirty tree handling is done BEFORE calling this function
+		// User discarded changes, so tree is now clean
+
 		// Checkout original branch
+		buffer.Append(fmt.Sprintf("Checking out %s...", originalBranch), ui.TypeStatus)
 		checkoutResult := Execute("checkout", originalBranch)
 		if !checkoutResult.Success {
 			buffer.Append(fmt.Sprintf("Error checking out original branch: %s", checkoutResult.Stderr), ui.TypeStderr)
@@ -608,13 +764,69 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 			}
 		}
 
-		// Clear time travel info
-		err := ClearTimeTravelInfo()
-		if err != nil {
-			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel info: %v", err), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf("Checked out %s successfully", originalBranch), ui.TypeStatus)
+
+		// If we had an original stash from BEFORE time travel, restore it
+		if hasStash {
+			buffer.Append(fmt.Sprintf("Restoring original stash %s...", originalStashHash), ui.TypeStatus)
+
+			// Apply stash using hash (git stash apply accepts hash)
+			applyResult := Execute("stash", "apply", originalStashHash)
+			if !applyResult.Success {
+				buffer.Append(fmt.Sprintf("Stash apply failed: %s", applyResult.Stderr), ui.TypeStderr)
+
+				// Check for conflicts
+				conflictFiles, err := ListConflictedFiles()
+				if err != nil {
+					// Stash apply failed but not due to conflicts - don't drop the stash
+					buffer.Append("Stash apply failed (not conflicts) - stash will not be dropped", ui.TypeStderr)
+					return TimeTravelReturnMsg{
+						Success:        false,
+						OriginalBranch: originalBranch,
+						Error:          fmt.Sprintf("Failed to restore stash: %s", applyResult.Stderr),
+					}
+				} else {
+					// Stash apply had conflicts - enter conflict resolver
+					buffer.Append(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)), ui.TypeStderr)
+					return TimeTravelReturnMsg{
+						Success:           false,
+						OriginalBranch:    originalBranch,
+						Error:             "Stash apply conflicts detected",
+						ConflictDetected:  true,
+						ConflictedFiles:   conflictFiles,
+					}
+				}
+			}
+
+			buffer.Append("Stash applied successfully", ui.TypeStatus)
+
+			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
+			buffer.Append("[DEBUG] Finding stash reference by hash...", ui.TypeStatus)
+			stashRef := FindStashRefByHash(originalStashHash)
+			buffer.Append(fmt.Sprintf("[DEBUG] Found stash reference: %s", stashRef), ui.TypeStatus)
+
+			buffer.Append(fmt.Sprintf("Dropping stash %s...", stashRef), ui.TypeStatus)
+			dropResult := Execute("stash", "drop", stashRef)
+			if !dropResult.Success {
+				// Don't panic - just warn user
+				buffer.Append(fmt.Sprintf("Warning: Failed to drop stash %s: %s", stashRef, dropResult.Stderr), ui.TypeStderr)
+				buffer.Append("You may need to manually drop the stash later", ui.TypeInfo)
+			} else {
+				buffer.Append("Stash dropped successfully", ui.TypeStatus)
+			}
+
+			// Remove from config tracking system
+			buffer.Append("[DEBUG] Removing stash entry from config...", ui.TypeStatus)
+			config.RemoveStashEntry("time_travel", repoPath)
+			buffer.Append("[DEBUG] Stash entry removed from config", ui.TypeStatus)
 		}
 
-		buffer.Append("Time travel return successful", ui.TypeStatus)
+		// Clean up time travel marker file (needed for state detection)
+		if err := ClearTimeTravelInfo(); err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err), ui.TypeStderr)
+		}
+
+		// Don't append "successful" message here - handler will append it
 		return TimeTravelReturnMsg{
 			Success:        true,
 			OriginalBranch: originalBranch,

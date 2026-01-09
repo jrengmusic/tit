@@ -299,12 +299,7 @@ func (a *Application) menuTimeTraveling() []MenuItem {
 	// Get history items with cache state applied (centralized logic)
 	items := a.getHistoryItemsWithCacheState("time_travel_history", "time_travel_files_history")
 
-	// Add merge option with original branch label
-	mergeItem := GetMenuItem("time_travel_merge")
-	mergeItem.Label = fmt.Sprintf("Merge back to %s", originalBranch)
-	items = append(items, mergeItem)
-
-	// Add return option with original branch label
+	// Add single return option (handles both merge and discard via dialog when dirty)
 	returnItem := GetMenuItem("time_travel_return")
 	returnItem.Label = fmt.Sprintf("Return to %s", originalBranch)
 	items = append(items, returnItem)

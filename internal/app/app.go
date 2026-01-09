@@ -338,8 +338,9 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 
 		// Step 1: Discard any changes made during time travel
 		buffer.Append(FooterHints["step_1_discarding"], ui.TypeStatus)
-		checkoutResult := git.Execute("checkout", ".")
-		if !checkoutResult.Success {
+		// Use reset --hard instead of checkout . (works with uncommitted changes)
+		resetResult := git.Execute("reset", "--hard", "HEAD")
+		if !resetResult.Success {
 			buffer.Append(FooterHints["warning_discard_changes"], ui.TypeStatus)
 		}
 
@@ -352,7 +353,7 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 		buffer.Append(fmt.Sprintf(FooterHints["step_2_returning"], ttInfo.OriginalBranch), ui.TypeStatus)
 		checkoutBranchResult := git.Execute("checkout", ttInfo.OriginalBranch)
 		if !checkoutBranchResult.Success {
-			buffer.Append(fmt.Sprintf(ErrorMessages["error_checkout_branch"], ttInfo.OriginalBranch), ui.TypeStderr)
+			buffer.Append(fmt.Sprintf(FooterHints["error_checkout_branch"], ttInfo.OriginalBranch), ui.TypeStderr)
 			return RestoreTimeTravelMsg{
 				Success: false,
 				Error:   "Failed to checkout original branch",
@@ -747,6 +748,22 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 			a.footerHint = menu[a.selectedIndex].Hint
 		}
 		a.rebuildMenuShortcuts()
+
+		// Check if BOTH caches are now complete (for time travel success message)
+		a.historyCacheMutex.Lock()
+		metadataReady := a.cacheMetadata
+		a.historyCacheMutex.Unlock()
+
+		a.diffCacheMutex.Lock()
+		diffsReady := a.cacheDiffs
+		a.diffCacheMutex.Unlock()
+
+		// If both caches complete AND in console mode during time travel, show final message
+		if metadataReady && diffsReady && a.mode == ModeConsole && a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
+			buffer := ui.GetBuffer()
+			buffer.Append("Time travel successful. Press ESC to return to menu.", ui.TypeStatus)
+			a.footerHint = "Time travel successful. Press ESC to return to menu."
+		}
 	}
 
 	// Always regenerate menu on progress update (menu reads progress fields)

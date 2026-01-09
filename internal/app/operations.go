@@ -936,4 +936,136 @@ func (a *Application) cmdAbortMerge() tea.Cmd {
 	}
 }
 
+// cmdFinalizeTimeTravelMerge finalizes time travel merge after conflict resolution
+// Commits resolved conflicts and clears time travel marker file
+func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+
+		// Stage all resolved files (should already be staged, but be safe)
+		buffer.Append("Staging resolved files...", ui.TypeStatus)
+		result := git.ExecuteWithStreaming("add", "-A")
+		if !result.Success {
+			buffer.Append(fmt.Sprintf("Failed to stage resolved files: %s", result.Stderr), ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "finalize_time_travel_merge",
+				Success: false,
+				Error:   "Failed to stage resolved files",
+			}
+		}
+
+		// Check if there are any staged changes
+		// (User might have chosen "keep main" for all conflicts, resulting in no changes)
+		diffResult := git.Execute("diff", "--cached", "--quiet")
+		hasStagedChanges := !diffResult.Success // --quiet returns non-zero if there are differences
+
+		if hasStagedChanges {
+			// Commit the merge
+			buffer.Append("Committing resolved conflicts...", ui.TypeStatus)
+			result = git.ExecuteWithStreaming("commit", "-m", "Merge time travel changes (conflicts resolved)")
+			if !result.Success {
+				buffer.Append(fmt.Sprintf("Failed to commit merge: %s", result.Stderr), ui.TypeStderr)
+				return GitOperationMsg{
+					Step:    "finalize_time_travel_merge",
+					Success: false,
+					Error:   "Failed to commit merge",
+				}
+			}
+		} else {
+			// No changes to commit (user chose to keep main's version for all conflicts)
+			buffer.Append("No changes to commit (kept current branch state)", ui.TypeStatus)
+
+			// CRITICAL: Clean up git merge state
+			// When no commit is made, MERGE_HEAD file remains and git thinks merge is incomplete
+			buffer.Append("Cleaning up merge state...", ui.TypeStatus)
+			os.Remove(".git/MERGE_HEAD")
+			os.Remove(".git/MERGE_MODE")
+			os.Remove(".git/MERGE_MSG")
+			os.Remove(".git/AUTO_MERGE")
+			buffer.Append("Merge state cleaned (no-op merge)", ui.TypeStatus)
+		}
+
+		// Clear time travel marker file
+		buffer.Append("Cleaning up time travel marker...", ui.TypeStatus)
+		if err := git.ClearTimeTravelInfo(); err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err), ui.TypeStderr)
+		} else {
+			buffer.Append("Time travel marker cleared", ui.TypeStatus)
+		}
+
+		buffer.Append("Time travel merge completed successfully!", ui.TypeStatus)
+		return GitOperationMsg{
+			Step:    "finalize_time_travel_merge",
+			Success: true,
+			Output:  "Time travel merge finalized",
+		}
+	}
+}
+
+// cmdFinalizeTimeTravelReturn finalizes time travel return after conflict resolution
+// Commits resolved stash conflicts and clears time travel marker file
+func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+
+		// Stage all resolved files (should already be staged, but be safe)
+		buffer.Append("Staging resolved files...", ui.TypeStatus)
+		result := git.ExecuteWithStreaming("add", "-A")
+		if !result.Success {
+			buffer.Append(fmt.Sprintf("Failed to stage resolved files: %s", result.Stderr), ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "finalize_time_travel_return",
+				Success: false,
+				Error:   "Failed to stage resolved files",
+			}
+		}
+
+		// Check if there are any staged changes
+		// (User might have chosen "keep main" for all conflicts, resulting in no changes)
+		diffResult := git.Execute("diff", "--cached", "--quiet")
+		hasStagedChanges := !diffResult.Success // --quiet returns non-zero if there are differences
+
+		if hasStagedChanges {
+			// Commit the resolved stash
+			buffer.Append("Committing resolved work-in-progress...", ui.TypeStatus)
+			result = git.ExecuteWithStreaming("commit", "-m", "Restore work-in-progress (conflicts resolved)")
+			if !result.Success {
+				buffer.Append(fmt.Sprintf("Failed to commit: %s", result.Stderr), ui.TypeStderr)
+				return GitOperationMsg{
+					Step:    "finalize_time_travel_return",
+					Success: false,
+					Error:   "Failed to commit resolved work",
+				}
+			}
+		} else {
+			// No changes to commit (user chose to keep main's version for all conflicts)
+			buffer.Append("No changes to commit (kept current branch state)", ui.TypeStatus)
+
+			// CRITICAL: Clean up git merge state
+			// When no commit is made, MERGE_HEAD file remains and git thinks merge is incomplete
+			buffer.Append("Cleaning up merge state...", ui.TypeStatus)
+			os.Remove(".git/MERGE_HEAD")
+			os.Remove(".git/MERGE_MODE")
+			os.Remove(".git/MERGE_MSG")
+			os.Remove(".git/AUTO_MERGE")
+			buffer.Append("Merge state cleaned (no-op merge)", ui.TypeStatus)
+		}
+
+		// Clear time travel marker file
+		buffer.Append("Cleaning up time travel marker...", ui.TypeStatus)
+		if err := git.ClearTimeTravelInfo(); err != nil {
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err), ui.TypeStderr)
+		} else {
+			buffer.Append("Time travel marker cleared", ui.TypeStatus)
+		}
+
+		buffer.Append("Time travel return completed successfully!", ui.TypeStatus)
+		return GitOperationMsg{
+			Step:    "finalize_time_travel_return",
+			Success: true,
+			Output:  "Time travel return finalized",
+		}
+	}
+}
+
 

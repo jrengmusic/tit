@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
@@ -12,8 +13,22 @@ import (
 // Call via: return app.cmdPreloadHistoryMetadata()
 func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+
+		// Determine git ref to log from
+		// During time travel: use original branch to show full history
+		// Otherwise: use HEAD (current position)
+		ref := ""
+		if a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
+			originalBranch, _, err := git.GetTimeTravelInfo()
+			if err == nil && originalBranch != "" {
+				ref = originalBranch
+				buffer.Append(fmt.Sprintf("Building history cache from branch %s...", ref), ui.TypeStatus)
+			}
+		}
+
 		// Fetch list of recent commits (basic info only)
-		commits, err := git.FetchRecentCommits(30)
+		commits, err := git.FetchRecentCommits(30, ref)
 		if err != nil {
 			// No commits available - cache will remain empty, mark as loaded
 			a.historyCacheMutex.Lock()
@@ -22,6 +37,7 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 			a.cacheMetadataTotal = 0
 			a.historyCacheMutex.Unlock()
 
+			buffer.Append("History cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
 				CacheType: "metadata",
 				Current:   0,
@@ -56,6 +72,7 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 		a.cacheMetadata = true
 		a.historyCacheMutex.Unlock()
 
+		buffer.Append(fmt.Sprintf("History metadata cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
 			CacheType: "metadata",
 			Current:   len(commits),
@@ -71,8 +88,19 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 // Call via: return app.cmdPreloadFileHistoryDiffs()
 func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+
+		// Determine git ref to log from (same logic as metadata cache)
+		ref := ""
+		if a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
+			originalBranch, _, err := git.GetTimeTravelInfo()
+			if err == nil && originalBranch != "" {
+				ref = originalBranch
+			}
+		}
+
 		// Fetch list of recent commits (basic info only)
-		commits, err := git.FetchRecentCommits(30)
+		commits, err := git.FetchRecentCommits(30, ref)
 		if err != nil {
 			// No commits available - cache will remain empty, mark as loaded
 			a.diffCacheMutex.Lock()
@@ -81,6 +109,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 			a.cacheDiffsTotal = 0
 			a.diffCacheMutex.Unlock()
 
+			buffer.Append("File history cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
 				CacheType: "diffs",
 				Current:   0,
@@ -148,6 +177,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 		a.cacheDiffs = true
 		a.diffCacheMutex.Unlock()
 
+		buffer.Append(fmt.Sprintf("File history cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
 			CacheType: "diffs",
 			Current:   len(commits),
