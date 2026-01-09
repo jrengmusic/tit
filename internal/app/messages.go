@@ -99,32 +99,71 @@ func GetFooterMessageText(msgType FooterMessageType) string {
 }
 
 // ========================================
-// Input Prompts & Hints (SSOT)
+// Message Domain: Input (Prompts + Hints)
 // ========================================
 
-// InputPrompts centralizes all user-facing input prompts
-var InputPrompts = map[string]string{
-	"clone_url":        "Repository URL:",
-	"remote_url":       "Remote URL:",
-	"commit_message":   "Commit message:",
-	"subdir_name":      "Subdirectory name:",
-	"init_branch_name": "Initial branch name:",
-	"init_subdir_name": "Subdirectory name:",
-	"dirty_pull_save":  "Save and continue with dirty pull",
-	"dirty_pull_discard": "Discard changes and pull",
+// InputMessage pairs a prompt with its hint for a single input field
+type InputMessage struct {
+	Prompt string
+	Hint   string
 }
 
-// InputHints centralizes all user-facing input hints
-var InputHints = map[string]string{
-	"clone_url":        "Enter git repository URL (https or git+ssh)",
-	"remote_url":       "Enter git repository URL and press Enter",
-	"commit_message":   "Enter message and press Enter",
-	"subdir_name":      "Enter new directory name",
-	"init_branch_name": "Enter branch name (default: main), press Enter to initialize",
-	"init_subdir_name": "Enter subdirectory name for new repository",
-	"dirty_pull_save":  "Save changes before pulling",
-	"dirty_pull_discard": "Discard changes before pulling",
+// InputMessages centralizes input-related messages by domain
+// Replaces old InputPrompts + InputHints maps
+var InputMessages = map[string]InputMessage{
+	"clone_url": {
+		Prompt: "Repository URL:",
+		Hint:   "Enter git repository URL (https or git+ssh)",
+	},
+	"remote_url": {
+		Prompt: "Remote URL:",
+		Hint:   "Enter git repository URL and press Enter",
+	},
+	"commit_message": {
+		Prompt: "Commit message:",
+		Hint:   "Enter message and press Enter",
+	},
+	"subdir_name": {
+		Prompt: "Subdirectory name:",
+		Hint:   "Enter new directory name",
+	},
+	"init_branch_name": {
+		Prompt: "Initial branch name:",
+		Hint:   "Enter branch name (default: main), press Enter to initialize",
+	},
+	"init_subdir_name": {
+		Prompt: "Subdirectory name:",
+		Hint:   "Enter subdirectory name for new repository",
+	},
+	"dirty_pull_save": {
+		Prompt: "Save and continue with dirty pull",
+		Hint:   "Save changes before pulling",
+	},
+	"dirty_pull_discard": {
+		Prompt: "Discard changes and pull",
+		Hint:   "Discard changes before pulling",
+	},
 }
+
+// Deprecated: Use InputMessages[key].Prompt instead
+// Kept for backwards compatibility during migration
+var InputPrompts = func() map[string]string {
+	m := make(map[string]string)
+	for k, v := range InputMessages {
+		m[k] = v.Prompt
+	}
+	return m
+}()
+
+// Deprecated: Use InputMessages[key].Hint instead
+// Kept for backwards compatibility during migration
+var InputHints = func() map[string]string {
+	m := make(map[string]string)
+	for k, v := range InputMessages {
+		m[k] = v.Hint
+	}
+	return m
+}()
 
 // ErrorMessages centralizes error messages
 var ErrorMessages = map[string]string{
@@ -218,55 +257,118 @@ var OutputMessages = map[string]string{
 	"original_state_restored":           "Original state restored",
 }
 
-// ButtonLabels centralizes confirmation dialog button text
+// ========================================
+// Message Domain: Confirmation Dialogs
+// ========================================
+
+// ConfirmationMessage pairs all confirmation dialog components
+type ConfirmationMessage struct {
+	Title       string
+	Explanation string
+	YesLabel    string // Button text for YES/confirm action
+	NoLabel     string // Button text for NO/reject action
+}
+
+// ConfirmationMessages centralizes all confirmation dialog messages by domain
+// Replaces old ConfirmationTitles + ConfirmationExplanations + ConfirmationLabels
+var ConfirmationMessages = map[string]ConfirmationMessage{
+	"force_push": {
+		Title:       "Force Push Confirmation",
+		Explanation: "This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
+		YesLabel:    "Force push",
+		NoLabel:     "Cancel",
+	},
+	"hard_reset": {
+		Title:       "Replace Local Confirmation",
+		Explanation: "This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
+		YesLabel:    "Reset to remote",
+		NoLabel:     "Cancel",
+	},
+	"dirty_pull": {
+		Title:       "Save your changes?",
+		Explanation: "You have uncommitted changes. To pull, they must be temporarily saved.\n\nAfter the pull, we'll try to reapply them.\n(This may cause conflicts if the changes overlap.)",
+		YesLabel:    "Save changes",
+		NoLabel:     "Discard changes",
+	},
+	"pull_merge": {
+		Title:       "Pull from remote?",
+		Explanation: "This will merge remote changes into your local branch.\n\nIf both branches modified the same files, conflicts may occur.\nYou'll be able to resolve them interactively.",
+		YesLabel:    "Proceed",
+		NoLabel:     "Cancel",
+	},
+	"pull_merge_diverged": {
+		Title:       "Pull diverged branches?",
+		Explanation: "Your branches have diverged (both have new commits).\n\nThis will merge remote changes into your local branch.\n\nIf both modified the same files, conflicts may occur.",
+		YesLabel:    "Proceed",
+		NoLabel:     "Cancel",
+	},
+	"time_travel": {
+		Title:       "Time Travel Confirmation",
+		Explanation: "%s\n\n%s\n\nExplore in read-only mode?",
+		YesLabel:    "Time travel",
+		NoLabel:     "Cancel",
+	},
+	"time_travel_return": {
+		Title:       "Return to main without merge?",
+		Explanation: "Any changes you made while time traveling will be STASHED (not discarded).\n\nYour original work (if any) will be restored.\n\nUse 'git stash apply stash@{0}' later to restore time travel changes.",
+		YesLabel:    "Return to main",
+		NoLabel:     "Cancel",
+	},
+	"time_travel_merge": {
+		Title:       "Merge and return to main?",
+		Explanation: "This will merge time travel changes back to main.\n\nConflicts may occur if the changes overlap.\n\nNote: Any uncommitted changes will be stashed first, then restored after merge.",
+		YesLabel:    "Merge & return",
+		NoLabel:     "Cancel",
+	},
+	"time_travel_merge_dirty": {
+		Title:       "Uncommitted Changes",
+		Explanation: "You modified files during time travel.\n\nCommit them and merge to main, or discard them?",
+		YesLabel:    "Commit & merge",
+		NoLabel:     "Discard",
+	},
+	"time_travel_return_dirty": {
+		Title:       "Uncommitted Changes",
+		Explanation: "You modified files during time travel.\n\nChanges will be discarded when returning to main.",
+		YesLabel:    "Discard & return",
+		NoLabel:     "Cancel",
+	},
+}
+
+// Deprecated: Use ConfirmationMessages[key].Title instead
+var ConfirmationTitles = func() map[string]string {
+	m := make(map[string]string)
+	for k, v := range ConfirmationMessages {
+		m[k] = v.Title
+	}
+	return m
+}()
+
+// Deprecated: Use ConfirmationMessages[key].Explanation instead
+var ConfirmationExplanations = func() map[string]string {
+	m := make(map[string]string)
+	for k, v := range ConfirmationMessages {
+		m[k] = v.Explanation
+	}
+	return m
+}()
+
+// Deprecated: Use ConfirmationMessages[key] for both labels instead
+var ConfirmationLabels = func() map[string][2]string {
+	m := make(map[string][2]string)
+	for k, v := range ConfirmationMessages {
+		m[k] = [2]string{v.YesLabel, v.NoLabel}
+	}
+	return m
+}()
+
+// ButtonLabels deprecated: see ConfirmationMessages for labels
+// Kept for backwards compatibility
 var ButtonLabels = map[string]string{
 	"continue":   "Yes, continue",
 	"cancel":     "No, cancel",
 	"force_push": "Force push",
 	"reset":      "Reset",
 	"ok":         "OK",
-}
-
-// ConfirmationTitles centralizes confirmation dialog titles
-var ConfirmationTitles = map[string]string{
-	"force_push":           "Force Push Confirmation",
-	"hard_reset":           "Replace Local Confirmation",
-	"dirty_pull":           "Save your changes?",
-	"pull_merge":           "Pull from remote?",
-	"pull_merge_diverged":  "Pull diverged branches?",
-	"time_travel":              "Time Travel Confirmation",
-	"time_travel_return":       "Return to main without merge?",
-	"time_travel_merge":        "Merge and return to main?",
-	"time_travel_merge_dirty":  "Uncommitted Changes",
-	"time_travel_return_dirty": "Uncommitted Changes",
-}
-
-// ConfirmationExplanations centralizes confirmation dialog explanations
-var ConfirmationExplanations = map[string]string{
-	"force_push": "This will force push to remote, overwriting remote history.\n\nAny commits on the remote that you don't have locally will be permanently lost.\n\nContinue?",
-	"hard_reset": "This will discard all local changes and commits, resetting to match the remote exactly.\n\nAll uncommitted changes and untracked files will be permanently lost.\n\nContinue?",
-	"dirty_pull": "You have uncommitted changes. To pull, they must be temporarily saved.\n\nAfter the pull, we'll try to reapply them.\n(This may cause conflicts if the changes overlap.)",
-	"pull_merge": "This will merge remote changes into your local branch.\n\nIf both branches modified the same files, conflicts may occur.\nYou'll be able to resolve them interactively.",
-	"pull_merge_diverged": "Your branches have diverged (both have new commits).\n\nThis will merge remote changes into your local branch.\n\nIf both modified the same files, conflicts may occur.",
-	"time_travel": "%s\n\n%s\n\nExplore in read-only mode?",
-	"time_travel_return": "Any changes you made while time traveling will be STASHED (not discarded).\n\nYour original work (if any) will be restored.\n\nUse 'git stash apply stash@{0}' later to restore time travel changes.",
-	"time_travel_merge": "This will merge time travel changes back to main.\n\nConflicts may occur if the changes overlap.\n\nNote: Any uncommitted changes will be stashed first, then restored after merge.",
-	"time_travel_merge_dirty": "You modified files during time travel.\n\nCommit them and merge to main, or discard them?",
-	"time_travel_return_dirty": "You modified files during time travel.\n\nChanges will be discarded when returning to main.",
-}
-
-// ConfirmationLabels centralizes confirmation dialog button labels by action
-var ConfirmationLabels = map[string][2]string{
-	"force_push":           {"Force push", "Cancel"},
-	"hard_reset":           {"Reset to remote", "Cancel"},
-	"dirty_pull":           {"Save changes", "Discard changes"},
-	"pull_merge":           {"Proceed", "Cancel"},
-	"pull_merge_diverged":  {"Proceed", "Cancel"},
-	"time_travel":              {"Time travel", "Cancel"},
-	"time_travel_return":       {"Return to main", "Cancel"},
-	"time_travel_merge":        {"Merge & return", "Cancel"},
-	"time_travel_merge_dirty":  {"Commit & merge", "Discard"},
-	"time_travel_return_dirty": {"Discard & return", "Cancel"},
 }
 
 // FooterHints centralizes footer hint messages

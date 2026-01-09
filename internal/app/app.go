@@ -319,7 +319,14 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 		// Load time travel info
 		ttInfo, err := git.LoadTimeTravelInfo()
 		if err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_load_time_travel_info"], err), ui.TypeStderr)
+			// Use standardized error logging (PATTERN: ErrorWarn for recovery paths)
+			a.LogError(ErrorConfig{
+				Level:      ErrorWarn,
+				Message:    "Failed to load time travel info",
+				InnerError: err,
+				BufferLine: fmt.Sprintf(ErrorMessages["failed_load_time_travel_info"], err),
+				FooterLine: "Failed to restore time travel state",
+			})
 			return RestoreTimeTravelMsg{
 				Success: false,
 				Error:   err.Error(),

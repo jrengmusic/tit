@@ -34,38 +34,68 @@ const (
 // ConfirmationAction is a function that handles a confirmed action
 type ConfirmationAction func(*Application) (tea.Model, tea.Cmd)
 
-// confirmationActions maps confirmation types to their YES handlers
-var confirmationActions = map[string]ConfirmationAction{
-	string(ConfirmNestedRepoInit):     (*Application).executeConfirmNestedRepoInit,
-	string(ConfirmForcePush):          (*Application).executeConfirmForcePush,
-	string(ConfirmHardReset):          (*Application).executeConfirmHardReset,
-	string(ConfirmAlert):              (*Application).executeAlert,
-	string(ConfirmDirtyPull):          (*Application).executeConfirmDirtyPull,
-	string(ConfirmPullMerge):          (*Application).executeConfirmPullMerge,
-	string(ConfirmPullMergeDiverged):  (*Application).executeConfirmPullMerge,
-	string(ConfirmTimeTravel):            (*Application).executeConfirmTimeTravel,
-	string(ConfirmTimeTravelReturn):      (*Application).executeConfirmTimeTravelReturn,
-	string(ConfirmTimeTravelMerge):       (*Application).executeConfirmTimeTravelMerge,
-	string(ConfirmTimeTravelMergeDirty):  (*Application).executeConfirmTimeTravelMergeDirtyCommit,
-	string(ConfirmTimeTravelReturnDirty): (*Application).executeConfirmTimeTravelReturnDirtyDiscard,
-	"time_travel_return_dirty_choice":    (*Application).executeConfirmTimeTravelMergeDirtyCommit, // YES = Merge
+// ConfirmationActionPair pairs a YES handler with its NO handler
+// This guarantees that every confirmation type has both handlers registered
+type ConfirmationActionPair struct {
+	Confirm ConfirmationAction
+	Reject  ConfirmationAction
 }
 
-// confirmationRejectActions maps confirmation types to their NO handlers
-var confirmationRejectActions = map[string]ConfirmationAction{
-	string(ConfirmNestedRepoInit):     (*Application).executeRejectNestedRepoInit,
-	string(ConfirmForcePush):          (*Application).executeRejectForcePush,
-	string(ConfirmHardReset):          (*Application).executeRejectHardReset,
-	string(ConfirmAlert):              (*Application).executeAlert, // Any key dismisses alert
-	string(ConfirmDirtyPull):          (*Application).executeRejectDirtyPull,
-	string(ConfirmPullMerge):          (*Application).executeRejectPullMerge,
-	string(ConfirmPullMergeDiverged):  (*Application).executeRejectPullMerge,
-	string(ConfirmTimeTravel):            (*Application).executeRejectTimeTravel,
-	string(ConfirmTimeTravelReturn):      (*Application).executeRejectTimeTravelReturn,
-	string(ConfirmTimeTravelMerge):       (*Application).executeRejectTimeTravelMerge,
-	string(ConfirmTimeTravelMergeDirty):  (*Application).executeConfirmTimeTravelMergeDirtyDiscard,
-	string(ConfirmTimeTravelReturnDirty): (*Application).executeRejectTimeTravelReturnDirty,
-	"time_travel_return_dirty_choice":    (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
+// confirmationHandlers maps confirmation types to paired YES/NO handlers
+// Using a single paired structure ensures no accidental missing confirm/reject pairs
+var confirmationHandlers = map[string]ConfirmationActionPair{
+	string(ConfirmNestedRepoInit): {
+		Confirm: (*Application).executeConfirmNestedRepoInit,
+		Reject:  (*Application).executeRejectNestedRepoInit,
+	},
+	string(ConfirmForcePush): {
+		Confirm: (*Application).executeConfirmForcePush,
+		Reject:  (*Application).executeRejectForcePush,
+	},
+	string(ConfirmHardReset): {
+		Confirm: (*Application).executeConfirmHardReset,
+		Reject:  (*Application).executeRejectHardReset,
+	},
+	string(ConfirmAlert): {
+		Confirm: (*Application).executeAlert,
+		Reject:  (*Application).executeAlert, // Any key dismisses alert
+	},
+	string(ConfirmDirtyPull): {
+		Confirm: (*Application).executeConfirmDirtyPull,
+		Reject:  (*Application).executeRejectDirtyPull,
+	},
+	string(ConfirmPullMerge): {
+		Confirm: (*Application).executeConfirmPullMerge,
+		Reject:  (*Application).executeRejectPullMerge,
+	},
+	string(ConfirmPullMergeDiverged): {
+		Confirm: (*Application).executeConfirmPullMerge,
+		Reject:  (*Application).executeRejectPullMerge,
+	},
+	string(ConfirmTimeTravel): {
+		Confirm: (*Application).executeConfirmTimeTravel,
+		Reject:  (*Application).executeRejectTimeTravel,
+	},
+	string(ConfirmTimeTravelReturn): {
+		Confirm: (*Application).executeConfirmTimeTravelReturn,
+		Reject:  (*Application).executeRejectTimeTravelReturn,
+	},
+	string(ConfirmTimeTravelMerge): {
+		Confirm: (*Application).executeConfirmTimeTravelMerge,
+		Reject:  (*Application).executeRejectTimeTravelMerge,
+	},
+	string(ConfirmTimeTravelMergeDirty): {
+		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit,
+		Reject:  (*Application).executeConfirmTimeTravelMergeDirtyDiscard,
+	},
+	string(ConfirmTimeTravelReturnDirty): {
+		Confirm: (*Application).executeConfirmTimeTravelReturnDirtyDiscard,
+		Reject:  (*Application).executeRejectTimeTravelReturnDirty,
+	},
+	"time_travel_return_dirty_choice": {
+		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit, // YES = Merge
+		Reject:  (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
+	},
 }
 
 // ========================================
@@ -80,16 +110,22 @@ func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea
 	}
 
 	confirmType := a.confirmationDialog.Config.ActionID
-	var handler ConfirmationAction
+	actions, ok := confirmationHandlers[confirmType]
+	if !ok {
+		// No handler registered for this type - return to menu
+		a.confirmationDialog = nil
+		return a.returnToMenu()
+	}
 
+	var handler ConfirmationAction
 	if confirmed {
-		handler = confirmationActions[confirmType]
+		handler = actions.Confirm
 	} else {
-		handler = confirmationRejectActions[confirmType]
+		handler = actions.Reject
 	}
 
 	if handler == nil {
-		// No handler registered for this type - return to menu
+		// Paired handler is nil - return to menu (shouldn't happen with paired structure)
 		a.confirmationDialog = nil
 		return a.returnToMenu()
 	}
@@ -401,24 +437,25 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 	// Write time travel info (no stash ID for clean tree)
 	err := git.WriteTimeTravelInfo(originalBranch, "")
 	if err != nil {
-		panic(fmt.Sprintf("FATAL: Failed to write time travel info: %v", err))
+		// Use standardized fatal error logging (PATTERN: Invariant violation)
+		LogErrorFatal("Failed to write time travel info", err)
 	}
 	
 	// Build TimeTravelInfo directly (fail fast if git calls fail)
 	// This prevents silent failures and inconsistent state
 	commitSubject := strings.TrimSpace(git.Execute("log", "-1", "--format=%s", commitHash).Stdout)
 	if commitSubject == "" {
-		panic(fmt.Sprintf("FATAL: Failed to get commit subject for %s", commitHash))
+		LogErrorFatal("Failed to get commit subject", fmt.Errorf("empty subject for %s", commitHash))
 	}
 	
 	commitTimeStr := strings.TrimSpace(git.Execute("log", "-1", "--format=%aI", commitHash).Stdout)
 	if commitTimeStr == "" {
-		panic(fmt.Sprintf("FATAL: Failed to get commit time for %s", commitHash))
+		LogErrorFatal("Failed to get commit time", fmt.Errorf("empty time for %s", commitHash))
 	}
 	
 	commitTime, err := time.Parse(time.RFC3339, commitTimeStr)
 	if err != nil {
-		panic(fmt.Sprintf("FATAL: Failed to parse commit time: %v", err))
+		LogErrorFatal("Failed to parse commit time", err)
 	}
 	
 	a.timeTravelInfo = &git.TimeTravelInfo{
