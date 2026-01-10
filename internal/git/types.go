@@ -38,6 +38,32 @@ const (
 	HasRemote Remote = "HasRemote"
 )
 
+// GitEnvironment represents the machine's git environment readiness
+// This is the 5th axis, checked BEFORE all other state detection
+type GitEnvironment int
+
+const (
+	Ready      GitEnvironment = iota // git + ssh + key exists
+	NeedsSetup                       // git + ssh exist, no SSH key
+	MissingGit                       // git not installed
+	MissingSSH                       // ssh not installed
+)
+
+func (e GitEnvironment) String() string {
+	switch e {
+	case Ready:
+		return "ready"
+	case NeedsSetup:
+		return "needs_setup"
+	case MissingGit:
+		return "missing_git"
+	case MissingSSH:
+		return "missing_ssh"
+	default:
+		return "unknown"
+	}
+}
+
 // State represents the complete git state tuple: (WorkingTree, Timeline, Operation, Remote)
 type State struct {
 	WorkingTree         WorkingTree

@@ -17,7 +17,39 @@ const (
 	ModeClone                 // Clone operation with console output
 	ModeSelectBranch          // Dynamic menu to select canon branch from cloned repo
 	ModeFileHistory           // File(s) history browser mode
+	ModeSetupWizard           // Git environment setup wizard (first-time setup)
 )
+
+// SetupWizardStep represents the current step in the setup wizard
+type SetupWizardStep int
+
+const (
+	SetupStepWelcome       SetupWizardStep = iota // Welcome message
+	SetupStepPrerequisites                        // Check git + ssh installed
+	SetupStepEmail                                // Input email for key comment
+	SetupStepGenerate                             // Generate SSH key + agent + config
+	SetupStepDisplayKey                           // Show public key + provider URLs
+	SetupStepComplete                             // Setup complete
+)
+
+func (s SetupWizardStep) String() string {
+	switch s {
+	case SetupStepWelcome:
+		return "welcome"
+	case SetupStepPrerequisites:
+		return "prerequisites"
+	case SetupStepEmail:
+		return "email"
+	case SetupStepGenerate:
+		return "generate"
+	case SetupStepDisplayKey:
+		return "display_key"
+	case SetupStepComplete:
+		return "complete"
+	default:
+		return "unknown"
+	}
+}
 
 // ModeMetadata describes a mode's purpose, rendering behavior, and input handling
 type ModeMetadata struct {
@@ -103,6 +135,12 @@ var modeDescriptions = map[AppMode]ModeMetadata{
 	ModeFileHistory: {
 		Name:         "file_history",
 		Description:  "File(s) history browser with before/after diff comparison (dual pane)",
+		AcceptsInput: true,
+		IsAsync:      false,
+	},
+	ModeSetupWizard: {
+		Name:         "setup_wizard",
+		Description:  "First-time git environment setup (SSH key generation, agent config)",
 		AcceptsInput: true,
 		IsAsync:      false,
 	},

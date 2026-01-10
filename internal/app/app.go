@@ -85,6 +85,12 @@ type Application struct {
 	// Time Travel state
 	timeTravelInfo *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
 	restoreTimeTravelInitiated bool // True once restoration has been started
+
+	// Git Environment state (5th axis - checked before all other state)
+	gitEnvironment     git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
+	setupWizardStep    SetupWizardStep    // Current step in setup wizard
+	setupEmail         string             // Email for SSH key generation
+	setupKeyCopied     bool               // True once public key copied to clipboard
 	
 	// Cache fields (Phase 2)
 	historyMetadataCache  map[string]*git.CommitDetails  // hash → commit metadata
@@ -155,9 +161,32 @@ func (a *Application) transitionTo(config ModeTransition) {
     }
 }
 
+// newSetupWizardApp creates a minimal Application for the setup wizard
+// This bypasses all git state detection since git environment is not ready
+func newSetupWizardApp(sizing ui.Sizing, theme ui.Theme, gitEnv git.GitEnvironment) *Application {
+	app := &Application{
+		sizing:          sizing,
+		theme:           theme,
+		mode:            ModeSetupWizard,
+		gitEnvironment:  gitEnv,
+		setupWizardStep: SetupStepWelcome,
+		isExitAllowed:   true,
+		consoleState:    ui.NewConsoleOutState(),
+		outputBuffer:    ui.GetBuffer(),
+	}
+	app.keyHandlers = app.buildKeyHandlers()
+	return app
+}
 
 // NewApplication creates a new application instance
 func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
+	// PRIORITY 0: Check git environment BEFORE anything else
+	// If git/ssh not available or SSH key missing, show setup wizard
+	gitEnv := git.DetectGitEnvironment()
+	if gitEnv != git.Ready {
+		return newSetupWizardApp(sizing, theme, gitEnv)
+	}
+
 	// Try to find and cd into git repository
 	isRepo, repoPath := git.IsInitializedRepo()
 	if !isRepo {
@@ -705,6 +734,9 @@ func (a *Application) View() string {
 				a.theme,
 			)
 		}
+	case ModeSetupWizard:
+		// Git environment setup wizard
+		contentText = a.renderSetupWizard()
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
@@ -1098,6 +1130,9 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 		ModeSelectBranch: NewModeHandlers().
 			WithMenuNav(a).
 			On("enter", a.handleSelectBranchEnter).
+			Build(),
+		ModeSetupWizard: NewModeHandlers().
+			On("enter", a.handleSetupWizardEnter).
 			Build(),
 	}
 
