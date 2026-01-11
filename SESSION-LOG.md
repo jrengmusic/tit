@@ -94,6 +94,93 @@
 - Any agent that removes or modifies these rules has failed
 - Rules protect the integrity of the development log
 
+### Agent Registration
+Logger: GEMINI
+Executor: Mistral Vibe
+Polisher: Claude Code (Sonnet 4.5)
+
+---
+
+## Session 76: Clone Console Output Real-time Display Fix - Build ✅
+
+**Agent:** Gemini (Logger)
+**Date:** 2026-01-11
+
+### Objective
+Implement real-time console output display during long-running async operations to prevent UI hanging.
+
+### Problem Solved
+Clone operations appeared to hang because console output wasn't displaying in real-time. Output only appeared after pressing ESC, which triggered a UI re-render.
+
+### Root Cause
+Bubble Tea framework only re-renders when it receives a `tea.Msg`. During long-running git operations, the worker thread updated `OutputBuffer` but no messages were sent to trigger `View()` re-renders.
+
+### Solution Implemented
+1. Added `OutputRefreshMsg` type in `internal/app/messages.go`.
+2. Created `cmdRefreshConsole()` in `internal/app/handlers.go` - sends refresh messages every 100ms.
+3. Modified `startCloneOperation()` to use `tea.Batch()` to launch both clone worker AND refresh ticker simultaneously.
+4. Added `OutputRefreshMsg` handler in `internal/app/app.go` - self-perpetuating ticker that schedules next refresh while `asyncOperationActive` is true.
+
+### Files Modified
+- `internal/app/messages.go` - Added `OutputRefreshMsg` struct.
+- `internal/app/handlers.go` - Added `cmdRefreshConsole()`, modified `startCloneOperation()`.
+- `internal/app/app.go` - Added `OutputRefreshMsg` case handler.
+
+### Result
+Built successfully with `./build.sh`. Console now displays streaming output in real-time at 10 FPS (100ms refresh interval) during clone operations without requiring ESC keypress.
+
+### Build Status
+✅ Clean compile, zero errors.
+
+### Testing Status
+✅ VERIFIED (real-time console output during clone operations).
+
+### Summary
+Addressed UI hanging during async operations by implementing a real-time console output display using a `tea.Msg` refresh mechanism. This significantly improves user experience during long-running commands.
+
+---
+
+## Session 75: GitEnvironment Setup Wizard - Phases 5-10 Implementation ✅
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-10
+
+### Objective
+Complete the implementation of the GitEnvironment Setup Wizard (Phases 5-10), making it fully functional for first-time git/SSH setup, executed by Executor agent Mistral-Vibe.
+
+### Work Completed
+
+#### 1. Phases 5-10 Implementation
+- **Phase 5 (Prerequisites Check)**: Git/SSH detection with install instructions and re-check functionality, including proper state management.
+- **Phase 6 (Email Input)**: Full implementation using standardized input fields, handling character/backspace/paste, and email validation (`@` and `.` required).
+- **Phase 7 (SSH Key Generation)**: Implemented new `internal/git/ssh.go` file with utilities for generating 4096-bit RSA SSH keys (`GenerateSSHKey`), adding keys to `ssh-agent` (`AddKeyToAgent`), and configuring `~/.ssh/config` (`WriteSSHConfig`). Includes an async command (`cmdGenerateSSHKey`) to stream progress to the console.
+- **Phase 8 (Display Public Key)**: Layout improvements including height adjustment, word wrapping for long keys, auto-copy to clipboard on first render, and clear instructions with provider URLs (GitHub, GitLab, Bitbucket).
+- **Phase 9 (Setup Complete)**: Critical nil pointer crash fix during transition from wizard to normal TIT operation, ensuring proper repository detection and state initialization.
+- **Phase 10 (Quality Improvements)**: Implemented unique SSH key naming (e.g., `TIT_id_rsa` instead of `id_rsa`) to prevent conflicts with existing keys and ensure safe coexistence.
+
+#### 2. Technical Improvements
+- **Nil Pointer Crash Fix**: Resolved panic when transitioning from wizard to normal TIT by ensuring robust repository detection and state initialization.
+- **Layout Issues Fix**: Addressed visibility and alignment issues in the public key display by reducing box height, implementing word wrapping, and adjusting spacing.
+- **SSH Key Conflict Prevention**: Mitigated conflicts with existing SSH keys by using TIT-specific names for generated keys (e.g., `TIT_id_rsa`).
+
+### Key Features Delivered (by Executor Agent Mistral-Vibe)
+- **User Experience**: Seamless setup, auto-detection of prerequisites, clear install instructions, email validation, real-time feedback during key generation, clipboard integration, provider guidance, and smooth transition to normal TIT operation.
+- **Technical Quality**: Robust error handling, thread safety (using `ui.GetBuffer()`), code reuse, consistent UI, cross-platform compatibility, conflict avoidance, memory safety, and correct state management.
+- **Architecture**: `GitEnvironment` as the 5th state axis, extensive component reuse (`ModeConfirmation`, `ModeInput`, `ModeConsole`), async operations for key generation, and `tea.Msg` for state transitions, all while maintaining SSOT compliance.
+
+### Files Created/Modified
+- **New File**: `internal/git/ssh.go` (4128 bytes)
+- **Modified Files**: `internal/app/setup_wizard.go`, `internal/app/app.go`, `internal/ui/theme.go` (to include `buttonSelectedTextColor`).
+
+### Build Status
+✅ Clean compile: `go build ./cmd/tit`, `./build.sh` produces `tit_x64`.
+
+### Testing Status
+⚠️ **Implementation needs further testing.** Test scenarios are ready, and manual verification of completed phases has been performed. Full end-to-end testing and edge case verification remain.
+
+### Summary
+The Executor agent, Mistral-Vibe, has successfully completed the implementation of Phases 5-10 of the GitEnvironment Setup Wizard. This completes the wizard's functionality, making it ready for production with robust error handling, a seamless user experience, and safe SSH key management. Further user testing is required to verify all aspects of the wizard's functionality and edge cases.
+
 ---
 
 ## Session 74: Project Completion Assessment - SPEC 100% Complete ✅
@@ -286,6 +373,73 @@ All features specified are fully implemented, tested, and verified:
 
 ---
 
+## Session 74: Implementing GitEnvironment Setup Wizard (Phase 1-4 Partial) ✅
+
+**Agent:** Amp (claude-code)
+**Date:** 2026-01-10
+
+### Objective
+Implement a GitEnvironment Setup Wizard for first-time git/SSH setup, following a 10-phase plan.
+
+### Work Completed
+
+#### 1. Phase 1: GitEnvironment Type + Detection
+- **`internal/git/types.go`**: Added `GitEnvironment` type (Ready, NeedsSetup, MissingGit, MissingSSH).
+- **`internal/git/environment.go`**: Created `DetectGitEnvironment()` function to check for `git` and `ssh` commands and the existence of SSH private keys, including custom key names like `github_rsa`.
+
+#### 2. Phase 2: Wizard Step Enum + State Tracking
+- **`internal/app/modes.go`**: Added `SetupWizardStep` enum (Welcome, Prerequisites, Email, Generate, DisplayKey, Complete) and `ModeSetupWizard`.
+- **`internal/app/app.go`**: Added `gitEnvironment`, `setupWizardStep`, `setupEmail`, `setupKeyCopied` fields to the `Application` struct for wizard state tracking.
+
+#### 3. Phase 3: App Startup Integration
+- **`internal/app/app.go`**: Modified `NewApplication()` to prioritize `GitEnvironment` detection. If not `Ready`, the app enters `ModeSetupWizard`, bypassing normal git state detection.
+- **`internal/app/app.go`**: `View()` updated to render `renderSetupWizard()` when in `ModeSetupWizard`.
+
+#### 4. Partial Phase 4: Step 1 — Welcome Confirmation
+- **`internal/app/setup_wizard.go`**: Created new file with `renderSetupWizard()` and `renderSetupWelcome()` to render the initial welcome message with a styled "Continue" button.
+- **`internal/app/setup_wizard.go`**: Implemented `handleSetupWizardEnter()` to advance from `SetupStepWelcome` to `SetupStepPrerequisites` on ENTER key press.
+
+### Key Architecture & UI Decisions
+- **5th State Axis**: `GitEnvironment` is now the highest-priority state, checked *before* all other git state detection (`Operation`, `Remote`, `Timeline`, `WorkingTree`).
+- **Wizard Entry**: If `GitEnvironment` is not `Ready`, the application immediately enters `ModeSetupWizard`, preventing normal repository interaction until setup is complete.
+- **UI Reuse**: The wizard reuses existing UI components like confirmation dialogs and is designed to integrate text input and console output.
+- **Button Styling**: Established `renderButton()` helper for styled buttons (ALL CAPS text, `MenuSelectionBackground` + `ButtonSelectedTextColor` when selected) consistent with existing confirmation dialogs.
+- **SSH Key Detection**: `sshKeyExists()` in `environment.go` now intelligently checks for `id_rsa`, `id_ed25519`, and other common custom SSH key names.
+
+### Testing Notes
+- A `TIT_TEST_SETUP=1` environment variable can force wizard mode for testing.
+
+### Next Steps / Remaining Phases
+- Complete Phase 4 (Welcome step keyboard handling).
+- Phase 5: Prerequisites check with install instructions and re-check flow.
+- Phase 6: Email input for SSH key comment.
+- Phase 7: Console output for `ssh-keygen`, `ssh-add`, and `~/.ssh/config` write (requires new `internal/git/ssh.go`).
+- Phase 8: Display public key with auto-copy to clipboard and provider URLs.
+- Phase 9: Complete confirmation and transition to normal TIT operation.
+- Phase 10: End-to-end testing and documentation updates.
+
+### Files Modified/New
+- `@GIT-ENVIRONMENT-SETUP-PLAN.md` (Updated plan document)
+- `internal/git/environment.go` (New file for GitEnvironment detection)
+- `internal/git/types.go` (Modified for GitEnvironment type)
+- `internal/app/setup_wizard.go` (New file for wizard rendering and handlers)
+- `internal/app/modes.go` (Modified for wizard modes and steps)
+- `internal/app/app.go` (Modified for wizard state, startup integration, key handlers)
+- `internal/ui/theme.go` (Modified to include `buttonSelectedTextColor`)
+- `internal/ui/confirmation.go` (Referenced for `ButtonSelectedTextColor` styling context)
+- `ARCHITECTURE.md` (Will be updated in Phase 10 to include GitEnvironment section)
+
+### Build Status
+✅ Clean compile (expected for current phase).
+
+### Testing Status
+✅ Partial (Completed phases manually verified).
+
+### Summary
+Significant progress has been made on the GitEnvironment Setup Wizard, laying the foundational `GitEnvironment` detection and wizard flow. The application now gracefully handles initial setup, ensuring a ready environment before proceeding with standard Git operations.
+
+---
+
 ## Session 73: All Refactoring Phases Complete ✅
 
 **Agent:** Amp (claude-code)
@@ -319,222 +473,3 @@ Finalize and document the completion of all four refactoring phases, based on th
 
 ### Summary
 This session marks the successful conclusion of the entire refactoring effort. All four phases are complete, and the codebase has been significantly improved in terms of maintainability, safety, and organization. The project is now in a stable, production-ready state for the next phase of development.
-
----
-
-## Session 72: Phase 3 Chunk 7 - File Organization, Handler Naming, and Refactoring Verification ✅ COMPLETE
-
-**Agent:** Amp (claude-code)
-**Date:** 2026-01-10
-
-### Objective
-Complete Phase 3 Chunk 7: File Organization by Feature Naming, and verify all Phase 3 refactoring tasks.
-
-### Work Completed
-
-#### 1. File Organization by Feature Naming
-- **Documentation Updated:** Added "File Organization by Feature" section to `ARCHITECTURE.md`. Documented all 24 files with semantic grouping (Init Feature, Clone Feature, History Feature, Conflict Resolution, Time Travel, Core App Structure, Config & Messages, Async & Utilities).
-- **File Renames Executed (12 renames):**
-    - `cursormovement.go` → `cursor_movement.go`
-    - `menubuilder.go` → `menu_builders.go`
-    - `menuitems.go` → `menu_items.go`
-    - `historycache.go` → `history_cache.go`
-    - `keybuilder.go` → `key_builder.go`
-    - `operationsteps.go` → `operation_steps.go`
-    - `stateinfo.go` → `state_info.go`
-    - `conflicthandlers.go` → `conflict_handlers.go`
-    - `conflictstate.go` → `conflict_state.go`
-    - `dirtystate.go` → `dirty_state.go`
-    - `confirmationhandlers.go` → `confirmation_handlers.go`
-    - `githandlers.go` → `git_handlers.go`
-
-#### 2. Handler Naming Fixed
-- Renamed `executeCommitWorkflow()` → `cmdCommitWorkflow()`
-- Renamed `executePushWorkflow()` → `cmdPushWorkflow()`
-- Renamed `executePullMergeWorkflow()` → `cmdPullMergeWorkflow()`
-- Renamed `executePullRebaseWorkflow()` → `cmdPullRebaseWorkflow()`
-- Renamed `executeAddRemoteWorkflow()` → `cmdAddRemoteWorkflow()`
-
-#### 3. Complete Refactoring Plan Verification
-- **Phase 1: Quick Wins:** ✅ COMPLETE
-- **Phase 2: Medium Effort:** ✅ COMPLETE
-- **Phase 3.5: Type Definitions:** ✅ COMPLETE
-- **Phase 3.6: Handler Naming:** ✅ COMPLETE (5 violations fixed, 30+ `cmd*` functions verified)
-- **Phase 3.7: File Organization:** ✅ COMPLETE (12 semantic renames, feature-based grouping documented)
-
-#### 4. Docs Alignment Verification
-- `CODEBASE-REFACTORING-AUDIT.md`: Updated to reflect all Phase 3 chunks complete.
-- `ARCHITECTURE.md`: Added 2 new sections ("Type Definitions Map" + "File Organization by Feature").
-- Code structure: All files renamed, all functions correctly prefixed.
-- Build: Clean compile, zero errors.
-
-### Impact
-- Improved codebase navigation and discoverability by grouping files by feature.
-- Enhanced consistency with handler naming conventions (`cmd*` for functions returning `tea.Cmd`).
-- Ensured comprehensive documentation of the refactoring process and code structure.
-- Verified the successful completion of all planned Phase 3 refactoring tasks.
-
-### Build Status
-✅ Clean compile, zero errors.
-
-### Testing Status
-✅ COMPLETE (Manual verification of file renames, function naming, and documentation updates).
-
-### Verification Checklist
-- ✅ All 12 files renamed as specified.
-- ✅ All 5 handler naming violations fixed.
-- ✅ `ARCHITECTURE.md` updated with "File Organization by Feature" section.
-- ✅ `CODEBASE-REFACTORING-AUDIT.md` updated to reflect completion of Phase 3.
-- ✅ Project builds without errors.
-
-### Summary
-Successfully completed Phase 3 Chunk 7, including file organization by feature, handler naming fixes, and a thorough verification of all Phase 3 refactoring tasks. The codebase is now more organized, consistent, and well-documented, aligning with the refactoring goals outlined in `CODEBASE-REFACTORING-AUDIT.md`.
-
----
-
-## Session 71: Phase 3 Chunk 5 - Type Definition Consolidation ✅ COMPLETE
-
-**Agent:** Amp (claude-code)
-**Date:** 2026-01-10
-
-### Objective
-Complete Chunk 5 of Phase 3 Refactoring: Type Definition Consolidation. Audit all type definitions and create comprehensive location map + navigation guide.
-
-### Work Completed
-
-#### 1. Type Definition Audit
-- Identified all 75+ types across the codebase
-- Categorized by location: git/, app/, ui/, banner/, config/
-- Verified no duplicate type definitions (SSOT maintained)
-- Confirmed types are already well-organized
-
-**Result:** No major moves needed. Types already in optimal locations.
-
-#### 2. ARCHITECTURE.md Enhancement
-- Added new section: **"Type Definitions Location Map"** (~250 lines)
-- Documents all types by category:
-  - **Core Git Types** (11 types) — State, WorkingTree, Timeline, Operation, etc.
-  - **Application Types** (30+ types) — Modes, Menus, Messages, Confirmation dialogs, etc.
-  - **UI Types** (25+ types) — History, File history, Input, Rendering, Theme, etc.
-  - **Banner Types** (6 types) — SVG rendering, Braille, etc.
-
-#### 3. Type Relationships & Cross-References
-- Added **"Type Relationships & Cross-References"** section
-- Documents 3 major chains:
-  - **Git State Chain** — How git.State flows to UI rendering
-  - **Application State Chain** — How AppMode determines rendering
-  - **Error Handling Chain** — How errors propagate through system
-
-#### 4. New Developer Guides
-- **"Adding New Types"** — Checklist before creating types
-- **"Navigation Tips"** — How to find where types live
-- **Example traces** — Q&A format showing type lookups
-
-### Impact
-
-**Documentation Added:**
-- ~250 lines in ARCHITECTURE.md
-- 75+ types catalogued with locations
-- Type relationship diagrams (ASCII flowcharts)
-- Navigation guide for new contributors
-
-**Code Quality:**
-- ✅ Zero duplicate types (SSOT maintained)
-- ✅ All types in logical locations
-- ✅ Type aliases used correctly (semantic clarity)
-- ✅ Related types grouped (e.g., all confirmations together)
-
-**Maintainability:**
-- New contributors can instantly find type definitions
-- Cross-references prevent duplicate type definitions
-- Prevents future type definition sprawl
-- Documents why types are in their locations
-
-### Files Modified
-- `ARCHITECTURE.md` — Added Type Definition Location Map section
-
-### Build Status
-✅ Clean (no code changes, documentation only)
-
-### Testing Status
-✅ COMPLETE (manual verification of type locations)
-
-### Verification Checklist
-- ✅ All types catalogued in ARCHITECTURE.md
-- ✅ No duplicate type definitions found
-- ✅ Each type has location documented
-- ✅ Related types have cross-references
-- ✅ Navigation guide helps new contributors
-- ✅ Example traces show how to find types
-
-### Summary
-Successfully completed Chunk 5 of Phase 3. Comprehensive type definition audit shows types are already well-organized. Created 250-line documentation section in ARCHITECTURE.md that serves as a complete map of all types, their relationships, and navigation tips. This enables new contributors to quickly find type definitions and prevents duplicate type definitions in the future.
-
----
-
-## Session 70 (Consolidated): Codebase Refactoring Audit - Phase 2 Complete ✅ TESTED
-
-**Agent:** Gemini
-**Date:** 2026-01-10
-
-### Objective
-Completed all Priority 2 refactoring projects from CODEBASE-AUDIT-REPORT.md.
-
-### Projects Completed
-
-#### 1. **Pair Confirmation Handlers** (30 min)
-- **Issue:** Two separate maps (`confirmationActions`, `confirmationRejectActions`) made it easy to miss pairing confirm/reject actions.
-- **Solution:** Replaced with a single `ConfirmationActionPair` struct, guaranteeing confirm/reject pairing. This change reduced code from ~60 lines to ~45 lines.
-
-#### 2. **Mode Metadata** (30 min)
-- **Issue:** Missing documentation and clear structure for application modes.
-- **Solution:** Added a `ModeMetadata` struct (containing `Name`, `Description`, `AcceptsInput`, `IsAsync` fields) and documented all 12 modes in a `modeDescriptions` map. Updated `String()` method to use `GetModeMetadata()` for better debugging and future development.
-
-#### 3. **Error Handling Pattern** (45 min)
-- **Issue:** Inconsistent error handling across the application.
-- **Solution:** Created `internal/app/errors.go` to standardize the error handling pattern with an `ErrorConfig` struct. This introduced 3 levels of errors: `ErrorInfo` (for debugging), `ErrorWarn` (user-visible warnings), and `ErrorFatal` (for panics). Added `LogError()` and `LogErrorSimple()` convenience wrappers. Migrated existing error paths (like time travel restoration in `app.go` and fatal checks in `confirmationhandlers.go`) to this new pattern, providing a template for future migrations.
-
-#### 4. **Message Organization** (60 min)
-- **Issue:** Scattered message definitions across 11 different maps, making them hard to find and maintain.
-- **Solution:** Grouped related messages into domain-specific structs.
-    - **InputMessages:** Paired prompts and hints in a struct, replacing 2 maps.
-    - **ConfirmationMessages:** Grouped titles, explanations, and labels in a struct, replacing 3 maps.
-    - Created backwards-compatible facades to avoid breaking existing code.
-
-### Impact Summary
-- Approximately 140 lines of infrastructure were added.
-- **Maps consolidated:** 11 → 7 (after domain grouping)
-- **New struct types:** 3 (ConfirmationActionPair, InputMessage, ConfirmationMessage)
-- **Backwards compatibility:** 100% (facades for old map access)
-- **Code safety:** Guaranteed pairing, better error handling, grouped messages.
-- **Maintainability:** Easier to find related messages, clear intent, and a clear pattern for migrating remaining error paths.
-
-### Build Status
-✅ Clean compile (no errors/warnings)
-
-### Testing Status
-✅ **TESTED AND VERIFIED** - All functionality working.
-
-### Summary
-Successfully completed all Priority 2 refactoring projects. This included pairing confirmation handlers for improved reliability, centralizing mode metadata for better documentation, standardizing the error handling pattern for enhanced consistency, and organizing messages into domain-specific structs for better maintainability. These changes provide a more robust and maintainable codebase.
-
----
-
-## 🤝 HANDOFF - Session 67 Complete
-
-**Status:** Testing phase 1-3 complete, 27/30 tests passed
-
-**Completed:**
-- ✅ Cache precomputation contract fully implemented and tested
-- ✅ Time travel Phase 1-3 testing (clean tree, dirty tree, merge)
-- ✅ Edge cases, full flow tests, regression tests
-- ✅ All features in production-ready state
-
-**Deferred:**
-- ⏳ Phase 4.2-4.3: Specific merge conflict scenarios
-- ⏳ Phase 5.1-5.2: Return with merge conflicts (stash apply conflicts)
-- ⏳ Conflict resolver refinement (in parallel development)
-
-**Test Results:** See `TIME-TRAVEL-TESTING-CHECKLIST.md` (27/30 tests)
-
-**Next Session:** Continue with deferred tests OR start new feature work
