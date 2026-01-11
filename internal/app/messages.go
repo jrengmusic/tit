@@ -43,6 +43,10 @@ type InputSubmittedMsg struct {
 	Value  string
 }
 
+// OutputRefreshMsg triggers UI re-render to show updated console output
+// Sent periodically during long-running operations to display streaming output
+type OutputRefreshMsg struct{}
+
 // CacheProgressMsg reports cache building progress (for UI updates)
 type CacheProgressMsg struct {
 	CacheType string // "metadata" or "diffs"

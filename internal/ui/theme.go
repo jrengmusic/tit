@@ -57,8 +57,9 @@ operationMerging = "#00C8D8"          # blueBikini (merge in progress)
 operationRebasing = "#00C8D8"         # blueBikini (rebase in progress)
 operationDirtyOp = "#FC704C"          # preciousPersimmon (dirty operation)
 
-# Menu
+# Menu / Buttons
 menuSelectionBackground = "#7EB8C5"    # brighter muted teal (background when highlighted)
+buttonSelectedTextColor = "#0D1418"    # dark text on bright button background
 
 # Diff Colors (muted/desaturated for readability - old-tit exact)
 diffAddedLineColor = "#5A9C7A"          # muted green (added lines in diff)
@@ -127,8 +128,9 @@ type ThemeDefinition struct {
 		OperationRebasing   string `toml:"operationRebasing"`
 		OperationDirtyOp    string `toml:"operationDirtyOp"`
 
-		// UI Elements
+		// UI Elements / Buttons
 		MenuSelectionBackground string `toml:"menuSelectionBackground"`
+		ButtonSelectedTextColor string `toml:"buttonSelectedTextColor"`
 
 		// Diff Colors
 		DiffAddedLineColor   string `toml:"diffAddedLineColor"`
@@ -195,8 +197,9 @@ type Theme struct {
 	OperationRebasing   string
 	OperationDirtyOp    string
 
-	// UI Elements
+	// UI Elements / Buttons
 	MenuSelectionBackground string
+	ButtonSelectedTextColor string
 
 	// Diff Colors
 	DiffAddedLineColor   string
@@ -273,8 +276,9 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		OperationRebasing:   themeDef.Palette.OperationRebasing,
 		OperationDirtyOp:    themeDef.Palette.OperationDirtyOp,
 
-		// UI Elements
+		// UI Elements / Buttons
 		MenuSelectionBackground: themeDef.Palette.MenuSelectionBackground,
+		ButtonSelectedTextColor: themeDef.Palette.ButtonSelectedTextColor,
 
 		// Diff Colors
 		DiffAddedLineColor:   themeDef.Palette.DiffAddedLineColor,

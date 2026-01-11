@@ -136,10 +136,10 @@ func (c *ConfirmationDialog) Render() string {
 	config := c.ApplyContext()
 
 	// Button colors from active theme
-	// Selected button: MenuSelectionBackground + HighlightTextColor
+	// Selected button: MenuSelectionBackground + ButtonSelectedTextColor (dark on bright)
 	// Unselected button: InlineBackgroundColor + ContentTextColor
 	selectedBg := lipgloss.Color(c.Theme.MenuSelectionBackground)
-	selectedFg := lipgloss.Color(c.Theme.HighlightTextColor)
+	selectedFg := lipgloss.Color(c.Theme.ButtonSelectedTextColor)
 	unselectedBg := lipgloss.Color(c.Theme.InlineBackgroundColor)
 	unselectedFg := lipgloss.Color(c.Theme.ContentTextColor)
 
@@ -206,8 +206,8 @@ func (c *ConfirmationDialog) Render() string {
 	content.WriteString(explanationStyle.Render(config.Explanation) + "\n")
 
 	content.WriteString("\n")
-	// Create button layout
-	yesButton := yesButtonStyle.Render(config.YesLabel)
+	// Create button layout - ALL CAPS for button labels
+	yesButton := yesButtonStyle.Render(strings.ToUpper(config.YesLabel))
 
 	var buttonRow string
 	if config.NoLabel == "" {
@@ -215,7 +215,7 @@ func (c *ConfirmationDialog) Render() string {
 		buttonRow = yesButton
 	} else {
 		// Two buttons (confirmation dialog)
-		noButton := noButtonStyle.Render(config.NoLabel)
+		noButton := noButtonStyle.Render(strings.ToUpper(config.NoLabel))
 		buttonRow = lipgloss.JoinHorizontal(lipgloss.Center, yesButton, "  ", noButton)
 	}
 

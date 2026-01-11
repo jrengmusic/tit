@@ -437,6 +437,14 @@ func (a *Application) handleCloneLocationChoice2(app *Application) (tea.Model, t
 	return app.handleLocationChoice(2, cloneLocationConfig)
 }
 
+// cmdRefreshConsole sends periodic refresh messages while async operation is active
+// This forces UI re-renders to display streaming output in real-time
+func (a *Application) cmdRefreshConsole() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return OutputRefreshMsg{}
+	})
+}
+
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.asyncOperationActive = true
@@ -448,7 +456,11 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.outputBuffer.Clear()
 	a.footerHint = GetFooterMessageText(MessageClone)
 
-	return a, a.cmdCloneWorkflow()
+	// Return BOTH the clone worker AND periodic refresh ticker
+	return a, tea.Batch(
+		a.cmdCloneWorkflow(),
+		a.cmdRefreshConsole(),
+	)
 }
 
 // cmdCloneWorkflow launches git clone in a worker and returns a command
@@ -462,32 +474,50 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 		effectivePath := cwd // Default to current working directory
 		
 		if cloneMode == "here" {
-			// Clone here: init + remote add + fetch + force checkout
+			// Clone here: init + remote add + fetch + checkout with tracking
+			buffer := ui.GetBuffer()
+			
+			// Step 1: git init
 			result := git.ExecuteWithStreaming("init")
 			if !result.Success {
 				return GitOperationMsg{Step: OpClone, Success: false, Error: "git init failed", Path: effectivePath}
 			}
 
+			// Step 2: git remote add origin <url>
 			result = git.ExecuteWithStreaming("remote", "add", "origin", cloneURL)
 			if !result.Success {
 				return GitOperationMsg{Step: OpClone, Success: false, Error: "git remote add failed", Path: effectivePath}
 			}
 
+			// Step 3: Query remote default branch BEFORE fetch (using git ls-remote)
+			buffer.Append("Querying remote default branch...", ui.TypeStatus)
+			defaultBranch, err := git.GetRemoteDefaultBranch()
+			if err != nil {
+				return GitOperationMsg{
+					Step:    OpClone,
+					Success: false,
+					Error:   fmt.Sprintf("Failed to determine default branch: %v", err),
+					Path:    effectivePath,
+				}
+			}
+			buffer.Append(fmt.Sprintf("Remote default branch: %s", defaultBranch), ui.TypeStatus)
+
+			// Step 4: Fetch all refs
 			result = git.ExecuteWithStreaming("fetch", "--all", "--progress")
 			if !result.Success {
 				return GitOperationMsg{Step: OpClone, Success: false, Error: "git fetch failed", Path: effectivePath}
 			}
 
-			// Get default branch from remote
-			defaultBranch := git.GetRemoteDefaultBranch()
-			if defaultBranch == "" {
-				defaultBranch = "main"
-			}
-
-			// Force checkout to overwrite untracked files (like .DS_Store)
-			result = git.ExecuteWithStreaming("checkout", "-f", defaultBranch)
+			// Step 5: Create and checkout local branch tracking remote
+			// This sets up upstream automatically: -t = --track (sets upstream to origin/<branch>)
+			result = git.ExecuteWithStreaming("checkout", "-t", "origin/"+defaultBranch)
 			if !result.Success {
-				return GitOperationMsg{Step: OpClone, Success: false, Error: "git checkout failed", Path: effectivePath}
+				return GitOperationMsg{
+					Step:    OpClone,
+					Success: false,
+					Error:   fmt.Sprintf("git checkout -t origin/%s failed: unable to create local tracking branch", defaultBranch),
+					Path:    effectivePath,
+				}
 			}
 		} else {
 			// Clone to subdir: git clone creates subdir with repo name automatically

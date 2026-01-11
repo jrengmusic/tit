@@ -121,20 +121,54 @@ func ListBranches() ([]string, error) {
 	return branches, nil
 }
 
-// GetRemoteDefaultBranch returns the default branch from origin
-func GetRemoteDefaultBranch() string {
-	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
-	output, err := cmd.Output()
+// GetRemoteDefaultBranch queries the remote HEAD symref WITHOUT fetch
+// Returns the default branch name from the remote, or error if undeterminable
+// This uses git ls-remote to read the symbolic ref directly from remote
+// FAIL FAST: If we can't determine the branch, we fail loudly
+func GetRemoteDefaultBranch() (string, error) {
+	// Use git ls-remote --symref to read origin/HEAD symref directly from remote
+	// Format: "ref: refs/heads/main	HEAD" or just "HEAD" without ref line
+	cmd := exec.Command("git", "ls-remote", "--symref", "origin", "HEAD")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return ""
+		return "", fmt.Errorf("failed to query remote HEAD: %w (output: %s)", err, string(output))
 	}
-	// Output is like "refs/remotes/origin/main"
-	ref := strings.TrimSpace(string(output))
-	parts := strings.Split(ref, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
+	
+	// Parse the output
+	// Line 1 is either "ref: refs/heads/main\tHEAD" or empty
+	// Line 2 is "<hash>\tHEAD" (or the only line if no symref found)
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	
+	// FAIL FAST: Must have at least one line
+	if len(lines) == 0 {
+		return "", fmt.Errorf("empty response from git ls-remote --symref origin HEAD - remote may not be a git repository")
 	}
-	return ""
+	
+	// Look for the "ref: refs/heads/XXX" line
+	for _, line := range lines {
+		if strings.HasPrefix(line, "ref:") {
+			// Format: "ref: refs/heads/main	HEAD"
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				refPath := parts[1] // "refs/heads/main"
+				
+				// Extract branch name from "refs/heads/main" → "main"
+				refParts := strings.Split(refPath, "/")
+				if len(refParts) >= 3 && refParts[0] == "refs" && refParts[1] == "heads" {
+					branch := strings.Join(refParts[2:], "/") // Handle branch names with slashes
+					
+					if branch == "" {
+						return "", fmt.Errorf("invalid remote HEAD ref: %s", refPath)
+					}
+					
+					return branch, nil
+				}
+			}
+		}
+	}
+	
+	// FAIL FAST: If we get here, the remote doesn't have a symbolic HEAD
+	return "", fmt.Errorf("remote HEAD is not a symbolic ref - cannot determine default branch. Output was: %s", string(output))
 }
 
 // ListRemoteBranches returns all remote branches (without remote prefix)

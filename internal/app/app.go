@@ -570,6 +570,17 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.footerHint = "" // Clear confirmation message
 		}
 
+	case OutputRefreshMsg:
+		// Force re-render to display updated console output
+		// If operation still active, schedule next refresh tick
+		if a.asyncOperationActive {
+			return a, tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+				return OutputRefreshMsg{}
+			})
+		}
+		// Operation completed, stop sending refresh messages
+		return a, nil
+
 	case GitOperationMsg:
 		// AUDIO THREAD - Worker returned git operation result
 		return a.handleGitOperation(msg)
@@ -593,6 +604,18 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case git.TimeTravelReturnMsg:
 		// Time travel return operation completed
 		return a.handleTimeTravelReturn(msg)
+	case SetupCompleteMsg:
+		// SSH key generation completed successfully
+		if msg.Step == "generate" {
+			a.setupWizardStep = SetupStepDisplayKey
+		}
+		return a, nil
+
+	case SetupErrorMsg:
+		// Error occurred during setup
+		// For now, just log the error and stay on current step
+		// TODO: Show error to user in UI
+		return a, nil
 	}
 
 	return a, nil
@@ -1013,7 +1036,8 @@ func (a *Application) RenderStateHeader() string {
 // isInputMode checks if current mode accepts text input
 func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
-		a.mode == ModeCloneURL
+		a.mode == ModeCloneURL ||
+		(a.mode == ModeSetupWizard && a.setupWizardStep == SetupStepEmail)
 }
 
 // menuItemsToMaps converts MenuItem slice to map slice for rendering
