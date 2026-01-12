@@ -160,7 +160,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 		return a, nil
 
-	case OpCommit, OpPush:
+	case OpCommit, OpPush, OpCommitPush:
 		// Simple operations: reload state
 		state, err := git.DetectState()
 		if err != nil {
