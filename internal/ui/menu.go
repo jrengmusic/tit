@@ -157,9 +157,8 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 		bottomPad = 0
 	}
 
-	// Horizontal centering
-	contentWidth := 80
-	leftPad := (contentWidth - menuBoxWidth) / 2
+	// Horizontal centering using SSOT
+	leftPad := (ContentInnerWidth - menuBoxWidth) / 2
 	if leftPad < 0 {
 		leftPad = 0
 	}
@@ -168,7 +167,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 	// Top padding
 	for i := 0; i < topPad; i++ {
-		result.WriteString(strings.Repeat(" ", contentWidth))
+		result.WriteString(strings.Repeat(" ", ContentInnerWidth))
 		if i < topPad-1 || menuHeight > 0 {
 			result.WriteString("\n")
 		}
@@ -178,8 +177,8 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 	for i, line := range lines {
 		centeredLine := strings.Repeat(" ", leftPad) + line
 		lineWidth := lipgloss.Width(centeredLine)
-		if lineWidth < contentWidth {
-			centeredLine = centeredLine + strings.Repeat(" ", contentWidth-lineWidth)
+		if lineWidth < ContentInnerWidth {
+			centeredLine = centeredLine + strings.Repeat(" ", ContentInnerWidth-lineWidth)
 		}
 		result.WriteString(centeredLine)
 		if i < len(lines)-1 || bottomPad > 0 {
@@ -189,7 +188,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 	// Bottom padding
 	for i := 0; i < bottomPad; i++ {
-		result.WriteString(strings.Repeat(" ", contentWidth))
+		result.WriteString(strings.Repeat(" ", ContentInnerWidth))
 		if i < bottomPad-1 {
 			result.WriteString("\n")
 		}

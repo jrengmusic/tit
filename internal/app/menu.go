@@ -250,9 +250,9 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 		historyItem.Enabled = false
 		historyItem.Emoji = ui.GetSpinnerFrame(a.cacheAnimationFrame)
 		if metadataTotal > 0 {
-			historyItem.Label = fmt.Sprintf("History [Building... %d/%d]", metadataProgress, metadataTotal)
+			historyItem.Label = fmt.Sprintf("History %d/%d", metadataProgress, metadataTotal)
 		} else {
-			historyItem.Label = "History [Building...]"
+			historyItem.Label = "History..."
 		}
 	} else {
 		historyItem.Enabled = true
@@ -265,9 +265,9 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 		fileHistoryItem.Enabled = false
 		fileHistoryItem.Emoji = ui.GetSpinnerFrame(a.cacheAnimationFrame)
 		if diffsTotal > 0 {
-			fileHistoryItem.Label = fmt.Sprintf("File(s) history [Building... %d/%d]", diffsProgress, diffsTotal)
+			fileHistoryItem.Label = fmt.Sprintf("Files %d/%d", diffsProgress, diffsTotal)
 		} else {
-			fileHistoryItem.Label = "File(s) history [Building...]"
+			fileHistoryItem.Label = "Files..."
 		}
 	} else {
 		fileHistoryItem.Enabled = true

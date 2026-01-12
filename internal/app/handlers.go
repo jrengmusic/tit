@@ -463,9 +463,6 @@ func (a *Application) cmdRefreshCacheProgress() tea.Cmd {
 	})
 }
 
-// CacheRefreshTickMsg triggers a cache progress refresh and re-schedules itself
-type CacheRefreshTickMsg struct{}
-
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.asyncOperationActive = true

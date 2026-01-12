@@ -15,19 +15,14 @@ var SpinnerFrames = []string{
 	"⠏",
 }
 
-// spinnerFrameSet is a lookup set for fast spinner detection
-var spinnerFrameSet = map[string]bool{
-	"⠋": true,
-	"⠙": true,
-	"⠹": true,
-	"⠸": true,
-	"⠼": true,
-	"⠴": true,
-	"⠦": true,
-	"⠧": true,
-	"⠇": true,
-	"⠏": true,
-}
+// spinnerFrameSet is derived from SpinnerFrames for fast O(1) lookup
+var spinnerFrameSet = func() map[string]bool {
+	set := make(map[string]bool, len(SpinnerFrames))
+	for _, frame := range SpinnerFrames {
+		set[frame] = true
+	}
+	return set
+}()
 
 // SpinnerFrameCount returns the total number of animation frames
 func SpinnerFrameCount() int {

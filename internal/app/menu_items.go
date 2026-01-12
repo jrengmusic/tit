@@ -2,7 +2,7 @@ package app
 
 // MenuItems is the single source of truth for all menu item definitions
 // Every menu item ID, shortcut, emoji, label, and hint is defined here
-// This ensures no conflicts and makes auditing easy
+// Labels must be max 21 characters to fit menu column width
 var MenuItems = map[string]MenuItem{
 	// NotRepo state
 	"init": {
@@ -73,7 +73,7 @@ var MenuItems = map[string]MenuItem{
 		ID:       "reset_discard_changes",
 		Shortcut: "r",
 		Emoji:    "💥",
-		Label:    "Reset to remote (discard changes)",
+		Label:    "Discard all changes",
 		Hint:     "💥 DESTRUCTIVE: Discard uncommitted changes, reset to remote state",
 		Enabled:  true,
 	},
@@ -91,7 +91,7 @@ var MenuItems = map[string]MenuItem{
 		ID:       "force_push",
 		Shortcut: "f",
 		Emoji:    "💥",
-		Label:    "Replace remote (force push)",
+		Label:    "Force push",
 		Hint:     "💥 DESTRUCTIVE: Overwrite remote branch with local commits",
 		Enabled:  true,
 	},
@@ -117,7 +117,7 @@ var MenuItems = map[string]MenuItem{
 		ID:       "replace_local",
 		Shortcut: "x",
 		Emoji:    "💥",
-		Label:    "Replace local (hard reset)",
+		Label:    "Replace local",
 		Hint:     "💥 DESTRUCTIVE: Discard local commits, match remote exactly",
 		Enabled:  true,
 	},
@@ -209,7 +209,7 @@ var MenuItems = map[string]MenuItem{
 		ID:       "init_here",
 		Shortcut: "1",
 		Emoji:    "📍",
-		Label:    "Initialize current directory",
+		Label:    "Initialize directory",
 		Hint:     "Create repository here",
 		Enabled:  true,
 	},
@@ -225,7 +225,7 @@ var MenuItems = map[string]MenuItem{
 		ID:       "clone_here",
 		Shortcut: "1",
 		Emoji:    "📍",
-		Label:    "Clone to current directory",
+		Label:    "Clone to directory",
 		Hint:     "Clone repository here",
 		Enabled:  true,
 	},

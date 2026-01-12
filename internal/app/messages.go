@@ -63,6 +63,10 @@ type CacheProgressMsg struct {
 	Complete  bool   // true when cache is fully built
 }
 
+// CacheRefreshTickMsg triggers periodic UI refresh during cache building
+// Sent every 100ms to update spinner animation and progress counter
+type CacheRefreshTickMsg struct{}
+
 // FooterMessageType enum for different footer message states
 type FooterMessageType int
 
