@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"tit/internal/git"
+	"tit/internal/ui"
 )
 
 // MenuItem represents a single menu action or separator
@@ -247,7 +248,7 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 	historyItem := GetMenuItem(historyID)
 	if !metadataReady {
 		historyItem.Enabled = false
-		historyItem.Emoji = "⏳"
+		historyItem.Emoji = ui.GetSpinnerFrame(a.cacheAnimationFrame)
 		if metadataTotal > 0 {
 			historyItem.Label = fmt.Sprintf("History [Building... %d/%d]", metadataProgress, metadataTotal)
 		} else {
@@ -262,7 +263,7 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 	fileHistoryItem := GetMenuItem(fileHistoryID)
 	if !diffsReady {
 		fileHistoryItem.Enabled = false
-		fileHistoryItem.Emoji = "⏳"
+		fileHistoryItem.Emoji = ui.GetSpinnerFrame(a.cacheAnimationFrame)
 		if diffsTotal > 0 {
 			fileHistoryItem.Label = fmt.Sprintf("File(s) history [Building... %d/%d]", diffsProgress, diffsTotal)
 		} else {

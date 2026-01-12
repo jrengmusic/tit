@@ -42,7 +42,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 	// Column widths for menu box
 	keyColWidth := 3
 	emojiColWidth := 3
-	labelColWidth := 42
+	labelColWidth := 21
 	menuBoxWidth := keyColWidth + emojiColWidth + labelColWidth
 
 	// Build styled lines
@@ -94,12 +94,19 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 		// Build styled line
 		var styledLine string
 
+		// Check if emoji is a spinner (braille character) for special coloring
+		isSpinner := IsSpinnerFrame(emoji)
+
 		if !enabled {
-			// Disabled: dimmed
+			// Disabled: dimmed text, but spinner gets vivid color
 			keyStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.DimmedTextColor))
 			emojiStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.DimmedTextColor))
+			if isSpinner {
+				emojiStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color(theme.SpinnerColor))
+			}
 			labelStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.DimmedTextColor))
 			styledLine = keyStyle.Render(keyCol) + emojiStyle.Render(emojiCol) + labelStyle.Render(labelCol)
@@ -110,6 +117,10 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 				Bold(true)
 			emojiStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.LabelTextColor))
+			if isSpinner {
+				emojiStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color(theme.SpinnerColor))
+			}
 			labelStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
 				Background(lipgloss.Color(theme.MenuSelectionBackground)).
@@ -122,6 +133,10 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 				Bold(true)
 			emojiStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.LabelTextColor))
+			if isSpinner {
+				emojiStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color(theme.SpinnerColor))
+			}
 			labelStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.LabelTextColor))
 			styledLine = keyStyle.Render(keyCol) + emojiStyle.Render(emojiCol) + labelStyle.Render(labelCol)

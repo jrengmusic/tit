@@ -61,6 +61,9 @@ operationDirtyOp = "#FC704C"          # preciousPersimmon (dirty operation)
 menuSelectionBackground = "#7EB8C5"    # brighter muted teal (background when highlighted)
 buttonSelectedTextColor = "#0D1418"    # dark text on bright button background
 
+# Animation
+spinnerColor = "#00FFFF"               # electric cyan (vivid loading spinner)
+
 # Diff Colors (muted/desaturated for readability - old-tit exact)
 diffAddedLineColor = "#5A9C7A"          # muted green (added lines in diff)
 diffRemovedLineColor = "#B07070"        # muted red/burgundy (removed lines in diff)
@@ -132,6 +135,9 @@ type ThemeDefinition struct {
 		MenuSelectionBackground string `toml:"menuSelectionBackground"`
 		ButtonSelectedTextColor string `toml:"buttonSelectedTextColor"`
 
+		// Animation
+		SpinnerColor string `toml:"spinnerColor"`
+
 		// Diff Colors
 		DiffAddedLineColor   string `toml:"diffAddedLineColor"`
 		DiffRemovedLineColor string `toml:"diffRemovedLineColor"`
@@ -200,6 +206,9 @@ type Theme struct {
 	// UI Elements / Buttons
 	MenuSelectionBackground string
 	ButtonSelectedTextColor string
+
+	// Animation
+	SpinnerColor string
 
 	// Diff Colors
 	DiffAddedLineColor   string
@@ -279,6 +288,9 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		// UI Elements / Buttons
 		MenuSelectionBackground: themeDef.Palette.MenuSelectionBackground,
 		ButtonSelectedTextColor: themeDef.Palette.ButtonSelectedTextColor,
+
+		// Animation
+		SpinnerColor: themeDef.Palette.SpinnerColor,
 
 		// Diff Colors
 		DiffAddedLineColor:   themeDef.Palette.DiffAddedLineColor,

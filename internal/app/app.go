@@ -110,6 +110,7 @@ type Application struct {
 	cacheMetadataTotal       int  // Total commits to process
 	cacheDiffsProgress       int  // Current commit processed for diffs
 	cacheDiffsTotal          int  // Total commits to process
+	cacheAnimationFrame      int  // Animation frame for loading spinner
 
 	// Mutexes for thread-safe cache access
 	historyCacheMutex    sync.Mutex
@@ -889,6 +890,9 @@ func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
 	if metadataComplete && diffsComplete {
 		return a, nil
 	}
+
+	// Advance animation frame
+	a.cacheAnimationFrame++
 
 	// Regenerate menu to show updated progress
 	menu := a.GenerateMenu()
