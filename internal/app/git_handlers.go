@@ -42,6 +42,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			a.dirtyOperationState = nil
 		}
 
+		// Always refresh git state after failure - the operation may have partially succeeded
+		// (e.g., commit with weird exit code but changes were actually committed)
+		if state, err := git.DetectState(); err == nil {
+			a.gitState = state
+		}
+
 		return a, nil
 	}
 
