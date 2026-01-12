@@ -21,7 +21,7 @@ func RenderMenuWithSelection(items interface{}, selectedIndex int, theme Theme) 
 	return RenderMenuWithHeight(items, selectedIndex, theme, 24)
 }
 
-// RenderMenuWithHeight renders menu items centered with 3-column layout (EMOJI | KEY | LABEL)
+// RenderMenuWithHeight renders menu items centered with 3-column layout (KEY | EMOJI | LABEL)
 // items can be []app.MenuItem (passed as interface{})
 func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, contentHeight int) string {
 	// Type assertion to handle app.MenuItem
@@ -40,18 +40,20 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 	}
 
 	// Column widths for menu box
-	emojiColWidth := 3
 	keyColWidth := 3
+	emojiColWidth := 3
 	labelColWidth := 42
-	menuBoxWidth := emojiColWidth + keyColWidth + labelColWidth
+	menuBoxWidth := keyColWidth + emojiColWidth + labelColWidth
 
 	// Build styled lines
 	var lines []string
 	for i, itemMap := range menuItems {
 		// Handle separators
 		if isSep, ok := itemMap["Separator"].(bool); ok && isSep {
-			sepLine := strings.Repeat("─", menuBoxWidth)
-			separator := lipgloss.NewStyle().
+			// Separator spans emoji + label columns only (not shortcut column)
+			keyPad := strings.Repeat(" ", keyColWidth)
+			sepLine := strings.Repeat("─", emojiColWidth+labelColWidth)
+			separator := keyPad + lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.DimmedTextColor)).
 				Render(sepLine)
 			lines = append(lines, separator)
@@ -63,7 +65,10 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 		label, _ := itemMap["Label"].(string)
 		enabled, _ := itemMap["Enabled"].(bool)
 
-		// Column 1: EMOJI (center-aligned)
+		// Column 1: KEY (left-aligned)
+		keyCol := shortcut + strings.Repeat(" ", keyColWidth-1)
+
+		// Column 2: EMOJI (center-aligned)
 		emojiCol := emoji
 		emojiW := lipgloss.Width(emojiCol)
 		leftPad := (emojiColWidth - emojiW) / 2
@@ -76,9 +81,6 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 			rightPad = 0
 		}
 		emojiCol = strings.Repeat(" ", leftPad) + emojiCol + strings.Repeat(" ", rightPad)
-
-		// Column 2: KEY (left-aligned)
-		keyCol := shortcut + strings.Repeat(" ", keyColWidth-1)
 
 		// Column 3: LABEL (left-aligned, truncate if needed)
 		labelCol := label
@@ -94,35 +96,35 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 		if !enabled {
 			// Disabled: dimmed
-			emojiStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.DimmedTextColor))
 			keyStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(theme.DimmedTextColor))
+			emojiStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.DimmedTextColor))
 			labelStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.DimmedTextColor))
-			styledLine = emojiStyle.Render(emojiCol) + keyStyle.Render(keyCol) + labelStyle.Render(labelCol)
+			styledLine = keyStyle.Render(keyCol) + emojiStyle.Render(emojiCol) + labelStyle.Render(labelCol)
 		} else if i == selectedIndex {
 			// Selected: highlight background
-			emojiStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.LabelTextColor))
 			keyStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.AccentTextColor)).
 				Bold(true)
+			emojiStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(theme.LabelTextColor))
 			labelStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.MainBackgroundColor)).
 				Background(lipgloss.Color(theme.MenuSelectionBackground)).
 				Bold(true)
-			styledLine = emojiStyle.Render(emojiCol) + keyStyle.Render(keyCol) + labelStyle.Render(labelCol)
+			styledLine = keyStyle.Render(keyCol) + emojiStyle.Render(emojiCol) + labelStyle.Render(labelCol)
 		} else {
 			// Normal
-			emojiStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.LabelTextColor))
 			keyStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.AccentTextColor)).
 				Bold(true)
+			emojiStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color(theme.LabelTextColor))
 			labelStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(theme.LabelTextColor))
-			styledLine = emojiStyle.Render(emojiCol) + keyStyle.Render(keyCol) + labelStyle.Render(labelCol)
+			styledLine = keyStyle.Render(keyCol) + emojiStyle.Render(emojiCol) + labelStyle.Render(labelCol)
 		}
 
 		lines = append(lines, styledLine)
