@@ -2317,6 +2317,36 @@ Clean separation: Menu generators produce items, dispatchers route to modes, han
 
 ---
 
+## REWIND Operation (git reset --hard)
+
+**Entry Point:** Commit history browser, Ctrl+ENTER on selected commit
+
+**State Transitions:**
+```
+ModeHistory
+  ↓ (Ctrl+ENTER)
+Confirmation dialog
+  ↓ (User confirms)
+ModeConsole + asyncOperationActive = true
+  ↓ (executeRewindOperation runs in goroutine)
+ModeConsole (waiting for RewindMsg)
+  ↓ (git reset --hard completes)
+RewindMsg received
+  ↓ (handler refreshes git state)
+ModeMenu + updated state
+```
+
+**Key differences from Time Travel:**
+- ENTER: Safe, read-only, reversible (detached HEAD with time travel menu)
+- Ctrl+ENTER: Destructive, permanent, discards commits (reset --hard)
+
+**Always Available:** REWIND can be initiated from any Operation state (including TimeTraveling). Confirmation dialog warns if not in Normal state.
+
+**Implementation:**
+- `git.ResetHardAtCommit(commitHash)` executes reset
+- OutputBuffer streams git output in real-time
+- RewindMsg handler refreshes git state and regenerates menu
+
 ## Related Documentation
 
 - `SPEC.md` - User-facing behavior specification

@@ -29,6 +29,7 @@ const (
 	Rebasing       Operation = "Rebasing"
 	DirtyOperation Operation = "DirtyOperation"
 	TimeTraveling  Operation = "TimeTraveling"
+	Rewinding      Operation = "Rewinding" // Represents active rewind operation (git reset --hard in progress)
 )
 
 type Remote string

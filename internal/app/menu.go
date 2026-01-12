@@ -249,9 +249,9 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 		historyItem.Enabled = false
 		historyItem.Emoji = "⏳"
 		if metadataTotal > 0 {
-			historyItem.Label = fmt.Sprintf("Commit history [Building... %d/%d]", metadataProgress, metadataTotal)
+			historyItem.Label = fmt.Sprintf("History [Building... %d/%d]", metadataProgress, metadataTotal)
 		} else {
-			historyItem.Label = "Commit history [Building...]"
+			historyItem.Label = "History [Building...]"
 		}
 	} else {
 		historyItem.Enabled = true

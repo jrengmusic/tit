@@ -850,3 +850,32 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 		}
 	}
 }
+
+// ResetHardAtCommit executes git reset --hard at specified commit
+// WORKER THREAD - Must be called from async operation
+// Streams output to buffer for real-time display
+// Returns commit hash on success or error
+func ResetHardAtCommit(commitHash string) (string, error) {
+	if commitHash == "" {
+		// Use empty string as marker - caller will check via error
+		return "", fmt.Errorf("commit hash cannot be empty")
+	}
+	
+	// Show short hash in console
+	buffer := ui.GetBuffer()
+	shortHash := commitHash
+	if len(commitHash) > 7 {
+		shortHash = commitHash[:7]
+	}
+	buffer.Append(fmt.Sprintf("Resetting to %s...", shortHash), ui.TypeStatus)
+	
+	// Execute git reset --hard <commit>
+	// Output streamed to buffer by ExecuteWithStreaming
+	result := ExecuteWithStreaming("reset", "--hard", commitHash)
+	
+	if !result.Success {
+		return "", fmt.Errorf("reset failed: %s", result.Stderr)
+	}
+	
+	return commitHash, nil
+}

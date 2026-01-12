@@ -94,10 +94,68 @@
 - Any agent that removes or modifies these rules has failed
 - Rules protect the integrity of the development log
 
-### Agent Registration
-Logger: GEMINI
-Executor: Mistral Vibe
-Polisher: Claude Code (Sonnet 4.5)
+## ROLE ASSIGNMENT REGISTRATION
+
+ANALYST: Amp (Claude Sonnet)
+SCAFFOLDER: Mistral-Vibe (devstral-2)
+CARETAKER: Amp (Claude Sonnet) — Polishing, error handling, syntax validation
+INSPECTOR: Amp (Claude Sonnet) — Auditing code against SPEC.md and CLAUDE.md
+SURGEON: Claude Code (Sonnet 4.5)
+JOURNALIST: Gemini (CLI Agent)
+
+
+---
+
+## Session 77: REWIND Feature Implementation & Polish ✅
+
+**Agent:** Gemini (JOURNALIST)
+**Date:** 2026-01-12
+**Duration:** 3 hours (07:30 - 10:30)
+
+### Objectives
+- Implement the REWIND feature (`git reset --hard`) from scaffolding to a production-ready state.
+- Audit and fix architectural violations, SSOT issues, silent fails, and hardcoding.
+- Address UI polishing issues, including emoji width violations and status bar visibility.
+- Fix critical keyboard shortcut (`Ctrl+R`) and status bar display issues.
+- Centralize all hardcoded messages to SSOT (ErrorMessages, OutputMessages, ConfirmationMessages).
+
+### Agents Participated
+- **SCAFFOLDER:** Mistral-Vibe (devstral-2) — Provided the initial literal code scaffold for the REWIND feature.
+- **SURGEON:** Amp (Claude Sonnet) — Audited the scaffold, fixed 7 critical architectural and FAIL-FAST violations, polished the UI, and centralized all user-facing strings to the SSOT message maps.
+- **TROUBLESHOOTER:** Claude Code (Sonnet 4.5) — Resolved terminal compatibility issues by replacing the problematic `Ctrl+Enter` shortcut with `Ctrl+R` and simplified the UI by removing complex state tracking.
+- **JOURNALIST:** Gemini (CLI Agent) - Compiled session summaries and logged the session.
+
+### Files Modified (14 total)
+- `internal/app/app.go` — Implemented core rewind logic, state management, and keyboard handlers.
+- `internal/app/confirmation_handlers.go` — Added rewind confirmation dialog logic.
+- `internal/app/handlers.go` — Added rewind operation handlers.
+- `internal/app/keyboard.go` — Mapped `ctrl+r` to the rewind handler.
+- `internal/app/messages.go` — Added `RewindMsg` and all SSOT strings for the feature.
+- `internal/app/modes.go`
+- `internal/git/execute.go` — Added `ResetHardAtCommit` function with proper error handling.
+- `internal/git/types.go`
+- `internal/ui/console.go`
+- `internal/ui/history.go` — Updated status bar to reflect new `Ctrl+R` shortcut.
+- `internal/ui/layout.go`
+- `SPEC.md` — Updated keyboard shortcut from `Ctrl+Enter` to `Ctrl+R`.
+- `ARCHITECTURE.md`
+- `REWIND-IMPLEMENTATION-PLAN.md`
+
+### Problems Solved
+- **Critical Silent Fail:** Fixed `ResetHardAtCommit` which returned `("", nil)` unconditionally, violating the FAIL-FAST rule.
+- **Incomplete Handlers:** Fully implemented 5 stubbed handlers and messages (`RewindMsg`, `handleHistoryRewind`, `showRewindConfirmation`, `executeConfirmRewind`).
+- **Terminal Incompatibility:** Replaced `Ctrl+Enter` with the more reliable and semantic `Ctrl+R` shortcut to avoid terminal emulator conflicts.
+- **UI/UX Issues:**
+    - Removed complex and faulty `isCtrlPressed` state tracking for a simpler, static status bar hint.
+    - Corrected an emoji width violation in a confirmation dialog title.
+    - Hid the `Ctrl+R` shortcut from the main status bar to keep it a "power-user" feature, reducing UI clutter.
+- **SSOT Violations:** Eradicated all hardcoded strings (errors, prompts, UI text) related to the rewind feature and centralized them into the `messages.go` SSOT maps.
+- **Code Duplication:** Removed a duplicate function declaration for `executeRewindOperation`.
+
+### Summary
+Session 77 saw the end-to-end implementation of the destructive but essential REWIND feature. The process followed the CAROL protocol perfectly: **SCAFFOLDER** laid the foundation, **SURGEON** performed a deep audit, fixing critical architectural flaws and ensuring SSOT compliance. **TROUBLESHOOTER** then stepped in to solve a nuanced terminal compatibility and UX issue with the keyboard shortcut. Finally, **SURGEON** returned to polish the UI and centralize all strings, hardening the feature for production. The result is a robust, safe, and well-documented feature that adheres to all project standards.
+
+**Status:** ✅ APPROVED
 
 ---
 
@@ -437,39 +495,3 @@ Implement a GitEnvironment Setup Wizard for first-time git/SSH setup, following 
 
 ### Summary
 Significant progress has been made on the GitEnvironment Setup Wizard, laying the foundational `GitEnvironment` detection and wizard flow. The application now gracefully handles initial setup, ensuring a ready environment before proceeding with standard Git operations.
-
----
-
-## Session 73: All Refactoring Phases Complete ✅
-
-**Agent:** Amp (claude-code)
-**Date:** 2026-01-10
-
-### Objective
-Finalize and document the completion of all four refactoring phases, based on the `REFACTORING-FINAL-REPORT.md`, `PHASE-4-COMPLETION.md`, and `REFACTORING-CHECKLIST.md`.
-
-### Work Completed
-
-#### 1. Phase 4: Pattern Consolidation
-- **ListPane Builder Pattern:** Implemented a fluent `ListPaneBuilder` in `internal/ui/listpane.go` to create a cleaner, self-documenting interface for rendering list panes, eliminating repetitive call sites.
-- **Confirmation Dialog Builder:** Added a `showConfirmationFromMessage()` helper in `internal/app/confirmation_handlers.go`, reducing the 5-line boilerplate for creating confirmation dialogs to a single, safer function call.
-
-#### 2. Final Refactoring Verification
-- **All Phases Confirmed Complete:** Verified against the final reports that all tasks from Phase 1, 2, 3, and 4 are 100% complete.
-- **Metrics Verified:** Confirmed successful refactoring with ~150 lines of code eliminated, 12 major SSOT consolidations, and ~450 lines of documentation added.
-- **Backward Compatibility:** Ensured 100% backward compatibility was maintained, with zero breaking changes.
-- **Build Status:** Confirmed the project builds cleanly with `go build` and `./build.sh`.
-
-### Impact
-- The entire multi-phase refactoring project is now complete.
-- The codebase is significantly cleaner, safer, more organized, and ready for future production work, as documented in `REFACTORING-FINAL-REPORT.md`.
-- All planned improvements from the initial audit have been implemented and verified.
-
-### Build Status
-✅ Clean compile, zero errors.
-
-### Testing Status
-✅ COMPLETE (Verified against all final reports and checklists).
-
-### Summary
-This session marks the successful conclusion of the entire refactoring effort. All four phases are complete, and the codebase has been significantly improved in terms of maintainability, safety, and organization. The project is now in a stable, production-ready state for the next phase of development.

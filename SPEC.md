@@ -580,13 +580,32 @@ Returning to main will DISCARD these changes.
 **Navigation:**
 - ↑↓: Navigate commits
 - Tab: Switch between Commits list and Details pane
-- Enter: Enter time travel mode at selected commit
+- **ENTER:** Enter time travel mode at selected commit (read-only exploration)
+- **Ctrl+R:** REWIND to selected commit (destructive, reset --hard)
 - ESC: Return to main menu
 
-**Footer hint:**
+**REWIND (Ctrl+R) Feature:**
+
+Purpose: Permanently reset the current branch to any historical commit.
+
+Availability: Always available from commit history browser, regardless of current Operation state.
+
+Behavior:
+- Discards all commits after selected commit
+- Discards all uncommitted changes
+- Requires destructive confirmation
+
+Confirmation Dialog:
 ```
-Press Enter to explore this commit in time travel mode
+⚠️ Destructive Operation
+
+This will discard all commits after [HASH]. 
+Any uncommitted changes will be lost.
+
+[Rewind] [Cancel]
 ```
+
+Implementation: `git reset --hard <commit>`
 
 **Time travel flow (on ENTER):**
 1. Show confirmation dialog explaining read-only nature
@@ -813,6 +832,7 @@ border = "#34495E"
 9. **Guaranteed Success:** TIT never shows operations that could fail
 10. **No Configuration:** State always reflects actual Git state
 11. **No Dangling States:** Merge/Rebase/DirtyOperation has no abort menu option. User must complete or exit TIT (git state preserved).
+12. **Destructive Clarity:** Ctrl modifier signals destructive operations (Ctrl+R = REWIND). ENTER always safe (time travel, read-only).
 
 ---
 
@@ -823,3 +843,34 @@ See `IMPLEMENTATION_PLAN.md` for step-by-step porting strategy from old TIT to n
 ---
 
 **End of Specification**
+
+## Commit History Browser — Rewind Option
+
+**When in commit history browser (ModeHistoryBrowser):**
+
+- **ENTER:** Enter time travel mode at selected commit (read-only exploration)
+- **Ctrl+R:** REWIND to selected commit (destructive, reset --hard)
+
+**REWIND (Ctrl+R) behavior:**
+- Available on ANY commit, regardless of current Operation state
+- Shows confirmation: "This will discard all commits after [HASH]. Any uncommitted changes will be lost."
+- Executes `git reset --hard <commit>`
+- Discards ALL commits after selected commit
+- Discards ALL uncommitted changes
+- Returns to main menu on success
+
+**Example:**
+```
+Commits on main:
+  abc1234 Feature X (current HEAD)
+  def5678 Fix bug Y
+  ghi9012 Initial commit ← User selects, presses Ctrl+R
+
+Result: Branch resets to ghi9012, abc1234 and def5678 discarded
+```
+
+**Why Ctrl+R:**
+- R for "Rewind" (semantic clarity)
+- Distinguishes destructive reset from read-only time travel
+- Ctrl modifier indicates dangerous operation
+- ENTER remains bound to time travel (safe, reversible)

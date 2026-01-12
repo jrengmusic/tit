@@ -41,7 +41,7 @@ func ParseDiffCacheKey(key string) (hash, filepath, version string, err error) {
 // Returns tea.Cmd that spawns goroutine and sends progress updates
 // Call via: return app.cmdPreloadHistoryMetadata()
 func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
-	return func() tea.Msg {
+	workerCmd := func() tea.Msg {
 		buffer := ui.GetBuffer()
 
 		// Determine git ref to log from
@@ -109,6 +109,13 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 			Complete:  true,
 		}
 	}
+
+	// Return both the worker AND a refresh ticker to show progress updates
+	// The worker goroutine will update cacheMetadataProgress, and refreshCmd will trigger re-renders
+	return tea.Batch(
+		workerCmd,
+		a.cmdRefreshCacheProgress(),
+	)
 }
 
 // PreloadFileHistoryDiffs loads file lists and diffs (async)
@@ -116,7 +123,7 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 // Returns tea.Cmd that spawns goroutine and sends progress updates
 // Call via: return app.cmdPreloadFileHistoryDiffs()
 func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
-	return func() tea.Msg {
+	workerCmd := func() tea.Msg {
 		buffer := ui.GetBuffer()
 
 		// Determine git ref to log from (same logic as metadata cache)
@@ -214,6 +221,13 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 			Complete:  true,
 		}
 	}
+
+	// Return both the worker AND a refresh ticker to show progress updates
+	// The worker goroutine will update cacheDiffsProgress, and refreshCmd will trigger re-renders
+	return tea.Batch(
+		workerCmd,
+		a.cmdRefreshCacheProgress(),
+	)
 }
 
 // InvalidateHistoryCaches clears all caches (call after commits, merges, or time travel)

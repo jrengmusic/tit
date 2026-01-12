@@ -55,6 +55,9 @@ type Application struct {
 	previousMode         AppMode // Mode before async operation started (for restoration on ESC)
 	previousMenuIndex    int // Menu selection before async (for restoration)
 
+	// Rewind operation state
+	pendingRewindCommit string // Commit hash for pending rewind operation
+
 	// Console output state (for clone, init, etc)
 	consoleState         ui.ConsoleOutState
 	outputBuffer         *ui.OutputBuffer
@@ -427,6 +430,31 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 	}
 }
 
+// handleRewind processes the result of a rewind (git reset --hard) operation
+// Stays in console until user presses ESC
+func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
+	a.asyncOperationActive = false
+	buffer := ui.GetBuffer()
+	
+	if !msg.Success {
+		// Rewind failed - show error in console and stay
+		buffer.Append(fmt.Sprintf(ErrorMessages["rewind_failed"], msg.Error), ui.TypeStderr)
+		a.footerHint = GetFooterMessageText(MessageOperationFailed)
+		return a, nil
+	}
+	
+	// Rewind succeeded - show success message and stay in console
+	buffer.Append(OutputMessages["rewind_completed"], ui.TypeStatus)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
+	
+	// Refresh git state for next menu display (when user presses ESC)
+	if state, err := git.DetectState(); err == nil {
+		a.gitState = state
+	}
+	
+	return a, nil
+}
+
 // handleRestoreTimeTravel processes the result of time travel restoration (Phase 0)
 func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Model, tea.Cmd) {
 	a.asyncOperationActive = false
@@ -524,13 +552,17 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		keyStr := msg.String()
-		
-		// DEBUG: Log key press and mode
-		if keyStr == "enter" {
-			debugLog := fmt.Sprintf("[KEY] mode=%v, key=%s, hasHandler=%v\n", a.mode, keyStr, a.keyHandlers[a.mode] != nil && a.keyHandlers[a.mode][keyStr] != nil)
+
+		// DEBUG: Log key press and mode (for enter and ctrl+enter)
+		if keyStr == "enter" || keyStr == "ctrl+enter" || strings.Contains(keyStr, "enter") {
+			debugLog := fmt.Sprintf("[KEY] mode=%v, key=%s, hasHandler=%v, handlerExists=%v\n",
+				a.mode, keyStr,
+				a.keyHandlers[a.mode] != nil,
+				a.keyHandlers[a.mode] != nil && a.keyHandlers[a.mode][keyStr] != nil)
 			os.WriteFile("/tmp/tit-key-debug.log", []byte(debugLog), 0644)
 		}
 		
+
 		// Handle ctrl+j (shift+enter equivalent) for newline in multiline input
 		if a.isInputMode() && (keyStr == "ctrl+j" || keyStr == "shift+enter") {
 			a.insertTextAtCursor("\n")
@@ -589,6 +621,10 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Cache building progress update
 		return a.handleCacheProgress(msg)
 
+	case CacheRefreshTickMsg:
+		// Periodic tick to refresh cache progress UI
+		return a.handleCacheRefreshTick()
+
 	case RestoreTimeTravelMsg:
 		// Time travel restoration completed (Phase 0)
 		return a.handleRestoreTimeTravel(msg)
@@ -616,6 +652,10 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// For now, just log the error and stay on current step
 		// TODO: Show error to user in UI
 		return a, nil
+
+	case RewindMsg:
+		// AUDIO THREAD - Rewind (git reset --hard) operation completed
+		return a.handleRewind(msg)
 	}
 
 	return a, nil
@@ -802,13 +842,15 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 	// Cache progress received - regenerate menu to show updated progress
 	// Menu generator will read progress fields and show disabled state with progress
 
+	// Always regenerate menu on progress update (menu reads progress fields)
+	menu := a.GenerateMenu()
+	a.menuItems = menu
+	if len(menu) > 0 && a.selectedIndex < len(menu) {
+		a.footerHint = menu[a.selectedIndex].Hint
+	}
+
 	if msg.Complete {
-		// Cache complete - regenerate menu to show enabled state
-		menu := a.GenerateMenu()
-		a.menuItems = menu
-		if len(menu) > 0 && a.selectedIndex < len(menu) {
-			a.footerHint = menu[a.selectedIndex].Hint
-		}
+		// Cache complete - rebuild menu shortcuts to enable items
 		a.rebuildMenuShortcuts()
 
 		// Check if BOTH caches are now complete (for time travel success message)
@@ -828,8 +870,35 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 		}
 	}
 
-	// Always regenerate menu on progress update (menu reads progress fields)
 	return a, nil
+}
+
+// handleCacheRefreshTick handles periodic cache progress refresh
+// Regenerates menu to show updated progress and re-schedules if caches not complete
+func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
+	// Check if both caches are complete
+	a.historyCacheMutex.Lock()
+	metadataComplete := a.cacheMetadata
+	a.historyCacheMutex.Unlock()
+
+	a.diffCacheMutex.Lock()
+	diffsComplete := a.cacheDiffs
+	a.diffCacheMutex.Unlock()
+
+	// If both complete, stop ticking
+	if metadataComplete && diffsComplete {
+		return a, nil
+	}
+
+	// Regenerate menu to show updated progress
+	menu := a.GenerateMenu()
+	a.menuItems = menu
+	if len(menu) > 0 && a.selectedIndex < len(menu) {
+		a.footerHint = menu[a.selectedIndex].Hint
+	}
+
+	// Re-schedule another tick
+	return a, a.cmdRefreshCacheProgress()
 }
 
 // updateFooterHintFromMenu updates footer with hint of currently selected menu item
@@ -1088,7 +1157,9 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			Build(),
 		ModeConsole: NewModeHandlers().
 			On("up", a.handleConsoleUp).
+			On("k", a.handleConsoleUp).
 			On("down", a.handleConsoleDown).
+			On("j", a.handleConsoleDown).
 			On("pageup", a.handleConsolePageUp).
 			On("pagedown", a.handleConsolePageDown).
 			Build(),
@@ -1123,9 +1194,12 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			Build(),
 		ModeHistory: NewModeHandlers().
 			On("up", a.handleHistoryUp).
+			On("k", a.handleHistoryUp).
 			On("down", a.handleHistoryDown).
+			On("j", a.handleHistoryDown).
 			On("tab", a.handleHistoryTab).
 			On("enter", a.handleHistoryEnter).
+			On("ctrl+r", a.handleHistoryRewind).
 			On("esc", a.handleHistoryEsc).
 			Build(),
 		ModeFileHistory: NewModeHandlers().
@@ -1140,14 +1214,18 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			Build(),
 		ModeConflictResolve: NewModeHandlers().
 			On("up", a.handleConflictUp).
+			On("k", a.handleConflictUp).
 			On("down", a.handleConflictDown).
+			On("j", a.handleConflictDown).
 			On("tab", a.handleConflictTab).
 			On(" ", a.handleConflictSpace).  // Space character, not "space"
 			On("enter", a.handleConflictEnter).
 			Build(),
 		ModeClone: NewModeHandlers().
 			On("up", a.handleConsoleUp).
+			On("k", a.handleConsoleUp).
 			On("down", a.handleConsoleDown).
+			On("j", a.handleConsoleDown).
 			On("pageup", a.handleConsolePageUp).
 			On("pagedown", a.handleConsolePageDown).
 			Build(),
@@ -1361,5 +1439,22 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 		return app, nil
 	}
 }
+
+// handleHistoryRewind handles Ctrl+ENTER in history browser to initiate rewind
+func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd) {
+	if app.historyState == nil || len(app.historyState.Commits) == 0 {
+		return app, nil
+	}
+	
+	if app.historyState.SelectedIdx < 0 || app.historyState.SelectedIdx >= len(app.historyState.Commits) {
+		return app, nil
+	}
+	
+	selectedCommit := app.historyState.Commits[app.historyState.SelectedIdx]
+	app.pendingRewindCommit = selectedCommit.Hash
+	
+	return app, app.showRewindConfirmation(selectedCommit.Hash)
+}
+
 
 

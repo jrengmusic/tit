@@ -47,6 +47,14 @@ type InputSubmittedMsg struct {
 // Sent periodically during long-running operations to display streaming output
 type OutputRefreshMsg struct{}
 
+// RewindMsg represents the result of a git reset --hard operation
+type RewindMsg struct {
+	Commit    string // hash
+	Success   bool
+	Output    string
+	Error     string
+}
+
 // CacheProgressMsg reports cache building progress (for UI updates)
 type CacheProgressMsg struct {
 	CacheType string // "metadata" or "diffs"
@@ -210,6 +218,10 @@ var ErrorMessages = map[string]string{
 	"failed_get_stash_list":                 "Failed to get stash list",
 	"failed_write_time_travel_info":         "Failed to write time travel info: %v",
 	"failed_load_time_travel_info":          "Error: %v",
+	
+	// Rewind (reset --hard) errors
+	"rewind_commit_hash_empty":              "Commit hash cannot be empty",
+	"rewind_failed":                         "Reset failed: %s",
 }
 
 // OutputMessages centralizes operation success messages
@@ -259,6 +271,10 @@ var OutputMessages = map[string]string{
 	"dirty_pull_completed_successfully": "Dirty pull completed successfully",
 	"dirty_pull_aborting":               "Aborting dirty pull and restoring original state...",
 	"original_state_restored":           "Original state restored",
+	
+	// Rewind (reset --hard) operations
+	"rewind_resetting":                  "Resetting to commit %s...",
+	"rewind_completed":                  "Rewind completed successfully",
 }
 
 // ========================================
@@ -334,6 +350,12 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 		Title:       "Uncommitted Changes",
 		Explanation: "You modified files during time travel.\n\nChanges will be discarded when returning to main.",
 		YesLabel:    "Discard & return",
+		NoLabel:     "Cancel",
+	},
+	"rewind": {
+		Title:       "DESTRUCTIVE OPERATION",
+		Explanation: "This will discard all commits after %s.\nAny uncommitted changes will be lost.\n\nAre you sure you want to continue?",
+		YesLabel:    "Rewind",
 		NoLabel:     "Cancel",
 	},
 }

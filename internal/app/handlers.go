@@ -12,6 +12,15 @@ import (
 	"tit/internal/ui"
 )
 
+// errorOrEmpty returns error string if err != nil, else empty string
+// Used in message structures where Error field must not be nil
+func errorOrEmpty(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 // validateAndProceed is a generic input validation handler.
 // It uses a validator function and proceeds with onSuccess if validation passes.
 func (a *Application) validateAndProceed(
@@ -444,6 +453,18 @@ func (a *Application) cmdRefreshConsole() tea.Cmd {
 		return OutputRefreshMsg{}
 	})
 }
+
+// cmdRefreshCacheProgress sends periodic refresh messages while cache is building
+// This forces UI re-renders to show cache building progress counter
+// Returns a tea.Cmd that schedules continuous ticks until both caches complete
+func (a *Application) cmdRefreshCacheProgress() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return CacheRefreshTickMsg{}
+	})
+}
+
+// CacheRefreshTickMsg triggers a cache progress refresh and re-schedules itself
+type CacheRefreshTickMsg struct{}
 
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {

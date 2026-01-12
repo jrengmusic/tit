@@ -29,6 +29,7 @@ const (
 	ConfirmTimeTravelMerge         ConfirmationType = "time_travel_merge"
 	ConfirmTimeTravelMergeDirty    ConfirmationType = "time_travel_merge_dirty"
 	ConfirmTimeTravelReturnDirty   ConfirmationType = "time_travel_return_dirty"
+	ConfirmRewind                  ConfirmationType = "rewind"
 )
 
 // ConfirmationAction is a function that handles a confirmed action
@@ -95,6 +96,10 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 	"time_travel_return_dirty_choice": {
 		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit, // YES = Merge
 		Reject:  (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
+	},
+	string(ConfirmRewind): {
+		Confirm: (*Application).executeConfirmRewind,
+		Reject:  (*Application).executeRejectRewind,
 	},
 }
 
@@ -247,6 +252,27 @@ func (a *Application) showConfirmationFromMessage(confirmType ConfirmationType, 
 	}
 	
 	a.showConfirmation(config)
+}
+
+// showRewindConfirmation displays rewind confirmation dialog
+// showRewindConfirmation displays destructive rewind confirmation
+// Uses ConfirmationMessages map for centralized message management
+func (a *Application) showRewindConfirmation(commitHash string) tea.Cmd {
+	shortHash := commitHash
+	if len(commitHash) > 7 {
+		shortHash = commitHash[:7]
+	}
+	
+	msg := ConfirmationMessages["rewind"]
+	config := ui.ConfirmationConfig{
+		Title:       msg.Title,
+		Explanation: fmt.Sprintf(msg.Explanation, shortHash),
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
+		ActionID:    string(ConfirmRewind),
+	}
+	a.showConfirmation(config)
+	return nil
 }
 
 // showNestedRepoWarning displays warning when initializing in a nested repo
@@ -999,4 +1025,48 @@ func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) 
 	a.confirmationDialog = nil
 	a.mode = ModeMenu
 	return a, nil
+}
+
+// executeConfirmRewind handles "Rewind" choice
+// executeConfirmRewind executes git reset --hard at pending commit
+func (a *Application) executeConfirmRewind() (tea.Model, tea.Cmd) {
+	if a.pendingRewindCommit == "" {
+		return a.returnToMenu()
+	}
+	
+	commitHash := a.pendingRewindCommit
+	a.pendingRewindCommit = "" // Clear after capturing
+	
+	// Set up async operation
+	a.asyncOperationActive = true
+	a.previousMode = ModeHistory
+	a.previousMenuIndex = a.historyState.SelectedIdx
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	ui.GetBuffer().Clear()
+	
+	// Start rewind + refresh ticker
+	return a, tea.Batch(
+		a.executeRewindOperation(commitHash),
+		a.cmdRefreshConsole(),
+	)
+}
+
+// executeRejectRewind handles "Cancel" choice on rewind confirmation
+func (a *Application) executeRejectRewind() (tea.Model, tea.Cmd) {
+	a.pendingRewindCommit = "" // Clear pending commit
+	return a.returnToMenu()
+}
+
+// executeRewindOperation performs the actual git reset --hard in a worker goroutine
+func (a *Application) executeRewindOperation(commitHash string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := git.ResetHardAtCommit(commitHash)
+		
+		return RewindMsg{
+			Commit:  commitHash,
+			Success: err == nil,
+			Error:   errorOrEmpty(err),
+		}
+	}
 }
