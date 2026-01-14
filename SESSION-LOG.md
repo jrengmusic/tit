@@ -310,7 +310,7 @@ Removed obsolete planning docs, kept completion reports:
 - CODEBASE-REFACTORING-AUDIT.md (planning doc, now complete)
 - CODEBASE-AUDIT-REPORT.md (planning doc, now complete)
 - HISTORY-IMPLEMENTATION-PLAN.md (planning doc, now complete)
-- HISTORY-IMPLEMENTATION-SUMMARY.md (planning doc)
+- HISTORY-IMPLEMENTATION-*.md (planning doc)
 - HISTORY-QUICK-REFERENCE.md (planning doc)
 - HISTORY-START-HERE.md (planning doc)
 - PHASE-3-REFACTORING-PLAN.md (planning doc)

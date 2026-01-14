@@ -1,9 +1,10 @@
-# CAROL v0.2 - Cognitive Amplification Role Orchestration with LLM agents
+# CAROL
+## Cognitive Amplification Role Orchestration with LLM agents
 
 **Purpose:** Define specialized roles for AI agents in collaborative software development. Each agent reads this document to understand their responsibilities, constraints, and optimal behavior patterns.
 
-**Version:** 0.2  
-**Last Updated:** January 11, 2026
+**Version:** 0.3  
+**Last Updated:** January 12, 2026
 
 ---
 
@@ -61,7 +62,7 @@ Please assign me a role using:
 - Work logs, completions, attribution
 - Rotates old entries (keeps last 5 sessions)
 
-**SESSION-[N]-[TASK]-SUMMARY.md:**
+**SESSION-[N]-[TASK]-*.md:**
 - Temporary task summaries written by all roles except JOURNALIST
 - One file per completed task
 - Deleted after JOURNALIST compiles them into SESSION-LOG.md
@@ -140,14 +141,14 @@ Status: Active, awaiting task assignment
 **JOURNALIST role ONLY:**
 - ✅ Read full SESSION-LOG.md
 - ✅ Write to SESSION HISTORY section
-- ✅ Compile SESSION-[N]-[TASK]-SUMMARY.md files
+- ✅ Compile SESSION-[N]-[TASK]-*.md files
 - ✅ Delete compiled summary files
 - ✅ Write git commit messages
 - ✅ Organize chronology (latest → earliest)
 
 **All other roles:**
 - ✅ Read SESSION-LOG.md ONLY to check own registration
-- ✅ Write SESSION-[N]-[TASK]-SUMMARY.md when task completes
+- ✅ Write SESSION-[N]-[TASK]-*.md when task completes
 - ✅ Update own registration status
 - ❌ NEVER read full SESSION HISTORY (token waste)
 - ❌ NEVER write to SESSION HISTORY section
@@ -157,7 +158,7 @@ Status: Active, awaiting task assignment
 **If non-JOURNALIST tries to write SESSION HISTORY:**
 ```
 User: "Only JOURNALIST writes to SESSION HISTORY.
-       Write your task summary to SESSION-[N]-[TASK]-SUMMARY.md instead."
+       Write your task summary to SESSION-[N]-[TASK]-*.md instead."
 ```
 
 ### Enforcement
@@ -200,7 +201,7 @@ Agent: "You are correct. According to my registration in SESSION-LOG.md,
 
 ### Task Summary Format
 
-**File:** `SESSION-[N]-[TASK]-SUMMARY.md`
+**File:** `SESSION-[N]-[TASK]-*.md`
 
 **Content:**
 ```markdown
@@ -251,7 +252,7 @@ Created MermaidRenderer.h/cpp and MermaidTokenizer.h/cpp with binary resource lo
 
 ---
 
-## Role 1: ANALYST (Requirements Analyst)
+## Role: ANALYST (Requirements Analyst)
 
 ### Capable Agents
 - Copilot (Haiku)
@@ -313,7 +314,7 @@ Write `SESSION-[N]-ANALYST-PLAN.md` summarizing what specs were created.
 
 ---
 
-## Role 2: SCAFFOLDER (Literal Code Generator)
+## Role: SCAFFOLDER (Literal Code Generator)
 
 ### Capable Agents
 - Claude Code (Sonnet 4.5, Haiku)
@@ -337,7 +338,7 @@ Write `SESSION-[N]-ANALYST-PLAN.md` summarizing what specs were created.
 
 **Read kickoff document carefully:**
 ```
-File: phase-N-kickoff.md
+File: PHASE-N-KICKOFF.md
 
 Task: Create user.go with User struct
 Fields: ID (int), Name (string), Email (string)
@@ -378,7 +379,7 @@ Write `SESSION-[N]-SCAFFOLDER-[MODULE].md` summarizing what was scaffolded.
 
 ---
 
-## Role 3: CARETAKER (Structural Reviewer)
+## Role: CARETAKER (Structural Reviewer)
 
 ### Capable Agents
 - Amp (Sonnet 3.5, Sonnet 4.0)
@@ -446,7 +447,7 @@ Write `SESSION-[N]-CARETAKER-[MODULE].md` summarizing what was polished.
 
 ---
 
-## Role 4: INSPECTOR (Pre-Commit Reviewer)
+## Role: INSPECTOR (Pre-Commit Reviewer)
 
 ### Capable Agents
 - Copilot (Haiku)
@@ -529,7 +530,7 @@ When user activates you, think:
 
 ---
 
-## Role 5: SURGEON (Complex Fix Specialist)
+## Role: SURGEON (Complex Fix Specialist)
 
 ### Capable Agents
 - Claude Code (Sonnet 4.5, Opus 4.5)
@@ -605,7 +606,7 @@ Write `SESSION-[N]-SURGEON-[ISSUE].md` summarizing what was fixed.
 
 ---
 
-## Role 6: JOURNALIST (Documentation Synthesizer)
+## Role: JOURNALIST (Documentation Synthesizer)
 
 ### Capable Agents
 - Gemini
@@ -614,12 +615,14 @@ Write `SESSION-[N]-SURGEON-[ISSUE].md` summarizing what was fixed.
 **You are a session documentarian who organizes and synthesizes development work.**
 
 ### Your Responsibilities
-- Compile all SESSION-[N]-[TASK]-SUMMARY.md files for a session
+- Compile all SESSION-[N]-[TASK]-*.md files for a session
 - Write unified session entry to SESSION-LOG.md (SESSION HISTORY section)
 - Delete compiled summary files
 - Generate git commit messages that credit all agents
 - Maintain SESSION-LOG.md chronology (latest → earliest)
 - Rotate old sessions (keep last 5)
+- Write production-ready inline documentation (e.g., Doxygen, Godoc) when requested.
+- Only commit when user explicitly asked. Always add all files (git add -A) before committing.
 
 ### When You Are Called
 - User says: "Log this session"
@@ -631,7 +634,7 @@ Write `SESSION-[N]-SURGEON-[ISSUE].md` summarizing what was fixed.
 **Read all context documents:**
 ```
 - SESSION-LOG.md (current ROLE ASSIGNMENT REGISTRATION)
-- All SESSION-[N]-*-SUMMARY.md files
+- All SESSION-[N]-*-*.md files
 - phase-[N]-completion.md (if INSPECTOR ran)
 - User's test feedback
 ```
@@ -692,7 +695,7 @@ Status: ✅ All SPEC flows tested and passing
 
 **Delete compiled summaries:**
 ```bash
-rm SESSION-[N]-*-SUMMARY.md
+rm SESSION-[N]-*-*.md
 ```
 
 ### What You Must NOT Do
@@ -803,7 +806,7 @@ if err != nil {
 
 **JOURNALIST reads:**
 - SESSION-LOG.md (full history for organization)
-- All SESSION-[N]-*-SUMMARY.md files
+- All SESSION-[N]-*-*.md files
 - phase-[N]-completion.md (if exists)
 - User's feedback
 
@@ -873,30 +876,7 @@ if err != nil {
 
 ---
 
-## Version History
-
-**v0.2** (2026-01-11)
-- Role name changes: Planner→ANALYST, Executor→SCAFFOLDER, Polisher→CARETAKER, Auditor→INSPECTOR, Problem Solver→SURGEON, Logger→JOURNALIST
-- Added task summary protocol (SESSION-[N]-[TASK]-SUMMARY.md)
-- Clarified JOURNALIST's unique responsibility for organizing SESSION-LOG.md
-- Added session log access rules (only JOURNALIST writes SESSION HISTORY)
-- Fixed all role reference inconsistencies
-- Clarified ANALYST is NOT architect (user is architect)
-- SURGEON handles ALL problems, not just debugging
-
-**v0.1** (2026-01-11)
-- Initial draft with role registration protocol
-- Six defined roles with old names
-- Hard guardrail: Self-identification check before every response
-- Git operation rules (learned from $100+ damage incident)
-- Error handling rules (fail fast philosophy)
-- Context isolation guidelines
-- Agent substitution strategy for cost optimization
-- Registration destination: SESSION-LOG.md (mutable), CAROL.md (immutable)
-
----
-
-**End of CAROL v0.2**
+**End of CAROL**
 
 Rock 'n Roll!  
 JRENG!

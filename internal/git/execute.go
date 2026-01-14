@@ -854,6 +854,7 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 // ResetHardAtCommit executes git reset --hard at specified commit
 // WORKER THREAD - Must be called from async operation
 // Streams output to buffer for real-time display
+// If resetting to HEAD, also runs git clean -fd to remove untracked files
 // Returns commit hash on success or error
 func ResetHardAtCommit(commitHash string) (string, error) {
 	if commitHash == "" {
@@ -875,6 +876,18 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 	
 	if !result.Success {
 		return "", fmt.Errorf("reset failed: %s", result.Stderr)
+	}
+	
+	// If resetting to HEAD, clean untracked files to ensure truly clean working tree
+	// (per TIT design: no distinction between tracked/untracked, all must be correct)
+	isHeadReset := Execute("rev-parse", commitHash)
+	currentHead := Execute("rev-parse", "HEAD")
+	if isHeadReset.Success && currentHead.Success && isHeadReset.Stdout == currentHead.Stdout {
+		buffer.Append("Cleaning untracked files...", ui.TypeStatus)
+		cleanResult := ExecuteWithStreaming("clean", "-fd")
+		if !cleanResult.Success {
+			buffer.Append(fmt.Sprintf("Warning: clean failed: %s", cleanResult.Stderr), ui.TypeStderr)
+		}
 	}
 	
 	return commitHash, nil
