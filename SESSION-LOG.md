@@ -100,7 +100,7 @@ ANALYST: Amp (Claude Sonnet)
 SCAFFOLDER: Mistral-Vibe (devstral-2)
 CARETAKER: Amp (Claude Sonnet) — Polishing, error handling, syntax validation
 INSPECTOR: Amp (Claude Sonnet) — Auditing code against SPEC.md and CLAUDE.md
-SURGEON: Claude Code (Sonnet 4.5)
+SURGEON: Amp (Claude Sonnet) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Gemini (CLI Agent)
 
 

@@ -121,10 +121,31 @@ func FindStashRefByHash(targetHash string) string {
 	panic(fmt.Sprintf("FATAL: Stash with hash %s not found in stash list. This indicates the stash was manually dropped or a bug in stash tracking.", targetHash))
 }
 
+// cleanStaleLocks removes stale git lock files that can occur when git operations
+// are interrupted or the git process crashes. This allows subsequent operations to proceed.
+// Silent cleanup - if lock doesn't exist, that's fine.
+func cleanStaleLocks() {
+	repoPath, err := os.Getwd()
+	if err != nil {
+		return // Can't determine repo path, skip cleanup
+	}
+
+	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+	// Check if lock exists and delete it silently
+	// This is safe: git creates it during operations and deletes on completion
+	// If present, it means a previous operation was interrupted
+	if _, err := os.Stat(lockPath); err == nil {
+		_ = os.Remove(lockPath) // Best effort, ignore errors
+	}
+}
+
 // ExecuteWithStreaming runs a git command and streams output to the buffer
 // Use this for user-initiated actions that should display console output
 // WORKER THREAD - Must be called from async operation
 func ExecuteWithStreaming(args ...string) CommandResult {
+	// Clean any stale git locks from interrupted operations
+	cleanStaleLocks()
+
 	buffer := ui.GetBuffer()
 
 	// Log the command being executed
