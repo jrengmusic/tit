@@ -177,8 +177,7 @@ func RenderConsoleOutput(
 		Foreground(lipgloss.Color(palette.OutputInfoColor)).
 		Bold(true)
 
-	titleText := fmt.Sprintf("OUTPUT [offset=%d max=%d auto=%v lines=%d]", 
-		state.ScrollOffset, state.MaxScroll, autoScroll, totalOutputLines)
+	titleText := "OUTPUT"
 	title := titleStyle.Render(titleText)
 	titleWidth := lipgloss.Width(title)
 	if titleWidth < maxWidth {

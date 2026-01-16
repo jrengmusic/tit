@@ -940,6 +940,10 @@ func (a *Application) RenderStateHeader() string {
 		return ""
 	}
 
+	// Right column: fixed 10 chars for short labels (READY, main)
+	// Left column: remaining width for cwd + remote
+	rightWidth := 10
+	leftWidth := ui.ContentInnerWidth - rightWidth
 	halfWidth := ui.ContentInnerWidth / 2
 
 	// Row 1: CWD (left) | OPERATION (right)
@@ -956,12 +960,12 @@ func (a *Application) RenderStateHeader() string {
 	row1 := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		lipgloss.NewStyle().
-			Width(halfWidth).
+			Width(leftWidth).
 			Bold(true).
 			Foreground(lipgloss.Color(a.theme.LabelTextColor)).
 			Render(cwdLabel),
 		lipgloss.NewStyle().
-			Width(halfWidth).
+			Width(rightWidth).
 			Bold(true).
 			Foreground(lipgloss.Color(opColor)).
 			Align(lipgloss.Right).
@@ -991,11 +995,11 @@ func (a *Application) RenderStateHeader() string {
 	row2 := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		lipgloss.NewStyle().
-			Width(halfWidth).
+			Width(leftWidth).
 			Foreground(lipgloss.Color(remoteColor)).
 			Render(remoteLabel),
 		lipgloss.NewStyle().
-			Width(halfWidth).
+			Width(rightWidth).
 			Bold(true).
 			Foreground(lipgloss.Color(branchColor)).
 			Align(lipgloss.Right).
