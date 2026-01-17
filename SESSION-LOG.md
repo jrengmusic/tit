@@ -98,11 +98,47 @@
 
 ANALYST: Amp (Claude Sonnet)
 SCAFFOLDER: Mistral-Vibe (devstral-2)
-CARETAKER: Amp (Claude Sonnet) — Polishing, error handling, syntax validation
+CARETAKER: Amp (GPT-4.1) — Polishing, error handling, syntax validation
 INSPECTOR: Amp (Claude Sonnet) — Auditing code against SPEC.md and CLAUDE.md
 SURGEON: Amp (Claude Sonnet) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Gemini (CLI Agent)
 
+
+---
+
+## Session 78: Async Remote Fetch & Add Remote Fix ✅
+
+**Agent:** Amp (GPT-4.1) — CARETAKER
+**Date:** 2026-01-17
+
+### Objectives
+- Fix git state detection for remote changes (timeline always showed "Sync" even when remote had new commits)
+- Fix "Add remote" flow for empty remotes (upstream tracking failed silently)
+
+### Problems Solved
+
+**1. Stale Timeline Detection**
+- **Root cause:** `DetectState()` compared local refs vs cached remote refs without fetching
+- **Fix:** Added async `git fetch` on startup when `HasRemote` detected
+- **Result:** Timeline now accurately reflects remote state after app loads
+
+**2. Add Remote to Empty Repository**
+- **Root cause:** `SetUpstreamTrackingWithBranch` tried `--set-upstream-to` which fails when remote branch doesn't exist
+- **Fix:** Check if remote branch exists first; if not, execute `git push -u` to create branch AND set upstream atomically
+- **Result:** "Add remote" now guarantees upstream is configured (per SPEC contract)
+
+### Files Modified (4 total)
+- `internal/app/messages.go` — Added `RemoteFetchMsg` type
+- `internal/app/handlers.go` — Added `cmdFetchRemote()` async command, added `os/exec` import
+- `internal/app/app.go` — Trigger fetch in `Init()` when `HasRemote`, handle `RemoteFetchMsg` in `Update()`
+- `internal/git/execute.go` — Rewrote `SetUpstreamTrackingWithBranch` to check remote branch existence and push -u if needed
+- `internal/app/operations.go` — Updated `cmdSetUpstream` to FAIL-FAST and show accurate messages
+
+### Build Status
+✅ Clean compile, `./build.sh` successful
+
+### Testing Status
+✅ VERIFIED — User confirmed both fixes working
 
 ---
 

@@ -187,23 +187,30 @@ func (a *Application) cmdFetchRemote() tea.Cmd {
 
 // cmdSetUpstream sets upstream tracking (step 3 of 3-step chain)
 // Takes branchName from previous step to avoid querying git again
+// If remote branch doesn't exist, this will push -u to create it
 func (a *Application) cmdSetUpstream(branchName string) tea.Cmd {
 	branch := branchName // Capture in closure
 	return func() tea.Msg {
 		result := git.SetUpstreamTrackingWithBranch(branch)
 		if !result.Success {
-			// Non-fatal: tracking setup failed but remote is ready
+			// FAIL-FAST: upstream setup failed
 			return GitOperationMsg{
-				Step: OpSetUpstream,
-				Success: true, // Consider success because remote is added
-				Output:  "Remote configured (upstream tracking could not be set - may be detached HEAD)",
+				Step:    OpSetUpstream,
+				Success: false,
+				Error:   result.Stderr,
 			}
 		}
 
+		// Distinguish between "set upstream" vs "pushed to create"
+		output := "Remote added and upstream configured"
+		if result.Stdout == "pushed_and_upstream_set" {
+			output = "Remote added and initial push completed"
+		}
+
 		return GitOperationMsg{
-			Step: OpSetUpstream,
+			Step:    OpSetUpstream,
 			Success: true,
-			Output:  "Remote added, fetched, and tracking configured",
+			Output:  output,
 		}
 	}
 }

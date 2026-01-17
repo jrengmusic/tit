@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -461,6 +462,19 @@ func (a *Application) cmdRefreshCacheProgress() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 		return CacheRefreshTickMsg{}
 	})
+}
+
+// cmdFetchRemote runs git fetch in background to sync remote refs
+// Called on startup when HasRemote is detected to ensure timeline accuracy
+func cmdFetchRemote() tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("git", "fetch", "--quiet")
+		err := cmd.Run()
+		if err != nil {
+			return RemoteFetchMsg{Success: false, Error: err.Error()}
+		}
+		return RemoteFetchMsg{Success: true}
+	}
 }
 
 // startCloneOperation sets up async state and executes clone

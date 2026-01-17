@@ -317,7 +317,7 @@ func SetUpstreamTracking() CommandResult {
 }
 
 // SetUpstreamTrackingWithBranch sets upstream tracking using a provided branch name
-// This avoids querying git in the worker thread context
+// If remote branch doesn't exist (empty remote), pushes with -u to create it
 func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 	buffer := ui.GetBuffer()
 	
@@ -326,23 +326,35 @@ func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 		return CommandResult{Success: false, Stderr: "No branch name provided"}
 	}
 
-	buffer.Append(fmt.Sprintf("Setting upstream for branch '%s'...", branchName), ui.TypeStatus)
-
 	// Use full ref path to avoid ambiguity with local branches named "origin/[branch]"
 	remoteBranch := "refs/remotes/origin/" + branchName
 
-	// Try to set upstream
-	result := Execute("branch", "--set-upstream-to="+remoteBranch)
+	// Check if remote branch exists
+	checkResult := Execute("rev-parse", "--verify", remoteBranch)
 	
-	if result.Success {
-		buffer.Append(fmt.Sprintf("Upstream tracking set to %s", remoteBranch), ui.TypeStatus)
-	} else {
-		// Not fatal - may be detached HEAD or other condition
-		buffer.Append(fmt.Sprintf("Could not set upstream tracking: %s", result.Stderr), ui.TypeInfo)
+	if checkResult.Success {
+		// Remote branch exists - set upstream tracking
+		buffer.Append(fmt.Sprintf("Setting upstream for branch '%s'...", branchName), ui.TypeStatus)
+		result := Execute("branch", "--set-upstream-to="+remoteBranch)
+		if result.Success {
+			buffer.Append(fmt.Sprintf("Upstream tracking set to %s", remoteBranch), ui.TypeStatus)
+			return CommandResult{Success: true, Stdout: "upstream_set"}
+		}
+		// Failed to set upstream even though remote exists
+		buffer.Append(fmt.Sprintf("Could not set upstream tracking: %s", result.Stderr), ui.TypeStderr)
+		return CommandResult{Success: false, Stderr: result.Stderr}
 	}
 
-	// Always return success - if remote branch doesn't exist, first push -u will handle it
-	return CommandResult{Success: true}
+	// Remote branch doesn't exist - push with -u to create it and set upstream
+	buffer.Append(fmt.Sprintf("Remote branch '%s' doesn't exist, pushing to create...", branchName), ui.TypeStatus)
+	result := ExecuteWithStreaming("push", "-u", "origin", branchName)
+	if result.Success {
+		buffer.Append(fmt.Sprintf("Created remote branch and set upstream tracking"), ui.TypeStatus)
+		return CommandResult{Success: true, Stdout: "pushed_and_upstream_set"}
+	}
+	
+	buffer.Append(fmt.Sprintf("Failed to push: %s", result.Stderr), ui.TypeStderr)
+	return CommandResult{Success: false, Stderr: result.Stderr}
 }
 
 // ListConflictedFiles returns a list of files with merge conflicts

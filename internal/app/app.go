@@ -657,6 +657,18 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RewindMsg:
 		// AUDIO THREAD - Rewind (git reset --hard) operation completed
 		return a.handleRewind(msg)
+
+	case RemoteFetchMsg:
+		// Background fetch completed - refresh state to update timeline
+		if msg.Success {
+			if newState, err := git.DetectState(); err == nil {
+				a.gitState = newState
+				a.menuItems = a.GenerateMenu()
+				a.rebuildMenuShortcuts()
+				a.updateFooterHintFromMenu()
+			}
+		}
+		return a, nil
 	}
 
 	return a, nil
@@ -828,6 +840,12 @@ func (a *Application) Init() tea.Cmd {
 			a.cmdPreloadHistoryMetadata(),
 			a.cmdPreloadFileHistoryDiffs(),
 		)
+	}
+
+	// Async fetch remote on startup to ensure timeline accuracy
+	// Without this, timeline state uses stale local refs
+	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
+		commands = append(commands, cmdFetchRemote())
 	}
 
 	return tea.Batch(commands...)

@@ -55,6 +55,12 @@ type RewindMsg struct {
 	Error     string
 }
 
+// RemoteFetchMsg signals completion of background git fetch on startup
+type RemoteFetchMsg struct {
+	Success bool
+	Error   string
+}
+
 // CacheProgressMsg reports cache building progress (for UI updates)
 type CacheProgressMsg struct {
 	CacheType string // "metadata" or "diffs"
