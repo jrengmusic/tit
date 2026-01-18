@@ -9,7 +9,7 @@ case "$ARCH" in
 esac
 
 BINARY_NAME="tit_${ARCH_SUFFIX}"
-DEST_DIR="$HOME/Documents/Poems/inf/___user-modules___/automation"
+DEST_DIR="$HOME/.local/bin/tit"
 
 # Build
 echo "Building $BINARY_NAME..."
