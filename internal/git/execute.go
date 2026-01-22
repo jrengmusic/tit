@@ -131,11 +131,14 @@ func cleanStaleLocks() {
 	}
 
 	lockPath := filepath.Join(repoPath, ".git", "index.lock")
-	// Check if lock exists and delete it silently
+	// Check if lock exists and delete it
 	// This is safe: git creates it during operations and deletes on completion
 	// If present, it means a previous operation was interrupted
 	if _, err := os.Stat(lockPath); err == nil {
-		_ = os.Remove(lockPath) // Best effort, ignore errors
+		if err := os.Remove(lockPath); err != nil && !os.IsNotExist(err) {
+			buffer := ui.GetBuffer()
+			buffer.Append(fmt.Sprintf("Warning: could not remove stale lock: %v", err), ui.TypeStderr)
+		}
 	}
 }
 
@@ -915,11 +918,7 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 
 	// Show short hash in console
 	buffer := ui.GetBuffer()
-	shortHash := commitHash
-	if len(commitHash) > 7 {
-		shortHash = commitHash[:7]
-	}
-	buffer.Append(fmt.Sprintf("Resetting to %s...", shortHash), ui.TypeStatus)
+	buffer.Append(fmt.Sprintf("Resetting to %s...", ui.ShortenHash(commitHash)), ui.TypeStatus)
 
 	// Execute git reset --hard <commit>
 	// Output streamed to buffer by ExecuteWithStreaming

@@ -66,7 +66,7 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 
 	// Calculate column widths for top row (2 columns: Commits + Files)
 	// No gaps, borders touch directly
-	commitPaneWidth := 24                     // Fixed width for commits (same as History mode)
+	commitPaneWidth := CommitListPaneWidth    // Fixed width for commits (same as History mode)
 	filesPaneWidth := width - commitPaneWidth // Remaining width for files
 
 	// Render top row panes (Commits + Files)
@@ -79,7 +79,6 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 	// Render bottom row (Diff pane - full width, single column)
 	bottomRow := renderFileHistoryDiffPane(fileHistoryState, theme, width, bottomRowHeight)
 
-	 
 	var statusBar string
 	if fileHistoryState.FocusedPane == PaneDiff {
 		statusBar = buildDiffStatusBar(fileHistoryState.VisualModeActive, width, theme, statusBarOverride)
@@ -96,27 +95,9 @@ func renderFileHistoryCommitsPane(state *FileHistoryState, theme Theme, width, h
 	// Create list pane for commits
 	listPane := NewListPane("Commits", &theme)
 
-	// Build list items from actual commits
-	var items []ListItem
-	for i, commit := range state.Commits {
-		attributeText := commit.Time.Format("02-Jan 15:04")
-		// Show first 7 chars of hash
-		hashShort := commit.Hash
-		if len(hashShort) > 7 {
-			hashShort = hashShort[:7]
-		}
+	// Build list items from actual commits using shared utility
+	items := buildCommitListItems(state.Commits, state.SelectedCommitIdx, theme)
 
-		items = append(items, ListItem{
-			AttributeText:  attributeText,
-			AttributeColor: theme.DimmedTextColor,
-			ContentText:    hashShort,
-			ContentColor:   theme.ContentTextColor,
-			ContentBold:    false,
-			IsSelected:     i == state.SelectedCommitIdx,
-		})
-	}
-
-	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1
@@ -160,7 +141,6 @@ func renderFileHistoryFilesPane(state *FileHistoryState, theme Theme, width, hei
 		})
 	}
 
-	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

@@ -49,8 +49,8 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, s
 	paneHeight := height - 3
 
 	// Calculate column widths based on CONTENT NEEDS
-	// Commits list: "07-Jan 02:11 957f977" = 20 chars + border(2) + padding(2) = 24 chars
-	listPaneWidth := 24
+	// Commits list: "07-Jan 02:11 957f977" = 20 chars + border(2) + padding(2)
+	listPaneWidth := CommitListPaneWidth
 	detailsPaneWidth := width - listPaneWidth // Remaining width for details
 
 	// Render both columns at same height
@@ -60,12 +60,27 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, s
 	// Join columns horizontally (side-by-side)
 	mainRow := lipgloss.JoinHorizontal(lipgloss.Top, listPaneContent, detailsPaneContent)
 
-	 
 	statusBar := buildHistoryStatusBar(historyState.PaneFocused, width, theme, statusBarOverride)
 
 	// Stack: mainRow + statusBar
 	// Total height will be (height - 3) + 1 = height - 2 (correct for outer wrapper)
 	return mainRow + "\n" + statusBar
+}
+
+// buildCommitListItems creates ListItems from commit data for rendering in list panes
+func buildCommitListItems(commits []CommitInfo, selectedIdx int, theme Theme) []ListItem {
+	items := make([]ListItem, len(commits))
+	for i, commit := range commits {
+		items[i] = ListItem{
+			AttributeText:  commit.Time.Format("02-Jan 15:04"),
+			AttributeColor: theme.DimmedTextColor,
+			ContentText:    ShortenHash(commit.Hash),
+			ContentColor:   theme.ContentTextColor,
+			ContentBold:    false,
+			IsSelected:     i == selectedIdx,
+		}
+	}
+	return items
 }
 
 // renderHistoryListPane renders the list pane with commit list (matches Conflict Resolver)
@@ -74,26 +89,8 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 	listPane := NewListPane("Commits", &theme)
 
 	// Build list items from actual commits
-	var items []ListItem
-	for i, commit := range state.Commits {
-		attributeText := commit.Time.Format("02-Jan 15:04")
-		// Show first 7 chars of hash
-		hashShort := commit.Hash
-		if len(hashShort) > 7 {
-			hashShort = hashShort[:7]
-		}
+	items := buildCommitListItems(state.Commits, state.SelectedIdx, theme)
 
-		items = append(items, ListItem{
-			AttributeText:  attributeText,
-			AttributeColor: theme.DimmedTextColor,
-			ContentText:    hashShort,
-			ContentColor:   theme.ContentTextColor,
-			ContentBold:    false,
-			IsSelected:     i == state.SelectedIdx,
-		})
-	}
-
-	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

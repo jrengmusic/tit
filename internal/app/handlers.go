@@ -399,9 +399,9 @@ func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cm
 func (a *Application) transitionToCloneURL(action string) (tea.Model, tea.Cmd) {
 	a.transitionTo(ModeTransition{
 		Mode:        ModeCloneURL,
-		InputPrompt: InputPrompts["clone_url"],
+		InputPrompt: InputMessages["clone_url"].Prompt,
 		InputAction: action,
-		FooterHint:  InputHints["clone_url"],
+		FooterHint:  InputMessages["clone_url"].Hint,
 		ResetFields: []string{},
 	})
 	return a, nil
@@ -965,10 +965,6 @@ func (a *Application) handleHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
 
 // handleHistoryEnter handles ENTER key in history mode (Phase 7: Time Travel)
 func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) {
-	// DEBUG: Verify handler was called
-	buffer := ui.GetBuffer()
-	buffer.Append("[DEBUG] handleHistoryEnter called, mode="+string(app.mode), ui.TypeStatus)
-
 	if app.historyState == nil || app.historyState.SelectedIdx < 0 {
 		return app, nil
 	}
@@ -978,7 +974,6 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 
 	// Show time travel confirmation dialog
 	app.mode = ModeConfirmation
-	buffer.Append("[DEBUG] Set mode=ModeConfirmation", ui.TypeStatus)
 	app.confirmType = "time_travel"
 	app.confirmContext = map[string]string{
 		"commit_hash":    commit.Hash,
@@ -987,10 +982,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 
 	// Create confirmation dialog using SSOT
 	// Format: hash (first 7 chars) on first line, subject on second line
-	shortHash := commit.Hash
-	if len(shortHash) > 7 {
-		shortHash = shortHash[:7]
-	}
+	shortHash := ui.ShortenHash(commit.Hash)
 
 	// Extract only first line of commit message (subject)
 	subject := commit.Subject
@@ -998,11 +990,12 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 		subject = subject[:idx]
 	}
 
+	msg := ConfirmationMessages["time_travel"]
 	config := ui.ConfirmationConfig{
-		Title:       ConfirmationTitles["time_travel"],
-		Explanation: fmt.Sprintf(ConfirmationExplanations["time_travel"], shortHash, subject),
-		YesLabel:    ConfirmationLabels["time_travel"][0],
-		NoLabel:     ConfirmationLabels["time_travel"][1],
+		Title:       msg.Title,
+		Explanation: fmt.Sprintf(msg.Explanation, shortHash, subject),
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
 		ActionID:    "time_travel",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)

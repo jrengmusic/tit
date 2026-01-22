@@ -71,7 +71,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 // dispatchInit starts the repository initialization workflow
 // Smart dispatch: if CWD not empty, skip to subdir initialization
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
-	 
+
 	cwdEmpty := isCwdEmpty()
 
 	if !cwdEmpty {
@@ -105,9 +105,9 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 		app.cloneMode = "subdir"
 		app.transitionTo(ModeTransition{
 			Mode:        ModeCloneURL,
-			InputPrompt: InputPrompts["clone_url"],
+			InputPrompt: InputMessages["clone_url"].Prompt,
 			InputAction: "clone_url",
-			FooterHint:  InputHints["clone_url"],
+			FooterHint:  InputMessages["clone_url"].Hint,
 			ResetFields: []string{"clone"},
 		})
 	}
@@ -118,9 +118,9 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
-		InputPrompt: InputPrompts["remote_url"],
+		InputPrompt: InputMessages["remote_url"].Prompt,
 		InputAction: "add_remote_url",
-		FooterHint:  InputHints["remote_url"],
+		FooterHint:  InputMessages["remote_url"].Hint,
 		ResetFields: []string{},
 	})
 	return nil
@@ -130,9 +130,9 @@ func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
 func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
-		InputPrompt: InputPrompts["commit_message"],
+		InputPrompt: InputMessages["commit_message"].Prompt,
 		InputAction: "commit_message",
-		FooterHint:  InputHints["commit_message"],
+		FooterHint:  InputMessages["commit_message"].Hint,
 		ResetFields: []string{},
 	})
 	app.inputHeight = 16 // Multiline for commit message
@@ -143,7 +143,7 @@ func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
-		InputPrompt: InputPrompts["commit_message"],
+		InputPrompt: InputMessages["commit_message"].Prompt,
 		InputAction: "commit_push_message",
 		FooterHint:  "Enter commit message (will commit and push)",
 		ResetFields: []string{},
@@ -155,12 +155,12 @@ func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 // dispatchPush pushes to remote
 func (a *Application) dispatchPush(app *Application) tea.Cmd {
 	// Set up async state for console display
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
-	app.previousMode = ModeMenu
-	app.previousMenuIndex = 0
-	app.mode = ModeConsole
-	app.consoleState.Reset()
+	a.asyncOperationActive = true
+	a.asyncOperationAborted = false
+	a.previousMode = ModeMenu
+	a.previousMenuIndex = 0
+	a.mode = ModeConsole
+	a.consoleState.Reset()
 
 	// Execute push asynchronously using operations pattern
 	return app.cmdPush()
@@ -176,13 +176,13 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 
 	// Show confirmation dialog for pull (merge) - may cause conflicts
 	app.mode = ModeConfirmation
-	labels := ConfirmationLabels[confirmType]
+	msg := ConfirmationMessages[confirmType]
 	app.confirmationDialog = ui.NewConfirmationDialog(
 		ui.ConfirmationConfig{
-			Title:       ConfirmationTitles[confirmType],
-			Explanation: ConfirmationExplanations[confirmType],
-			YesLabel:    labels[0],
-			NoLabel:     labels[1],
+			Title:       msg.Title,
+			Explanation: msg.Explanation,
+			YesLabel:    msg.YesLabel,
+			NoLabel:     msg.NoLabel,
 			ActionID:    confirmType,
 		},
 		a.sizing.ContentInnerWidth,
@@ -200,12 +200,12 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.confirmContext = map[string]string{}
 
 	// Create the confirmation dialog from SSOT
-	labels := ConfirmationLabels["force_push"]
+	msg := ConfirmationMessages["force_push"]
 	config := ui.ConfirmationConfig{
-		Title:       ConfirmationTitles["force_push"],
-		Explanation: ConfirmationExplanations["force_push"],
-		YesLabel:    labels[0],
-		NoLabel:     labels[1],
+		Title:       msg.Title,
+		Explanation: msg.Explanation,
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
 		ActionID:    "force_push",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
@@ -221,12 +221,12 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 	app.confirmContext = map[string]string{}
 
 	// Create the confirmation dialog from SSOT
-	labels := ConfirmationLabels["hard_reset"]
+	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
-		Title:       ConfirmationTitles["hard_reset"],
-		Explanation: ConfirmationExplanations["hard_reset"],
-		YesLabel:    labels[0],
-		NoLabel:     labels[1],
+		Title:       msg.Title,
+		Explanation: msg.Explanation,
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
 		ActionID:    "hard_reset",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
@@ -246,10 +246,14 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 
 	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
 	for hash, details := range app.historyMetadataCache {
+		commitTime, err := parseCommitDate(details.Date)
+		if err != nil {
+			commitTime = time.Now()
+		}
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
 			Subject: details.Message, // Full message (not just first line)
-			Time:    parseCommitDate(details.Date),
+			Time:    commitTime,
 		})
 	}
 
@@ -291,10 +295,14 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 
 	// Build commits from cache if available
 	for hash, details := range app.historyMetadataCache {
+		commitTime, err := parseCommitDate(details.Date)
+		if err != nil {
+			commitTime = time.Now()
+		}
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
 			Subject: details.Message,
-			Time:    parseCommitDate(details.Date),
+			Time:    commitTime,
 		})
 	}
 
@@ -362,14 +370,8 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 }
 
 // parseCommitDate parses git commit date format
-func parseCommitDate(dateStr string) time.Time {
-	// Expected format from git: "Mon, 7 Jan 2026 08:42:00 -0700"
-	t, err := time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", dateStr)
-	if err != nil {
-		// Fallback to current time if parsing fails
-		return time.Now()
-	}
-	return t
+func parseCommitDate(dateStr string) (time.Time, error) {
+	return time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", dateStr)
 }
 
 // dispatchDirtyPullMerge starts the dirty pull confirmation dialog
@@ -379,12 +381,12 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	app.confirmContext = map[string]string{}
 
 	// Create the confirmation dialog from SSOT
-	labels := ConfirmationLabels["dirty_pull"]
+	msg := ConfirmationMessages["dirty_pull"]
 	config := ui.ConfirmationConfig{
-		Title:       ConfirmationTitles["dirty_pull"],
-		Explanation: ConfirmationExplanations["dirty_pull"],
-		YesLabel:    labels[0],
-		NoLabel:     labels[1],
+		Title:       msg.Title,
+		Explanation: msg.Explanation,
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
 		ActionID:    "dirty_pull",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
@@ -406,10 +408,14 @@ func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
 
 	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
 	for hash, details := range app.historyMetadataCache {
+		commitTime, err := parseCommitDate(details.Date)
+		if err != nil {
+			commitTime = time.Now()
+		}
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
 			Subject: details.Message, // Full message (not just first line)
-			Time:    parseCommitDate(details.Date),
+			Time:    commitTime,
 		})
 	}
 
@@ -455,13 +461,13 @@ func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
 
 	// Show confirmation dialog
 	app.mode = ModeConfirmation
-	labels := ConfirmationLabels[string(confirmType)]
+	msg := ConfirmationMessages[string(confirmType)]
 	app.confirmationDialog = ui.NewConfirmationDialog(
 		ui.ConfirmationConfig{
-			Title:       ConfirmationTitles[string(confirmType)],
-			Explanation: ConfirmationExplanations[string(confirmType)],
-			YesLabel:    labels[0],
-			NoLabel:     labels[1],
+			Title:       msg.Title,
+			Explanation: msg.Explanation,
+			YesLabel:    msg.YesLabel,
+			NoLabel:     msg.NoLabel,
 			ActionID:    string(confirmType),
 		},
 		a.sizing.ContentInnerWidth,
@@ -496,13 +502,13 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 	} else {
 		// Clean tree: simple return confirmation
 		app.mode = ModeConfirmation
-		labels := ConfirmationLabels[string(ConfirmTimeTravelReturn)]
+		msg := ConfirmationMessages[string(ConfirmTimeTravelReturn)]
 		app.confirmationDialog = ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
-				Title:       ConfirmationTitles[string(ConfirmTimeTravelReturn)],
-				Explanation: ConfirmationExplanations[string(ConfirmTimeTravelReturn)],
-				YesLabel:    labels[0],
-				NoLabel:     labels[1],
+				Title:       msg.Title,
+				Explanation: msg.Explanation,
+				YesLabel:    msg.YesLabel,
+				NoLabel:     msg.NoLabel,
 				ActionID:    string(ConfirmTimeTravelReturn),
 			},
 			a.sizing.ContentInnerWidth,

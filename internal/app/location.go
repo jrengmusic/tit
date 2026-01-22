@@ -8,10 +8,10 @@ import (
 
 // LocationChoiceConfig holds configuration for the generic location choice handler.
 type LocationChoiceConfig struct {
-	PathSetter   func(*Application, string)             // Sets the path in the application state.
+	PathSetter   func(*Application, string)              // Sets the path in the application state.
 	OnCurrentDir func(*Application) (tea.Model, tea.Cmd) // Action to perform after choosing the current directory.
-	SubdirPrompt string                                 // Prompt for subdirectory input, e.g., "Repository name:".
-	SubdirAction string                                 // Action for subdirectory input, e.g., "init_subdir_name".
+	SubdirPrompt string                                  // Prompt for subdirectory input, e.g., "Repository name:".
+	SubdirAction string                                  // Action for subdirectory input, e.g., "init_subdir_name".
 }
 
 // handleLocationChoice is a generic handler for choosing between the current directory
@@ -40,12 +40,12 @@ func (a *Application) handleLocationChoice(choice int, config LocationChoiceConf
 		a.cloneMode = "subdir"
 		return a.transitionToCloneURL("clone_to_subdir")
 	}
-	
+
 	a.transitionTo(ModeTransition{
 		Mode:        ModeInput,
 		InputPrompt: config.SubdirPrompt,
 		InputAction: config.SubdirAction,
-		FooterHint:  InputHints["subdir_name"],
+		FooterHint:  InputMessages["subdir_name"].Hint,
 	})
 	return a, nil
 }

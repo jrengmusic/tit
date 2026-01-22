@@ -165,26 +165,6 @@ var InputMessages = map[string]InputMessage{
 	},
 }
 
-// Deprecated: Use InputMessages[key].Prompt instead
-// Kept for backwards compatibility during migration
-var InputPrompts = func() map[string]string {
-	m := make(map[string]string)
-	for k, v := range InputMessages {
-		m[k] = v.Prompt
-	}
-	return m
-}()
-
-// Deprecated: Use InputMessages[key].Hint instead
-// Kept for backwards compatibility during migration
-var InputHints = func() map[string]string {
-	m := make(map[string]string)
-	for k, v := range InputMessages {
-		m[k] = v.Hint
-	}
-	return m
-}()
-
 // ErrorMessages centralizes error messages
 var ErrorMessages = map[string]string{
 	"cwd_read_failed":          "Failed to get current directory",
@@ -366,43 +346,6 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 		YesLabel:    "Rewind",
 		NoLabel:     "Cancel",
 	},
-}
-
-// Deprecated: Use ConfirmationMessages[key].Title instead
-var ConfirmationTitles = func() map[string]string {
-	m := make(map[string]string)
-	for k, v := range ConfirmationMessages {
-		m[k] = v.Title
-	}
-	return m
-}()
-
-// Deprecated: Use ConfirmationMessages[key].Explanation instead
-var ConfirmationExplanations = func() map[string]string {
-	m := make(map[string]string)
-	for k, v := range ConfirmationMessages {
-		m[k] = v.Explanation
-	}
-	return m
-}()
-
-// Deprecated: Use ConfirmationMessages[key] for both labels instead
-var ConfirmationLabels = func() map[string][2]string {
-	m := make(map[string][2]string)
-	for k, v := range ConfirmationMessages {
-		m[k] = [2]string{v.YesLabel, v.NoLabel}
-	}
-	return m
-}()
-
-// ButtonLabels deprecated: see ConfirmationMessages for labels
-// Kept for backwards compatibility
-var ButtonLabels = map[string]string{
-	"continue":   "Yes, continue",
-	"cancel":     "No, cancel",
-	"force_push": "Force push",
-	"reset":      "Reset",
-	"ok":         "OK",
 }
 
 // FooterHints centralizes footer hint messages

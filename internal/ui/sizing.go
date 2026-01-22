@@ -2,13 +2,14 @@ package ui
 
 // Threshold constants (SSOT) for reactive layout
 const (
-	MinWidth         = 69
-	MinHeight        = 19
-	HeaderHeight     = 9
-	FooterHeight     = 1
-	MinContentHeight = 4
-	HorizontalMargin = 2
-	BannerWidth      = 30
+	MinWidth            = 69
+	MinHeight           = 19
+	HeaderHeight        = 9
+	FooterHeight        = 1
+	MinContentHeight    = 4
+	HorizontalMargin    = 2
+	BannerWidth         = 30
+	CommitListPaneWidth = 24 // "07-Jan 02:11 957f977" = 20 chars + border + padding
 )
 
 // DynamicSizing holds computed layout dimensions

@@ -71,3 +71,11 @@ func EnsureExactDimensions(text string, width int, height int) string {
 	// Then pad each line to width
 	return PadAllLinesToWidth(padded, width)
 }
+
+// ShortenHash returns first 7 characters of a git hash for display
+func ShortenHash(hash string) string {
+	if len(hash) > 7 {
+		return hash[:7]
+	}
+	return hash
+}
