@@ -219,7 +219,7 @@ func (a *Application) executeAlert() (tea.Model, tea.Cmd) {
 func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
 	a.confirmationDialog = ui.NewConfirmationDialog(
 		config,
-		ui.ContentInnerWidth,
+		a.sizing.ContentInnerWidth,
 		&a.theme,
 	)
 	a.mode = ModeConfirmation

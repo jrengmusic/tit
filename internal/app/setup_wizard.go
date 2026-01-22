@@ -157,8 +157,8 @@ func (a *Application) renderSetupWizard() string {
 
 	// Center content in the content area
 	style := lipgloss.NewStyle().
-		Width(ui.ContentInnerWidth).
-		Height(ui.ContentHeight).
+		Width(a.sizing.ContentInnerWidth).
+		Height(a.sizing.ContentHeight).
 		Align(lipgloss.Center, lipgloss.Center)
 
 	return style.Render(content)
@@ -291,8 +291,8 @@ func (a *Application) renderSetupGenerate() string {
 
 	outputStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(a.theme.ContentTextColor)).
-		Width(ui.ContentInnerWidth - 4).
-		Height(ui.ContentHeight - 10)
+		Width(a.sizing.ContentInnerWidth - 4).
+		Height(a.sizing.ContentHeight - 10)
 
 	content := outputStyle.Render(output)
 
@@ -337,13 +337,13 @@ func (a *Application) renderSetupDisplayKey() string {
 	keyBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(a.theme.BoxBorderColor)).
-		Width(ui.ContentInnerWidth - 4).
+		Width(a.sizing.ContentInnerWidth - 4).
 		Height(8).
 		Padding(1, 2)
 
 	// Wrap the public key to fit in the box
 	wrappedKey := lipgloss.NewStyle().
-		Width(ui.ContentInnerWidth - 8). // Account for border and padding
+		Width(a.sizing.ContentInnerWidth - 8). // Account for border and padding
 		Render(pubKey)
 
 	keyContent := keyBox.Render(wrappedKey)

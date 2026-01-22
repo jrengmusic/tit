@@ -22,34 +22,6 @@ var MenuItems = map[string]MenuItem{
 		Enabled:  true,
 	},
 
-	// Conflicted state
-	"resolve_conflicts": {
-		ID:       "resolve_conflicts",
-		Shortcut: "r",
-		Emoji:    "🔧",
-		Label:    "Resolve conflicts",
-		Hint:     "Open conflict resolution UI (3-way view)",
-		Enabled:  true,
-	},
-	"abort_operation": {
-		ID:       "abort_operation",
-		Shortcut: "a",
-		Emoji:    "💥",
-		Label:    "Abort operation",
-		Hint:     "Cancel operation and return to previous state",
-		Enabled:  true,
-	},
-
-	// Operation state (Merging/Rebasing)
-	"continue_operation": {
-		ID:       "continue_operation",
-		Shortcut: "c",
-		Emoji:    "⏩",
-		Label:    "Continue operation",
-		Hint:     "Resume the operation in progress",
-		Enabled:  true,
-	},
-
 	// Working tree (Normal state, Dirty)
 	"commit": {
 		ID:       "commit",
@@ -191,16 +163,6 @@ var MenuItems = map[string]MenuItem{
 		Emoji:    "🔙",
 		Label:    "Return",
 		Hint:     "Return without merging changes",
-		Enabled:  true,
-	},
-
-	// Dirty operation (when stashed operation is in progress)
-	"view_operation_status": {
-		ID:       "view_operation_status",
-		Shortcut: "v",
-		Emoji:    "🔄",
-		Label:    "View operation status",
-		Hint:     "Show details of the operation in progress",
 		Enabled:  true,
 	},
 

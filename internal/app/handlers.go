@@ -1005,7 +1005,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 		NoLabel:     ConfirmationLabels["time_travel"][1],
 		ActionID:    "time_travel",
 	}
-	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
+	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
 
 	return app, nil
 }

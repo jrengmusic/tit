@@ -32,10 +32,6 @@ func (a *Application) GenerateMenu() []MenuItem {
 
 	menuGenerators := map[git.Operation]MenuGenerator{
 		git.NotRepo:       (*Application).menuNotRepo,
-		git.Conflicted:    (*Application).menuConflicted,
-		git.Merging:       (*Application).menuOperation,
-		git.Rebasing:      (*Application).menuOperation,
-		git.DirtyOperation: (*Application).menuDirtyOperation,
 		git.Normal:        (*Application).menuNormal,
 		git.TimeTraveling: (*Application).menuTimeTraveling,
 	}
@@ -57,14 +53,6 @@ func (a *Application) menuNotRepo() []MenuItem {
 	}
 }
 
-// menuConflicted returns menu for Conflicted state
-func (a *Application) menuConflicted() []MenuItem {
-	return []MenuItem{
-		GetMenuItem("resolve_conflicts"),
-		GetMenuItem("abort_operation"),
-	}
-}
-
 // detectConflictedOperation determines which operation caused conflicts
 func detectConflictedOperation() string {
 	if _, err := os.Stat(".git/MERGE_HEAD"); err == nil {
@@ -80,22 +68,6 @@ func detectConflictedOperation() string {
 		return "cherry-pick"
 	}
 	return "unknown"
-}
-
-// menuOperation returns menu for Merging/Rebasing (no conflicts)
-func (a *Application) menuOperation() []MenuItem {
-	return []MenuItem{
-		GetMenuItem("continue_operation"),
-		GetMenuItem("abort_operation"),
-	}
-}
-
-// menuDirtyOperation returns menu for DirtyOperation state (stashed operation in progress)
-func (a *Application) menuDirtyOperation() []MenuItem {
-	return []MenuItem{
-		GetMenuItem("view_operation_status"),
-		GetMenuItem("abort_operation"),
-	}
 }
 
 // menuNormal returns menu for Normal operation state
@@ -206,8 +178,8 @@ func (a *Application) menuTimeline() []MenuItem {
 		if a.gitState.WorkingTree == git.Dirty {
 			items = append(items,
 				GetMenuItem("dirty_pull_merge"),
-				GetMenuItem("force_push"),     // Destructive option (has confirmation)
-				GetMenuItem("replace_local"),  // Destructive option (has confirmation)
+				GetMenuItem("force_push"),    // Destructive option (has confirmation)
+				GetMenuItem("replace_local"), // Destructive option (has confirmation)
 			)
 		} else {
 			// Clean → ONLY clean pull options

@@ -11,16 +11,6 @@ import (
 // This type alias allows the ui package to use it without circular imports
 // In practice, we pass []app.MenuItem to RenderMenuWithHeight
 
-// RenderMenu renders menu items (uses default content height)
-func RenderMenu(items interface{}) string {
-	return RenderMenuWithHeight(items, 0, Theme{}, 24, ContentInnerWidth)
-}
-
-// RenderMenuWithSelection renders menu items with selection highlight
-func RenderMenuWithSelection(items interface{}, selectedIndex int, theme Theme) string {
-	return RenderMenuWithHeight(items, selectedIndex, theme, 24, ContentInnerWidth)
-}
-
 // RenderMenuWithHeight renders menu items centered with 3-column layout (KEY | EMOJI | LABEL)
 // items can be []app.MenuItem (passed as interface{})
 func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, contentHeight int, contentWidth int) string {

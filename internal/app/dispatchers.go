@@ -43,20 +43,17 @@ func isCwdEmpty() bool {
 // dispatchAction routes menu item selections to appropriate handlers
 func (a *Application) dispatchAction(actionID string) tea.Cmd {
 	actionDispatchers := map[string]ActionHandler{
-		"init":                 a.dispatchInit,
-		"clone":                a.dispatchClone,
-		"add_remote":           a.dispatchAddRemote,
-		"commit":               a.dispatchCommit,
-		"commit_push":          a.dispatchCommitPush,
-		"push":                 a.dispatchPush,
-		"force_push":           a.dispatchForcePush,
-		"pull_merge":           a.dispatchPullMerge,
-		"pull_merge_diverged":  a.dispatchPullMerge,
-		"dirty_pull_merge":     a.dispatchDirtyPullMerge,
-		"replace_local":        a.dispatchReplaceLocal,
-		"resolve_conflicts":    a.dispatchResolveConflicts,
-		"abort_operation":      a.dispatchAbortOperation,
-		"continue_operation":        a.dispatchContinueOperation,
+		"init":                      a.dispatchInit,
+		"clone":                     a.dispatchClone,
+		"add_remote":                a.dispatchAddRemote,
+		"commit":                    a.dispatchCommit,
+		"commit_push":               a.dispatchCommitPush,
+		"push":                      a.dispatchPush,
+		"force_push":                a.dispatchForcePush,
+		"pull_merge":                a.dispatchPullMerge,
+		"pull_merge_diverged":       a.dispatchPullMerge,
+		"dirty_pull_merge":          a.dispatchDirtyPullMerge,
+		"replace_local":             a.dispatchReplaceLocal,
 		"history":                   a.dispatchHistory,
 		"file_history":              a.dispatchFileHistory,
 		"time_travel_history":       a.dispatchTimeTravelHistory,
@@ -188,28 +185,10 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 			NoLabel:     labels[1],
 			ActionID:    confirmType,
 		},
-		ui.ContentInnerWidth,
+		a.sizing.ContentInnerWidth,
 		&app.theme,
 	)
 	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
-	return nil
-}
-
-// dispatchResolveConflicts opens conflict resolution UI
-func (a *Application) dispatchResolveConflicts(app *Application) tea.Cmd {
-	// TODO: Implement
-	return nil
-}
-
-// dispatchAbortOperation aborts current operation
-func (a *Application) dispatchAbortOperation(app *Application) tea.Cmd {
-	// TODO: Implement
-	return nil
-}
-
-// dispatchContinueOperation continues current operation
-func (a *Application) dispatchContinueOperation(app *Application) tea.Cmd {
-	// TODO: Implement
 	return nil
 }
 
@@ -219,7 +198,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.mode = ModeConfirmation
 	app.confirmType = "force_push"
 	app.confirmContext = map[string]string{}
-	
+
 	// Create the confirmation dialog from SSOT
 	labels := ConfirmationLabels["force_push"]
 	config := ui.ConfirmationConfig{
@@ -229,42 +208,42 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 		NoLabel:     labels[1],
 		ActionID:    "force_push",
 	}
-	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
-	
+	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
+
 	return nil
 }
 
-// dispatchReplaceLocal shows confirmation dialog for destructive action (like old-tit)  
+// dispatchReplaceLocal shows confirmation dialog for destructive action (like old-tit)
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
-	// Show confirmation dialog for destructive action  
+	// Show confirmation dialog for destructive action
 	app.mode = ModeConfirmation
 	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
-	
+
 	// Create the confirmation dialog from SSOT
 	labels := ConfirmationLabels["hard_reset"]
 	config := ui.ConfirmationConfig{
-		Title:       ConfirmationTitles["hard_reset"], 
+		Title:       ConfirmationTitles["hard_reset"],
 		Explanation: ConfirmationExplanations["hard_reset"],
 		YesLabel:    labels[0],
 		NoLabel:     labels[1],
 		ActionID:    "hard_reset",
 	}
-	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
-	
+	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
+
 	return nil
 }
 
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 	app.mode = ModeHistory
-	
+
 	// Use cached metadata to build commits list
 	app.historyCacheMutex.Lock()
 	defer app.historyCacheMutex.Unlock()
-	
+
 	var commits []ui.CommitInfo
-	
+
 	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
 	for hash, details := range app.historyMetadataCache {
 		commits = append(commits, ui.CommitInfo{
@@ -273,12 +252,12 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 			Time:    parseCommitDate(details.Date),
 		})
 	}
-	
+
 	// CRITICAL: Sort commits by time (newest first) - map iteration is unordered!
 	sort.Slice(commits, func(i, j int) bool {
 		return commits[i].Time.After(commits[j].Time)
 	})
-	
+
 	// Always initialize state (even if commits empty)
 	app.historyState = &ui.HistoryState{
 		Commits:           commits,
@@ -287,7 +266,7 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 		DetailsLineCursor: 0,    // Start at top of details
 		DetailsScrollOff:  0,    // No scroll initially
 	}
-	
+
 	// Show appropriate hint
 	if len(commits) == 0 {
 		if app.cacheMetadata {
@@ -296,20 +275,20 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 			app.footerHint = "Loading commit history..."
 		}
 	}
-	
+
 	return nil
 }
 
 // dispatchFileHistory shows file(s) history
 func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 	app.mode = ModeFileHistory
-	
+
 	// Use cached data to build file history state
 	app.fileHistoryCacheMutex.Lock()
 	defer app.fileHistoryCacheMutex.Unlock()
-	
+
 	var commits []ui.CommitInfo
-	
+
 	// Build commits from cache if available
 	for hash, details := range app.historyMetadataCache {
 		commits = append(commits, ui.CommitInfo{
@@ -318,12 +297,12 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 			Time:    parseCommitDate(details.Date),
 		})
 	}
-	
+
 	// Sort commits by time (newest first)
 	sort.Slice(commits, func(i, j int) bool {
 		return commits[i].Time.After(commits[j].Time)
 	})
-	
+
 	// Get files for first commit (if any)
 	var files []ui.FileInfo
 	if len(commits) > 0 {
@@ -338,7 +317,7 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 			}
 		}
 	}
-	
+
 	// Convert commits to git.CommitInfo for app state
 	var gitCommits []git.CommitInfo
 	for _, uiCommit := range commits {
@@ -348,7 +327,7 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 			Time:    uiCommit.Time,
 		})
 	}
-	
+
 	// Initialize state
 	app.fileHistoryState = &ui.FileHistoryState{
 		Commits:           commits,
@@ -364,10 +343,10 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 		VisualModeActive:  false,
 		VisualModeStart:   0,
 	}
-	
+
 	// Populate initial diff for first commit + first file
 	a.updateFileHistoryDiff()
-	
+
 	// Show appropriate hint
 	if len(commits) == 0 {
 		if app.cacheDiffs {
@@ -378,7 +357,7 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 	} else {
 		app.footerHint = "File(s) History │ ↑↓ navigate │ TAB cycle panes │ ESC back"
 	}
-	
+
 	return nil
 }
 
@@ -408,7 +387,7 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 		NoLabel:     labels[1],
 		ActionID:    "dirty_pull",
 	}
-	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
+	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
 
 	return nil
 }
@@ -485,7 +464,7 @@ func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
 			NoLabel:     labels[1],
 			ActionID:    string(confirmType),
 		},
-		ui.ContentInnerWidth,
+		a.sizing.ContentInnerWidth,
 		&app.theme,
 	)
 	app.confirmationDialog.SelectNo() // Right (Cancel/Discard) selected by default
@@ -509,7 +488,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 				NoLabel:     "Discard changes",
 				ActionID:    "time_travel_return_dirty_choice",
 			},
-			ui.ContentInnerWidth,
+			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
 		// Default to NO (Discard) as safer option
@@ -526,7 +505,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 				NoLabel:     labels[1],
 				ActionID:    string(ConfirmTimeTravelReturn),
 			},
-			ui.ContentInnerWidth,
+			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
 		app.confirmationDialog.SelectNo()
