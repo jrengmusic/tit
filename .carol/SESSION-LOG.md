@@ -100,7 +100,7 @@ ANALYST: Amp (Claude Sonnet 4)
 SCAFFOLDER: OpenCode (CLI Agent) — Code scaffolding specialist, literal implementation
 CARETAKER: OpenCode (CLI Agent) — Structural reviewer, error handling, pattern enforcement
 INSPECTOR: Amp (Claude Sonnet 4) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
-SURGEON: Amp (Claude Sonnet 4) — Diagnosing and fixing bugs, architectural violations, testing
+SURGEON: OpenCode (CLI Agent) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Mistral-Vibe (devstral-2) — Session documentation, log compilation, git commit messages
 
 

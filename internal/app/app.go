@@ -800,8 +800,8 @@ func (a *Application) View() string {
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
 
-	// History modes and conflict resolver use full terminal (no header/footer, no wrapper)
-	if a.mode == ModeFileHistory || a.mode == ModeHistory || a.mode == ModeConflictResolve {
+	// Full-screen modes use full terminal (no header/footer, no wrapper)
+	if a.mode == ModeConsole || a.mode == ModeClone || a.mode == ModeFileHistory || a.mode == ModeHistory || a.mode == ModeConflictResolve {
 		return contentText
 	}
 
