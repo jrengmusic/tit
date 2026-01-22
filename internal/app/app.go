@@ -17,152 +17,152 @@ import (
 
 // Application represents the main TIT app state
 type Application struct {
-	width                int
-	height               int
-	sizing               ui.Sizing
-	theme                ui.Theme
-	mode                 AppMode // Current application mode
-	quitConfirmActive    bool
-	quitConfirmTime      time.Time
-	footerHint           string // Footer hint/message text
-	gitState             *git.State
-	selectedIndex        int // Current menu item selection
-	menuItems            []MenuItem // Cached menu items
-	keyHandlers          map[AppMode]map[string]KeyHandler // Cached key handlers
+	width             int
+	height            int
+	sizing            ui.Sizing
+	theme             ui.Theme
+	mode              AppMode // Current application mode
+	quitConfirmActive bool
+	quitConfirmTime   time.Time
+	footerHint        string // Footer hint/message text
+	gitState          *git.State
+	selectedIndex     int                               // Current menu item selection
+	menuItems         []MenuItem                        // Cached menu items
+	keyHandlers       map[AppMode]map[string]KeyHandler // Cached key handlers
 
 	// Input mode state
-	inputPrompt          string // e.g., "Repository name:"
-	inputValue           string
-	inputCursorPosition  int // Cursor byte position in inputValue
-	inputHeight          int // Input height: 1 for single-line, 16 for multiline commit message
-	inputAction          string // Action being performed (e.g., "init_location", "canon_branch")
-	inputValidationMsg   string // Validation feedback message (empty = valid, shows message otherwise)
-	clearConfirmActive   bool   // True when waiting for second ESC to clear input
+	inputPrompt         string // e.g., "Repository name:"
+	inputValue          string
+	inputCursorPosition int    // Cursor byte position in inputValue
+	inputHeight         int    // Input height: 1 for single-line, 16 for multiline commit message
+	inputAction         string // Action being performed (e.g., "init_location", "canon_branch")
+	inputValidationMsg  string // Validation feedback message (empty = valid, shows message otherwise)
+	clearConfirmActive  bool   // True when waiting for second ESC to clear input
 
 	// Clone workflow state
-	cloneURL             string   // URL to clone from
-	clonePath            string   // Path to clone into (cwd or subdir)
-	cloneMode            string   // "here" (init+remote+fetch) or "subdir" (git clone)
-	cloneBranches        []string // Available branches after clone
+	cloneURL      string   // URL to clone from
+	clonePath     string   // Path to clone into (cwd or subdir)
+	cloneMode     string   // "here" (init+remote+fetch) or "subdir" (git clone)
+	cloneBranches []string // Available branches after clone
 
 	// Remote operation state
-	remoteBranchName     string   // Current branch name during remote operations
+	remoteBranchName string // Current branch name during remote operations
 
 	// Async operation state
-	asyncOperationActive bool // True while git operation (clone, init, etc) is running
-	asyncOperationAborted bool // True if user pressed ESC to abort during operation
-	isExitAllowed        bool // False during critical operations (pull merge) to prevent premature exit
-	previousMode         AppMode // Mode before async operation started (for restoration on ESC)
-	previousMenuIndex    int // Menu selection before async (for restoration)
+	asyncOperationActive  bool    // True while git operation (clone, init, etc) is running
+	asyncOperationAborted bool    // True if user pressed ESC to abort during operation
+	isExitAllowed         bool    // False during critical operations (pull merge) to prevent premature exit
+	previousMode          AppMode // Mode before async operation started (for restoration on ESC)
+	previousMenuIndex     int     // Menu selection before async (for restoration)
 
 	// Rewind operation state
 	pendingRewindCommit string // Commit hash for pending rewind operation
 
 	// Console output state (for clone, init, etc)
-	consoleState         ui.ConsoleOutState
-	outputBuffer         *ui.OutputBuffer
-	consoleAutoScroll    bool // Auto-scroll console to bottom (like old-tit)
-	
+	consoleState      ui.ConsoleOutState
+	outputBuffer      *ui.OutputBuffer
+	consoleAutoScroll bool // Auto-scroll console to bottom (like old-tit)
+
 	// Confirmation dialog state
-	confirmationDialog   *ui.ConfirmationDialog
-	confirmType          string // Type of confirmation for old-tit compatibility
-	confirmContext       map[string]string // Context for old-tit compatibility
-	
+	confirmationDialog *ui.ConfirmationDialog
+	confirmType        string            // Type of confirmation for old-tit compatibility
+	confirmContext     map[string]string // Context for old-tit compatibility
+
 	// Conflict resolution state
 	conflictResolveState *ConflictResolveState
-	
+
 	// Dirty operation tracking
 	dirtyOperationState *DirtyOperationState // nil when no dirty op in progress
-	
+
 	// State display info maps
-	workingTreeInfo      map[git.WorkingTree]StateInfo
-	timelineInfo         map[git.Timeline]StateInfo
-	operationInfo        map[git.Operation]StateInfo
+	workingTreeInfo map[git.WorkingTree]StateInfo
+	timelineInfo    map[git.Timeline]StateInfo
+	operationInfo   map[git.Operation]StateInfo
 
 	// History mode state
 	historyState *ui.HistoryState
 
 	// File(s) History mode state
 	fileHistoryState *ui.FileHistoryState
-	
+
 	// Time Travel state
-	timeTravelInfo *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
-	restoreTimeTravelInitiated bool // True once restoration has been started
+	timeTravelInfo             *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
+	restoreTimeTravelInitiated bool                // True once restoration has been started
 
 	// Git Environment state (5th axis - checked before all other state)
-	gitEnvironment     git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
-	setupWizardStep    SetupWizardStep    // Current step in setup wizard
-	setupEmail         string             // Email for SSH key generation
-	setupKeyCopied     bool               // True once public key copied to clipboard
-	
+	gitEnvironment  git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
+	setupWizardStep SetupWizardStep    // Current step in setup wizard
+	setupEmail      string             // Email for SSH key generation
+	setupKeyCopied  bool               // True once public key copied to clipboard
+
 	// Cache fields (Phase 2)
-	historyMetadataCache  map[string]*git.CommitDetails  // hash → commit metadata
-	fileHistoryDiffCache  map[string]string               // hash:path:version → diff content
-	fileHistoryFilesCache map[string][]git.FileInfo      // hash → file list
+	historyMetadataCache  map[string]*git.CommitDetails // hash → commit metadata
+	fileHistoryDiffCache  map[string]string             // hash:path:version → diff content
+	fileHistoryFilesCache map[string][]git.FileInfo     // hash → file list
 
 	// Cache status flags (CONTRACT: MANDATORY precomputation, no on-the-fly)
-	cacheLoadingStarted bool  // Guard against re-preloading
-	cacheMetadata       bool  // true when history metadata cache populated
-	cacheDiffs          bool  // true when file(s) history diffs cache populated
+	cacheLoadingStarted bool // Guard against re-preloading
+	cacheMetadata       bool // true when history metadata cache populated
+	cacheDiffs          bool // true when file(s) history diffs cache populated
 
 	// Cache progress tracking (for UI feedback during build)
-	cacheMetadataProgress    int  // Current commit processed for metadata
-	cacheMetadataTotal       int  // Total commits to process
-	cacheDiffsProgress       int  // Current commit processed for diffs
-	cacheDiffsTotal          int  // Total commits to process
-	cacheAnimationFrame      int  // Animation frame for loading spinner
+	cacheMetadataProgress int // Current commit processed for metadata
+	cacheMetadataTotal    int // Total commits to process
+	cacheDiffsProgress    int // Current commit processed for diffs
+	cacheDiffsTotal       int // Total commits to process
+	cacheAnimationFrame   int // Animation frame for loading spinner
 
 	// Mutexes for thread-safe cache access
-	historyCacheMutex    sync.Mutex
+	historyCacheMutex     sync.Mutex
 	fileHistoryCacheMutex sync.Mutex
-	diffCacheMutex       sync.Mutex
+	diffCacheMutex        sync.Mutex
 }
 
 // ModeTransition configuration for streamlined mode changes
 type ModeTransition struct {
-    Mode            AppMode
-    InputPrompt     string
-    InputAction     string
-    FooterHint      string
-    ResetFields     []string // Field names to reset: "clone", "init", "all"
+	Mode        AppMode
+	InputPrompt string
+	InputAction string
+	FooterHint  string
+	ResetFields []string // Field names to reset: "clone", "init", "all"
 }
 
 // transitionTo handles standardized mode transitions and state resets.
 func (a *Application) transitionTo(config ModeTransition) {
-    a.mode = config.Mode
+	a.mode = config.Mode
 
-    // Always reset common input state
-    a.selectedIndex = 0
-    a.inputValue = ""
-    a.inputCursorPosition = 0
-    a.inputValidationMsg = ""
+	// Always reset common input state
+	a.selectedIndex = 0
+	a.inputValue = ""
+	a.inputCursorPosition = 0
+	a.inputValidationMsg = ""
 	a.clearConfirmActive = false
 
-    // Set new input config from the transition configuration
-    if config.InputPrompt != "" {
-        a.inputPrompt = config.InputPrompt
-    }
-    if config.InputAction != "" {
-        a.inputAction = config.InputAction
-    }
-    if config.FooterHint != "" {
-        a.footerHint = config.FooterHint
-    }
+	// Set new input config from the transition configuration
+	if config.InputPrompt != "" {
+		a.inputPrompt = config.InputPrompt
+	}
+	if config.InputAction != "" {
+		a.inputAction = config.InputAction
+	}
+	if config.FooterHint != "" {
+		a.footerHint = config.FooterHint
+	}
 
-    // Reset workflow-specific fields based on the configuration
-    for _, field := range config.ResetFields {
-        switch field {
-        case "clone":
-            a.cloneURL = ""
-            a.clonePath = ""
-            a.cloneBranches = nil
-        case "all":
-            // Reset all workflow states
-            a.cloneURL = ""
-            a.clonePath = ""
-            a.cloneBranches = nil
-        }
-    }
+	// Reset workflow-specific fields based on the configuration
+	for _, field := range config.ResetFields {
+		switch field {
+		case "clone":
+			a.cloneURL = ""
+			a.clonePath = ""
+			a.cloneBranches = nil
+		case "all":
+			// Reset all workflow states
+			a.cloneURL = ""
+			a.clonePath = ""
+			a.cloneBranches = nil
+		}
+	}
 }
 
 // newSetupWizardApp creates a minimal Application for the setup wizard
@@ -197,7 +197,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 		// Check parent directories
 		isRepo, repoPath = git.HasParentRepo()
 	}
-	
+
 	var gitState *git.State
 	if isRepo && repoPath != "" {
 		// Found a repo, cd into it and detect state
@@ -229,24 +229,24 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	workingTreeInfo, timelineInfo, operationInfo := BuildStateInfo(theme)
 
 	app := &Application{
-		sizing:               sizing,
-		theme:                theme,
-		mode:                 ModeMenu,
-		gitState:             gitState,
-		selectedIndex:        0,
-		asyncOperationActive: false,
+		sizing:                sizing,
+		theme:                 theme,
+		mode:                  ModeMenu,
+		gitState:              gitState,
+		selectedIndex:         0,
+		asyncOperationActive:  false,
 		asyncOperationAborted: false,
-		isExitAllowed:        true, // Allow exit by default (disabled during critical operations)
-		consoleState:         ui.NewConsoleOutState(),
-		outputBuffer:         ui.GetBuffer(),
-		consoleAutoScroll:    true, // Start with auto-scroll enabled
-		workingTreeInfo:      workingTreeInfo,
-		timelineInfo:         timelineInfo,
-		operationInfo:        operationInfo,
+		isExitAllowed:         true, // Allow exit by default (disabled during critical operations)
+		consoleState:          ui.NewConsoleOutState(),
+		outputBuffer:          ui.GetBuffer(),
+		consoleAutoScroll:     true, // Start with auto-scroll enabled
+		workingTreeInfo:       workingTreeInfo,
+		timelineInfo:          timelineInfo,
+		operationInfo:         operationInfo,
 		historyState: &ui.HistoryState{
 			Commits:           make([]ui.CommitInfo, 0),
 			SelectedIdx:       0,
-			PaneFocused:       true,  // Start with list pane focused
+			PaneFocused:       true, // Start with list pane focused
 			DetailsLineCursor: 0,
 			DetailsScrollOff:  0,
 		},
@@ -255,7 +255,7 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 			Files:             make([]ui.FileInfo, 0),
 			SelectedCommitIdx: 0,
 			SelectedFileIdx:   0,
-			FocusedPane:       ui.PaneCommits,  // Start with commits pane focused
+			FocusedPane:       ui.PaneCommits, // Start with commits pane focused
 			CommitsScrollOff:  0,
 			FilesScrollOff:    0,
 			DiffScrollOff:     0,
@@ -317,7 +317,11 @@ func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
 	app.menuItems = menu
 	if len(menu) > 0 && !shouldRestore {
 		// Only set hint if not restoring
-		app.footerHint = menu[0].Hint
+		if app.gitState != nil && app.gitState.Remote == git.HasRemote && app.gitState.Timeline == "" && app.gitState.CurrentHash == "" {
+			app.footerHint = FooterHints["no_commits_yet"]
+		} else {
+			app.footerHint = menu[0].Hint
+		}
 	}
 
 	// Register menu shortcuts dynamically
@@ -436,23 +440,23 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
 	a.asyncOperationActive = false
 	buffer := ui.GetBuffer()
-	
+
 	if !msg.Success {
 		// Rewind failed - show error in console and stay
 		buffer.Append(fmt.Sprintf(ErrorMessages["rewind_failed"], msg.Error), ui.TypeStderr)
 		a.footerHint = GetFooterMessageText(MessageOperationFailed)
 		return a, nil
 	}
-	
+
 	// Rewind succeeded - show success message and stay in console
 	buffer.Append(OutputMessages["rewind_completed"], ui.TypeStatus)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	
+
 	// Refresh git state for next menu display (when user presses ESC)
 	if state, err := git.DetectState(); err == nil {
 		a.gitState = state
 	}
-	
+
 	return a, nil
 }
 
@@ -501,32 +505,32 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
 	markerPath := ".git/TIT_TIME_TRAVEL"
 	markerStat, markerErr := os.Stat(markerPath)
-	
-	debugLog := fmt.Sprintf("[UPDATE #%d] asyncActive=%v, mode=%v, hasMarker=%v, marker_stat=%v, marker_err=%v\n", 
+
+	debugLog := fmt.Sprintf("[UPDATE #%d] asyncActive=%v, mode=%v, hasMarker=%v, marker_stat=%v, marker_err=%v\n",
 		updateCallCount, a.asyncOperationActive, a.mode, hasMarker, markerStat != nil, markerErr)
 	// Append to log file instead of overwriting
 	f, _ := os.OpenFile("/tmp/tit-update-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	f.WriteString(debugLog)
 	f.Close()
-	
+
 	// Log each condition separately
 	cond1 := a.asyncOperationActive
 	cond2 := a.mode == ModeConsole
 	cond3 := !a.restoreTimeTravelInitiated
 	cond4 := hasMarker
-	
+
 	condLog := fmt.Sprintf("[CONDITIONS #%d] cond1(asyncActive)=%v, cond2(mode==console)=%v, cond3(!restored)=%v, cond4(hasMarker)=%v, all=%v\n",
 		updateCallCount, cond1, cond2, cond3, cond4, cond1 && cond2 && cond3 && cond4)
 	// Append to log file
 	f2, _ := os.OpenFile("/tmp/tit-conditions-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	f2.WriteString(condLog)
 	f2.Close()
-	
+
 	// Double-check before calling RestoreFromTimeTravel
 	if cond1 && cond2 && cond3 && cond4 {
 		// Verify marker still exists right before restoration
 		markerExists := git.FileExists(".git/TIT_TIME_TRAVEL")
-		debugLog := fmt.Sprintf("[UPDATE #%d] RESTORE TRIGGERED: asyncActive=%v, mode=%v, hasMarker=%v, markerExists=%v\n", 
+		debugLog := fmt.Sprintf("[UPDATE #%d] RESTORE TRIGGERED: asyncActive=%v, mode=%v, hasMarker=%v, markerExists=%v\n",
 			updateCallCount, a.asyncOperationActive, a.mode, hasMarker, markerExists)
 		// Append to log
 		f, _ := os.OpenFile("/tmp/tit-restore-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -562,14 +566,13 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.keyHandlers[a.mode] != nil && a.keyHandlers[a.mode][keyStr] != nil)
 			os.WriteFile("/tmp/tit-key-debug.log", []byte(debugLog), 0644)
 		}
-		
 
 		// Handle ctrl+j (shift+enter equivalent) for newline in multiline input
 		if a.isInputMode() && (keyStr == "ctrl+j" || keyStr == "shift+enter") {
 			a.insertTextAtCursor("\n")
 			return a, nil
 		}
-		
+
 		// Look up handler in cached registry
 		if modeHandlers, modeExists := a.keyHandlers[a.mode]; modeExists {
 			if handler, exists := modeHandlers[keyStr]; exists {
@@ -629,15 +632,15 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RestoreTimeTravelMsg:
 		// Time travel restoration completed (Phase 0)
 		return a.handleRestoreTimeTravel(msg)
-	
+
 	case git.TimeTravelCheckoutMsg:
 		// Time travel checkout operation completed
 		return a.handleTimeTravelCheckout(msg)
-		
+
 	case git.TimeTravelMergeMsg:
 		// Time travel merge operation completed
 		return a.handleTimeTravelMerge(msg)
-		
+
 	case git.TimeTravelReturnMsg:
 		// Time travel return operation completed
 		return a.handleTimeTravelReturn(msg)
@@ -677,12 +680,12 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the current view
 func (a *Application) View() string {
 	var contentText string
-	
+
 	// Render based on current mode
 	switch a.mode {
 	case ModeMenu:
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
-	
+
 	case ModeConsole, ModeClone:
 		// Console output (both during and after operation)
 		contentText = ui.RenderConsoleOutput(
@@ -695,7 +698,7 @@ func (a *Application) View() string {
 			a.asyncOperationAborted,
 			a.consoleAutoScroll,
 		)
-	
+
 	case ModeConfirmation:
 		// Confirmation dialog (centered in content area)
 		if a.confirmationDialog != nil {
@@ -705,7 +708,7 @@ func (a *Application) View() string {
 			a.mode = ModeMenu
 			contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
 		}
-	
+
 	case ModeSelectBranch:
 		// Dynamic menu from cloneBranches
 		items := make([]map[string]interface{}, len(a.cloneBranches))
@@ -723,11 +726,11 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
 	case ModeInput:
 		textInputState := ui.TextInputState{
-			Value:      a.inputValue,
-			CursorPos:  a.inputCursorPosition,
-			Height:     a.inputHeight, // Use configured height
+			Value:     a.inputValue,
+			CursorPos: a.inputCursorPosition,
+			Height:    a.inputHeight, // Use configured height
 		}
-		
+
 		// Render text input with optional validation message
 		inputContent := ui.RenderTextInput(
 			a.inputPrompt,
@@ -736,12 +739,12 @@ func (a *Application) View() string {
 			ui.ContentInnerWidth,
 			ui.ContentHeight-2,
 		)
-		
+
 		// Append validation message if present
 		if a.inputValidationMsg != "" {
 			inputContent += "\n\n" + a.inputValidationMsg
 		}
-		
+
 		contentText = inputContent
 	case ModeCloneURL:
 		textInputState := ui.TextInputState{
@@ -749,7 +752,7 @@ func (a *Application) View() string {
 			CursorPos: a.inputCursorPosition,
 			Height:    1,
 		}
-		
+
 		inputContent := ui.RenderTextInput(
 			a.inputPrompt,
 			textInputState,
@@ -757,11 +760,11 @@ func (a *Application) View() string {
 			ui.ContentInnerWidth,
 			ui.ContentHeight-2,
 		)
-		
+
 		if a.inputValidationMsg != "" {
 			inputContent += "\n\n" + a.inputValidationMsg
 		}
-		
+
 		contentText = inputContent
 	case ModeCloneLocation:
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuCloneLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
@@ -816,7 +819,7 @@ func (a *Application) View() string {
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
-	
+
 	// Get current branch from git state
 	currentBranch := ""
 	if a.gitState != nil {
@@ -1004,10 +1007,10 @@ func (a *Application) RenderStateHeader() string {
 	branchLabel := "🌿 " + state.CurrentBranch
 	branchColor := a.theme.LabelTextColor
 
-	// Special case: TimeTraveling shows "Detached HEAD"
-	if state.Operation == git.TimeTraveling {
-		branchLabel = "🔀 Detached HEAD"
-		branchColor = a.theme.AccentTextColor
+	// Special case: Detached HEAD (either time traveling or manual checkout)
+	if state.Operation == git.TimeTraveling || state.Detached {
+		branchLabel = "🔀 DETACHED"
+		branchColor = a.theme.OutputWarningColor
 	}
 
 	row2 := lipgloss.JoinHorizontal(
@@ -1160,10 +1163,10 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 		"ctrl+c": a.handleKeyCtrlC,
 		"q":      a.handleKeyCtrlC,
 		"esc":    a.handleKeyESC,
-		"ctrl+v": a.handleKeyPaste,  // Linux/Windows/macOS
-		"cmd+v":  a.handleKeyPaste,  // macOS cmd+v
-		"meta+v": a.handleKeyPaste,  // macOS meta (cmd) - Bubble Tea may send this
-		"alt+v":  a.handleKeyPaste,  // Fallback
+		"ctrl+v": a.handleKeyPaste, // Linux/Windows/macOS
+		"cmd+v":  a.handleKeyPaste, // macOS cmd+v
+		"meta+v": a.handleKeyPaste, // macOS meta (cmd) - Bubble Tea may send this
+		"alt+v":  a.handleKeyPaste, // Fallback
 	}
 
 	cursorNavMixin := CursorNavigationMixin{}
@@ -1244,7 +1247,7 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("down", a.handleConflictDown).
 			On("j", a.handleConflictDown).
 			On("tab", a.handleConflictTab).
-			On(" ", a.handleConflictSpace).  // Space character, not "space"
+			On(" ", a.handleConflictSpace). // Space character, not "space"
 			On("enter", a.handleConflictEnter).
 			Build(),
 		ModeClone: NewModeHandlers().
@@ -1403,7 +1406,7 @@ func (a *Application) insertTextAtCursor(text string) {
 	if a.inputCursorPosition > valueLen {
 		a.inputCursorPosition = valueLen
 	}
-	
+
 	// Safe slice operation
 	before := a.inputValue[:a.inputCursorPosition]
 	after := a.inputValue[a.inputCursorPosition:]
@@ -1420,7 +1423,7 @@ func (a *Application) deleteAtCursor() {
 	if a.inputCursorPosition > valueLen {
 		a.inputCursorPosition = valueLen
 	}
-	
+
 	// Safe slice operation
 	before := a.inputValue[:a.inputCursorPosition-1]
 	after := a.inputValue[a.inputCursorPosition:]
@@ -1471,16 +1474,13 @@ func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd)
 	if app.historyState == nil || len(app.historyState.Commits) == 0 {
 		return app, nil
 	}
-	
+
 	if app.historyState.SelectedIdx < 0 || app.historyState.SelectedIdx >= len(app.historyState.Commits) {
 		return app, nil
 	}
-	
+
 	selectedCommit := app.historyState.Commits[app.historyState.SelectedIdx]
 	app.pendingRewindCommit = selectedCommit.Hash
-	
+
 	return app, app.showRewindConfirmation(selectedCommit.Hash)
 }
-
-
-

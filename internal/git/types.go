@@ -77,6 +77,7 @@ type State struct {
 	CommitsAhead        int
 	CommitsBehind       int
 	LocalBranchOnRemote bool // Whether current branch exists on remote
+	Detached            bool // HEAD is detached (not on any branch)
 }
 
 // CommitInfo contains basic information about a commit (for list display)

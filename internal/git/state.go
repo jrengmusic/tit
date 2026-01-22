@@ -67,14 +67,6 @@ func DetectState() (*State, error) {
 	hash, err := executeGitCommand("rev-parse", "HEAD")
 	hasCommits := err == nil && hash != ""
 
-	// If repo exists but has NO commits, auto-setup with .gitignore
-	if !hasCommits {
-		if err := setupFreshRepo(); err != nil {
-			// Log error but continue - state detection should still work
-			fmt.Fprintf(os.Stderr, "Warning: Failed to setup fresh repo: %v\n", err)
-		}
-	}
-
 	// Detect working tree state (always applicable)
 	workingTree, err := detectWorkingTree()
 	if err != nil {
@@ -99,7 +91,7 @@ func DetectState() (*State, error) {
 	// Detect timeline state (CONDITIONAL: only when on branch with tracking)
 	// Timeline = comparison between local vs remote tracking branch
 	// Not applicable when: Operation != Normal OR Remote = NoRemote
-	if state.Operation == Normal && state.Remote == HasRemote {
+	if state.Operation == Normal && state.Remote == HasRemote && hasCommits {
 		timeline, ahead, behind, err := detectTimeline()
 		if err != nil {
 			return nil, fmt.Errorf("detecting timeline: %w", err)
@@ -108,7 +100,7 @@ func DetectState() (*State, error) {
 		state.CommitsAhead = ahead
 		state.CommitsBehind = behind
 	} else {
-		// Timeline N/A (no remote OR detached HEAD/time traveling)
+		// Timeline N/A (no remote, no commits, or detached HEAD/time traveling)
 		state.Timeline = ""
 		state.CommitsAhead = 0
 		state.CommitsBehind = 0
@@ -118,7 +110,9 @@ func DetectState() (*State, error) {
 	// Use symbolic-ref for branch name (works even with zero commits)
 	branch, err := executeGitCommand("symbolic-ref", "--short", "HEAD")
 	if err != nil {
-		// If symbolic-ref fails (detached HEAD), try rev-parse
+		// symbolic-ref fails when HEAD is detached
+		state.Detached = true
+		// rev-parse returns "HEAD" literally when detached
 		branch, err = executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
 		if err != nil {
 			return nil, fmt.Errorf("detecting current branch: %w", err)
@@ -145,42 +139,6 @@ func DetectState() (*State, error) {
 	}
 
 	return state, nil
-}
-
-// setupFreshRepo creates and commits .gitignore in a fresh repo with no commits
-func setupFreshRepo() error {
-	// Check if .gitignore already exists
-	if _, err := os.Stat(".gitignore"); err == nil {
-		// .gitignore exists, add and commit it
-		cmd := exec.Command("git", "add", ".gitignore")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to add existing .gitignore: %w", err)
-		}
-		cmd = exec.Command("git", "commit", "-m", "Initialize repository")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to commit .gitignore: %w", err)
-		}
-		return nil
-	}
-
-	// Create default .gitignore
-	if err := CreateDefaultGitignore(); err != nil {
-		return err
-	}
-
-	// Stage .gitignore
-	cmd := exec.Command("git", "add", ".gitignore")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to stage .gitignore: %w", err)
-	}
-
-	// Commit .gitignore
-	cmd = exec.Command("git", "commit", "-m", "Initialize repository with .gitignore")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to commit .gitignore: %w", err)
-	}
-
-	return nil
 }
 
 // detectWorkingTree checks for staged/unstaged changes or untracked files
@@ -403,23 +361,23 @@ func detectDirtyOperation() bool {
 func GetTimeTravelInfo() (string, string, error) {
 	gitDir := ".git"
 	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
-	
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read time travel info: %w", err)
 	}
-	
+
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 	if len(lines) < 1 {
 		return "", "", fmt.Errorf("invalid time travel info format")
 	}
-	
+
 	originalBranch := strings.TrimSpace(lines[0])
 	stashID := ""
 	if len(lines) >= 2 {
 		stashID = strings.TrimSpace(lines[1])
 	}
-	
+
 	return originalBranch, stashID, nil
 }
 
@@ -427,23 +385,23 @@ func GetTimeTravelInfo() (string, string, error) {
 func WriteTimeTravelInfo(originalBranch, stashID string) error {
 	gitDir := ".git"
 	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
-	
+
 	content := originalBranch + "\n"
 	if stashID != "" {
 		content += stashID + "\n"
 	}
-	
+
 	err := os.WriteFile(filePath, []byte(content), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write time travel info: %w", err)
 	}
-	
+
 	// DEBUG: Log what was written
 	debugLog := fmt.Sprintf("[WRITE_TT_INFO] branch=%q, stashID=%q, content=%q\n", originalBranch, stashID, content)
 	f, _ := os.OpenFile("/tmp/tit-write-tt.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	f.WriteString(debugLog)
 	f.Close()
-	
+
 	return nil
 }
 
@@ -451,12 +409,12 @@ func WriteTimeTravelInfo(originalBranch, stashID string) error {
 func ClearTimeTravelInfo() error {
 	gitDir := ".git"
 	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
-	
+
 	err := os.Remove(filePath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to clear time travel info: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -465,7 +423,7 @@ func ClearTimeTravelInfo() error {
 func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
 	gitDir := ".git"
 	markerPath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
-	
+
 	// Check if marker exists
 	if !FileExists(markerPath) {
 		debugLog := fmt.Sprintf("[LOAD_TT_INFO] marker does not exist\n")
@@ -474,7 +432,7 @@ func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
 		f.Close()
 		return nil, nil
 	}
-	
+
 	// Read marker file as plain text (simpler format)
 	data, err := os.ReadFile(markerPath)
 	if err != nil {
@@ -484,7 +442,7 @@ func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
 		f.Close()
 		return nil, fmt.Errorf("failed to read time travel marker: %w", err)
 	}
-	
+
 	// Parse two lines: branch and optional stash ID
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) < 1 {
@@ -494,13 +452,13 @@ func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
 		f.Close()
 		return nil, fmt.Errorf("time travel marker is empty")
 	}
-	
+
 	branch := strings.TrimSpace(lines[0])
 	stashID := ""
 	if len(lines) > 1 {
 		stashID = strings.TrimSpace(lines[1])
 	}
-	
+
 	// Get current commit info (we're in detached HEAD during time travel)
 	currentHash, err := executeGitCommand("rev-parse", "HEAD")
 	if err != nil {
@@ -531,7 +489,7 @@ func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
 	f.Close()
 
 	return &TimeTravelInfo{
-		OriginalBranch: branch,
+		OriginalBranch:  branch,
 		OriginalStashID: stashID,
 		CurrentCommit: CommitInfo{
 			Hash:    currentHash,

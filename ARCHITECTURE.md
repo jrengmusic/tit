@@ -35,10 +35,11 @@ type State struct {
 - **Empty string (""):** Timeline N/A - no comparison possible when:
   - `Remote = NoRemote` (no remote configured)
   - `Operation = TimeTraveling` (detached HEAD, no tracking relationship)
+  - No commits exist yet (empty repo)
 
 **Timeline is ONLY detected when:**
 ```go
-if state.Operation == Normal && state.Remote == HasRemote {
+if state.Operation == Normal && state.Remote == HasRemote && hasCommits {
     // Detect timeline comparison
     state.Timeline = detectTimeline()
 } else {
@@ -1529,7 +1530,7 @@ state, err := git.DetectState()
 
 **Single-branch model:** TIT operates on the currently checked-out branch only. No canon/working branch tracking. User can switch branches anytime with normal git commands.
 
-**Fresh repository auto-setup:** When detecting a repo with no commits, TIT automatically creates and commits `.gitignore` to ensure Clean working tree state.
+**Fresh repository behavior:** Repos with no commits remain uncommitted. Timeline is N/A until the first commit exists.
 
 ### User Configuration
 

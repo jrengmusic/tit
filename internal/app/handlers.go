@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -25,14 +25,14 @@ func errorOrEmpty(err error) string {
 // validateAndProceed is a generic input validation handler.
 // It uses a validator function and proceeds with onSuccess if validation passes.
 func (a *Application) validateAndProceed(
-    validator ui.InputValidator,
-    onSuccess func(*Application) (tea.Model, tea.Cmd),
+	validator ui.InputValidator,
+	onSuccess func(*Application) (tea.Model, tea.Cmd),
 ) (tea.Model, tea.Cmd) {
-    if valid, msg := validator(a.inputValue); !valid {
-        a.footerHint = msg
-        return a, nil
-    }
-    return onSuccess(a)
+	if valid, msg := validator(a.inputValue); !valid {
+		a.footerHint = msg
+		return a, nil
+	}
+	return onSuccess(a)
 }
 
 // convertGitFilesToUIFileInfo converts git.FileInfo to ui.FileInfo for state management
@@ -167,7 +167,11 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	menu := a.GenerateMenu()
 	a.menuItems = menu
 	if len(menu) > 0 {
-		a.footerHint = menu[0].Hint
+		if a.gitState != nil && a.gitState.Remote == git.HasRemote && a.gitState.Timeline == "" && a.gitState.CurrentHash == "" {
+			a.footerHint = FooterHints["no_commits_yet"]
+		} else {
+			a.footerHint = menu[0].Hint
+		}
 	}
 
 	// Rebuild shortcuts for new menu
@@ -239,7 +243,7 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 		}
 
 		subdirPath := fmt.Sprintf("%s/%s", cwd, app.inputValue)
-		
+
 		// Create subdirectory
 		if err := os.MkdirAll(subdirPath, 0755); err != nil {
 			app.footerHint = fmt.Sprintf(ErrorMessages["failed_create_dir"], err)
@@ -265,8 +269,6 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 		return app, app.cmdInit("main")
 	})
 }
-
-
 
 // handleInitBranchesCancel is now handled by global ESC handler
 // Keeping as comment for reference of old behavior
@@ -323,7 +325,7 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 		// Insert pasted text at cursor position (atomically, not character by character)
 		app.inputValue = app.inputValue[:app.inputCursorPosition] + text + app.inputValue[app.inputCursorPosition:]
 		app.inputCursorPosition += len(text)
-		
+
 		// Update real-time validation if in clone URL mode
 		if app.inputAction == "clone_url" {
 			if app.inputValue == "" {
@@ -409,7 +411,7 @@ func (a *Application) transitionToCloneURL(action string) (tea.Model, tea.Cmd) {
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
 		app.cloneURL = app.inputValue
-		
+
 		// Route based on how we got here
 		if app.inputAction == "clone_url" {
 			// CWD not empty: start clone to subdir operation
@@ -421,7 +423,7 @@ func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd
 			app.clonePath = cwd // git clone will create subdir automatically
 			return app.startCloneOperation()
 		}
-		
+
 		// CWD empty: either clone_here or clone_to_subdir
 		return app.startCloneOperation()
 	})
@@ -504,11 +506,11 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 
 	return func() tea.Msg {
 		effectivePath := cwd // Default to current working directory
-		
+
 		if cloneMode == "here" {
 			// Clone here: init + remote add + fetch + checkout with tracking
 			buffer := ui.GetBuffer()
-			
+
 			// Step 1: git init
 			result := git.ExecuteWithStreaming("init")
 			if !result.Success {
@@ -899,7 +901,7 @@ func (a *Application) handleHistoryUp(app *Application) (tea.Model, tea.Cmd) {
 	if app.historyState == nil {
 		return app, nil
 	}
-	
+
 	if app.historyState.PaneFocused { // List pane focused
 		if app.historyState.SelectedIdx > 0 {
 			app.historyState.SelectedIdx--
@@ -919,7 +921,7 @@ func (a *Application) handleHistoryDown(app *Application) (tea.Model, tea.Cmd) {
 	if app.historyState == nil {
 		return app, nil
 	}
-	
+
 	if app.historyState.PaneFocused { // List pane focused
 		if app.historyState.SelectedIdx < len(app.historyState.Commits)-1 {
 			app.historyState.SelectedIdx++
@@ -930,13 +932,13 @@ func (a *Application) handleHistoryDown(app *Application) (tea.Model, tea.Cmd) {
 		// Get total lines in selected commit's details
 		if app.historyState.SelectedIdx >= 0 && app.historyState.SelectedIdx < len(app.historyState.Commits) {
 			commit := app.historyState.Commits[app.historyState.SelectedIdx]
-			
+
 			// Build details lines (must match renderHistoryDetailsPane logic)
 			var totalLines int
-			totalLines += 2 // "Author:" and "Date:" lines
-			totalLines += 1 // Empty line separator
+			totalLines += 2                                       // "Author:" and "Date:" lines
+			totalLines += 1                                       // Empty line separator
 			totalLines += strings.Count(commit.Subject, "\n") + 1 // Commit subject lines
-			
+
 			// Only increment if not at the last line
 			if app.historyState.DetailsLineCursor < totalLines-1 {
 				app.historyState.DetailsLineCursor++
@@ -951,7 +953,7 @@ func (a *Application) handleHistoryTab(app *Application) (tea.Model, tea.Cmd) {
 	if app.historyState == nil {
 		return app, nil
 	}
-	
+
 	app.historyState.PaneFocused = !app.historyState.PaneFocused
 	return app, nil
 }
@@ -966,36 +968,36 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 	// DEBUG: Verify handler was called
 	buffer := ui.GetBuffer()
 	buffer.Append("[DEBUG] handleHistoryEnter called, mode="+string(app.mode), ui.TypeStatus)
-	
+
 	if app.historyState == nil || app.historyState.SelectedIdx < 0 {
 		return app, nil
 	}
-	
+
 	// Get selected commit
 	commit := app.historyState.Commits[app.historyState.SelectedIdx]
-	
+
 	// Show time travel confirmation dialog
 	app.mode = ModeConfirmation
 	buffer.Append("[DEBUG] Set mode=ModeConfirmation", ui.TypeStatus)
 	app.confirmType = "time_travel"
 	app.confirmContext = map[string]string{
-		"commit_hash":   commit.Hash,
+		"commit_hash":    commit.Hash,
 		"commit_subject": commit.Subject,
 	}
-	
+
 	// Create confirmation dialog using SSOT
 	// Format: hash (first 7 chars) on first line, subject on second line
 	shortHash := commit.Hash
 	if len(shortHash) > 7 {
 		shortHash = shortHash[:7]
 	}
-	
+
 	// Extract only first line of commit message (subject)
 	subject := commit.Subject
 	if idx := strings.Index(subject, "\n"); idx >= 0 {
 		subject = subject[:idx]
 	}
-	
+
 	config := ui.ConfirmationConfig{
 		Title:       ConfirmationTitles["time_travel"],
 		Explanation: fmt.Sprintf(ConfirmationExplanations["time_travel"], shortHash, subject),
@@ -1004,7 +1006,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 		ActionID:    "time_travel",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, ui.ContentInnerWidth, &app.theme)
-	
+
 	return app, nil
 }
 
