@@ -145,6 +145,13 @@ func RenderConsoleOutputFullScreen(
 
 	scrollOffset := int(state.ScrollOffset)
 
+	// Calculate scroll status
+	atBottom := scrollOffset >= maxScroll
+	remainingLines := totalOutputLines - (scrollOffset + contentHeight)
+	if remainingLines < 0 {
+		remainingLines = 0
+	}
+
 	// Extract visible window
 	start := scrollOffset
 	end := start + contentHeight
@@ -210,17 +217,17 @@ func RenderConsoleOutputFullScreen(
 	panel = strings.Join(panelLines, "\n")
 
 	// Build centered status bar at bottom
-	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride)
+	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
 
 	// Return: panel (termHeight - 1) + newline + statusBar (1 line) = termHeight lines total
 	return panel + "\n" + statusBar
 }
 
-// buildConsoleStatusBar builds a centered status bar for console output
-func buildConsoleStatusBar(width int, palette Theme, operationInProgress bool, abortConfirmActive bool, overrideMessage string) string {
+// buildConsoleStatusBar builds a status bar for console output with shortcuts (left) and scroll status (right)
+func buildConsoleStatusBar(width int, palette Theme, operationInProgress bool, abortConfirmActive bool, overrideMessage string, atBottom bool, remainingLines int) string {
 	styles := NewStatusBarStyles(&palette)
 
-	// If override message is set, use it
+	// If override message is set, show centered only (no shortcuts or scroll status)
 	if overrideMessage != "" {
 		return BuildStatusBar(StatusBarConfig{
 			Width:           width,
@@ -230,34 +237,46 @@ func buildConsoleStatusBar(width int, palette Theme, operationInProgress bool, a
 		})
 	}
 
-	// Build shortcuts based on state
-	var parts []string
+	// Build shortcuts (left side)
+	var leftParts []string
 	if abortConfirmActive {
-		parts = []string{
+		leftParts = []string{
 			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
 			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back to menu"),
 		}
 	} else if operationInProgress {
-		parts = []string{
+		leftParts = []string{
 			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
 			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" abort"),
 		}
 	} else {
-		parts = []string{
+		leftParts = []string{
 			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
 			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back to menu"),
 		}
 	}
 
-	// Build scroll indicator (at bottom or more lines)
-	// This requires access to scroll state, which we don't have here
-	// For now, just return the shortcuts centered
-	return BuildStatusBar(StatusBarConfig{
-		Parts:    parts,
-		Width:    width,
-		Centered: true,
-		Theme:    &palette,
-	})
+	statusLeft := strings.Join(leftParts, styles.sepStyle.Render("  │  "))
+
+	// Build scroll status (right side)
+	var statusRight string
+	if atBottom {
+		statusRight = styles.descStyle.Render("(at bottom)")
+	} else if remainingLines > 0 {
+		statusRight = styles.sepStyle.Render("↓ ") + styles.descStyle.Render(fmt.Sprintf("%d more lines", remainingLines))
+	} else {
+		statusRight = styles.descStyle.Render("(can scroll up)")
+	}
+
+	// Combine with proper spacing
+	leftWidth := lipgloss.Width(statusLeft)
+	rightWidth := lipgloss.Width(statusRight)
+	padding := width - leftWidth - rightWidth
+	if padding < 0 {
+		padding = 0
+	}
+
+	return statusLeft + strings.Repeat(" ", padding) + statusRight
 }
 
 // Helper functions for min/max

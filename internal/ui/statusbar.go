@@ -66,6 +66,7 @@ type StatusBarStyles struct {
 	shortcutStyle lipgloss.Style
 	descStyle     lipgloss.Style
 	visualStyle   lipgloss.Style
+	sepStyle      lipgloss.Style
 }
 
 // NewStatusBarStyles creates a new StatusBarStyles instance using theme colors
@@ -80,5 +81,7 @@ func NewStatusBarStyles(theme *Theme) StatusBarStyles {
 			Foreground(lipgloss.Color(theme.MainBackgroundColor)).
 			Background(lipgloss.Color(theme.AccentTextColor)).
 			Bold(true),
+		sepStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.DimmedTextColor)),
 	}
 }
