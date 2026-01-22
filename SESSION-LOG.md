@@ -96,13 +96,50 @@
 
 ## ROLE ASSIGNMENT REGISTRATION
 
-ANALYST: Amp (Claude Sonnet)
+ANALYST: Amp (Claude Sonnet 4)
 SCAFFOLDER: Mistral-Vibe (devstral-2)
 CARETAKER: Amp (GPT-4.1) — Polishing, error handling, syntax validation
 INSPECTOR: Amp (Claude Sonnet) — Auditing code against SPEC.md and CLAUDE.md
- SURGEON: OpenCode (CLI Agent) — Diagnosing and fixing bugs, architectural violations, testing
+SURGEON: OpenCode (CLI Agent) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Mistral-Vibe (devstral-2)
 
+
+---
+
+## Session 79: Add-Remote Timeline Behavior Fix & No-Commit Footer Hint ✅
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-22
+
+### Objectives
+- Fix add-remote timeline behavior to prevent inappropriate force-push options
+- Add footer hint for empty repos with remotes
+- Remove auto-commit side effect from state detection
+
+### Problems Solved
+
+**1. Add-Remote Timeline Behavior**
+- **Root cause:** State detection auto-committed in empty repos, making timeline appear ahead
+- **Fix:** Removed auto-commit in `DetectState()` and gated timeline detection on commits
+- **Result:** Empty repos with remotes now show Timeline N/A instead of ahead
+
+**2. No-Commit Footer Hint**
+- **Root cause:** Users confused about empty repos with remotes showing no timeline
+- **Fix:** Added SSOT footer hint explaining no-commit state
+- **Result:** Clear user guidance when repo has remote but no commits
+
+### Files Modified (5 total)
+- `internal/git/state.go` — Removed auto-commit and gated timeline detection on commits
+- `internal/app/messages.go` — Added SSOT footer hint for no-commit state
+- `internal/app/handlers.go` — Set footer hint when returning to menu with remote and no commits
+- `internal/app/app.go` — Set footer hint on init when remote exists but no commits
+- `ARCHITECTURE.md` — Updated timeline semantics and removed auto-setup claim
+
+### Build Status
+⚠️ Not built/tested (not requested by user)
+
+### Testing Status
+⚠️ UNTESTED — Changes not verified by user
 
 ---
 
@@ -276,258 +313,3 @@ Complete the implementation of the GitEnvironment Setup Wizard (Phases 5-10), ma
 The Executor agent, Mistral-Vibe, has successfully completed the implementation of Phases 5-10 of the GitEnvironment Setup Wizard. This completes the wizard's functionality, making it ready for production with robust error handling, a seamless user experience, and safe SSH key management. Further user testing is required to verify all aspects of the wizard's functionality and edge cases.
 
 ---
-
-## Session 74: Project Completion Assessment - SPEC 100% Complete ✅
-
-**Agent:** Amp (claude-code)
-**Date:** 2026-01-10
-
-### Objective
-Perform comprehensive project completion assessment against SPEC.md v2.0. Verify all features implemented, test coverage complete, and documentation aligned. Confirm project is production-ready.
-
-### Work Completed
-
-#### 1. SPEC.md Compliance Audit
-Verified all 16 features from SPEC.md v2.0 are fully implemented:
-
-**Core Features (7):**
-- [x] State model (WorkingTree, Timeline, Operation, Remote) — git/types.go
-- [x] Menu mapping from git state — app/menu.go  
-- [x] Dirty operation protocol — app/dirtystate.go
-- [x] Conflict resolution — ui/conflictresolver.go
-- [x] Init/Clone workflows — app/handlers.go
-- [x] Keyboard shortcuts — app/keyboard.go
-- [x] Error handling & pre-flight checks — app/app.go
-
-**Advanced Features (9):**
-- [x] History browser (2-pane) — 187 lines (history.go)
-- [x] File(s) history (3-pane) — 267 lines (filehistory.go)
-- [x] Time travel integration — 400+ lines (confirmation_handlers + git)
-- [x] Cache system (pre-load + invalidate) — 220 lines (history_cache.go)
-- [x] UI layout (banner/header/content/footer) — layout.go
-- [x] Theme system — ui/theme.go
-- [x] First-time setup (git config, branch mismatch) — handlers.go
-- [x] Design invariants (11 total) — Entire codebase
-- [x] No dangling states guarantee — All modes safe
-
-**Result:** 16/16 features = **100% SPEC COMPLETE**
-
-#### 2. SPEC ↔ ARCHITECTURE Alignment Verification
-Cross-checked SPEC.md against ARCHITECTURE.md for contradictions:
-
-**Verified Alignment (14 areas):**
-- State model (4-axis tuple) — Both documents identical
-- Menu generation pattern — Both confirm state-driven UI
-- Async operation pattern (cmd*) — Both use same approach
-- Cache strategy (pre-load + invalidate) — Both documented
-- Threading model (single-thread UI + workers) — Both specified
-- Error handling (fail-fast) — Both enforced
-- File organization (feature-based) — Both use same structure
-- Keyboard shortcuts — Both match
-- UI layout — Both consistent
-- Time travel design — Both aligned
-- Dirty operation protocol — Both identical
-- Conflict resolution approach — Both same
-- Type system — Both use same 4-axis model
-- History/file history design — Both match
-
-**Result: ✅ ZERO contradictions. 100% ALIGNMENT.**
-
-#### 3. Build & Binary Status
-- [x] `go build ./cmd/tit` — Clean, zero errors
-- [x] `./build.sh` — Builds tit_x64, copies to automation folder
-- [x] Binary ready for distribution/testing
-
-#### 4. Documentation Cleanup & Consolidation
-Removed obsolete planning docs, kept completion reports:
-
-**Removed (Obsolete):**
-- PHASE-4-COMPLETION.md (superseded by final reports)
-- CODEBASE-REFACTORING-AUDIT.md (planning doc, now complete)
-- CODEBASE-AUDIT-REPORT.md (planning doc, now complete)
-- HISTORY-IMPLEMENTATION-PLAN.md (planning doc, now complete)
-- HISTORY-IMPLEMENTATION-*.md (planning doc)
-- HISTORY-QUICK-REFERENCE.md (planning doc)
-- HISTORY-START-HERE.md (planning doc)
-- PHASE-3-REFACTORING-PLAN.md (planning doc)
-- All other planning documents (7 files total)
-
-**Kept (Evergreen):**
-- ARCHITECTURE.md (2,000+ lines, core reference)
-- CODEBASE-MAP.md (navigation guide)
-- SPEC.md (original specification)
-- AGENTS.md, CLAUDE.md (guidance)
-
-**New Completion Reports:**
-- PROJECT-COMPLETION-REPORT.md (comprehensive final status)
-- HISTORY-AND-TIMETRAVEL-STATUS.md (feature completion proof)
-- REFACTORING-CHECKLIST.md (refactoring verification)
-- REFACTORING-FINAL-REPORT.md (detailed refactoring record)
-
-**Result:** Codebase documentation lean (11 docs), focused, no cruft.
-
-#### 5. Project Statistics Compiled
-**Code Metrics:**
-- Total production code: ~5,800+ lines
-- App package: ~3,000 lines (24 files)
-- Git operations: ~600 lines (6 files)
-- UI rendering: ~2,200 lines (20 files)
-- Code quality: Production-grade
-
-**Refactoring Impact:**
-- Lines eliminated: ~150 (duplication)
-- SSOT consolidations: 12 major
-- New helper patterns: 2 (ListPane builder, confirmation builder)
-- Backward compatibility: 100% maintained
-
-**Testing Coverage:**
-- Manual scenarios executed: 26+
-- Features tested: All 16
-- Edge cases covered: Yes
-- Full workflows verified: Yes
-
-#### 6. Created Final Completion Report
-Generated PROJECT-COMPLETION-REPORT.md documenting:
-- SPEC compliance matrix (16/16 complete)
-- Feature completeness table
-- Code statistics and metrics
-- SPEC ↔ ARCHITECTURE alignment verification
-- Build & distribution status
-- Known limitations (intentional per design)
-- Testing & verification summary
-
-### Impact
-
-**Project Status:** ✅ **100% COMPLETE**
-- All SPEC requirements implemented and tested
-- All refactoring phases complete (Phases 1-4)
-- All History & Time Travel features complete (Phases 1-9)
-- Documentation fully aligned (SPEC ↔ ARCHITECTURE ↔ Implementation)
-- Build clean, binary ready
-- Zero deferred tasks or known issues
-
-**Code Quality:** ✅ Production-ready
-- Type-safe, thread-safe, memory-bounded
-- All design invariants upheld
-- No silent failures (fail-fast throughout)
-- SSOT enforced (12 consolidations)
-
-**Documentation Quality:** ✅ Comprehensive & Current
-- 11 evergreen docs (no cruft)
-- 4 completion reports (proof of work)
-- ARCHITECTURE.md extensive (2,000+ lines)
-- SPEC.md fully implemented
-
-### Files Created
-- PROJECT-COMPLETION-REPORT.md (1,200+ lines)
-- HISTORY-AND-TIMETRAVEL-STATUS.md (300+ lines)
-
-### Files Removed
-- 10 obsolete planning documents
-
-### Build Status
-✅ Clean (no code changes this session, documentation only)
-
-### Testing Status
-✅ VERIFIED (all requirements traced and confirmed implemented)
-
-### Verification Checklist
-- [x] All SPEC sections verified implemented
-- [x] SPEC.md ↔ ARCHITECTURE.md alignment confirmed (0 contradictions)
-- [x] Build succeeds clean
-- [x] Binary produced and ready
-- [x] 16/16 features confirmed complete
-- [x] All phases (refactoring 1-4, history 1-9) confirmed complete
-- [x] Documentation aligned and current
-- [x] Obsolete planning docs removed
-- [x] No deferred tasks remaining
-- [x] Production-ready status confirmed
-
-### Summary
-
-**TIT Project is 100% COMPLETE per SPEC.md v2.0.**
-
-All features specified are fully implemented, tested, and verified:
-- State machine correctly implements 4-axis model
-- Menu generation responds to state as specified
-- All 16+ menu items available per spec
-- Commit, push, pull, merge, branch, history, file history, time travel fully working
-- Dirty operation protocol automatic and safe
-- Conflict resolution correct (sequential 3-way)
-- Cache system pre-loads and invalidates correctly
-- UI beautiful and responsive
-- Keyboard shortcuts all mapped
-- Error handling fail-fast throughout
-- All design invariants upheld
-- Build clean, binary ready
-
-**SPEC.md and ARCHITECTURE.md are fully aligned.** No contradictions found. Implementation satisfies both documents.
-
-**Next step:** Project ready for user deployment and production use.
-
----
-
-## Session 74: Implementing GitEnvironment Setup Wizard (Phase 1-4 Partial) ✅
-
-**Agent:** Amp (claude-code)
-**Date:** 2026-01-10
-
-### Objective
-Implement a GitEnvironment Setup Wizard for first-time git/SSH setup, following a 10-phase plan.
-
-### Work Completed
-
-#### 1. Phase 1: GitEnvironment Type + Detection
-- **`internal/git/types.go`**: Added `GitEnvironment` type (Ready, NeedsSetup, MissingGit, MissingSSH).
-- **`internal/git/environment.go`**: Created `DetectGitEnvironment()` function to check for `git` and `ssh` commands and the existence of SSH private keys, including custom key names like `github_rsa`.
-
-#### 2. Phase 2: Wizard Step Enum + State Tracking
-- **`internal/app/modes.go`**: Added `SetupWizardStep` enum (Welcome, Prerequisites, Email, Generate, DisplayKey, Complete) and `ModeSetupWizard`.
-- **`internal/app/app.go`**: Added `gitEnvironment`, `setupWizardStep`, `setupEmail`, `setupKeyCopied` fields to the `Application` struct for wizard state tracking.
-
-#### 3. Phase 3: App Startup Integration
-- **`internal/app/app.go`**: Modified `NewApplication()` to prioritize `GitEnvironment` detection. If not `Ready`, the app enters `ModeSetupWizard`, bypassing normal git state detection.
-- **`internal/app/app.go`**: `View()` updated to render `renderSetupWizard()` when in `ModeSetupWizard`.
-
-#### 4. Partial Phase 4: Step 1 — Welcome Confirmation
-- **`internal/app/setup_wizard.go`**: Created new file with `renderSetupWizard()` and `renderSetupWelcome()` to render the initial welcome message with a styled "Continue" button.
-- **`internal/app/setup_wizard.go`**: Implemented `handleSetupWizardEnter()` to advance from `SetupStepWelcome` to `SetupStepPrerequisites` on ENTER key press.
-
-### Key Architecture & UI Decisions
-- **5th State Axis**: `GitEnvironment` is now the highest-priority state, checked *before* all other git state detection (`Operation`, `Remote`, `Timeline`, `WorkingTree`).
-- **Wizard Entry**: If `GitEnvironment` is not `Ready`, the application immediately enters `ModeSetupWizard`, preventing normal repository interaction until setup is complete.
-- **UI Reuse**: The wizard reuses existing UI components like confirmation dialogs and is designed to integrate text input and console output.
-- **Button Styling**: Established `renderButton()` helper for styled buttons (ALL CAPS text, `MenuSelectionBackground` + `ButtonSelectedTextColor` when selected) consistent with existing confirmation dialogs.
-- **SSH Key Detection**: `sshKeyExists()` in `environment.go` now intelligently checks for `id_rsa`, `id_ed25519`, and other common custom SSH key names.
-
-### Testing Notes
-- A `TIT_TEST_SETUP=1` environment variable can force wizard mode for testing.
-
-### Next Steps / Remaining Phases
-- Complete Phase 4 (Welcome step keyboard handling).
-- Phase 5: Prerequisites check with install instructions and re-check flow.
-- Phase 6: Email input for SSH key comment.
-- Phase 7: Console output for `ssh-keygen`, `ssh-add`, and `~/.ssh/config` write (requires new `internal/git/ssh.go`).
-- Phase 8: Display public key with auto-copy to clipboard and provider URLs.
-- Phase 9: Complete confirmation and transition to normal TIT operation.
-- Phase 10: End-to-end testing and documentation updates.
-
-### Files Modified/New
-- `@GIT-ENVIRONMENT-SETUP-PLAN.md` (Updated plan document)
-- `internal/git/environment.go` (New file for GitEnvironment detection)
-- `internal/git/types.go` (Modified for GitEnvironment type)
-- `internal/app/setup_wizard.go` (New file for wizard rendering and handlers)
-- `internal/app/modes.go` (Modified for wizard modes and steps)
-- `internal/app/app.go` (Modified for wizard state, startup integration, key handlers)
-- `internal/ui/theme.go` (Modified to include `buttonSelectedTextColor`)
-- `internal/ui/confirmation.go` (Referenced for `ButtonSelectedTextColor` styling context)
-- `ARCHITECTURE.md` (Will be updated in Phase 10 to include GitEnvironment section)
-
-### Build Status
-✅ Clean compile (expected for current phase).
-
-### Testing Status
-✅ Partial (Completed phases manually verified).
-
-### Summary
-Significant progress has been made on the GitEnvironment Setup Wizard, laying the foundational `GitEnvironment` detection and wizard flow. The application now gracefully handles initial setup, ensuring a ready environment before proceeding with standard Git operations.
