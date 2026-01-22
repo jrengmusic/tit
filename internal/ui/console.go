@@ -60,11 +60,11 @@ func RenderConsoleOutputFullScreen(
 		return ""
 	}
 
-	// Calculate console height: reserve 1 line for status bar + 1 for newline separator
-	// Plus outer border means we need height - 2 for the content area
-	consoleHeight := termHeight - 2
+	// Calculate console height: reserve 1 line for status bar
+	// Outer border means we need height - 1 for the content area
+	consoleHeight := termHeight - 1
 
-	// Content lines available (title + blank + content + blank = 4 lines used)
+	// Content lines available (title + blank + content = 2 lines used)
 	// Status bar takes 1 line, so content gets the rest
 	titleHeight := 2
 	statusHeight := 1
