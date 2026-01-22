@@ -652,16 +652,22 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
 
 	case ModeConsole, ModeClone:
-		// Console output (both during and after operation)
-		contentText = ui.RenderConsoleOutput(
+		// Console output (full-screen mode, no header/footer)
+		// Status bar at bottom, centered, console height dynamic
+		statusOverride := ""
+		if a.quitConfirmActive {
+			statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
+		}
+		contentText = ui.RenderConsoleOutputFullScreen(
 			&a.consoleState,
 			a.outputBuffer,
 			a.theme,
-			a.sizing.ContentInnerWidth,
-			a.sizing.ContentHeight,
+			a.sizing.TerminalWidth,
+			a.sizing.TerminalHeight,
 			a.asyncOperationActive && !a.asyncOperationAborted,
 			a.asyncOperationAborted,
 			a.consoleAutoScroll,
+			statusOverride,
 		)
 
 	case ModeConfirmation:

@@ -42,32 +42,41 @@ func (s *ConsoleOutState) ScrollDown() {
 	}
 }
 
-// RenderConsoleOutput renders the console output panel with scrolling
-// Pattern: pre-size content exactly, pad to dimensions, border wraps pre-sized content
-// Returns exactly maxWidth x height output (matches TextInput pattern)
-func RenderConsoleOutput(
+// RenderConsoleOutputFullScreen renders console output for full-screen mode (no header/footer)
+// Takes terminal dimensions directly, returns content that occupies full terminal
+// Pattern matches RenderHistorySplitPane: content + status bar at bottom
+func RenderConsoleOutputFullScreen(
 	state *ConsoleOutState,
 	buffer *OutputBuffer,
 	palette Theme,
-	maxWidth int,
-	totalHeight int,
+	termWidth int,
+	termHeight int,
 	operationInProgress bool,
 	abortConfirmActive bool,
 	autoScroll bool,
+	statusBarOverride string,
 ) string {
-	// SSOT: Console structure (no inner box border, outer border from RenderLayout)
-	// maxWidth = 76 (ContentInnerWidth)
-	// totalHeight = ContentHeight (26)
-	// 
-	 
-	//   title (1) + blank (1) + content (?) + blank (1) + status (1) = totalHeight - 2 (for outer border)
-	//   
-	 
-	
-	contentLines := totalHeight - 6  // Actual output lines visible
-	wrapWidth := maxWidth           // No inner box, use full width
-	
-	state.LinesPerPage = contentLines
+	if termWidth <= 0 || termHeight <= 0 {
+		return ""
+	}
+
+	// Calculate console height: reserve 1 line for status bar + 1 for newline separator
+	// Plus outer border means we need height - 2 for the content area
+	consoleHeight := termHeight - 2
+
+	// Content lines available (title + blank + content + blank = 4 lines used)
+	// Status bar takes 1 line, so content gets the rest
+	titleHeight := 2
+	statusHeight := 1
+	contentHeight := consoleHeight - titleHeight - statusHeight
+
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+
+	wrapWidth := termWidth
+
+	state.LinesPerPage = contentHeight
 
 	// Color mapping function (semantic colors from new theme)
 	getColor := func(lineType OutputLineType) string {
@@ -93,7 +102,6 @@ func RenderConsoleOutput(
 
 	totalBufferLines := buffer.GetLineCount()
 
-	 
 	var allOutputLines []string
 
 	if totalBufferLines == 0 {
@@ -114,14 +122,13 @@ func RenderConsoleOutput(
 		}
 	}
 
-	// Step 2: Calculate scroll bounds
+	// Calculate scroll bounds
 	totalOutputLines := len(allOutputLines)
-	maxScroll := totalOutputLines - contentLines
+	maxScroll := totalOutputLines - contentHeight
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-	
-	// Store maxScroll in state
+
 	state.MaxScroll = maxScroll
 
 	// Auto-scroll: if enabled, stay at bottom
@@ -136,12 +143,12 @@ func RenderConsoleOutput(
 			state.ScrollOffset = 0
 		}
 	}
-	
+
 	scrollOffset := int(state.ScrollOffset)
 
-	// Step 3: Extract visible window
+	// Extract visible window
 	start := scrollOffset
-	end := start + contentLines
+	end := start + contentHeight
 	if start < 0 {
 		start = 0
 	}
@@ -162,14 +169,13 @@ func RenderConsoleOutput(
 		}
 	}
 
-	// Pad to exactly contentLines
+	// Pad to exactly contentHeight
 	emptyLine := strings.Repeat(" ", wrapWidth)
-	for len(visibleLines) < contentLines {
+	for len(visibleLines) < contentHeight {
 		visibleLines = append(visibleLines, emptyLine)
 	}
 
-	// Content without inner box border - just joined lines
-	// (outer Content border from RenderLayout is sufficient)
+	// Content without inner box border
 	contentBox := strings.Join(visibleLines, "\n")
 
 	// Build title
@@ -180,105 +186,81 @@ func RenderConsoleOutput(
 	titleText := "OUTPUT"
 	title := titleStyle.Render(titleText)
 	titleWidth := lipgloss.Width(title)
-	if titleWidth < maxWidth {
-		title = title + strings.Repeat(" ", maxWidth-titleWidth)
-	}
-
-	 
-	shortcutStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(palette.AccentTextColor)).
-		Bold(true)
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(palette.LabelTextColor))
-	sepStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(palette.DimmedTextColor))
-
-	atBottom := scrollOffset >= maxScroll
-	remainingLines := totalOutputLines - (scrollOffset + contentLines)
-	if remainingLines < 0 {
-		remainingLines = 0
-	}
-
-	var statusLeft string
-	if abortConfirmActive {
-		parts := []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
-			shortcutStyle.Render("ESC") + descStyle.Render(" back to menu"),
-		}
-		statusLeft = strings.Join(parts, sepStyle.Render("  │  "))
-	} else if operationInProgress {
-		parts := []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
-			shortcutStyle.Render("ESC") + descStyle.Render(" abort"),
-		}
-		statusLeft = strings.Join(parts, sepStyle.Render("  │  "))
-	} else {
-		parts := []string{
-			shortcutStyle.Render("↑↓") + descStyle.Render(" scroll"),
-			shortcutStyle.Render("ESC") + descStyle.Render(" back to menu"),
-		}
-		statusLeft = strings.Join(parts, sepStyle.Render("  │  "))
-	}
-
-	var statusRight string
-	if atBottom {
-		statusRight = descStyle.Render("(at bottom)")
-	} else if remainingLines > 0 {
-		statusRight = sepStyle.Render("↓ ") + descStyle.Render(fmt.Sprintf("%d more lines", remainingLines))
-	} else {
-		statusRight = descStyle.Render("(can scroll up)")
-	}
-
-	statusLeftWidth := lipgloss.Width(statusLeft)
-	statusRightWidth := lipgloss.Width(statusRight)
-	statusPadding := maxWidth - statusLeftWidth - statusRightWidth
-	if statusPadding < 0 {
-		statusPadding = 0
-	}
-	statusBar := statusLeft + strings.Repeat(" ", statusPadding) + statusRight
-
-	// Pad title and status to maxWidth
-	if lipgloss.Width(statusBar) < maxWidth {
-		statusBar = statusBar + strings.Repeat(" ", maxWidth-lipgloss.Width(statusBar))
+	if titleWidth < wrapWidth {
+		title = title + strings.Repeat(" ", wrapWidth-titleWidth)
 	}
 
 	// Build blank line
-	blankLine := strings.Repeat(" ", maxWidth)
+	blankLine := strings.Repeat(" ", wrapWidth)
 
-	// Combine: title + blank + contentBox + blank + status
+	// Combine: title + blank + contentBox
 	panel := lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		blankLine,
 		contentBox,
-		blankLine,
-		statusBar,
 	)
 
-	// Pre-size panel to exact dimensions (CRITICAL - matching TextInput pattern)
+	// Pad panel to exact height (consoleHeight - statusHeight for status bar)
 	panelLines := strings.Split(panel, "\n")
+	for len(panelLines) < consoleHeight-statusHeight {
+		panelLines = append(panelLines, blankLine)
+	}
+	if len(panelLines) > consoleHeight-statusHeight {
+		panelLines = panelLines[:consoleHeight-statusHeight]
+	}
+	panel = strings.Join(panelLines, "\n")
 
-	// Pad each line to maxWidth
-	for i := range panelLines {
-		lineWidth := lipgloss.Width(panelLines[i])
-		if lineWidth < maxWidth {
-			panelLines[i] = panelLines[i] + strings.Repeat(" ", maxWidth-lineWidth)
+	// Build centered status bar at bottom
+	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride)
+
+	// Return: panel + newline + statusBar (total height = consoleHeight + 1 for newline = termHeight - 1)
+	// Actually, we want exactly termHeight - 1 for outer border, so:
+	// panel (consoleHeight - 1) + "\n" + statusBar (1 line) = termHeight lines total
+	return panel + "\n" + statusBar
+}
+
+// buildConsoleStatusBar builds a centered status bar for console output
+func buildConsoleStatusBar(width int, palette Theme, operationInProgress bool, abortConfirmActive bool, overrideMessage string) string {
+	styles := NewStatusBarStyles(&palette)
+
+	// If override message is set, use it
+	if overrideMessage != "" {
+		return BuildStatusBar(StatusBarConfig{
+			Width:           width,
+			Centered:        true,
+			Theme:           &palette,
+			OverrideMessage: overrideMessage,
+		})
+	}
+
+	// Build shortcuts based on state
+	var parts []string
+	if abortConfirmActive {
+		parts = []string{
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
+			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back to menu"),
+		}
+	} else if operationInProgress {
+		parts = []string{
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
+			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" abort"),
+		}
+	} else {
+		parts = []string{
+			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
+			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back to menu"),
 		}
 	}
 
-	// Pad to exact height (totalHeight - 2 for outer border)
-	panelHeight := totalHeight - 2
-	panelBlankLine := strings.Repeat(" ", maxWidth)
-	for len(panelLines) < panelHeight {
-		panelLines = append(panelLines, panelBlankLine)
-	}
-
-	if len(panelLines) > panelHeight {
-		panelLines = panelLines[:panelHeight]
-	}
-
-	// Return pre-sized panel WITHOUT outer border
-	// RenderLayout will add the outer Content border
-	return strings.Join(panelLines, "\n")
+	// Build scroll indicator (at bottom or more lines)
+	// This requires access to scroll state, which we don't have here
+	// For now, just return the shortcuts centered
+	return BuildStatusBar(StatusBarConfig{
+		Parts:    parts,
+		Width:    width,
+		Centered: true,
+		Theme:    &palette,
+	})
 }
 
 // Helper functions for min/max
