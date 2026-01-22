@@ -60,8 +60,8 @@ func RenderConsoleOutputFullScreen(
 		return ""
 	}
 
-	// Calculate console height: full terminal height minus padding (2 for top/bottom padding)
-	consoleHeight := termHeight - 2
+	// Calculate console height: full terminal height
+	consoleHeight := termHeight
 
 	// Content lines available (title + blank + content = 2 lines used)
 	// Status bar takes 1 line, so content gets the rest
@@ -73,7 +73,7 @@ func RenderConsoleOutputFullScreen(
 		contentHeight = 1
 	}
 
-	wrapWidth := termWidth - 2 // Account for left/right padding
+	wrapWidth := termWidth
 
 	state.LinesPerPage = contentHeight
 
@@ -216,8 +216,8 @@ func RenderConsoleOutputFullScreen(
 	}
 	panel = strings.Join(panelLines, "\n")
 
-	// Build centered status bar at bottom (use innerWidth for display inside padding)
-	statusBar := buildConsoleStatusBar(termWidth-2, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
+	// Build centered status bar at bottom
+	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
 
 	// Combine panel and status bar, then apply 1-cell padding on all sides
 	result := panel + "\n" + statusBar
