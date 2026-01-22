@@ -219,9 +219,9 @@ func RenderConsoleOutputFullScreen(
 	// Build centered status bar at bottom
 	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
 
-	// Combine panel and status bar, then apply 1-cell padding on all sides
+	// Combine panel and status bar, then apply padding
 	result := panel + "\n" + statusBar
-	return lipgloss.NewStyle().Padding(1, 1).Render(result)
+	return lipgloss.NewStyle().Padding(1, 0).Render(result)
 }
 
 // buildConsoleStatusBar builds a status bar for console output with shortcuts (left) and scroll status (right)
