@@ -60,9 +60,8 @@ func RenderConsoleOutputFullScreen(
 		return ""
 	}
 
-	// Calculate console height: reserve 1 line for status bar
-	// Outer border means we need height - 1 for the content area
-	consoleHeight := termHeight - 1
+	// Calculate console height: full terminal height
+	consoleHeight := termHeight
 
 	// Content lines available (title + blank + content = 2 lines used)
 	// Status bar takes 1 line, so content gets the rest
@@ -213,9 +212,7 @@ func RenderConsoleOutputFullScreen(
 	// Build centered status bar at bottom
 	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride)
 
-	// Return: panel + newline + statusBar (total height = consoleHeight + 1 for newline = termHeight - 1)
-	// Actually, we want exactly termHeight - 1 for outer border, so:
-	// panel (consoleHeight - 1) + "\n" + statusBar (1 line) = termHeight lines total
+	// Return: panel (termHeight - 1) + newline + statusBar (1 line) = termHeight lines total
 	return panel + "\n" + statusBar
 }
 
