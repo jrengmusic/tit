@@ -8,30 +8,47 @@ TIT (Git Timeline Interface) is a state-driven terminal UI for git repository ma
 
 ---
 
-## Four-Axis State Model
+## Five-Axis State Model (Git Environment Priority)
 
-Every moment in TIT is described by exactly 4 git axes:
+Every moment in TIT is described by 5 git axes, checked in priority order:
 
 ```go
 type State struct {
-    WorkingTree      git.WorkingTree // Clean | Dirty
-    Timeline         git.Timeline    // InSync | Ahead | Behind | Diverged | "" (N/A)
-    Operation        git.Operation   // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation | TimeTraveling
-    Remote           git.Remote      // NoRemote | HasRemote
-    CurrentBranch    string          // Local branch name
-    LocalBranchOnRemote bool         // Whether current branch tracked on remote
+    // Axis 0 (FIRST): Git Environment - precondition check (Ready, NeedsSetup, MissingGit, MissingSSH)
+    GitEnvironment   git.GitEnvironment  // Ready | NeedsSetup | MissingGit | MissingSSH
+    
+    // Axes 1-4: Git repository state
+    Operation        git.Operation       // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation | TimeTraveling | Rewinding
+    WorkingTree      git.WorkingTree     // Clean | Dirty
+    Remote           git.Remote          // NoRemote | HasRemote
+    Timeline         git.Timeline        // InSync | Ahead | Behind | Diverged | "" (N/A)
+    
+    // Metadata
+    CurrentBranch    string              // Local branch name
+    LocalBranchOnRemote bool             // Whether current branch tracked on remote
+    CommitsAhead     int                 // Number of commits ahead of remote (when Ahead/Diverged)
+    CommitsBehind    int                 // Number of commits behind remote (when Behind/Diverged)
 }
 ```
 
 **State Detection:** `git.DetectState()` queries git commands (no config file tracking).
 
+**Detection Order (Priority):**
+1. **GitEnvironment** - Check if git/SSH properly configured (happens at startup)
+2. **NotRepo** - Check if .git/ directory exists
+3. **DirtyOperation** - Check for ongoing merge/rebase/stash (blocks startup)
+4. **Operation** - Detect git operation state (Normal, TimeTraveling, etc.)
+5. **WorkingTree** - Detect staged/unstaged changes
+6. **Remote** - Check if remote configured
+7. **Timeline** - Compare local vs remote (only if Normal + HasRemote + hasCommits)
+
 ### State Semantics
 
 **Timeline** represents the **comparison** between local branch and remote tracking branch:
 - **InSync:** Local and remote point to same commit
-- **Ahead:** Local has commits not on remote
-- **Behind:** Remote has commits not on local
-- **Diverged:** Both have unique commits
+- **Ahead:** Local has commits not on remote (includes CommitsAhead count)
+- **Behind:** Remote has commits not on local (includes CommitsBehind count)
+- **Diverged:** Both have unique commits (includes both counts)
 - **Empty string (""):** Timeline N/A - no comparison possible when:
   - `Remote = NoRemote` (no remote configured)
   - `Operation = TimeTraveling` (detached HEAD, no tracking relationship)
@@ -40,11 +57,15 @@ type State struct {
 **Timeline is ONLY detected when:**
 ```go
 if state.Operation == Normal && state.Remote == HasRemote && hasCommits {
-    // Detect timeline comparison
+    // Detect timeline comparison (includes ahead/behind counts)
     state.Timeline = detectTimeline()
+    state.CommitsAhead = ahead
+    state.CommitsBehind = behind
 } else {
     // Timeline N/A
     state.Timeline = ""
+    state.CommitsAhead = 0
+    state.CommitsBehind = 0
 }
 ```
 
@@ -54,14 +75,180 @@ if state.Operation == Normal && state.Remote == HasRemote && hasCommits {
 
 **Operation** describes the git repository state:
 - `Normal`: Ready for operations
-- `NotRepo`: Not a git repository
-- `Conflicted`: Conflicts must be resolved
-- `Merging`: Merge in progress
-- `Rebasing`: Rebase in progress
-- `DirtyOperation`: Operation interrupted by uncommitted changes
-- `TimeTraveling`: Detached HEAD, exploring commit history
+- `NotRepo`: Not a git repository (no .git/)
+- `Conflicted`: Unresolved merge/rebase/cherry-pick conflicts
+- `Merging`: Merge in progress (no conflicts yet)
+- `Rebasing`: Rebase in progress (no conflicts yet)
+- `DirtyOperation`: Operation interrupted by uncommitted changes (pre-flight check blocks startup)
+- `TimeTraveling`: Detached HEAD, exploring commit history (entered via History mode)
+- `Rewinding`: Performing time travel merge/return operation
 
-### Time Travel Metadata
+---
+
+## Git Environment & Startup Flow (Axis 0 - Highest Priority)
+
+### GitEnvironment: System Prerequisites
+
+**Purpose:** Detect whether git/SSH are properly installed and configured before entering normal git workflow.
+
+**Environment States** (`git.GitEnvironment` type):
+```go
+const (
+    GitEnvironmentReady      = "ready"        // Git + SSH available, ready for work
+    GitEnvironmentNeedsSetup = "needs_setup"  // Git OK, but SSH not configured
+    GitEnvironmentMissingGit = "missing_git"  // Git not installed
+    GitEnvironmentMissingSSH = "missing_ssh"  // SSH not installed
+)
+```
+
+**Detection at Startup:**
+```
+App starts → Check git availability
+    ├─ Git not found → GitEnvironmentMissingGit → Show fatal error
+    └─ Git found → Check SSH availability
+        ├─ SSH not found → GitEnvironmentMissingSSH → Show fatal error
+        └─ SSH found → Check if SSH keys configured
+            ├─ No keys → GitEnvironmentNeedsSetup → Enter ModeSetupWizard
+            └─ Keys found → GitEnvironmentReady → Proceed to normal startup
+```
+
+### ModeSetupWizard: First-Time SSH Configuration
+
+**Purpose:** Guide users through SSH key generation and configuration if needed.
+
+**Wizard Steps** (`SetupWizardStep` enum):
+1. **SetupStepWelcome** - Welcome message explaining SSH setup
+2. **SetupStepPrerequisites** - Verify git/ssh installed (already checked at startup)
+3. **SetupStepEmail** - Input email for SSH key comment (e.g., user@example.com)
+4. **SetupStepGenerate** - Generate SSH key, start agent, add key to agent
+5. **SetupStepDisplayKey** - Show public key with copy button, provider URLs (GitHub/GitLab/Gitea)
+6. **SetupStepComplete** - Completion message, return to normal startup
+
+**Application Fields:**
+```go
+gitEnvironment  git.GitEnvironment  // Current environment state
+setupWizardStep SetupWizardStep     // Current step in wizard
+setupEmail      string              // Email entered by user
+setupKeyCopied  bool                // Whether user copied public key
+```
+
+### Startup Flow (Detailed)
+
+**Phase 1: Environment Check (Before UI Render)**
+```go
+func (a *Application) Init() {
+    // 1. Check git/SSH availability
+    a.gitEnvironment = git.CheckEnvironment()
+    
+    // 2. If missing prerequisites, show fatal error screen
+    if a.gitEnvironment == GitEnvironmentMissingGit {
+        a.mode = ModeSetupWizard
+        a.setupWizardStep = SetupStepFatalMissingGit
+        return
+    }
+    
+    // 3. If needs setup, enter wizard
+    if a.gitEnvironment == GitEnvironmentNeedsSetup {
+        a.mode = ModeSetupWizard
+        a.setupWizardStep = SetupStepWelcome
+        return
+    }
+    
+    // 4. Environment ready, proceed to git state detection
+    a.detectGitState()
+}
+```
+
+**Phase 2: Git State Detection**
+```go
+func (a *Application) detectGitState() {
+    // 1. Check if in git repository
+    isRepo, repoPath := git.IsInitializedRepo()
+    if !isRepo {
+        // Not in repo → Show NotRepo menu (init/clone)
+        a.mode = ModeMenu
+        a.gitState = &git.State{Operation: git.NotRepo}
+        return
+    }
+    
+    // 2. Check for pre-flight blockers (ongoing merge/rebase/stash)
+    // If any found, show fatal error → Exit application
+    
+    // 3. Detect normal git state (5 axes)
+    a.gitState, _ = git.DetectState()
+    
+    // 4. Show menu
+    a.mode = ModeMenu
+    a.menuItems = a.GenerateMenu()
+}
+```
+
+**Phase 3: Initialize Caches (Non-Blocking)**
+```go
+func (a *Application) Init() {
+    // ... earlier phases ...
+    
+    // Preload history caches in background (async, non-blocking)
+    // Contract: History modes disabled until cache ready
+    if a.gitState.Operation == git.Normal {
+        a.cacheLoadingStarted = true
+        go a.preloadHistoryMetadata()
+        go a.preloadFileHistoryDiffs()
+    }
+}
+```
+
+**Complete Startup Sequence:**
+```
+Terminal resize → Quit confirm?
+    ↓ (No, normal startup)
+Create Application{width, height, theme}
+    ↓
+Call app.Init()
+    ├─ Check GitEnvironment
+    │   ├─ Missing git/SSH? → Fatal error + ModeSetupWizard
+    │   └─ Needs setup? → ModeSetupWizard (wizard flow)
+    │       └─ User completes setup → Return here
+    ├─ Detect git state (5 axes)
+    │   ├─ Conflicted/Merging/Rebasing? → Fatal error
+    │   ├─ DirtyOperation? → Fatal error
+    │   └─ Normal? → Proceed
+    ├─ Check if in repo
+    │   ├─ Not in repo → ModeMenu (NotRepo)
+    │   └─ In repo → ModeMenu (normal state)
+    └─ Preload caches in background (async)
+        └─ Menu items disabled until ready
+    ↓
+Return to Bubble Tea
+    ↓
+View() → Render based on current mode
+```
+
+### Pre-Flight Blocker Check
+
+**States that block startup (fatal errors):**
+```go
+// In git/state.go::DetectState()
+state, err := git.DetectState()
+
+// Check for blockers (before returning state)
+if state.Operation == Conflicted ||
+   state.Operation == Merging ||
+   state.Operation == Rebasing ||
+   state.Operation == DirtyOperation {
+    // Startup blocked - show fatal error
+    return FatalError("Unresolved merge/rebase/conflicts detected")
+}
+```
+
+**User must resolve externally:**
+```bash
+git merge --abort / --continue
+git rebase --abort / --continue
+git stash pop
+```
+
+---
 
 When `Operation = TimeTraveling`, the application tracks additional metadata:
 
@@ -117,80 +304,110 @@ type Application struct {
 **Implementation:**
 
 Cache precomputation is **MANDATORY** at:
-1. **App startup** - Full scan of all commits before showing menu
+1. **App startup** - Full scan of all commits before showing menu (async, non-blocking)
 2. **After ANY git-changing operation** - Commit, push, pull, merge, time travel merge/return
 3. **BEFORE showing completion message** - User never sees empty history after an operation
 
-### Cache Data
+### Cache Architecture
 
-**Two parallel caches (independently built):**
+**Three Independent Caches (internally built, scope of work tracked separately):**
 
-1. **Commit History Cache** (`historyMetadataCache` map)
+1. **History Metadata Cache** (`historyMetadataCache` map)
    - Key: commit hash
-   - Value: full commit metadata (subject, author, date)
-   - Built by: `preloadHistoryMetadata()` (scans `git log`)
+   - Value: `*git.CommitDetails` (subject, author, date, message)
+   - Built by: `preloadHistoryMetadata()` (async goroutine)
+   - Used by: ModeHistory (commit list pane)
 
-2. **File History Cache** (`fileHistoryFilesCache` + `fileHistoryDiffsCache` maps)
+2. **File History Files Cache** (`fileHistoryFilesCache` map)
    - Key: commit hash
-   - Value: files changed + diffs for each file
-   - Built by: `preloadFileHistoryDiffs()` (scans `git show` for each commit)
+   - Value: `[]git.FileInfo` (list of files changed)
+   - Built by: `preloadFileHistoryDiffs()` (async goroutine)
+   - Used by: ModeFileHistory (files pane)
 
-### Build Rules
+3. **File History Diffs Cache** (`fileHistoryDiffCache` map)
+   - Key: `hash:path:version` (e.g., "abc123:main.go:parent")
+   - Value: diff content string
+   - Built by: `preloadFileHistoryDiffs()` (async goroutine)
+   - Used by: ModeFileHistory (diff pane)
 
-**Timing:**
+### Build Rules & Guards
+
+**Startup Guard (app.go::Init):**
 ```go
-// App init
-if !shouldRestore {
+// Preload caches only once per app instance
+if !shouldRestore && a.gitEnvironment == GitEnvironmentReady {
     a.cacheLoadingStarted = true
     go a.preloadHistoryMetadata()
     go a.preloadFileHistoryDiffs()
 }
-
-// After time travel checkout succeeds
-buffer.Append("Building history cache...", ui.TypeStatus)
-a.cacheLoadingStarted = true
-go a.preloadHistoryMetadata()
-go a.preloadFileHistoryDiffs()
 ```
 
-**Operation guard REMOVED:**
-- ❌ OLD: `if app.gitState.Operation == git.Normal` (only build during Normal)
-- ✅ NEW: No operation check (build for ALL states: Normal, TimeTraveling, Conflicted, etc.)
-- EXCEPT: Skip only during error recovery (`shouldRestore == true`)
-
-**Async but mandatory:**
-- Goroutines run in background (never block UI thread)
-- BUT: Menu items are disabled until cache ready
-- Users see progress: `⏳ Commit history [Building... 12/30]`
-
-### UI Feedback
-
-**Menu state while building:**
+**Post-Operation Guard (git_handlers.go):**
+```go
+// After any git operation succeeds, rebuild caches
+case OpCommit, OpPush, OpPull, OpMerge, ...:
+    // Reload git state
+    a.gitState, _ = git.DetectState()
+    
+    // Rebuild caches
+    a.cacheLoadingStarted = true
+    go a.preloadHistoryMetadata()
+    go a.preloadFileHistoryDiffs()
+    
+    // Show completion message
+    buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 ```
+
+**Cache Status Flags (for UI feedback):**
+```go
+cacheLoadingStarted   bool // True when preload started
+cacheMetadata         bool // True when metadata cache populated
+cacheDiffs            bool // True when diffs cache populated
+cacheMetadataProgress int  // Current commit processed
+cacheMetadataTotal    int  // Total commits to process
+```
+
+### UI Feedback During Cache Load
+
+**Menu item state while cache building:**
+
 Normal state (cache ready):
-  🕒 Commit history                        ← Enabled, selectable
+```
+🕒 Commit history                        ← Enabled, selectable
+📂 File history                          ← Enabled, selectable
+```
 
 Building state (cache loading):
-  ⏳ Commit history [Building... 12/30]    ← Disabled, shows progress
-
-No data state (cache load failed):
-  ⚠️ Commit history [No commits found]     ← Disabled, error state
+```
+⏳ Commit history [Building... 12/30]    ← Disabled, shows progress
+⏳ File history [Building... 12/30]      ← Disabled, shows progress
 ```
 
-### Invariants
+No data state (cache load failed):
+```
+⚠️ Commit history [No commits found]     ← Disabled, error state
+⚠️ File history [No commits found]       ← Disabled, error state
+```
 
-1. **No Empty Views:** If `dispatchHistory()` called, data always exists in cache
-2. **No Lazy Loading:** No on-the-fly git queries during rendering
+### Invariants (Guaranteed)
+
+1. **No Empty Views:** If `dispatchHistory()` called, data always exists in cache (or disabled menu item prevents dispatch)
+2. **No Lazy Loading:** No on-the-fly git queries during rendering (all data pre-cached)
 3. **Consistent State:** Cache reflects current git HEAD (rebuilt after every operation)
 4. **Fail Fast:** If cache load fails, menu shows disabled state with reason
 5. **Read-Only:** Cache data never modified during browsing (immutable snapshots)
+6. **Thread-Safe:** Cache access protected by mutexes (historyCacheMutex, diffCacheMutex)
 
 ### Cache Lifetime
 
 ```
 App starts
   ↓
-Cache rebuilds (app.go init)
+Check GitEnvironment (ready?)
+  ↓
+Detect git state
+  ├─ NotRepo? → Skip cache
+  └─ Normal? → Start cache preload (async)
   ↓
 Menu shows (items disabled until cache ready)
   ↓
@@ -312,23 +529,26 @@ Terminal displays result
 
 ---
 
-## Application Modes (AppMode)
+## Application Modes (AppMode) - 14 Total
 
-| Mode | Purpose | Input Handler |
-|------|---------|---|
-| ModeMenu | Main action menu | Menu navigation (j/k/enter) |
-| ModeInput | Generic text input (deprecated) | Cursor nav + character input |
-| ModeInitializeLocation | Choose init location (cwd/subdir) | Menu selection |
-| ModeCloneURL | Input clone URL | Single text input with validation |
-| ModeCloneLocation | Choose clone location (cwd/subdir) | Menu selection |
-| ModeConsole | Show streaming git output | Console scroll (↑↓/PgUp/PgDn) |
-| ModeClone | Clone operation streaming output | Same as ModeConsole |
-| ModeSelectBranch | Choose branch after clone | Menu selection |
-| ModeConfirmation | Confirm destructive operation | left/right/h/l/y/n/enter |
-| ModeConflictResolve | N-column parallel conflict resolution | ↑↓ (nav/scroll), TAB (cycle), SPACE (mark), ENTER (apply) |
-| ModeHistory | Commit history browser (2-pane) | ↑↓ (nav), TAB (pane), ENTER (time travel), ESC (menu) |
-| ModeFileHistory | File history browser (3-pane) | ↑↓ (nav), TAB (cycle), V (visual), Y (copy), ESC (menu) |
-| ModeTimeTraveling | Time travel menu (active when `Operation = TimeTraveling`) | Menu navigation (j/k/enter) |
+| Mode | Purpose | Input Handler | Async | Notes |
+|------|---------|---|---|---|
+| **ModeMenu** | Main action menu (state-driven) | Menu navigation (j/k/enter) | No | Init/Clone, Commit/Amend, Push/Pull, History browsing |
+| **ModeInput** | Generic text input | Cursor nav + character input | No | **DEPRECATED** - being phased out in favor of dedicated modes |
+| **ModeConsole** | Streaming git command output | Console scroll (↑↓/PgUp/PgDn), ESC abort | Yes | Shows progress indicator during async operations |
+| **ModeConfirmation** | Yes/No confirmation dialog | left/right/h/l/y/n/enter | No | For destructive operations (nested repo, force push, etc) |
+| **ModeHistory** | Commit history browser (2-pane) | ↑↓ nav, TAB pane, ENTER time travel, ESC menu | No | Commits (left, 24 chars) + Details (right) |
+| **ModeConflictResolve** | N-column parallel conflict resolution | ↑↓ scroll, TAB cycle panes, SPACE mark, ENTER apply | No | Used for merge, dirty pull, time travel conflicts |
+| **ModeInitializeLocation** | Choose init location (cwd/subdir) | Menu selection | No | First step of init flow |
+| **ModeInitializeBranches** | Dual input for canon + working branch | Text input (canon pre-filled 'main') | No | Second step of init flow |
+| **ModeCloneURL** | Input clone URL | Single text input with validation | No | First step of clone flow |
+| **ModeCloneLocation** | Choose clone location (cwd/subdir) | Menu selection | No | Second step of clone flow |
+| **ModeClone** | Clone operation streaming output | Console scroll, ESC abort | Yes | Shows `git clone` progress |
+| **ModeSelectBranch** | Choose canon branch from cloned repo | Menu selection | No | Final step of clone flow |
+| **ModeFileHistory** | File(s) history browser (3-pane) | ↑↓ nav, TAB cycle, V visual, Y copy, ESC | No | Commits (24 chars) + Files (remaining) + Diff |
+| **ModeSetupWizard** | Git environment setup wizard | Mode-specific handlers | No | SSH key generation, agent config (runs once at startup if needed) |
+
+**Total: 14 modes** (including deprecated ModeInput still in use)
 
 ---
 
@@ -473,76 +693,214 @@ BuildStateInfo(theme) returns:
 - Operation map: Normal/TimeTraveling/Conflicted/etc → StateInfo with description from StateDescriptions
 ```
 
-**Header Rendering (5-Row Layout with Separator):**
+**Header Rendering (9-Line Layout - Implemented Session 80):**
 
+Current header structure (RenderHeaderInfo in internal/ui/header.go):
 ```
-Row 1: CWD (left)              | OPERATION (right)
-Row 2: REMOTE (left)           | BRANCH (right)
-Row 3: ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ (separator line)
-Row 4: WORKING TREE (left)     | TIMELINE (right) OR Commit info when time traveling
-Row 5: Descriptions (left)     | Timeline/Commit description (right)
+─── 2-COLUMN SECTION (80/20 split) ───
+Row 1: 📁 CWD (80% left)                | 🟢 OPERATION (20% right, right-aligned)
+Row 2: 🔗 Remote/Status (80% left)      | 🌿 BRANCH (20% right, right-aligned)
+
+─── FULL-WIDTH SECTION ───
+Row 3: ──────────────────────── (separator line)
+Row 4: ✅ WORKING TREE LABEL (bold, colored)
+Row 5: Description of working tree state (indented)
+Row 6: [Additional description line if needed]
+Row 7: 🔗 TIMELINE LABEL (bold, colored)
+Row 8: Description of timeline state (indented)
+Row 9: [Additional description line if needed]
 ```
 
-**Normal Operation (Operation = Normal):**
+**Actual Height:** HeaderHeight = 9 content rows (with padding: 11 total lines including top/bottom margins)
+
+**Normal Operation Example (Operation = Normal, Timeline = InSync):**
 ```
-📁 /Users/jreng/Documents/Poems/inf/tit    🟢 READY
+📁 /Users/jreng/Documents/Poems/tit        🟢 READY
 🔗 github.com/user/repo                    🌿 main
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ CLEAN                                   🔗 SYNC
-Your files match the remote.              Local and remote are in sync.
+─────────────────────────────────────────────────────────
+✅ CLEAN
+   Your files match the remote.
+🔗 IN SYNC
+   Local and remote are in sync.
 ```
 
-**Time Traveling (Operation = TimeTraveling):**
+**Time Traveling Example (Operation = TimeTraveling):**
 ```
-📁 /Users/jreng/Documents/Poems/inf/tit    🌀 TIME TRAVEL
+📁 /Users/jreng/Documents/Poems/tit        🌀 TIME TRAVEL
 🔗 github.com/user/repo                    🔀 Detached HEAD
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ CLEAN                                   📌 Commit: c53233c
-Your files match the remote.              Mon, 7 Jan 2026 04:45:12
+─────────────────────────────────────────────────────────
+✅ CLEAN
+   Your files match the remote.
+📌 COMMIT c53233c
+   Mon, 7 Jan 2026 04:45:12
 ```
 
-**No Remote (Remote = NoRemote):**
+**No Remote Example (Remote = NoRemote):**
 ```
-📁 /Users/jreng/Documents/Poems/inf/tit    🟢 READY
+📁 /Users/jreng/Documents/Poems/tit        🟢 READY
 🔌 NO REMOTE                               🌿 main
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ CLEAN                                   🔌 N/A
-Your files match the remote.              No remote configured.
+─────────────────────────────────────────────────────────
+✅ CLEAN
+   Your files match the remote.
+🔌 N/A
+   No remote configured.
 ```
 
-**Key changes from Session 65:**
-- Operation labels now ALL CAPS (READY, TIME TRAVEL, NOT REPO)
-- Updated emoji: ✅ → 🟢 (operation ready), ⏱️ → 🌀 (time travel)
-- Separator line between remote/branch row and state rows
-- WorkingTree and Timeline labels also ALL CAPS
+**Design Details:**
+- **HeaderState struct** (ui/header.go): 18 fields capturing all header display state
+- **2-column section** (rows 1-2): Fixed 80/20 split with right-aligned operation/branch
+- **Separator** (row 3): Full-width dashes, themed color
+- **Description lines**: Indented with `EmojiColumnWidth = 3` spaces for alignment
+- **Dynamic widths**: All calculations use DynamicSizing for responsive layout
+- **Color system**: Operation/WorkingTree/Timeline colors from theme (SSOT in ui/theme.go)
 
-**Rendering Flow:**
+---
+
+---
+
+## Reactive Layout System (Session 80+)
+
+### DynamicSizing: Responsive Terminal Layout
+
+**Purpose:** Calculate exact dimensions from terminal size, enabling full-terminal responsive layout.
+
+**Threshold Constants (SSOT in ui/sizing.go):**
+```go
+const (
+    MinWidth         = 69      // Minimum usable terminal width
+    MinHeight        = 19      // Minimum usable terminal height
+    HeaderHeight     = 9       // Fixed header height
+    FooterHeight     = 1       // Fixed footer height
+    MinContentHeight = 4       // Minimum content area height
+    HorizontalMargin = 2       // Left + right margins
+    BannerWidth      = 30      // Width of optional banner
+)
 ```
-RenderStateHeader()
-    ↓
-Check Operation: TimeTraveling?
-    ├─ Yes: Show "Detached HEAD" for branch, commit hash + date for timeline
-    └─ No: Show CurrentBranch, check Timeline
-        ├─ Timeline = "": Show "N/A" (no remote)
-        └─ Timeline != "": Show timeline status (InSync/Ahead/Behind/Diverged)
-    ↓
-Lookup state info via stateinfo maps:
-    - operationInfo[state.Operation]
-    - workingTreeInfo[state.WorkingTree]
-    - timelineInfo[state.Timeline] (if applicable)
-    ↓
-Call Description() functions with (ahead, behind) counts
-    ↓
-Format as 4-row two-column layout
+
+**DynamicSizing Struct:**
+```go
+type DynamicSizing struct {
+    TerminalWidth     int  // Full terminal width
+    TerminalHeight    int  // Full terminal height
+    ContentHeight     int  // Available height for content (TerminalHeight - Header - Footer)
+    ContentInnerWidth int  // Available width for content (TerminalWidth - 2*Margins)
+    HeaderInnerWidth  int  // Available width for header
+    FooterInnerWidth  int  // Available width for footer
+    MenuColumnWidth   int  // Left column when banner displayed
+    IsTooSmall        bool // true if width < MinWidth OR height < MinHeight
+}
 ```
+
+**Calculation Logic:**
+```go
+func CalculateDynamicSizing(termWidth, termHeight int) DynamicSizing {
+    isTooSmall := termWidth < MinWidth || termHeight < MinHeight
+    
+    contentHeight := termHeight - HeaderHeight - FooterHeight
+    if contentHeight < MinContentHeight {
+        contentHeight = MinContentHeight
+    }
+    
+    innerWidth := termWidth - (HorizontalMargin * 2)
+    
+    return DynamicSizing{
+        TerminalWidth:     termWidth,
+        TerminalHeight:    termHeight,
+        ContentHeight:     contentHeight,
+        ContentInnerWidth: innerWidth,
+        IsTooSmall:        isTooSmall,
+    }
+}
+```
+
+**Too Small Handler:**
+If terminal is < 69×19:
+- `IsTooSmall = true`
+- View renders single centered message: "Terminal too small (69×19 minimum)"
+- All UI rendering blocked until terminal resized
+
+### RenderReactiveLayout: Full-Terminal Composition
+
+**Function:** `ui.RenderReactiveLayout(sizing, theme, header, content, footer)`
+
+**Layout Structure:**
+```
+┌────────────────────────────────────────────────┐ ← Terminal top (y=0)
+│ HEADER (9 lines, full width)                   │
+│ - 2-column section: CWD + Remote | Op + Branch │
+│ - Separator line                              │
+│ - WorkingTree status + description             │
+│ - Timeline status + description                │
+├────────────────────────────────────────────────┤
+│ CONTENT (variable height)                      │
+│ - Menu, History, Input, etc. (dynamic height)  │
+├────────────────────────────────────────────────┤
+│ FOOTER (1 line)                                │
+│ - Keyboard hints or messages (centered)        │
+└────────────────────────────────────────────────┘ ← Terminal bottom (y=termHeight)
+```
+
+**Height Calculation:**
+- Header: Fixed 9 lines
+- Footer: Fixed 1 line
+- Content: `TerminalHeight - 9 - 1 = TerminalHeight - 10`
+
+**Assembly Pattern (lipgloss):**
+```go
+// 1. Render each section with exact dimensions
+headerSection := lipgloss.NewStyle().
+    Width(sizing.TerminalWidth).
+    Height(HeaderHeight).
+    Render(headerText)
+
+contentSection := lipgloss.NewStyle().
+    Width(sizing.TerminalWidth).
+    Height(contentHeight).
+    Render(contentText)
+
+footerSection := lipgloss.NewStyle().
+    Width(sizing.TerminalWidth).
+    Height(FooterHeight).
+    Render(footerText)
+
+// 2. Join vertically
+combined := lipgloss.JoinVertical(lipgloss.Left, 
+    headerSection, contentSection, footerSection)
+
+// 3. Place in exact terminal dimensions
+result := lipgloss.Place(
+    sizing.TerminalWidth,
+    sizing.TerminalHeight,
+    lipgloss.Left, lipgloss.Top,
+    combined)
+```
+
+**Key Design:**
+- No padding or gaps between sections (borders touch)
+- Footer always sticks to bottom (via lipgloss.Place)
+- Content area grows/shrinks with terminal resize
+- Header and footer remain at fixed heights
+
+### Legacy Constants (Deprecated)
+
+```go
+// Old fixed sizing - DEPRECATED, DO NOT USE
+const (
+    ContentInnerWidth = 76  // Legacy hardcoded width
+    ContentHeight     = 24  // Legacy hardcoded height
+)
+```
+
+**Status:** These constants remain for backward compatibility but should NOT be used in new code. Always use `sizing.ContentInnerWidth` and `sizing.ContentHeight` instead.
+
+**Migration Path:**
+- Phase 1 ✅ (Session 80): DynamicSizing implemented
+- Phase 2 ✅ (Session 82+): All usages migrated to DynamicSizing
+- Phase 3 ⏳ (Future): Remove legacy constants completely
 
 ---
 
 ## Confirmation Dialog System
-
-**Purpose:** Centralize all confirmation dialog text (titles + explanations) for safe destructive operations.
-
-**Implementation** (`internal/app/messages.go` DialogMessages SSOT):
 
 ```go
 // Dialog messages for confirmation dialogs
@@ -1592,33 +1950,83 @@ func executeOperation() tea.Cmd {
 
 ## Key Files & Responsibilities
 
+### Core Application Logic (`internal/app/`)
+
+| File | Purpose | Key Types |
+|------|---------|-----------|
+| `app.go` | Main Application struct, Update() event loop, View() rendering | Application (120+ fields) |
+| `modes.go` | AppMode enum definition (14 modes), ModeMetadata descriptors | AppMode (enum), SetupWizardStep |
+| `menu.go` | Menu generators (state → []MenuItem), menu state functions | menuNormal(), menuNotRepo(), menuTimeTraveling() |
+| `menu_items.go` | MenuItems SSOT map (30+ items with labels/hints/emoji) | MenuItem struct, MenuItems map |
+| `menu_builders.go` | MenuItemBuilder fluent API for separators and items | MenuBuilder type |
+| `messages.go` | Custom tea.Msg types, SSOT maps (prompts, dialogs, errors) | StateDescriptions, DialogMessages, ErrorMessages maps |
+| `operation_steps.go` | OperationStep constants SSOT (25+ async operation names) | Op* constants (OpInit, OpCommit, etc) |
+| `keyboard.go` | Key handler registry construction, keyboard binding setup | KeyHandler type, buildKeyHandlers() |
+| `handlers.go` | Input handlers (enter, ESC, text input, character input) | handleMenuEnter(), handleKeyESC(), handleTextInput() |
+| `dispatchers.go` | Menu item → mode transitions, route selection to handler | dispatchInit(), dispatchCommit(), dispatchPush() |
+| `state_info.go` | State info maps builder (WorkingTree/Timeline/Operation descriptions) | BuildStateInfo(), StateInfo struct |
+| `confirmation_handlers.go` | Confirmation dialog system, show*Warning() functions | showConfirmation(), confirmationActions map |
+| `conflict_state.go` | Conflict resolution state struct | ConflictResolveState struct |
+| `conflict_handlers.go` | Conflict resolution keyboard handlers | handleConflictUp(), handleConflictSpace() |
+| `git_handlers.go` | Git operation completion handlers, cache rebuild | handleGitOperationMsg() |
+| `async.go` | Async command execution helpers, streaming wrappers | executeOperation(), cmdXxx functions |
+| `history_cache.go` | History cache preload functions | preloadHistoryMetadata(), preloadFileHistoryDiffs() |
+| `setup_wizard.go` | SSH setup wizard flow and handlers | handleSetupWizard(), stepWelcome(), etc |
+| `cursor_movement.go` | Text input cursor movement helpers | moveCursorLeft(), moveCursorRight() |
+| `location.go` | Clone/init location selection and path validation | promptForCloneLocation() |
+| `dirty_state.go` | Dirty operation tracking (merge/rebase with uncommitted changes) | DirtyOperationState struct |
+| `errors.go` | Error type definitions and handling | AppError type |
+| `config.go` | Application configuration and theme loading | AppConfig struct |
+| `key_builder.go` | Key handler builder pattern implementation | KeyHandlerBuilder type |
+
+### Git Integration (`internal/git/`)
+
+| File | Purpose | Key Functions |
+|------|---------|---|
+| `state.go` | State detection from git commands (5-axis system) | DetectState(), detectWorkingTree(), detectTimeline() |
+| `execute.go` | Command execution with streaming, git command wrappers | executeGitCommand(), executeWithStreaming() |
+| `types.go` | All git types (State, WorkingTree, Timeline, Operation, etc) | State, CommitInfo, CommitDetails, FileInfo structs |
+| `init.go` | Repository initialization helpers | initRepository(), validateRepoName() |
+| `ssh.go` | SSH configuration and key management | checkSSHKeys(), generateSSHKey() |
+| `environment.go` | Git/SSH environment detection | CheckEnvironment(), isGitInstalled() |
+| `messages.go` | Git command output message parsing | parseGitOutput(), interpretExitCode() |
+| `dirtyop.go` | Dirty operation detection and state management | IsDirtyOperationActive(), captureSnapshot() |
+
+### UI Components (`internal/ui/`)
+
+| File | Purpose | Key Functions |
+|------|---------|---|
+| `layout.go` | RenderReactiveLayout() main view composer, responsive layout | RenderReactiveLayout(), renderTooSmallMessage() |
+| `sizing.go` | Dynamic sizing calculations, responsive dimensions | DynamicSizing struct, CalculateDynamicSizing() |
+| `header.go` | Header rendering (9-line layout), state display | RenderHeaderInfo(), RenderHeader(), HeaderState |
+| `theme.go` | Color system with semantic names, theme loading | Theme struct (50+ colors), LoadTheme() |
+| `menu.go` | RenderMenuWithHeight() component | RenderMenuWithHeight(), RenderMenuWithSelection() |
+| `buffer.go` | OutputBuffer thread-safe ring buffer, streaming output | OutputBuffer type, Append(), Lines() |
+| `console.go` | RenderConsoleOutput() component for git command output | RenderConsoleOutput(), ConsoleOutState |
+| `confirmation.go` | ConfirmationDialog component, dialog rendering | ConfirmationDialog type, Render() |
+| `conflictresolver.go` | N-column parallel conflict resolution UI | RenderConflictResolveGeneric(), ConflictFileGeneric |
+| `history.go` | Commit history pane rendering (2-pane layout) | RenderHistory() |
+| `filehistory.go` | File history mode (3-pane hybrid layout) | RenderFileHistory(), FileHistoryState |
+| `listpane.go` | Reusable list pane with scrolling and selection | renderListPane(), ListPaneConfig |
+| `textpane.go` | Text viewing pane (for diff, console output) | renderTextPane() |
+| `input.go` | Text input box rendering | RenderInput(), InputConfig |
+| `textinput.go` | Basic text input component | TextInputComponent |
+| `branchinput.go` | Dual input component (canon + working branch) | RenderBranchInput() |
+| `formatters.go` | Text utilities (padding, truncation, centering) | PadText(), TruncateText(), CenterAlignLine() |
+| `statusbar.go` | Unified status bar builder | BuildStatusBar() |
+| `validation.go` | Input validation (URLs, names, etc) | ValidateRemoteURL(), ValidateRepoName() |
+| `spinner.go` | Loading spinner animation | RenderSpinner() |
+| `box.go` | Border box rendering | RenderBox(), BoxConfig |
+
+### Banner & Config (`internal/banner/`, `internal/config/`)
+
 | File | Purpose |
 |------|---------|
-| `internal/app/app.go` | Application struct, Update() event loop, key handler registry |
-| `internal/app/modes.go` | AppMode enum definition |
-| `internal/app/menu.go` | Menu generators (state → []MenuItem) |
-| `internal/app/menuitems.go` | MenuItems SSOT map (all menu definitions) |
-| `internal/app/menubuilder.go` | MenuItemBuilder fluent API (for separators) |
-| `internal/app/operationsteps.go` | OperationStep constants SSOT (all async operation names) |
-| `internal/app/dispatchers.go` | Menu item → mode transitions |
-| `internal/app/handlers.go` | Input handlers (enter, ESC, text input, etc) |
-| `internal/app/keyboard.go` | Key handler registry construction |
-| `internal/app/messages.go` | Custom tea.Msg types & SSOT maps (prompts, errors, dialogs) |
-| `internal/app/confirmationhandlers.go` | Confirmation dialog system and handlers |
-| `internal/app/conflictstate.go` | Conflict resolution state struct |
-| `internal/app/conflicthandlers.go` | Conflict resolution keyboard handlers |
-| `internal/git/state.go` | State detection from git commands |
-| `internal/git/execute.go` | Command execution with streaming |
-| `internal/ui/layout.go` | RenderLayout() main view composer |
-| `internal/ui/theme.go` | Color system with semantic names |
-| `internal/ui/buffer.go` | OutputBuffer thread-safe ring buffer |
-| `internal/ui/console.go` | RenderConsoleOutput() component |
-| `internal/ui/confirmation.go` | ConfirmationDialog component |
-| `internal/ui/conflictresolver.go` | N-column parallel conflict resolution UI |
-| `internal/ui/listpane.go` | Reusable list pane with checkboxes and scrolling |
-| `internal/ui/diffpane.go` | Diff viewer with line numbers and cursor |
-| `internal/ui/menu.go` | RenderMenuWithHeight() component |
-| `internal/ui/validation.go` | Input validation (URLs, directory names) |
+| `internal/banner/svg.go` | SVG to braille conversion (logo rendering) |
+| `internal/banner/braille.go` | Braille character utilities |
+| `internal/config/stash.go` | Stash management (loading saved state) |
+
+---
 
 ---
 

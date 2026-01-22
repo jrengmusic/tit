@@ -1,0 +1,531 @@
+================================================================================
+TIT CODEBASE ARCHITECTURE ANALYSIS - EXECUTIVE SUMMARY
+================================================================================
+
+Project: TIT (Terminal Interactive Tool)
+Language: Go
+Framework: Bubble Tea (Charmbracelet TUI library)
+Total Lines of Code: ~15,200 LOC across 56 files
+Analysis Date: January 22, 2026
+
+================================================================================
+1. COMPLETE APPMODES (14 TOTAL)
+================================================================================
+
+ModeMenu (0)                  - Main state-driven menu
+ModeInput (1)                 - Generic text input (deprecated)
+ModeConsole (2)               - Streaming git output
+ModeConfirmation (3)          - Yes/No confirmation dialog
+ModeHistory (4)               - Commit history browser
+ModeConflictResolve (5)       - 3-way merge conflict resolver
+ModeInitializeLocation (6)    - Choose: init here or subdir
+ModeInitializeBranches (7)    - Input canon + working branch names
+ModeCloneURL (8)              - Input clone URL with validation
+ModeCloneLocation (9)         - Choose: clone here or subdir
+ModeClone (10)                - Clone operation (async)
+ModeSelectBranch (11)         - Select canon branch from cloned repo
+ModeFileHistory (12)          - File(s) history browser with diffs
+ModeSetupWizard (13)          - Git environment setup (SSH keys)
+
+================================================================================
+2. GIT STATE DETECTION (5-AXIS SYSTEM)
+================================================================================
+
+The system uses a priority-ordered 5-axis tuple to model git state:
+
+AXIS 0: GitEnvironment (CHECKED FIRST - GLOBAL OVERRIDE)
+  - Ready                     (git + ssh + SSH key exists)
+  - NeedsSetup               (git + ssh exist, no SSH key)
+  - MissingGit               (git not installed)
+  - MissingSSH               (ssh not installed)
+  → If not Ready: Show Setup Wizard, skip other detection
+
+AXIS 1: Operation (HIGHEST PRIORITY IN REPO)
+  - NotRepo                  (not in a git repository)
+  - Normal                   (ready for operations)
+  - Conflicted               (merge/rebase conflicts detected)
+  - Merging                  (merge in progress)
+  - Rebasing                 (rebase in progress)
+  - DirtyOperation           (incomplete operation marker)
+  - TimeTraveling            (viewing historical commit)
+  - Rewinding                (git reset --hard in progress)
+
+AXIS 2: WorkingTree (FILES & STAGING)
+  - Clean                    (no uncommitted changes)
+  - Dirty                    (staged or unstaged changes, untracked files)
+
+AXIS 3: Remote (PRESENCE)
+  - NoRemote                 (git remote command returns empty)
+  - HasRemote                (at least one remote configured)
+
+AXIS 4: Timeline (CONDITIONAL - ONLY if Normal && HasRemote && hasCommits)
+  - InSync                   (local == remote)
+  - Ahead                    (local has commits not on remote)
+  - Behind                   (remote has commits not local)
+  - Diverged                 (both local and remote have unique commits)
+  - Empty string             (N/A - not applicable to current state)
+
+Menu generation logic:
+  - Reads Operation first
+  - If NotRepo: Show init/clone
+  - If TimeTraveling: Show history/rewind/return
+  - If Conflicted: Lock down to conflict resolution only
+  - If Normal: Generate based on WorkingTree + Timeline + Remote
+
+================================================================================
+3. PACKAGE STRUCTURE (5 PACKAGES)
+================================================================================
+
+internal/app/ (26 files, ~6000 LOC)
+  Core application logic: state management, mode transitions, menu generation
+  Key files:
+    - app.go (1407 lines)     Main Application struct + Update/View/Init
+    - modes.go (162 lines)    AppMode enum + metadata
+    - menu.go (300+ lines)    Menu generation based on git state
+    - menu_items.go (200+)    MenuItems map - single source of truth
+    - handlers.go (500+)      Event handlers for user actions
+    - keyboard.go (400+)      Key binding management
+    - git_handlers.go (600+)  Git operation handlers
+    - messages.go (200+)      Bubble Tea message types
+    - history_cache.go (300+) History metadata caching system
+
+internal/ui/ (18 files, ~5000 LOC)
+  Terminal UI rendering components
+  Key files:
+    - layout.go (200+)        Reactive layout engine (header/content/footer)
+    - sizing.go (64)          Dynamic sizing calculations
+    - menu.go (250+)          Menu rendering with banner
+    - header.go (200+)        State header (5 rows)
+    - console.go (300+)       Git command output streaming
+    - history.go (400+)       Commit history split-pane
+    - filehistory.go (400+)   File history split-pane
+    - conflictresolver.go     3-way conflict UI
+    - theme.go (300+)         Color theme system
+    - buffer.go (150+)        Output line buffering
+
+internal/git/ (8 files, ~2500 LOC)
+  Git state detection and command execution
+  Key files:
+    - state.go (507 lines)    Core state detection logic
+    - types.go (110 lines)    State type definitions
+    - execute.go (200+)       Git command execution
+    - environment.go (150+)   Git/SSH environment checks
+    - init.go (200+)          Repository initialization
+    - ssh.go (300+)           SSH key generation
+
+internal/config/ (1 file)
+  Configuration: stash.go     Stash state tracking
+
+internal/banner/ (2 files)
+  ASCII art: svg.go, braille.go
+
+================================================================================
+4. MAIN APPLICATION STRUCT FIELDS
+================================================================================
+
+Application struct contains ~50 fields organized by category:
+
+DIMENSIONS & RENDERING:
+  - width, height int
+  - sizing ui.DynamicSizing
+  - theme ui.Theme
+
+CURRENT STATE:
+  - mode AppMode                     Currently active mode
+  - gitState *git.State              Master git state (5-axis tuple)
+  - gitEnvironment git.GitEnvironment Global readiness state
+
+MENU STATE:
+  - selectedIndex int                Currently highlighted menu item
+  - menuItems []MenuItem             Cached menu items for current state
+  - keyHandlers map[...] map[...]   Dynamic key handler registry
+
+INPUT MODE:
+  - inputPrompt, inputValue string
+  - inputCursorPosition int
+  - inputValidationMsg string
+  - clearConfirmActive bool          Double-ESC to clear confirmation
+
+WORKFLOW STATES:
+  - cloneURL, clonePath string       Clone operation parameters
+  - cloneBranches []string           Available branches after clone
+  - remoteBranchName string          Current branch during remote ops
+
+ASYNC OPERATIONS:
+  - asyncOperationActive bool
+  - asyncOperationAborted bool
+  - isExitAllowed bool
+  - previousMode AppMode             Mode before async started
+
+OUTPUT & CONSOLE:
+  - consoleState ui.ConsoleOutState
+  - outputBuffer *ui.OutputBuffer
+  - consoleAutoScroll bool
+
+CONFLICT RESOLUTION:
+  - conflictResolveState *ConflictResolveState
+
+HISTORY BROWSING:
+  - historyState *ui.HistoryState    Commit history browser state
+  - fileHistoryState *ui.FileHistoryState
+
+TIME TRAVEL:
+  - timeTravelInfo *git.TimeTravelInfo
+  - restoreTimeTravelInitiated bool
+
+CACHING SYSTEM:
+  - historyMetadataCache map[string]*git.CommitDetails
+  - fileHistoryDiffCache map[string]string
+  - fileHistoryFilesCache map[string][]git.FileInfo
+  - cacheLoadingStarted bool
+  - cacheMetadata, cacheDiffs bool
+  - cacheMetadataProgress, cacheMetadataTotal int
+  - cacheDiffsProgress, cacheDiffsTotal int
+  - historyCacheMutex, fileHistoryCacheMutex, diffCacheMutex sync.Mutex
+
+DISPLAY STATE MAPS:
+  - workingTreeInfo map[git.WorkingTree]StateInfo
+  - timelineInfo map[git.Timeline]StateInfo
+  - operationInfo map[git.Operation]StateInfo
+
+================================================================================
+5. MAJOR UI COMPONENTS
+================================================================================
+
+Layout Components:
+  RenderReactiveLayout()    Full page: header + content + footer
+  RenderMenuWithBanner()    Menu + 30-char ASCII banner (2-column)
+  RenderMenuWithHeight()    Menu only, custom height
+
+Content Modes:
+  RenderConsoleOutput()     Streaming git output with spinner
+  RenderHistorySplitPane()  Commit list + commit details pane
+  RenderFileHistorySplitPane() File list + diff content pane
+  RenderConflictResolveGeneric() N-way conflict resolver (3+ panes)
+  RenderTextInput()         Single/multiline text input
+
+Header Components:
+  RenderHeader()            Full state header (9 rows)
+  RenderHeaderInfo()        Header content generation
+  
+Utility Components:
+  RenderBox()               Bordered container
+  RenderStatusBar()         Footer status line
+  RenderListPane()          Generic list rendering
+  RenderDiffPane()          Diff content rendering
+
+Dynamic Sizing (from sizing.go):
+  MinWidth = 69, MinHeight = 19
+  HeaderHeight = 9, FooterHeight = 1
+  HorizontalMargin = 2, BannerWidth = 30
+  MenuColumnWidth = ContentInnerWidth - BannerWidth - 2
+
+State Header Layout (5 rows):
+  Row 1: CWD (left) | OPERATION emoji+label (right)
+  Row 2: Remote URL (left) | BRANCH emoji+label (right)
+  Row 3: WorkingTree emoji+status (left) | spacer (right)
+  Row 4: Timeline emoji+status (left) | spacer (right)
+  Row 5: Separator line
+
+================================================================================
+6. MENU GENERATION SYSTEM
+================================================================================
+
+Pipeline:
+  GenerateMenu() → Select generator by gitState.Operation → Build MenuItems[]
+
+Menu Item Structure:
+  type MenuItem struct {
+      ID string        // Unique identifier (e.g., "push", "history")
+      Shortcut string  // Single character (e.g., "p")
+      Emoji string     // Leading emoji
+      Label string     // Max 21 chars (fixed-width menu)
+      Hint string      // Shown in footer on focus
+      Enabled bool     // Selectable (false during cache build)
+      Separator bool   // If true, visual divider only
+  }
+
+MenuItems Map (Single Source of Truth) - ~30 items:
+  NotRepo: init, clone
+  Working Tree (Dirty): commit, commit_push
+  Timeline (HasRemote): push, force_push, pull_merge, dirty_pull_merge,
+                        replace_local, pull_merge_diverged, reset_discard_changes
+  Remote (NoRemote): add_remote
+  History: history, file_history
+  Time Travel: time_travel_history, time_travel_files_history, rewind, return
+  Conflict: resolve_conflicts, abort_merge
+
+Keyboard Shortcuts (Dynamic Registration):
+  Global:   ctrl+c, q (quit), esc (return), ctrl+v (paste)
+  ModeMenu: up/down (j/k), enter, [1-9] for shortcuts
+  ModeInput: left/right (home/end), backspace, enter
+  ModeHistory: up/down (j/k), tab (focus), enter (action), ctrl+r (rewind)
+  ModeFileHistory: up/down (j/k), tab, v (visual), y (copy), esc
+  ModeConflictResolve: up/down (j/k), tab, space (select), enter (confirm)
+
+Cache Integration:
+  - History menus DISABLED while caches building
+  - Progress shown to user (animation frame)
+  - Enabled automatically when caches complete
+
+================================================================================
+7. GIT STATE DETECTION MECHANISM
+================================================================================
+
+Detection Sequence:
+
+1. Check GitEnvironment (PRIORITY 0 - GLOBAL)
+   if !Ready:
+     return Setup Wizard (and exit all other detection)
+
+2. Check for repository
+   IsInitializedRepo() || HasParentRepo() → cd into repo
+
+3. Detect Operation (PRIORITY 1 - IN REPO)
+   Check for conflicts: git status --porcelain=v2 (lines with "u ")
+   Check for time travel: .git/TIT_TIME_TRAVEL file exists
+   Check for merge: .git/MERGE_HEAD exists
+   Check for rebase: .git/rebase-merge or .git/rebase-apply
+
+4. Detect WorkingTree (PRIORITY 2)
+   git status --porcelain=v2
+   - Empty output → Clean
+   - Lines with 1,2,? → Dirty
+
+5. Detect Remote (PRIORITY 3)
+   git remote
+   - No output → NoRemote
+   - Has remotes → HasRemote
+
+6. Detect Timeline (PRIORITY 4 - CONDITIONAL)
+   ONLY if: Operation == Normal && Remote == HasRemote && hasCommits
+   
+   Try upstream tracking: git rev-parse @{u}
+   Fallback to: refs/remotes/origin/[branch]
+   
+   git rev-list --left-right --count HEAD...@{u}
+   - ahead > 0, behind == 0 → Ahead
+   - ahead == 0, behind > 0 → Behind
+   - ahead > 0, behind > 0 → Diverged
+   - both 0 → InSync
+
+7. Get additional info:
+   - Current branch: git symbolic-ref --short HEAD
+   - Current hash: git rev-parse HEAD
+   - Remote hash: git rev-parse @{u}
+
+Special State Files:
+  .git/TIT_TIME_TRAVEL    Time travel marker (branch + stash ID)
+  .git/TIT_DIRTY_OP       Incomplete operation state
+
+================================================================================
+8. EVENT FLOW (BUBBLE TEA)
+================================================================================
+
+Update Loop Flow:
+
+tea.Update(msg) receives message
+  ↓
+Switch on message type:
+  
+  tea.WindowSizeMsg
+    → Update sizing dimensions
+    → Recalculate layout
+    
+  tea.KeyMsg
+    → Check if paste mode (bracketed paste)
+    → Lookup handler: keyHandlers[mode][keyStr]
+    → Execute handler
+    → Handler returns (model, cmd)
+    
+  GitOperationMsg
+    → handleGitOperation(msg)
+    
+  CacheProgressMsg
+    → Update cache state
+    → Regenerate menu (shows progress)
+    
+  OutputRefreshMsg
+    → Re-render console
+    → Schedule next tick if still active
+    
+  RestoreTimeTravelMsg
+    → handleRestoreTimeTravel()
+    
+  SetupCompleteMsg
+    → Advance setup wizard step
+    
+  [Other operation-specific messages]
+    → Route to appropriate handler
+
+Handler execution:
+  1. Validate preconditions
+  2. Execute action (git command, state change, etc)
+  3. Update Application state
+  4. Return (updated app, optional Command)
+
+Command execution (async):
+  1. Run in goroutine
+  2. Collect result
+  3. Return as Bubble Tea message
+  4. Next Update() processes result
+
+Message Types (20+ defined):
+  TickMsg, ClearTickMsg, OutputRefreshMsg, GitOperationMsg, CacheProgressMsg,
+  CacheRefreshTickMsg, RestoreTimeTravelMsg, SetupCompleteMsg, SetupErrorMsg,
+  RewindMsg, RemoteFetchMsg, git.TimeTravelCheckoutMsg, etc.
+
+================================================================================
+9. KEY FILES & PURPOSES
+================================================================================
+
+Application Logic (internal/app/):
+  - app.go (1407)           Core Application, Update/View/Init
+  - modes.go (162)          AppMode enum + metadata
+  - menu.go (300+)          Menu generation
+  - menu_items.go (200+)    Menu item definitions
+  - handlers.go (500+)      Event handlers
+  - keyboard.go (400+)      Key bindings
+  - git_handlers.go (600+)  Git operations
+  - messages.go (200+)      Message types
+  - state_info.go (150+)    State display formatting
+  - history_cache.go (300+) Cache management
+  - dispatchers.go (300+)   Action dispatching
+  - operations.go (400+)    Long-running operations
+  - conflict_*.go           Conflict handling
+  - dirty_state.go          Dirty operation tracking
+  - location.go             Location (init/clone) state
+  - errors.go               Error handling
+  - async.go                Async operation management
+  - config.go               App configuration
+  - cursor_movement.go      Navigation logic
+  - key_builder.go          Handler builder pattern
+  - confirmation_handlers.go Dialog handling
+  - setup_wizard.go         Setup wizard logic
+
+Git Operations (internal/git/):
+  - state.go (507)          State detection logic
+  - types.go (110)          Type definitions
+  - execute.go (200+)       Git command execution
+  - environment.go (150+)   Env readiness checks
+  - init.go (200+)          Repository initialization
+  - ssh.go (300+)           SSH key generation
+  - messages.go (100+)      Message types
+  - dirtyop.go              Dirty operation tracking
+
+UI Components (internal/ui/):
+  - layout.go (200+)        Reactive layout
+  - sizing.go (64)          Dynamic sizing
+  - menu.go (250+)          Menu rendering
+  - header.go (200+)        Header rendering
+  - console.go (300+)       Console output
+  - history.go (400+)       History browser
+  - filehistory.go (400+)   File history browser
+  - conflictresolver.go     Conflict UI
+  - theme.go (300+)         Color themes
+  - buffer.go (150+)        Output buffering
+  - input.go (200+)         Text input
+  - [+ 11 more component files]
+
+Configuration:
+  - internal/config/stash.go   Stash tracking
+  - internal/banner/*.go       ASCII art rendering
+
+Entry Point:
+  - cmd/tit/main.go            Initialize theme, create app, run
+
+================================================================================
+10. ARCHITECTURAL DECISIONS & PATTERNS
+================================================================================
+
+Key Decisions:
+
+1. 5-Axis State Model
+   - Cleanly separates concerns
+   - Priority order prevents invalid combinations
+   - Enables state-driven menu generation
+
+2. Single Source of Truth for Menu Items
+   - MenuItems map in menu_items.go is canonical
+   - Prevents rendering/handler inconsistencies
+   - Centralized updates
+
+3. State-Driven Menu Generation
+   - Menu changes automatically when git state changes
+   - Cache status integrated
+   - No manual rebuilding
+
+4. Async Operations via Bubble Tea Messages
+   - Git operations run in goroutines
+   - Results returned as messages
+   - Prevents UI freezing
+
+5. Dynamic Terminal Sizing
+   - All dimensions recomputed on WindowSizeMsg
+   - Auto-adjusting menu column width
+   - Responsive layout
+
+6. Split-Pane Navigation
+   - History/FileHistory use full terminal
+   - Tab key switches focused pane
+   - Cursor tracked per pane
+
+Design Patterns Used:
+  - Builder Pattern (MenuItem, ModeHandlers, ConfirmationConfig)
+  - Visitor Pattern (MenuGenerators for Operation states)
+  - Handler Registry (keyHandlers dynamic binding)
+  - State Machine (Mode transitions)
+  - Observer (OutputRefreshMsg ticks)
+  - Repository (GitState as single source)
+
+Thread Safety:
+  - Mutex-protected caches (historyCacheMutex, diffCacheMutex)
+  - Async via channels/goroutines
+  - Bubble Tea single-threaded event loop
+  - Git commands spawned as separate processes
+
+================================================================================
+11. CURRENT LIMITATIONS
+================================================================================
+
+1. ModeInput Deprecated
+   - Being phased out for mode-specific inputs
+   - Still used as fallback
+
+2. Cache Blocks History Menus
+   - ~5-10s delay on startup for large repos
+   - Menus disabled until caches ready
+   - Progress shown to user
+
+3. Incomplete Git Environment Setup
+   - Wizard exists but lacks provider URLs
+   - SSH generation works but minimal user education
+
+4. Time Travel Restoration Timing
+   - Automatic on startup (no confirmation)
+   - Could lose work if interrupted
+
+5. Conflict Resolver Untested
+   - Built for merge conflicts
+   - Cherry-pick/rebase conflicts may not display correctly
+
+6. Terminal Size Handling
+   - App locks if resized below minimum
+   - Needs graceful degradation
+
+================================================================================
+12. GENERATED DOCUMENTATION FILES
+================================================================================
+
+Created Documentation:
+  - ARCHITECTURE_ANALYSIS.md       10 sections, complete deep dive
+  - QUICK_REFERENCE.md             Fast lookup for developers
+  - This summary file
+
+Files Available in Project Root:
+  - /ARCHITECTURE_ANALYSIS.md      Comprehensive 24KB analysis
+  - /QUICK_REFERENCE.md            Quick reference 14KB
+
+================================================================================
+END OF SUMMARY
+================================================================================

@@ -43,7 +43,7 @@ Desktop.ini
 `
 
 // InitializeRepository initializes a git repository in the given directory
-// AUDIO THREAD - Called from git operations, must be in worker goroutine
+// WORKER THREAD - called from git operations, must be in worker goroutine
 func InitializeRepository(dirPath string) error {
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
@@ -70,7 +70,7 @@ func InitializeRepository(dirPath string) error {
 }
 
 // CreateBranch creates a new git branch (or checks out if it exists as tracking)
-// AUDIO THREAD - Called from git operations, must be in worker goroutine
+// WORKER THREAD - called from git operations, must be in worker goroutine
 func CreateBranch(branchName string) error {
 	// Check if branch already exists
 	cmd := exec.Command("git", "rev-parse", "--verify", branchName)
@@ -93,7 +93,7 @@ func CreateBranch(branchName string) error {
 }
 
 // CheckoutBranch checks out an existing branch
-// AUDIO THREAD - Called from git operations, must be in worker goroutine
+// WORKER THREAD - called from git operations, must be in worker goroutine
 func CheckoutBranch(branchName string) error {
 	cmd := exec.Command("git", "checkout", branchName)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -133,17 +133,17 @@ func GetRemoteDefaultBranch() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to query remote HEAD: %w (output: %s)", err, string(output))
 	}
-	
+
 	// Parse the output
 	// Line 1 is either "ref: refs/heads/main\tHEAD" or empty
 	// Line 2 is "<hash>\tHEAD" (or the only line if no symref found)
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	
+
 	// FAIL FAST: Must have at least one line
 	if len(lines) == 0 {
 		return "", fmt.Errorf("empty response from git ls-remote --symref origin HEAD - remote may not be a git repository")
 	}
-	
+
 	// Look for the "ref: refs/heads/XXX" line
 	for _, line := range lines {
 		if strings.HasPrefix(line, "ref:") {
@@ -151,22 +151,22 @@ func GetRemoteDefaultBranch() (string, error) {
 			parts := strings.Fields(line)
 			if len(parts) >= 2 {
 				refPath := parts[1] // "refs/heads/main"
-				
+
 				// Extract branch name from "refs/heads/main" → "main"
 				refParts := strings.Split(refPath, "/")
 				if len(refParts) >= 3 && refParts[0] == "refs" && refParts[1] == "heads" {
 					branch := strings.Join(refParts[2:], "/") // Handle branch names with slashes
-					
+
 					if branch == "" {
 						return "", fmt.Errorf("invalid remote HEAD ref: %s", refPath)
 					}
-					
+
 					return branch, nil
 				}
 			}
 		}
 	}
-	
+
 	// FAIL FAST: If we get here, the remote doesn't have a symbolic HEAD
 	return "", fmt.Errorf("remote HEAD is not a symbolic ref - cannot determine default branch. Output was: %s", string(output))
 }

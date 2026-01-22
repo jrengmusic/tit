@@ -618,7 +618,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case GitOperationMsg:
-		// AUDIO THREAD - Worker returned git operation result
+		// WORKER THREAD - git operation completed
 		return a.handleGitOperation(msg)
 
 	case CacheProgressMsg:
@@ -658,7 +658,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case RewindMsg:
-		// AUDIO THREAD - Rewind (git reset --hard) operation completed
+		// WORKER THREAD - rewind operation completed
 		return a.handleRewind(msg)
 
 	case RemoteFetchMsg:
