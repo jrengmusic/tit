@@ -1,6 +1,21 @@
 package app
 
-// AppMode represents the current application mode
+// AppMode represents the current application mode and UI state.
+// The application uses a state machine pattern where each mode has specific
+// behavior, input handling, and rendering characteristics.
+//
+// Mode Transitions:
+// - ModeMenu: Main menu navigation (default state)
+// - ModeInput: Text input for various operations
+// - ModeConsole: Async operation output display
+// - ModeConfirmation: User confirmation dialogs
+// - ModeHistory: Commit history browsing
+// - ModeConflictResolve: Git conflict resolution interface
+// - ModeInitialize*: Git repository initialization workflows
+// - ModeClone*: Git repository cloning workflows
+// - ModeFileHistory: File-specific history browsing
+// - ModeSetupWizard: First-time setup and configuration
+
 type AppMode int
 
 const (

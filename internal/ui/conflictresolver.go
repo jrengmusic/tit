@@ -50,7 +50,7 @@ func RenderConflictResolveGeneric(
 	// Return height - 2 lines (wrapper will add border(2))
 	// Layout: topRow + bottomRow + status = height - 2
 	// Available for panes: (height - 2) - status(1) = height - 3
-	// But lipgloss adds extra padding, so reduce by 4 more
+	 
 	totalPaneHeight := height - 5
 	topRowHeight := totalPaneHeight / 3
 	bottomRowHeight := totalPaneHeight - topRowHeight
@@ -78,14 +78,14 @@ func RenderConflictResolveGeneric(
 		// Calculate column width: base + 1 if we have remainder
 		columnWidth := baseColumnWidth
 		if col >= numColumns-remainder {
-			columnWidth++ // Give remainder to last columns
+			columnWidth++  
 		}
 
 		// Use ListPane for file list
 		listPane := NewListPane(label, &theme)
 		listItems := convertFilesToListItems(files, selectedFileIndex, col, &theme)
 
-		// Calculate visible lines for scrolling (height - border(2) - title(1) - separator(1))
+		 
 		visibleLines := topRowHeight - 4
 		if visibleLines < 1 {
 			visibleLines = 1
@@ -123,7 +123,7 @@ func RenderConflictResolveGeneric(
 		// Calculate column width: base + 1 if we have remainder
 		columnWidth := baseColumnWidth
 		if col >= numColumns-remainder {
-			columnWidth++ // Give remainder to last columns
+			columnWidth++  
 		}
 
 		// Render content column with cursor using SSOT TextPane
@@ -141,7 +141,7 @@ func RenderConflictResolveGeneric(
 	// Join bottom row columns - lipgloss will place them side-by-side with borders touching
 	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, bottomRowLines...)
 
-	// Build status bar
+	 
 	statusBar := buildGenericConflictStatusBar(focusedPane, numColumns, width, theme, statusBarOverride)
 
 	// Stack everything with no gaps: topRow + bottomRow + statusBar

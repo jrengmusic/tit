@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,7 +13,20 @@ import (
 
 // Use ui.FileHistoryState and ui.FileHistoryPane (no duplication)
 
-// Application represents the main TIT app state
+// Application is the central state container for the TIT (Terminal Interface for Time Travel) application.
+// It manages all application state, UI rendering, git operations, and user interactions.
+//
+// The Application follows a strict UI THREAD / WORKER THREAD separation pattern:
+// - UI THREAD: Handles rendering, input, and immediate user feedback
+// - WORKER THREAD: Executes async git operations and state updates
+//
+// Key Responsibilities:
+// - Maintains current application mode and state
+// - Manages git repository state and operations
+// - Handles user input and menu navigation
+// - Coordinates async operations and UI updates
+// - Enforces application invariants and contracts
+
 type Application struct {
 	width             int
 	height            int
@@ -280,13 +292,6 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
 	hasTimeTravelMarker := git.FileExists(".git/TIT_TIME_TRAVEL") && isRepo
 	shouldRestore := hasTimeTravelMarker && app.gitState.Operation != git.TimeTraveling
 
-	// DEBUG: Log restoration decision to file
-	markerPath := ".git/TIT_TIME_TRAVEL"
-	markerStat, markerErr := os.Stat(markerPath)
-	debugMsg := fmt.Sprintf("[INIT] hasTimeTravelMarker=%v, isRepo=%v, Operation=%v, shouldRestore=%v, cwd=%s, marker_stat=%v, marker_err=%v\n",
-		hasTimeTravelMarker, isRepo, app.gitState.Operation, shouldRestore, os.Getenv("PWD"), markerStat != nil, markerErr)
-	os.WriteFile("/tmp/tit-init-debug.log", []byte(debugMsg), 0644)
-
 	// Load timeTravelInfo if actively time traveling
 	// CRITICAL: If TimeTraveling but can't load info, that's CORRUPT STATE
 	// Force restoration immediately to recover
@@ -296,8 +301,6 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
 			// CORRUPT STATE: TimeTraveling but can't load info
 			// Force restoration to recover
 			shouldRestore = true
-			debugMsg += fmt.Sprintf("[CORRUPT] TimeTraveling but LoadTimeTravelInfo failed: %v\n", err)
-			os.WriteFile("/tmp/tit-init-debug.log", []byte(debugMsg), 0644)
 		} else {
 			app.timeTravelInfo = ttInfo
 		}
@@ -502,39 +505,10 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	updateCallCount++
 	// CRITICAL: If restoration is needed, initiate it on first update (Phase 0)
 	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
-	markerPath := ".git/TIT_TIME_TRAVEL"
-	markerStat, markerErr := os.Stat(markerPath)
-
-	debugLog := fmt.Sprintf("[UPDATE #%d] asyncActive=%v, mode=%v, hasMarker=%v, marker_stat=%v, marker_err=%v\n",
-		updateCallCount, a.asyncOperationActive, a.mode, hasMarker, markerStat != nil, markerErr)
-	// Append to log file instead of overwriting
-	f, _ := os.OpenFile("/tmp/tit-update-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	f.WriteString(debugLog)
-	f.Close()
-
-	// Log each condition separately
-	cond1 := a.asyncOperationActive
-	cond2 := a.mode == ModeConsole
-	cond3 := !a.restoreTimeTravelInitiated
-	cond4 := hasMarker
-
-	condLog := fmt.Sprintf("[CONDITIONS #%d] cond1(asyncActive)=%v, cond2(mode==console)=%v, cond3(!restored)=%v, cond4(hasMarker)=%v, all=%v\n",
-		updateCallCount, cond1, cond2, cond3, cond4, cond1 && cond2 && cond3 && cond4)
-	// Append to log file
-	f2, _ := os.OpenFile("/tmp/tit-conditions-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	f2.WriteString(condLog)
-	f2.Close()
 
 	// Double-check before calling RestoreFromTimeTravel
-	if cond1 && cond2 && cond3 && cond4 {
+	if a.asyncOperationActive && a.mode == ModeConsole && !a.restoreTimeTravelInitiated && hasMarker {
 		// Verify marker still exists right before restoration
-		markerExists := git.FileExists(".git/TIT_TIME_TRAVEL")
-		debugLog := fmt.Sprintf("[UPDATE #%d] RESTORE TRIGGERED: asyncActive=%v, mode=%v, hasMarker=%v, markerExists=%v\n",
-			updateCallCount, a.asyncOperationActive, a.mode, hasMarker, markerExists)
-		// Append to log
-		f, _ := os.OpenFile("/tmp/tit-restore-debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		f.WriteString(debugLog)
-		f.Close()
 		a.restoreTimeTravelInitiated = true
 		return a, a.RestoreFromTimeTravel()
 	}
@@ -557,15 +531,6 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		keyStr := msg.String()
-
-		// DEBUG: Log key press and mode (for enter and ctrl+enter)
-		if keyStr == "enter" || keyStr == "ctrl+enter" || strings.Contains(keyStr, "enter") {
-			debugLog := fmt.Sprintf("[KEY] mode=%v, key=%s, hasHandler=%v, handlerExists=%v\n",
-				a.mode, keyStr,
-				a.keyHandlers[a.mode] != nil,
-				a.keyHandlers[a.mode] != nil && a.keyHandlers[a.mode][keyStr] != nil)
-			os.WriteFile("/tmp/tit-key-debug.log", []byte(debugLog), 0644)
-		}
 
 		// Handle ctrl+j (shift+enter equivalent) for newline in multiline input
 		if a.isInputMode() && (keyStr == "ctrl+j" || keyStr == "shift+enter") {

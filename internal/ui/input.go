@@ -27,7 +27,7 @@ func RenderInputField(field InputFieldState, maxWidth int, totalHeight int, them
 	styledLabel := labelStyle.Render(field.Label)
 	labelLine := PadLineToWidth(styledLabel, maxWidth)
 
-	// Calculate content area dimensions
+	 
 	// totalHeight = label (1) + box content (totalHeight - 1, which includes borders)
 	boxContentHeight := totalHeight - 3 // totalHeight - (label + border top/bottom)
 	if boxContentHeight < 1 {

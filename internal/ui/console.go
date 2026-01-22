@@ -59,10 +59,10 @@ func RenderConsoleOutput(
 	// maxWidth = 76 (ContentInnerWidth)
 	// totalHeight = ContentHeight (26)
 	// 
-	// Structure pre-outer-border:
+	 
 	//   title (1) + blank (1) + content (?) + blank (1) + status (1) = totalHeight - 2 (for outer border)
 	//   
-	// So content height = (totalHeight - 2) - 4 = totalHeight - 6
+	 
 	
 	contentLines := totalHeight - 6  // Actual output lines visible
 	wrapWidth := maxWidth           // No inner box, use full width
@@ -93,7 +93,7 @@ func RenderConsoleOutput(
 
 	totalBufferLines := buffer.GetLineCount()
 
-	// Step 1: BUILD ALL OUTPUT LINES (after wrapping at wrapWidth)
+	 
 	var allOutputLines []string
 
 	if totalBufferLines == 0 {
@@ -184,7 +184,7 @@ func RenderConsoleOutput(
 		title = title + strings.Repeat(" ", maxWidth-titleWidth)
 	}
 
-	// Build status bar
+	 
 	shortcutStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(palette.AccentTextColor)).
 		Bold(true)

@@ -79,7 +79,7 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 	// Render bottom row (Diff pane - full width, single column)
 	bottomRow := renderFileHistoryDiffPane(fileHistoryState, theme, width, bottomRowHeight)
 
-	// Build status bar (context-sensitive)
+	 
 	var statusBar string
 	if fileHistoryState.FocusedPane == PaneDiff {
 		statusBar = buildDiffStatusBar(fileHistoryState.VisualModeActive, width, theme, statusBarOverride)
@@ -116,7 +116,7 @@ func renderFileHistoryCommitsPane(state *FileHistoryState, theme Theme, width, h
 		})
 	}
 
-	// Calculate visible lines for scrolling (height - border(2))
+	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1
@@ -160,7 +160,7 @@ func renderFileHistoryFilesPane(state *FileHistoryState, theme Theme, width, hei
 		})
 	}
 
-	// Calculate visible lines for scrolling (height - border(2))
+	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

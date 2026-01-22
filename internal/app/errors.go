@@ -5,7 +5,21 @@ import (
 	"tit/internal/ui"
 )
 
-// ErrorLevel categorizes the severity and visibility of errors
+// ErrorLevel categorizes the severity and visibility of errors in TIT.
+// This hierarchy determines how errors are handled and displayed to users.
+//
+// Error Visibility Levels:
+// - ErrorInfo: Internal logging only (debug) - invisible to users
+// - ErrorWarn: User-visible warnings - logged and shown in UI
+// - ErrorFatal: Critical failures - panic with user-visible message
+//
+// Usage Pattern:
+// - Use ErrorInfo for internal state tracking and debugging
+// - Use ErrorWarn for recoverable issues that users should know about
+// - Use ErrorFatal for unrecoverable errors that require immediate termination
+//
+// CONTRACT: Never silently ignore errors. Always use appropriate ErrorLevel.
+
 type ErrorLevel int
 
 const (

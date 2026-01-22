@@ -80,9 +80,9 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 		borderColor = lp.Theme.ConflictPaneFocusedBorder
 	}
 
-	// Calculate content width accounting for border and padding
+	 
 	// Box will have borders (2 chars) and padding (2 chars: left+right)
-	// So content area = width - 2 (border) - 2 (padding) = width - 4
+	 
 	contentWidth := width - 4
 
 	if contentWidth <= 0 {
@@ -100,9 +100,9 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 
 	// Calculate visible lines for items
 	// Box has Height(height) which includes borders
-	// Interior = height - 2 (borders)
+	 
 	// Interior contains: title(1) + separator(1) + items(?)
-	// So items = interior - title - sep = (height - 2) - 1 - 1 = height - 4
+	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

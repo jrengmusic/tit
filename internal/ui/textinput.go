@@ -44,14 +44,14 @@ func RenderTextInput(
 	}
 
 	// Calculate box height from totalHeight
-	// Structure: label (1) + blank (1) + box (remaining)
+	 
 	// Box content height from state.Height
 	boxContentHeight := state.Height
 	if boxContentHeight < 1 {
 		boxContentHeight = 1 // Minimum 1 line
 	}
 
-	// Insert caret at cursor position
+	 
 	if state.CursorPos < 0 {
 		state.CursorPos = 0
 	}

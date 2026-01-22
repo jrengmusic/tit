@@ -71,7 +71,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 // dispatchInit starts the repository initialization workflow
 // Smart dispatch: if CWD not empty, skip to subdir initialization
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
-	// Check if CWD is empty (can only init in empty directories)
+	 
 	cwdEmpty := isCwdEmpty()
 
 	if !cwdEmpty {

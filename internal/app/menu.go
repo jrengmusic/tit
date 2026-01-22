@@ -74,10 +74,10 @@ func detectConflictedOperation() string {
 func (a *Application) menuNormal() []MenuItem {
 	var items []MenuItem
 
-	// Working Tree section
+	 
 	items = append(items, a.menuWorkingTree()...)
 
-	// Timeline section
+	 
 	items = append(items, a.menuTimeline()...)
 
 	// Separator before History section (if there are items above)

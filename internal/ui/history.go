@@ -60,7 +60,7 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, s
 	// Join columns horizontally (side-by-side)
 	mainRow := lipgloss.JoinHorizontal(lipgloss.Top, listPaneContent, detailsPaneContent)
 
-	// Build status bar
+	 
 	statusBar := buildHistoryStatusBar(historyState.PaneFocused, width, theme, statusBarOverride)
 
 	// Stack: mainRow + statusBar
@@ -93,7 +93,7 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 		})
 	}
 
-	// Calculate visible lines for scrolling (height - border(2))
+	 
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

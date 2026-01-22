@@ -46,7 +46,26 @@ func HasParentRepo() (bool, string) {
 	return false, ""
 }
 
-// DetectState performs full state detection: (WorkingTree, Timeline, Operation, Remote)
+// DetectState performs comprehensive 5-axis git state detection for the current repository.
+// This is the single source of truth for all git state information in TIT.
+//
+// The function detects:
+// 1. Working Tree State: Clean, Dirty, or Untracked files
+// 2. Timeline State: Current branch and commit history
+// 3. Operation State: Current git operation (if any)
+// 4. Remote State: Remote repository configuration
+// 5. Environment State: Git installation and configuration
+//
+// This function is called frequently and must be fast. It uses cached results
+// where possible and only executes git commands when necessary.
+//
+// Returns:
+// - *State: Complete git state representation
+// - error: Any error encountered during detection
+//
+// CONTRACT: This is MANDATORY precomputation - no on-the-fly state detection
+// in the application. All git state must flow through this function.
+
 func DetectState() (*State, error) {
 	state := &State{}
 
