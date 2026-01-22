@@ -73,7 +73,7 @@ func RenderConsoleOutputFullScreen(
 		contentHeight = 1
 	}
 
-	wrapWidth := termWidth
+	wrapWidth := termWidth - 2 // Account for 1-cell left/right padding
 
 	state.LinesPerPage = contentHeight
 
@@ -216,8 +216,8 @@ func RenderConsoleOutputFullScreen(
 	}
 	panel = strings.Join(panelLines, "\n")
 
-	// Build centered status bar at bottom
-	statusBar := buildConsoleStatusBar(termWidth, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
+	// Build centered status bar at bottom (account for 1-cell left/right padding)
+	statusBar := buildConsoleStatusBar(termWidth-2, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
 
 	// Combine panel and status bar, then apply padding
 	result := panel + "\n" + statusBar
