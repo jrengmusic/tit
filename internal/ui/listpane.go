@@ -1,9 +1,8 @@
 package ui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
+	"strings"
 )
 
 // ListPane represents a reusable list pane component with consistent
@@ -100,8 +99,10 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 	contentLines = append(contentLines, "")
 
 	// Calculate visible lines for items
-	// Interior space = height - border(2)
-	// Title(1) + separator(1) + items(visibleLines) = interior space
+	// Box has Height(height) which includes borders
+	// Interior = height - 2 (borders)
+	// Interior contains: title(1) + separator(1) + items(?)
+	// So items = interior - title - sep = (height - 2) - 1 - 1 = height - 4
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1
@@ -114,12 +115,11 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 	// Join all content lines
 	content := strings.Join(contentLines, "\n")
 
-	// Add border with padding - ALL FOUR SIDES like old-tit
-	// Use Width/Height to enforce exact size, content is already properly sized
+	// Add border with padding
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Width(width - 2).
+		Width(width-2).
 		Height(height).
 		Padding(0, 1) // 1 char padding left/right
 

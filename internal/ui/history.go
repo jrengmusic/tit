@@ -18,11 +18,11 @@ type CommitInfo struct {
 
 // HistoryState represents the state of the history browser
 type HistoryState struct {
-	Commits         []CommitInfo // List of recent commits
-	SelectedIdx     int          // Currently selected commit (0-indexed)
-	PaneFocused     bool         // true = list pane, false = details pane
-	DetailsLineCursor int        // Line cursor position in details pane
-	DetailsScrollOff  int        // Scroll offset for details pane
+	Commits           []CommitInfo // List of recent commits
+	SelectedIdx       int          // Currently selected commit (0-indexed)
+	PaneFocused       bool         // true = list pane, false = details pane
+	DetailsLineCursor int          // Line cursor position in details pane
+	DetailsScrollOff  int          // Scroll offset for details pane
 }
 
 // RenderHistorySplitPane renders the history split-pane view (2 columns side-by-side)
@@ -33,7 +33,7 @@ type HistoryState struct {
 //   - width, height: Terminal dimensions
 //
 // Returns: String representation of the rendered pane
-func RenderHistorySplitPane(state interface{}, theme Theme, width, height int) string {
+func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, statusBarOverride string) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -44,16 +44,14 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int) s
 		return "Error: invalid history state"
 	}
 
-	// Calculate pane height based on desired visible items
-	// We want ~15 visible commits in the list
-	// List structure: border(2) + title(1) + separator(1) + items(15) = 19 lines
-	desiredVisibleItems := 15
-	paneHeight := desiredVisibleItems + 4  // +4 for title, separator, and borders
-	
+	// Calculate pane height from terminal height
+	// Reserve 1 line for status bar + 1 for newline separator
+	paneHeight := height - 3
+
 	// Calculate column widths based on CONTENT NEEDS
 	// Commits list: "07-Jan 02:11 957f977" = 20 chars + border(2) + padding(2) = 24 chars
 	listPaneWidth := 24
-	detailsPaneWidth := width - listPaneWidth  // Remaining width for details (52 chars)
+	detailsPaneWidth := width - listPaneWidth // Remaining width for details
 
 	// Render both columns at same height
 	listPaneContent := renderHistoryListPane(historyState, theme, listPaneWidth, paneHeight)
@@ -63,7 +61,7 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int) s
 	mainRow := lipgloss.JoinHorizontal(lipgloss.Top, listPaneContent, detailsPaneContent)
 
 	// Build status bar
-	statusBar := buildHistoryStatusBar(historyState.PaneFocused, width, theme)
+	statusBar := buildHistoryStatusBar(historyState.PaneFocused, width, theme, statusBarOverride)
 
 	// Stack: mainRow + statusBar
 	// Total height will be (height - 3) + 1 = height - 2 (correct for outer wrapper)
@@ -74,7 +72,7 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int) s
 func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) string {
 	// Create list pane for commits
 	listPane := NewListPane("Commits", &theme)
-	
+
 	// Build list items from actual commits
 	var items []ListItem
 	for i, commit := range state.Commits {
@@ -84,7 +82,7 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 		if len(hashShort) > 7 {
 			hashShort = hashShort[:7]
 		}
-		
+
 		items = append(items, ListItem{
 			AttributeText:  attributeText,
 			AttributeColor: theme.DimmedTextColor,
@@ -94,16 +92,16 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 			IsSelected:     i == state.SelectedIdx,
 		})
 	}
-	
+
 	// Calculate visible lines for scrolling (height - border(2))
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1
 	}
-	
+
 	// Adjust scroll to keep selected commit visible (CRITICAL - was missing!)
 	listPane.AdjustScroll(state.SelectedIdx, visibleLines)
-	
+
 	// Render list pane (active when list pane is focused)
 	// Pass 0, 1 for column positioning (single column layout, treat as col 0 of 1)
 	return listPane.Render(items, width, height, state.PaneFocused, 0, 1)
@@ -113,16 +111,16 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 func renderHistoryDetailsPane(state *HistoryState, theme Theme, width, height int) string {
 	// Build content string
 	var lines []string
-	
+
 	// Show commit details if available
 	if len(state.Commits) > 0 && state.SelectedIdx >= 0 && state.SelectedIdx < len(state.Commits) {
 		commit := state.Commits[state.SelectedIdx]
-		
+
 		// No "Commit: hash" line - redundant (hash already shown in list)
 		lines = append(lines, fmt.Sprintf("Author: Unknown"))
 		lines = append(lines, fmt.Sprintf("Date:   %s", commit.Time.Format("Mon, 2 Jan 2006 15:04:05 -0700")))
 		lines = append(lines, "")
-		
+
 		// Split subject into multiple lines if it contains newlines or is too long
 		// This allows proper scrolling through long commit messages
 		subjectLines := strings.Split(commit.Subject, "\n")
@@ -130,32 +128,32 @@ func renderHistoryDetailsPane(state *HistoryState, theme Theme, width, height in
 	} else {
 		lines = append(lines, "(no commit selected)")
 	}
-	
+
 	content := strings.Join(lines, "\n")
-	
+
 	// Use SSOT TextPane with line cursor (like Conflict Resolver diff pane)
 	rendered, newScrollOffset := RenderTextPane(
 		content,
 		width,
 		height,
 		state.DetailsLineCursor, // Line cursor for better UX
-		state.DetailsScrollOff,   // Current scroll offset
-		false,                    // No line numbers (not code)
-		!state.PaneFocused,       // Active when list is NOT focused
-		false,                    // Not diff mode
+		state.DetailsScrollOff,  // Current scroll offset
+		false,                   // No line numbers (not code)
+		!state.PaneFocused,      // Active when list is NOT focused
+		false,                   // Not diff mode
 		&theme,
-		false,                    // No visual mode in history
+		false, // No visual mode in history
 		0,
 	)
-	
+
 	// Update scroll offset in state
 	state.DetailsScrollOff = newScrollOffset
-	
+
 	return rendered
 }
 
 // buildHistoryStatusBar builds the status bar with keyboard shortcuts (matches Conflict Resolver)
-func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme) string {
+func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme, overrideMessage string) string {
 	styles := NewStatusBarStyles(&theme)
 
 	// Build shortcuts based on focused pane
@@ -172,16 +170,16 @@ func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme) string 
 		}
 	}
 	parts = append(parts,
-		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" switch pane"),
-		styles.shortcutStyle.Render("ENTER") + styles.descStyle.Render(" time travel"),
-		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
+		styles.shortcutStyle.Render("TAB")+styles.descStyle.Render(" switch pane"),
+		styles.shortcutStyle.Render("ENTER")+styles.descStyle.Render(" time travel"),
+		styles.shortcutStyle.Render("ESC")+styles.descStyle.Render(" back"),
 	)
 
 	return BuildStatusBar(StatusBarConfig{
-		Parts:    parts,
-		Width:    width,
-		Centered: true,
-		Theme:    &theme,
+		Parts:           parts,
+		Width:           width,
+		Centered:        true,
+		Theme:           &theme,
+		OverrideMessage: overrideMessage,
 	})
 }
-

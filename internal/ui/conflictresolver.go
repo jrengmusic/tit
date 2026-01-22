@@ -1,9 +1,8 @@
 package ui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
+	"strings"
 )
 
 // ========================================
@@ -42,6 +41,7 @@ func RenderConflictResolveGeneric(
 	width int,
 	height int,
 	theme Theme,
+	statusBarOverride string, // Optional override for status bar (e.g., Ctrl+C message)
 ) string {
 	if width <= 0 || height <= 0 || numColumns == 0 {
 		return ""
@@ -51,10 +51,10 @@ func RenderConflictResolveGeneric(
 	// Layout: topRow + bottomRow + status = height - 2
 	// Available for panes: (height - 2) - status(1) = height - 3
 	// But lipgloss adds extra padding, so reduce by 4 more
-	totalPaneHeight := height - 7
+	totalPaneHeight := height - 5
 	topRowHeight := totalPaneHeight / 3
 	bottomRowHeight := totalPaneHeight - topRowHeight
-	
+
 	// Adjust: add 2 to top row, reduce from bottom row
 	topRowHeight += 2
 	bottomRowHeight -= 2
@@ -84,16 +84,16 @@ func RenderConflictResolveGeneric(
 		// Use ListPane for file list
 		listPane := NewListPane(label, &theme)
 		listItems := convertFilesToListItems(files, selectedFileIndex, col, &theme)
-		
+
 		// Calculate visible lines for scrolling (height - border(2) - title(1) - separator(1))
 		visibleLines := topRowHeight - 4
 		if visibleLines < 1 {
 			visibleLines = 1
 		}
-		
+
 		// Adjust scroll to keep selected file visible
 		listPane.AdjustScroll(selectedFileIndex, visibleLines)
-		
+
 		paneRendered := listPane.Render(listItems, columnWidth, topRowHeight, isActive, col, numColumns)
 		topRowLines = append(topRowLines, paneRendered)
 	}
@@ -129,12 +129,12 @@ func RenderConflictResolveGeneric(
 		// Render content column with cursor using SSOT TextPane
 		// No visual mode in conflict resolver
 		paneRendered, newScrollOffset := RenderTextPane(content, columnWidth, bottomRowHeight, lineCursor, scrollOffset, true, isActive, false, &theme, false, 0)
-		
+
 		// Update scroll offset in array
 		if col < len(scrollOffsets) {
 			scrollOffsets[col] = newScrollOffset
 		}
-		
+
 		bottomRowLines = append(bottomRowLines, paneRendered)
 	}
 
@@ -142,7 +142,7 @@ func RenderConflictResolveGeneric(
 	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, bottomRowLines...)
 
 	// Build status bar
-	statusBar := buildGenericConflictStatusBar(focusedPane, numColumns, width, theme)
+	statusBar := buildGenericConflictStatusBar(focusedPane, numColumns, width, theme, statusBarOverride)
 
 	// Stack everything with no gaps: topRow + bottomRow + statusBar
 	return topRow + "\n" + bottomRow + "\n" + statusBar
@@ -177,9 +177,8 @@ func convertFilesToListItems(files []ConflictFileGeneric, selectedFileIndex int,
 	return items
 }
 
-
 // buildGenericConflictStatusBar builds the status bar with keyboard shortcuts for N-column view
-func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, theme Theme) string {
+func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, theme Theme, overrideMessage string) string {
 	styles := NewStatusBarStyles(&theme)
 
 	// Build shortcuts based on focused pane
@@ -197,16 +196,17 @@ func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, t
 		}
 	}
 	parts = append(parts,
-		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" switch pane"),
-		styles.shortcutStyle.Render("ENTER") + styles.descStyle.Render(" apply"),
-		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" abort"),
+		styles.shortcutStyle.Render("TAB")+styles.descStyle.Render(" switch pane"),
+		styles.shortcutStyle.Render("ENTER")+styles.descStyle.Render(" apply"),
+		styles.shortcutStyle.Render("ESC")+styles.descStyle.Render(" abort"),
 	)
 
 	return BuildStatusBar(StatusBarConfig{
-		Parts:    parts,
-		Width:    width,
-		Centered: true,
-		Theme:    &theme,
+		Parts:           parts,
+		Width:           width,
+		Centered:        true,
+		Theme:           &theme,
+		OverrideMessage: overrideMessage,
 	})
 }
 
@@ -217,15 +217,15 @@ func colorizeIncomingPaneTitle(title string, theme *Theme) string {
 	if len(parts) >= 2 && parts[0] == "COMMIT" {
 		prefix := parts[0]
 		hash := parts[1]
-		
+
 		// Style hash with AccentTextColor and bold
 		hashStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.AccentTextColor)).
 			Bold(true)
-		
+
 		return prefix + " " + hashStyle.Render(hash)
 	}
-	
+
 	// If pattern doesn't match, return as-is
 	return title
 }

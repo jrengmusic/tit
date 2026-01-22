@@ -1,36 +1,63 @@
 package ui
 
-// SSOT: Single Source of Truth for all dimensions
+// Threshold constants (SSOT) for reactive layout
 const (
-	InterfaceWidth    = 80
-	BannerHeight      = 14
-	HeaderHeight      = 6
-	ContentHeight     = 24
-	FooterHeight      = 2
-	ContentInnerWidth = InterfaceWidth - 2 // Content box minus border (76)
+	MinWidth         = 69
+	MinHeight        = 19
+	HeaderHeight     = 9
+	FooterHeight     = 1
+	MinContentHeight = 4
+	HorizontalMargin = 2
+	BannerWidth      = 30
 )
 
-// TotalHeight is sum of all section heights
-const TotalHeight = BannerHeight + HeaderHeight + ContentHeight + FooterHeight
-
-// Sizing holds all layout dimensions
-type Sizing struct {
-	Width          int // Always InterfaceWidth
-	Height         int // Always TotalHeight
-	BannerHeight   int
-	HeaderHeight   int
-	ContentHeight  int
-	FooterHeight   int
+// DynamicSizing holds computed layout dimensions
+type DynamicSizing struct {
+	TerminalWidth     int
+	TerminalHeight    int
+	ContentHeight     int
+	ContentInnerWidth int
+	HeaderInnerWidth  int
+	FooterInnerWidth  int
+	MenuColumnWidth   int // Left column width for menu (when banner shown)
+	IsTooSmall        bool
 }
 
-// CalculateSizing returns layout with SSOT values
-func CalculateSizing() Sizing {
-	return Sizing{
-		Width:         InterfaceWidth,
-		Height:        TotalHeight,
-		BannerHeight:  BannerHeight,
-		HeaderHeight:  HeaderHeight,
-		ContentHeight: ContentHeight,
-		FooterHeight:  FooterHeight,
+// CalculateDynamicSizing computes all dimensions from terminal size
+func CalculateDynamicSizing(termWidth, termHeight int) DynamicSizing {
+	isTooSmall := termWidth < MinWidth || termHeight < MinHeight
+
+	contentHeight := termHeight - HeaderHeight - FooterHeight
+	if contentHeight < MinContentHeight {
+		contentHeight = MinContentHeight
+	}
+
+	headerInnerWidth := termWidth - (HorizontalMargin * 2)
+	contentInnerWidth := termWidth - (HorizontalMargin * 2)
+	footerInnerWidth := termWidth - (HorizontalMargin * 2)
+
+	// Menu column width = content width minus banner and gap
+	menuColumnWidth := contentInnerWidth - BannerWidth - 2
+
+	return DynamicSizing{
+		TerminalWidth:     termWidth,
+		TerminalHeight:    termHeight,
+		ContentHeight:     contentHeight,
+		ContentInnerWidth: contentInnerWidth,
+		HeaderInnerWidth:  headerInnerWidth,
+		FooterInnerWidth:  footerInnerWidth,
+		MenuColumnWidth:   menuColumnWidth,
+		IsTooSmall:        isTooSmall,
 	}
 }
+
+// CheckIsTooSmall returns true if terminal is too small to render
+func (s DynamicSizing) CheckIsTooSmall() bool {
+	return s.TerminalWidth < MinWidth || s.TerminalHeight < MinHeight
+}
+
+// Legacy constants for backward compatibility (deprecated, use DynamicSizing)
+const (
+	ContentInnerWidth = 76
+	ContentHeight     = 24
+)

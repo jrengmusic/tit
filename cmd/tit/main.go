@@ -11,10 +11,11 @@ func main() {
 	ui.CreateDefaultThemeIfMissing()
 	theme, _ := ui.LoadDefaultTheme()
 
-	sizing := ui.CalculateSizing()
+	// Start with default terminal size (will be updated by WindowSizeMsg)
+	sizing := ui.CalculateDynamicSizing(80, 40)
 	application := app.NewApplication(sizing, theme)
 
-	tea.NewProgram(application, 
+	tea.NewProgram(application,
 		tea.WithAltScreen(),
 	).Run()
 }

@@ -13,17 +13,17 @@ import (
 
 // RenderMenu renders menu items (uses default content height)
 func RenderMenu(items interface{}) string {
-	return RenderMenuWithHeight(items, 0, Theme{}, 24)
+	return RenderMenuWithHeight(items, 0, Theme{}, 24, ContentInnerWidth)
 }
 
 // RenderMenuWithSelection renders menu items with selection highlight
 func RenderMenuWithSelection(items interface{}, selectedIndex int, theme Theme) string {
-	return RenderMenuWithHeight(items, selectedIndex, theme, 24)
+	return RenderMenuWithHeight(items, selectedIndex, theme, 24, ContentInnerWidth)
 }
 
 // RenderMenuWithHeight renders menu items centered with 3-column layout (KEY | EMOJI | LABEL)
 // items can be []app.MenuItem (passed as interface{})
-func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, contentHeight int) string {
+func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, contentHeight int, contentWidth int) string {
 	// Type assertion to handle app.MenuItem
 	var menuItems []map[string]interface{}
 
@@ -157,8 +157,8 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 		bottomPad = 0
 	}
 
-	// Horizontal centering using SSOT
-	leftPad := (ContentInnerWidth - menuBoxWidth) / 2
+	// Horizontal centering using dynamic width
+	leftPad := (contentWidth - menuBoxWidth) / 2
 	if leftPad < 0 {
 		leftPad = 0
 	}
@@ -167,7 +167,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 	// Top padding
 	for i := 0; i < topPad; i++ {
-		result.WriteString(strings.Repeat(" ", ContentInnerWidth))
+		result.WriteString(strings.Repeat(" ", contentWidth))
 		if i < topPad-1 || menuHeight > 0 {
 			result.WriteString("\n")
 		}
@@ -177,8 +177,8 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 	for i, line := range lines {
 		centeredLine := strings.Repeat(" ", leftPad) + line
 		lineWidth := lipgloss.Width(centeredLine)
-		if lineWidth < ContentInnerWidth {
-			centeredLine = centeredLine + strings.Repeat(" ", ContentInnerWidth-lineWidth)
+		if lineWidth < contentWidth {
+			centeredLine = centeredLine + strings.Repeat(" ", contentWidth-lineWidth)
 		}
 		result.WriteString(centeredLine)
 		if i < len(lines)-1 || bottomPad > 0 {
@@ -188,11 +188,42 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 	// Bottom padding
 	for i := 0; i < bottomPad; i++ {
-		result.WriteString(strings.Repeat(" ", ContentInnerWidth))
+		result.WriteString(strings.Repeat(" ", contentWidth))
 		if i < bottomPad-1 {
 			result.WriteString("\n")
 		}
 	}
 
 	return result.String()
+}
+
+// RenderMenuWithBanner renders menu (left column) + banner (right column)
+// 50/50 split, both columns centered H/V
+func RenderMenuWithBanner(sizing DynamicSizing, items interface{}, selectedIndex int, theme Theme) string {
+	// 50/50 split
+	leftWidth := sizing.ContentInnerWidth / 2
+	rightWidth := sizing.ContentInnerWidth - leftWidth
+
+	// Render menu in left column (centered H/V)
+	menuContent := RenderMenuWithHeight(items, selectedIndex, theme, sizing.ContentHeight, leftWidth)
+
+	menuColumn := lipgloss.NewStyle().
+		Width(leftWidth).
+		Height(sizing.ContentHeight).
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(menuContent)
+
+	// Render banner in right column (centered H/V)
+	banner := RenderBannerDynamic(rightWidth, sizing.ContentHeight)
+
+	bannerColumn := lipgloss.NewStyle().
+		Width(rightWidth).
+		Height(sizing.ContentHeight).
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(banner)
+
+	// Join horizontally
+	return lipgloss.JoinHorizontal(lipgloss.Top, menuColumn, bannerColumn)
 }

@@ -11,32 +11,26 @@ import (
 //go:embed assets/tit-logo.svg
 var logoFS embed.FS
 
-// RenderBanner renders top banner with braille cherry logo (height = BannerHeight)
-func RenderBanner(s Sizing) string {
-	// Load SVG logo from embedded assets
+// RenderBannerDynamic renders banner with dynamic dimensions
+func RenderBannerDynamic(width, height int) string {
 	logoData, err := logoFS.ReadFile("assets/tit-logo.svg")
 	if err != nil {
-		return strings.Repeat(" ", InterfaceWidth) + "\n" +
-			strings.Repeat(" ", InterfaceWidth) + "\n" +
-			strings.Repeat(" ", InterfaceWidth)
+		return strings.Repeat(" ", width) + "\n" +
+			strings.Repeat(" ", width) + "\n" +
+			strings.Repeat(" ", width)
 	}
 
 	svgString := string(logoData)
 
-	// Calculate canvas size: each braille char is 2px wide, 4px tall
-	// BannerHeight is in terminal lines, so multiply by 4 for pixel height
-	canvasWidth := InterfaceWidth * 2
-	canvasHeight := BannerHeight * 4
+	canvasWidth := width * 2
+	canvasHeight := height * 4
 
-	// Convert SVG to braille array
 	brailleArray := banner.SvgToBrailleArray(svgString, canvasWidth, canvasHeight)
 
 	var output strings.Builder
 
-	// Render each row of braille characters
 	for _, row := range brailleArray {
 		for _, bc := range row {
-			// Convert RGB to hex color and apply
 			hex := banner.RGBToHex(bc.Color.R, bc.Color.G, bc.Color.B)
 			styledChar := lipgloss.NewStyle().
 				Foreground(lipgloss.Color(hex)).
@@ -49,92 +43,72 @@ func RenderBanner(s Sizing) string {
 	return output.String()
 }
 
-// RenderHeader renders simple header with current branch only (state display delegated to app)
-func RenderHeader(s Sizing, theme Theme, currentBranch string, cwd string, gitState interface{}) string {
-	branchLine := Line{
-		Content: StyledContent{
-			Text:    strings.ToUpper(currentBranch),
-			FgColor: theme.LabelTextColor,
-			Bold:    true,
-		},
-		Alignment: "right",
-		Width:     ContentInnerWidth,
-	}
-
-	padded := PadTextToHeight(branchLine.Render(), HeaderHeight-2)
+// RenderContentDynamic renders content with dynamic sizing
+func RenderContentDynamic(sizing DynamicSizing, theme Theme, text string) string {
+	innerHeight := sizing.ContentHeight - 2
+	padded := PadTextToHeight(text, innerHeight)
 
 	return RenderBox(BoxConfig{
 		Content:     padded,
-		InnerWidth:  ContentInnerWidth,
-		InnerHeight: HeaderHeight - 2,
-		BorderColor: theme.BoxBorderColor,
-		TextColor:   theme.LabelTextColor,
-		Theme:       theme,
-	})
-}
-
-// RenderContent renders main content area with border (height = ContentHeight)
-func RenderContent(s Sizing, text string, theme Theme) string {
-	padded := PadTextToHeight(text, ContentHeight-2)
-
-	return RenderBox(BoxConfig{
-		Content:     padded,
-		InnerWidth:  ContentInnerWidth,
-		InnerHeight: ContentHeight - 2,
+		InnerWidth:  sizing.ContentInnerWidth,
+		InnerHeight: innerHeight,
 		BorderColor: theme.BoxBorderColor,
 		TextColor:   theme.ContentTextColor,
 		Theme:       theme,
 	})
 }
 
-// RenderFooter renders footer section without border (height = FooterHeight)
-func RenderFooter(s Sizing, theme Theme, app interface{ GetFooterHint() string }) string {
-	content := ""
-	
-	// Show hint if active
-	if hint := app.GetFooterHint(); hint != "" {
-		content = hint
+// RenderReactiveLayout combines header/content/footer into full-terminal reactive layout
+func RenderReactiveLayout(sizing DynamicSizing, theme Theme, header, content, footer string) string {
+	// Too small guard
+	if sizing.CheckIsTooSmall() {
+		return renderTooSmallMessage(sizing.TerminalWidth, sizing.TerminalHeight)
 	}
 
-	style := lipgloss.NewStyle().
-		Width(InterfaceWidth).
-		Height(FooterHeight).
+	contentHeight := sizing.TerminalHeight - HeaderHeight - FooterHeight
+
+	// Header: fixed height, top-aligned
+	headerSection := lipgloss.NewStyle().
+		Width(sizing.TerminalWidth).
+		Height(HeaderHeight).
+		AlignVertical(lipgloss.Top).
+		Render(header)
+
+	// Content: fills middle space, centered
+	contentSection := lipgloss.NewStyle().
+		Width(sizing.TerminalWidth).
+		Height(contentHeight).
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center).
-		Foreground(lipgloss.Color(theme.FooterTextColor))
+		Render(content)
 
-	return style.Render(content)
-}
-
-// RenderLayout combines all 4 sections into centered view (horizontally and vertically)
-func RenderLayout(s Sizing, contentText string, termWidth int, termHeight int, theme Theme, currentBranch string, cwd string, gitState interface{}, app interface{ GetFooterHint() string; RenderStateHeader() string }) string {
-	banner := RenderBanner(s)
-	// Use app's state header renderer if available, otherwise default
-	var header string
-	if appWithHeader, ok := app.(interface{ RenderStateHeader() string }); ok {
-		header = appWithHeader.RenderStateHeader()
-	} else {
-		header = RenderHeader(s, theme, currentBranch, cwd, gitState)
-	}
-	content := RenderContent(s, contentText, theme)
-	footer := RenderFooter(s, theme, app)
-
-	// Stack sections vertically
-	stack := lipgloss.JoinVertical(
-		lipgloss.Top,
-		banner,
-		header,
-		content,
-		footer,
-	)
-
-	// Use lipgloss to center within terminal
-	centeredStyle := lipgloss.NewStyle().
-		Width(termWidth).
-		Height(termHeight).
+	// Footer: single line, centered
+	footerSection := lipgloss.NewStyle().
+		Width(sizing.TerminalWidth).
+		Height(FooterHeight).
 		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
+		Foreground(lipgloss.Color(theme.FooterTextColor)).
+		Render(footer)
 
-	return centeredStyle.Render(stack)
+	// Join sections
+	combined := lipgloss.JoinVertical(lipgloss.Left, headerSection, contentSection, footerSection)
+
+	// Place in exact terminal dimensions - footer sticks to bottom
+	return lipgloss.Place(
+		sizing.TerminalWidth,
+		sizing.TerminalHeight,
+		lipgloss.Left,
+		lipgloss.Bottom,
+		combined,
+	)
 }
 
+func renderTooSmallMessage(w, h int) string {
+	msg := "Terminal too small.\nResize to >= 70×20."
+	return lipgloss.NewStyle().
+		Width(w).
+		Height(h).
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(msg)
+}

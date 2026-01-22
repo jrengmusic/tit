@@ -1,0 +1,16 @@
+# CAROL Framework - Git Ignore
+
+# Temp session files
+SESSION-[0-9]*-*.md
+
+# Backup files
+*.bak
+*.bak[0-9]
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

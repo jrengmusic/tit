@@ -8,7 +8,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -19,7 +18,7 @@ import (
 type Application struct {
 	width             int
 	height            int
-	sizing            ui.Sizing
+	sizing            ui.DynamicSizing
 	theme             ui.Theme
 	mode              AppMode // Current application mode
 	quitConfirmActive bool
@@ -167,7 +166,7 @@ func (a *Application) transitionTo(config ModeTransition) {
 
 // newSetupWizardApp creates a minimal Application for the setup wizard
 // This bypasses all git state detection since git environment is not ready
-func newSetupWizardApp(sizing ui.Sizing, theme ui.Theme, gitEnv git.GitEnvironment) *Application {
+func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEnvironment) *Application {
 	app := &Application{
 		sizing:          sizing,
 		theme:           theme,
@@ -183,7 +182,7 @@ func newSetupWizardApp(sizing ui.Sizing, theme ui.Theme, gitEnv git.GitEnvironme
 }
 
 // NewApplication creates a new application instance
-func NewApplication(sizing ui.Sizing, theme ui.Theme) *Application {
+func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
 	// PRIORITY 0: Check git environment BEFORE anything else
 	// If git/ssh not available or SSH key missing, show setup wizard
 	gitEnv := git.DetectGitEnvironment()
@@ -544,6 +543,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		a.sizing = ui.CalculateDynamicSizing(msg.Width, msg.Height)
 		return a, nil
 
 	case tea.KeyMsg:
@@ -684,7 +684,7 @@ func (a *Application) View() string {
 	// Render based on current mode
 	switch a.mode {
 	case ModeMenu:
-		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
 
 	case ModeConsole, ModeClone:
 		// Console output (both during and after operation)
@@ -692,8 +692,8 @@ func (a *Application) View() string {
 			&a.consoleState,
 			a.outputBuffer,
 			a.theme,
-			ui.ContentInnerWidth,
-			ui.ContentHeight,
+			a.sizing.ContentInnerWidth,
+			a.sizing.ContentHeight,
 			a.asyncOperationActive && !a.asyncOperationAborted,
 			a.asyncOperationAborted,
 			a.consoleAutoScroll,
@@ -706,7 +706,7 @@ func (a *Application) View() string {
 		} else {
 			// Fallback if no dialog - return to menu
 			a.mode = ModeMenu
-			contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, ui.ContentHeight)
+			contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 		}
 
 	case ModeSelectBranch:
@@ -723,7 +723,7 @@ func (a *Application) View() string {
 				"Separator": false,
 			}
 		}
-		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 	case ModeInput:
 		textInputState := ui.TextInputState{
 			Value:     a.inputValue,
@@ -736,8 +736,8 @@ func (a *Application) View() string {
 			a.inputPrompt,
 			textInputState,
 			a.theme,
-			ui.ContentInnerWidth,
-			ui.ContentHeight-2,
+			a.sizing.ContentInnerWidth,
+			a.sizing.ContentHeight-2,
 		)
 
 		// Append validation message if present
@@ -757,8 +757,8 @@ func (a *Application) View() string {
 			a.inputPrompt,
 			textInputState,
 			a.theme,
-			ui.ContentInnerWidth,
-			ui.ContentHeight-2,
+			a.sizing.ContentInnerWidth,
+			a.sizing.ContentHeight-2,
 		)
 
 		if a.inputValidationMsg != "" {
@@ -767,32 +767,42 @@ func (a *Application) View() string {
 
 		contentText = inputContent
 	case ModeCloneLocation:
-		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuCloneLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuCloneLocation()), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 	case ModeInitializeLocation:
-		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, ui.ContentHeight)
+		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 
 	case ModeHistory:
-		// Render history split-pane view
+		// Render history split-pane view (full terminal, no header/footer)
 		if a.historyState == nil {
 			contentText = "History state not initialized"
 		} else {
+			statusOverride := ""
+			if a.quitConfirmActive {
+				statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
+			}
 			contentText = ui.RenderHistorySplitPane(
 				a.historyState,
 				a.theme,
-				ui.ContentInnerWidth,
-				ui.ContentHeight, // RenderHistorySplitPane accounts for outer border internally
+				a.sizing.TerminalWidth,
+				a.sizing.TerminalHeight,
+				statusOverride,
 			)
 		}
 	case ModeFileHistory:
-		// Render file(s) history split-pane view
+		// Render file(s) history split-pane view (full terminal, no header/footer)
 		if a.fileHistoryState == nil {
 			contentText = "File history state not initialized"
 		} else {
+			statusOverride := ""
+			if a.quitConfirmActive {
+				statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
+			}
 			contentText = ui.RenderFileHistorySplitPane(
 				a.fileHistoryState,
 				a.theme,
-				ui.ContentInnerWidth,
-				ui.ContentHeight, // RenderFileHistorySplitPane accounts for outer border internally
+				a.sizing.TerminalWidth,
+				a.sizing.TerminalHeight,
+				statusOverride,
 			)
 		}
 	case ModeConflictResolve:
@@ -800,6 +810,10 @@ func (a *Application) View() string {
 		if a.conflictResolveState == nil {
 			contentText = "No conflict state initialized"
 		} else {
+			statusOverride := ""
+			if a.quitConfirmActive {
+				statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
+			}
 			contentText = ui.RenderConflictResolveGeneric(
 				a.conflictResolveState.Files,
 				a.conflictResolveState.SelectedFileIndex,
@@ -808,9 +822,10 @@ func (a *Application) View() string {
 				a.conflictResolveState.ColumnLabels,
 				a.conflictResolveState.ScrollOffsets,
 				a.conflictResolveState.LineCursors,
-				ui.ContentInnerWidth,
-				ui.ContentHeight,
+				a.width,
+				a.height,
 				a.theme,
+				statusOverride,
 			)
 		}
 	case ModeSetupWizard:
@@ -820,20 +835,26 @@ func (a *Application) View() string {
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
 
-	// Get current branch from git state
-	currentBranch := ""
-	if a.gitState != nil {
-		currentBranch = a.gitState.CurrentBranch
+	// History modes and conflict resolver use full terminal (no header/footer, no wrapper)
+	if a.mode == ModeFileHistory || a.mode == ModeHistory || a.mode == ModeConflictResolve {
+		return contentText
 	}
 
-	// Get current working directory
-	cwd, _ := os.Getwd()
+	// Render header using state header (or placeholder)
+	header := a.RenderStateHeader()
 
-	return ui.RenderLayout(a.sizing, contentText, a.width, a.height, a.theme, currentBranch, cwd, a.gitState, a)
+	// Render footer content
+	footerContent := a.GetFooterHint()
+
+	// Use reactive layout
+	return ui.RenderReactiveLayout(a.sizing, a.theme, header, contentText, footerContent)
 }
 
 // Init initializes the application
 func (a *Application) Init() tea.Cmd {
+	// sizing is already set from NewApplication with default dimensions (80, 40)
+	// WindowSizeMsg will update it to actual terminal dimensions
+
 	// CONTRACT: Start cache building immediately on app startup
 	// Cache MUST be ready before history menus can be used
 	commands := []tea.Cmd{tea.EnableBracketedPaste}
@@ -867,7 +888,7 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 	// Always regenerate menu on progress update (menu reads progress fields)
 	menu := a.GenerateMenu()
 	a.menuItems = menu
-	if len(menu) > 0 && a.selectedIndex < len(menu) {
+	if !a.quitConfirmActive && len(menu) > 0 && a.selectedIndex < len(menu) {
 		a.footerHint = menu[a.selectedIndex].Hint
 	}
 
@@ -918,7 +939,7 @@ func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
 	// Regenerate menu to show updated progress
 	menu := a.GenerateMenu()
 	a.menuItems = menu
-	if len(menu) > 0 && a.selectedIndex < len(menu) {
+	if !a.quitConfirmActive && len(menu) > 0 && a.selectedIndex < len(menu) {
 		a.footerHint = menu[a.selectedIndex].Hint
 	}
 
@@ -927,7 +948,11 @@ func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
 }
 
 // updateFooterHintFromMenu updates footer with hint of currently selected menu item
+// Skips update if app-level message is active (quitConfirmActive)
 func (a *Application) updateFooterHintFromMenu() {
+	if a.quitConfirmActive {
+		return
+	}
 	if a.selectedIndex >= 0 && a.selectedIndex < len(a.menuItems) {
 		if !a.menuItems[a.selectedIndex].Separator {
 			a.footerHint = a.menuItems[a.selectedIndex].Hint
@@ -942,193 +967,88 @@ func (a *Application) GetGitState() interface{} {
 
 // RenderStateHeader renders the full git state header (5 rows) using lipgloss
 // Row 1: CWD (left) | OPERATION (right)
-// Row 2: REMOTE (left) | BRANCH (right)
-// Row 3: Separator line
-// Row 4: WORKING TREE (left) | TIMELINE (right) - 2 columns, 2 rows each
-// Row 5: WT Description (left) | TL Description (right)
+// RenderStateHeader renders the state header per REACTIVE-LAYOUT-PLAN.md
+// 2-column layout: 80/20 split
+// LEFT (80%): CWD, Remote, WorkingTree, Timeline
+// RIGHT (20%): Operation, Branch
 func (a *Application) RenderStateHeader() string {
-	cwd, _ := os.Getwd()
 	state := a.gitState
 
 	if state == nil || state.Operation == git.NotRepo {
-		// Don't render state header if not in a repo
 		return ""
 	}
 
-	// Guard: Skip rendering if WorkingTree is empty (happens during dirty operations)
-	// DetectState() returns partial state for dirty operations (only Operation is set)
-	if state.WorkingTree == "" {
-		return ""
-	}
+	cwd, _ := os.Getwd()
 
-	// Right column: fixed 10 chars for short labels (READY, main)
-	// Left column: remaining width for cwd + remote
-	rightWidth := 10
-	leftWidth := ui.ContentInnerWidth - rightWidth
-	halfWidth := ui.ContentInnerWidth / 2
-
-	// Row 1: CWD (left) | OPERATION (right)
-	cwdLabel := "📁 " + cwd
-	opInfo := a.operationInfo[state.Operation]
-	opLabel := opInfo.Emoji + " " + opInfo.Label
-
-	// Show operation only if not Normal (special state)
-	opColor := a.theme.DimmedTextColor
-	if state.Operation != git.Normal {
-		opColor = opInfo.Color
-	}
-
-	row1 := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		lipgloss.NewStyle().
-			Width(leftWidth).
-			Bold(true).
-			Foreground(lipgloss.Color(a.theme.LabelTextColor)).
-			Render(cwdLabel),
-		lipgloss.NewStyle().
-			Width(rightWidth).
-			Bold(true).
-			Foreground(lipgloss.Color(opColor)).
-			Align(lipgloss.Right).
-			Render(opLabel),
-	)
-
-	// Row 2: REMOTE (left) | BRANCH (right)
-	remoteLabel := "🔌 NO REMOTE"
+	remoteURL := "🔌 NO REMOTE"
 	remoteColor := a.theme.DimmedTextColor
 	if state.Remote == git.HasRemote {
 		url := git.GetRemoteURL()
 		if url != "" {
-			remoteLabel = "🔗 " + url
+			remoteURL = "🔗 " + url
 			remoteColor = a.theme.AccentTextColor
 		}
 	}
 
-	branchLabel := "🌿 " + state.CurrentBranch
-	branchColor := a.theme.LabelTextColor
-
-	// Special case: Detached HEAD (either time traveling or manual checkout)
-	if state.Operation == git.TimeTraveling || state.Detached {
-		branchLabel = "🔀 DETACHED"
-		branchColor = a.theme.OutputWarningColor
-	}
-
-	row2 := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		lipgloss.NewStyle().
-			Width(leftWidth).
-			Foreground(lipgloss.Color(remoteColor)).
-			Render(remoteLabel),
-		lipgloss.NewStyle().
-			Width(rightWidth).
-			Bold(true).
-			Foreground(lipgloss.Color(branchColor)).
-			Align(lipgloss.Right).
-			Render(branchLabel),
-	)
-
-	// Row 3: Separator line (horizontal rule)
-	separatorLine := lipgloss.NewStyle().
-		Width(ui.ContentInnerWidth).
-		Foreground(lipgloss.Color(a.theme.BoxBorderColor)).
-		Render(strings.Repeat("─", ui.ContentInnerWidth))
-
-	// Row 4: WORKING TREE (left) | TIMELINE or Commit info (right)
-	// 2 columns, equal width, left aligned
 	wtInfo := a.workingTreeInfo[state.WorkingTree]
-	wtLabel := wtInfo.Emoji + " " + wtInfo.Label
+	wtDesc := []string{wtInfo.Description(state.CommitsAhead, state.CommitsBehind)}
 
-	var rightLabel string
-	var rightColor string
+	timelineEmoji := "🔌"
+	timelineLabel := "N/A"
+	timelineColor := a.theme.DimmedTextColor
+	timelineDesc := []string{"No remote configured."}
 
 	if state.Operation == git.TimeTraveling {
-		// Show commit hash instead of timeline
-		// INVARIANT: TimeTraveling MUST have valid timeTravelInfo (enforced at init)
-		if a.timeTravelInfo == nil {
-			panic("INVARIANT VIOLATION: Operation=TimeTraveling but timeTravelInfo=nil")
+		if a.timeTravelInfo != nil {
+			shortHash := a.timeTravelInfo.CurrentCommit.Hash
+			if len(shortHash) >= 7 {
+				shortHash = shortHash[:7]
+			}
+			timelineEmoji = "📌"
+			timelineLabel = "DETACHED @ " + shortHash
+			timelineColor = a.theme.OutputWarningColor
+			timelineDesc = []string{"Viewing commit from " + a.timeTravelInfo.CurrentCommit.Time.Format("Jan 2, 2006")}
 		}
-		if len(a.timeTravelInfo.CurrentCommit.Hash) < 7 {
-			panic(fmt.Sprintf("INVARIANT VIOLATION: TimeTraveling commit hash too short: '%s'", a.timeTravelInfo.CurrentCommit.Hash))
-		}
-
-		shortHash := a.timeTravelInfo.CurrentCommit.Hash[:7]
-		rightLabel = "📌 Commit: " + shortHash
-		rightColor = a.theme.AccentTextColor
-	} else {
-		// Show timeline status (if applicable)
-		if state.Timeline == "" {
-			// Timeline N/A (no remote, no comparison possible)
-			rightLabel = "🔌 N/A"
-			rightColor = a.theme.DimmedTextColor
-		} else {
-			tlInfo := a.timelineInfo[state.Timeline]
-			rightLabel = tlInfo.Emoji + " " + tlInfo.Label
-			rightColor = tlInfo.Color
-		}
+	} else if state.Timeline != "" {
+		tlInfo := a.timelineInfo[state.Timeline]
+		timelineEmoji = tlInfo.Emoji
+		timelineLabel = tlInfo.Label
+		timelineColor = tlInfo.Color
+		timelineDesc = []string{tlInfo.Description(state.CommitsAhead, state.CommitsBehind)}
 	}
 
-	row4 := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		lipgloss.NewStyle().
-			Width(halfWidth).
-			Bold(true).
-			Foreground(lipgloss.Color(wtInfo.Color)).
-			Render(wtLabel),
-		lipgloss.NewStyle().
-			Width(halfWidth).
-			Bold(true).
-			Foreground(lipgloss.Color(rightColor)).
-			Render(rightLabel),
-	)
+	// Operation status (right column top)
+	opInfo := a.operationInfo[state.Operation]
 
-	// Row 5: Descriptions (2 columns, equal width, left aligned)
-	wtDesc := wtInfo.Description(state.CommitsAhead, state.CommitsBehind)
-
-	var rightDesc string
-	if state.Operation == git.TimeTraveling {
-		// Show commit date
-		// INVARIANT: TimeTraveling MUST have valid timeTravelInfo (enforced at init)
-		if a.timeTravelInfo == nil {
-			panic("INVARIANT VIOLATION: Operation=TimeTraveling but timeTravelInfo=nil in description")
-		}
-		if a.timeTravelInfo.CurrentCommit.Time.IsZero() {
-			panic("INVARIANT VIOLATION: TimeTraveling commit time is zero")
-		}
-
-		rightDesc = a.timeTravelInfo.CurrentCommit.Time.Format("Mon, 2 Jan 2006 15:04:05")
-	} else {
-		// Show timeline description (if applicable)
-		if state.Timeline == "" {
-			rightDesc = "No remote configured."
-		} else {
-			tlInfo := a.timelineInfo[state.Timeline]
-			rightDesc = tlInfo.Description(state.CommitsAhead, state.CommitsBehind)
-		}
+	// Branch name (right column bottom)
+	branchName := state.CurrentBranch
+	if branchName == "" {
+		branchName = "N/A"
 	}
 
-	row5 := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		lipgloss.NewStyle().
-			Width(halfWidth).
-			Foreground(lipgloss.Color(a.theme.ContentTextColor)).
-			Render(wtDesc),
-		lipgloss.NewStyle().
-			Width(halfWidth).
-			Foreground(lipgloss.Color(a.theme.ContentTextColor)).
-			Render(rightDesc),
-	)
+	headerState := ui.HeaderState{
+		CurrentDirectory: cwd,
+		RemoteURL:        remoteURL,
+		RemoteColor:      remoteColor,
+		OperationEmoji:   opInfo.Emoji,
+		OperationLabel:   opInfo.Label,
+		OperationColor:   opInfo.Color,
+		BranchEmoji:      "🌿",
+		BranchLabel:      branchName,
+		BranchColor:      a.theme.AccentTextColor,
+		WorkingTreeEmoji: wtInfo.Emoji,
+		WorkingTreeLabel: wtInfo.Label,
+		WorkingTreeDesc:  wtDesc,
+		WorkingTreeColor: wtInfo.Color,
+		TimelineEmoji:    timelineEmoji,
+		TimelineLabel:    timelineLabel,
+		TimelineDesc:     timelineDesc,
+		TimelineColor:    timelineColor,
+	}
 
-	// Combine all rows
-	headerContent := row1 + "\n" + row2 + "\n" + separatorLine + "\n" + row4 + "\n" + row5
+	info := ui.RenderHeaderInfo(a.sizing, a.theme, headerState)
 
-	return ui.RenderBox(ui.BoxConfig{
-		Content:     headerContent,
-		InnerWidth:  ui.ContentInnerWidth,
-		InnerHeight: ui.HeaderHeight,
-		BorderColor: a.theme.BoxBorderColor,
-		TextColor:   a.theme.LabelTextColor,
-		Theme:       a.theme,
-	})
+	return ui.RenderHeader(a.sizing, a.theme, info)
 }
 
 // isInputMode checks if current mode accepts text input

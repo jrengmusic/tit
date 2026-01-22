@@ -24,18 +24,18 @@ const (
 
 // FileHistoryState represents the state of the file(s) history browser
 type FileHistoryState struct {
-	Commits           []CommitInfo  // List of recent commits
-	Files             []FileInfo    // Files in selected commit
-	SelectedCommitIdx int          // Currently selected commit (0-indexed)
-	SelectedFileIdx   int          // Currently selected file (0-indexed)
+	Commits           []CommitInfo    // List of recent commits
+	Files             []FileInfo      // Files in selected commit
+	SelectedCommitIdx int             // Currently selected commit (0-indexed)
+	SelectedFileIdx   int             // Currently selected file (0-indexed)
 	FocusedPane       FileHistoryPane // Which pane has focus
-	CommitsScrollOff  int          // Scroll offset for commits list
-	FilesScrollOff    int          // Scroll offset for files list
-	DiffScrollOff     int          // Scroll offset for diff pane
-	DiffLineCursor    int          // Line cursor for diff pane (for TextPane)
-	DiffContent       string        // Current diff content (populated by handlers on file/commit selection)
-	VisualModeActive  bool         // True when visual mode is active (for selecting lines)
-	VisualModeStart   int          // Starting line of visual selection
+	CommitsScrollOff  int             // Scroll offset for commits list
+	FilesScrollOff    int             // Scroll offset for files list
+	DiffScrollOff     int             // Scroll offset for diff pane
+	DiffLineCursor    int             // Line cursor for diff pane (for TextPane)
+	DiffContent       string          // Current diff content (populated by handlers on file/commit selection)
+	VisualModeActive  bool            // True when visual mode is active (for selecting lines)
+	VisualModeStart   int             // Starting line of visual selection
 }
 
 // RenderFileHistorySplitPane renders the file(s) history split-pane view (3-pane layout)
@@ -47,7 +47,7 @@ type FileHistoryState struct {
 //   - width, height: Terminal dimensions
 //
 // Returns: String representation of the rendered pane
-func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height int) string {
+func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height int, statusBarOverride string) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -58,23 +58,16 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 		return "Error: invalid file history state"
 	}
 
-	// Calculate dimensions (same as ConflictResolver)
-	// Return height - 2 lines (wrapper will add border(2))
-	// Layout: topRow + bottomRow + status = height - 2
-	// Available for panes: (height - 2) - status(1) = height - 3
-	// But lipgloss adds extra padding, so reduce by 4 more
-	totalPaneHeight := height - 7
+	// Calculate dimensions from terminal height
+	// Reserve 1 line for status bar + 1 for newline separator
+	totalPaneHeight := height - 5
 	topRowHeight := totalPaneHeight / 3
 	bottomRowHeight := totalPaneHeight - topRowHeight
 
-	// Adjust: add 2 to top row, reduce from bottom row
-	topRowHeight += 2
-	bottomRowHeight -= 2
-
 	// Calculate column widths for top row (2 columns: Commits + Files)
 	// No gaps, borders touch directly
-	commitPaneWidth := 24  // Fixed width for commits (same as History mode)
-	filesPaneWidth := width - commitPaneWidth  // Remaining width for files
+	commitPaneWidth := 24                     // Fixed width for commits (same as History mode)
+	filesPaneWidth := width - commitPaneWidth // Remaining width for files
 
 	// Render top row panes (Commits + Files)
 	commitsPaneContent := renderFileHistoryCommitsPane(fileHistoryState, theme, commitPaneWidth, topRowHeight)
@@ -89,9 +82,9 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 	// Build status bar (context-sensitive)
 	var statusBar string
 	if fileHistoryState.FocusedPane == PaneDiff {
-		statusBar = buildDiffStatusBar(fileHistoryState.VisualModeActive, width, theme)
+		statusBar = buildDiffStatusBar(fileHistoryState.VisualModeActive, width, theme, statusBarOverride)
 	} else {
-		statusBar = buildFileHistoryStatusBar(fileHistoryState.FocusedPane, width, theme)
+		statusBar = buildFileHistoryStatusBar(fileHistoryState.FocusedPane, width, theme, statusBarOverride)
 	}
 
 	// Stack everything with no gaps: topRow + bottomRow + statusBar
@@ -200,9 +193,9 @@ func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, heig
 		height,
 		state.DiffLineCursor,
 		state.DiffScrollOff,
-		false,  // showLineNumbers - diff has its own line# column
+		false, // showLineNumbers - diff has its own line# column
 		isActive,
-		true,   // isDiff - enable 3-column diff parsing and styling
+		true, // isDiff - enable 3-column diff parsing and styling
 		&theme,
 		state.VisualModeActive,
 		state.VisualModeStart,
@@ -215,7 +208,7 @@ func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, heig
 }
 
 // buildFileHistoryStatusBar builds the status bar for file history mode
-func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme Theme) string {
+func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme Theme, overrideMessage string) string {
 	styles := NewStatusBarStyles(&theme)
 
 	// Status bar shortcuts
@@ -235,8 +228,13 @@ func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme The
 
 // buildDiffStatusBar builds the status bar for diff pane (when focused)
 // Shows different hints in visual mode vs normal mode (matches old-tit)
-func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
+func buildDiffStatusBar(visualModeActive bool, width int, theme Theme, overrideMessage string) string {
 	styles := NewStatusBarStyles(&theme)
+
+	// Handle override message for visual mode
+	if overrideMessage != "" {
+		return overrideMessage
+	}
 
 	if visualModeActive {
 		// VISUAL mode: simplified, left-aligned
@@ -260,9 +258,10 @@ func buildDiffStatusBar(visualModeActive bool, width int, theme Theme) string {
 	}
 
 	return BuildStatusBar(StatusBarConfig{
-		Parts:    parts,
-		Width:    width,
-		Centered: true,
-		Theme:    &theme,
+		Parts:           parts,
+		Width:           width,
+		Centered:        true,
+		Theme:           &theme,
+		OverrideMessage: overrideMessage,
 	})
 }

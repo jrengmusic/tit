@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	tea "github.com/charmbracelet/bubbletea"
 	"io"
 	"os"
 	"os/exec"
@@ -9,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/config"
 	"tit/internal/ui"
 )
@@ -50,7 +50,7 @@ func Execute(args ...string) CommandResult {
 			Success:  false,
 		}
 	}
-	
+
 	if err := cmd.Start(); err != nil {
 		return CommandResult{
 			Stdout:   "",
@@ -78,7 +78,7 @@ func Execute(args ...string) CommandResult {
 			Success:  false,
 		}
 	}
-	
+
 	err = cmd.Wait()
 	exitCode := 0
 	if err != nil {
@@ -266,16 +266,16 @@ func ExecuteWithStreaming(args ...string) CommandResult {
 func ExtractRepoName(gitURL string) string {
 	// Remove trailing .git if present
 	name := strings.TrimSuffix(gitURL, ".git")
-	
+
 	// Get the last path component (repo name)
 	name = filepath.Base(name)
-	
+
 	// Handle SSH URLs like git@github.com:user/repo
 	if strings.Contains(name, "@") {
 		parts := strings.Split(name, "@")
 		name = parts[len(parts)-1]
 	}
-	
+
 	return name
 }
 
@@ -320,7 +320,7 @@ func SetUpstreamTracking() CommandResult {
 // If remote branch doesn't exist (empty remote), pushes with -u to create it
 func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 	buffer := ui.GetBuffer()
-	
+
 	if branchName == "" {
 		buffer.Append("WARNING: No branch name provided for upstream tracking", ui.TypeStderr)
 		return CommandResult{Success: false, Stderr: "No branch name provided"}
@@ -331,7 +331,7 @@ func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 
 	// Check if remote branch exists
 	checkResult := Execute("rev-parse", "--verify", remoteBranch)
-	
+
 	if checkResult.Success {
 		// Remote branch exists - set upstream tracking
 		buffer.Append(fmt.Sprintf("Setting upstream for branch '%s'...", branchName), ui.TypeStatus)
@@ -352,7 +352,7 @@ func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 		buffer.Append(fmt.Sprintf("Created remote branch and set upstream tracking"), ui.TypeStatus)
 		return CommandResult{Success: true, Stdout: "pushed_and_upstream_set"}
 	}
-	
+
 	buffer.Append(fmt.Sprintf("Failed to push: %s", result.Stderr), ui.TypeStderr)
 	return CommandResult{Success: false, Stderr: result.Stderr}
 }
@@ -370,7 +370,7 @@ func ListConflictedFiles() ([]string, error) {
 		if line == "" {
 			continue
 		}
-		
+
 		// Status line format: <status> <meta> <meta> ... <path>
 		// Unmerged is marked with 'u' in second field
 		parts := strings.Fields(line)
@@ -406,7 +406,7 @@ func ShowConflictVersion(filePath string, stage int) (string, error) {
 
 	stageRef := fmt.Sprintf(":%d:%s", stage, filePath)
 	result := Execute("show", stageRef)
-	
+
 	if !result.Success {
 		return "", fmt.Errorf("failed to show stage %d of %s: %s", stage, filePath, result.Stderr)
 	}
@@ -503,26 +503,44 @@ func GetFilesInCommit(hash string) ([]FileInfo, error) {
 	files := make([]FileInfo, 0)
 
 	// Parse output: status\tpath (tab-separated)
+	// Special case: Rename/copy has 3 fields: "R100\told\tnew"
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
 
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) != 2 {
+		parts := strings.Split(line, "\t")
+		if len(parts) < 2 {
 			continue
 		}
 
 		status := strings.TrimSpace(parts[0])
-		path := strings.TrimSpace(parts[1])
-
-		// Rename/copy format: "R100\told\tnew" → extract just status char
 		statusChar := string(status[0])
 
-		files = append(files, FileInfo{
-			Path:   path,
-			Status: statusChar,
-		})
+		// Handle rename/copy (3 fields: status, old path, new path)
+		if (statusChar == "R" || statusChar == "C") && len(parts) == 3 {
+			oldPath := strings.TrimSpace(parts[1])
+			newPath := strings.TrimSpace(parts[2])
+
+			// Add old path with deletion marker
+			files = append(files, FileInfo{
+				Path:   oldPath,
+				Status: "-",
+			})
+
+			// Add new path with rename marker
+			files = append(files, FileInfo{
+				Path:   newPath,
+				Status: "→",
+			})
+		} else {
+			// Normal case: status + path
+			path := strings.TrimSpace(parts[1])
+			files = append(files, FileInfo{
+				Path:   path,
+				Status: statusChar,
+			})
+		}
 	}
 
 	if len(files) == 0 {
@@ -686,12 +704,12 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 				buffer.Append("[DEBUG] EARLY RETURN: Entering conflict resolver", ui.TypeStderr)
 				// Don't clear marker file yet - conflicts need to be resolved first
 				return TimeTravelMergeMsg{
-					Success:           false,
-					OriginalBranch:    originalBranch,
-					TimeTravelHash:    timeTravelHash,
-					Error:             "Merge conflicts detected",
-					ConflictDetected:  true,
-					ConflictedFiles:   conflictFiles,
+					Success:          false,
+					OriginalBranch:   originalBranch,
+					TimeTravelHash:   timeTravelHash,
+					Error:            "Merge conflicts detected",
+					ConflictDetected: true,
+					ConflictedFiles:  conflictFiles,
 				}
 			}
 		}
@@ -726,12 +744,12 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 					buffer.Append("Resolve conflicts to complete stash restoration", ui.TypeInfo)
 					// Don't clear marker file yet - conflicts need to be resolved first
 					return TimeTravelMergeMsg{
-						Success:           false,
-						OriginalBranch:    originalBranch,
-						TimeTravelHash:    timeTravelHash,
-						Error:             "Stash apply conflicts detected",
-						ConflictDetected:  true,
-						ConflictedFiles:   conflictFiles,
+						Success:          false,
+						OriginalBranch:   originalBranch,
+						TimeTravelHash:   timeTravelHash,
+						Error:            "Stash apply conflicts detected",
+						ConflictDetected: true,
+						ConflictedFiles:  conflictFiles,
 					}
 				}
 			}
@@ -838,11 +856,11 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 					// Stash apply had conflicts - enter conflict resolver
 					buffer.Append(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)), ui.TypeStderr)
 					return TimeTravelReturnMsg{
-						Success:           false,
-						OriginalBranch:    originalBranch,
-						Error:             "Stash apply conflicts detected",
-						ConflictDetected:  true,
-						ConflictedFiles:   conflictFiles,
+						Success:          false,
+						OriginalBranch:   originalBranch,
+						Error:            "Stash apply conflicts detected",
+						ConflictDetected: true,
+						ConflictedFiles:  conflictFiles,
 					}
 				}
 			}
@@ -894,7 +912,7 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 		// Use empty string as marker - caller will check via error
 		return "", fmt.Errorf("commit hash cannot be empty")
 	}
-	
+
 	// Show short hash in console
 	buffer := ui.GetBuffer()
 	shortHash := commitHash
@@ -902,15 +920,15 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 		shortHash = commitHash[:7]
 	}
 	buffer.Append(fmt.Sprintf("Resetting to %s...", shortHash), ui.TypeStatus)
-	
+
 	// Execute git reset --hard <commit>
 	// Output streamed to buffer by ExecuteWithStreaming
 	result := ExecuteWithStreaming("reset", "--hard", commitHash)
-	
+
 	if !result.Success {
 		return "", fmt.Errorf("reset failed: %s", result.Stderr)
 	}
-	
+
 	// If resetting to HEAD, clean untracked files to ensure truly clean working tree
 	// (per TIT design: no distinction between tracked/untracked, all must be correct)
 	isHeadReset := Execute("rev-parse", commitHash)
@@ -922,6 +940,6 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 			buffer.Append(fmt.Sprintf("Warning: clean failed: %s", cleanResult.Stderr), ui.TypeStderr)
 		}
 	}
-	
+
 	return commitHash, nil
 }
