@@ -543,7 +543,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
-	a.footerHint = LegacyFooterHints["time_traveling_status"]
+	
 	a.previousMode = ModeHistory
 	a.previousMenuIndex = 0
 
@@ -564,7 +564,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
-	a.footerHint = LegacyFooterHints["time_traveling_status"]
+	
 	a.previousMode = ModeHistory
 	a.previousMenuIndex = 0
 	a.restoreTimeTravelInitiated = true

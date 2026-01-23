@@ -625,7 +625,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	a.conflictResolveState = resolveState
 	a.asyncOperationActive = false
 	a.mode = ModeConflictResolve
-	a.footerHint = fmt.Sprintf(LegacyFooterHints["resolve_conflicts_help"], len(conflictFiles))
+	a.footerHint = fmt.Sprintf(ConsoleMessages["resolve_conflicts_help"], len(conflictFiles))
 
 	buffer.Append(fmt.Sprintf(OutputMessages["conflicts_detected_count"], len(conflictFiles)), ui.TypeInfo)
 	buffer.Append(OutputMessages["mark_choices_in_resolver"], ui.TypeInfo)

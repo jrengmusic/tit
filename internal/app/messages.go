@@ -279,6 +279,51 @@ type ConfirmationMessage struct {
 	NoLabel     string // Button text for NO/reject action
 }
 
+// ConsoleMessages centralizes all console output messages
+var ConsoleMessages = map[string]string{
+	// Time travel restoration
+	"restoring_time_travel":    "Restoring from incomplete time travel session...",
+	"marker_corrupted":         "Marker file corrupted. Cleaned up.",
+	"step_1_discarding":        "Step 1: Discarding changes from time travel...",
+	"warning_discard_changes":  "Warning: Could not discard working tree changes",
+	"warning_remove_untracked": "Warning: Could not remove untracked files",
+	"step_2_returning":         "Step 2: Returning to %s...",
+	"error_checkout_branch":    "Error: Failed to checkout %s",
+	"step_3_restoring_work":    "Step 3: Restoring original uncommitted work...",
+	"warning_restore_work":     "Warning: Could not restore original work (may have been lost)",
+	"original_work_restored":   "Original work restored",
+	"warning_cleanup_stash":    "Warning: Could not clean up stash entry",
+	"step_4_cleaning_marker":   "Step 4: Cleaning up time travel marker...",
+	"warning_remove_marker":    "Warning: Could not remove marker: %v",
+	"restoration_complete":     "Restoration complete. Press ESC to continue.",
+	"restoration_error":        "Restoration error: %s",
+	"error_detect_state":       "Error detecting state after restoration: %v",
+
+	// Time travel success
+	"time_travel_success":        "Time travel successful. Press ESC to return to menu.",
+	"time_travel_merge_success":  "Time travel merge successful. Press ESC to return to menu.",
+	"time_travel_return_success": "Time travel return successful. Press ESC to return to menu.",
+	"time_traveling_status":      "Time traveling... (ESC to abort)",
+
+	// Conflict resolver
+	"resolve_conflicts_help": "Resolve %d conflicted file(s) - SPACE to mark, ENTER to continue, ESC to abort",
+	"already_marked_column":  "Already marked in this column",
+	"marked_file_column":     "Marked: %s → %s",
+	"mark_all_files":         "Mark all files with SPACE before continuing",
+	"error_writing_file":     "Error writing %s: %v",
+	"error_staging_file":     "Error staging %s: %s",
+
+	// History mode
+	"no_commits_yet": "No commits yet. Create an initial commit to enable sync actions.",
+
+	// File history visual mode
+	"visual_mode_active": "-- VISUAL --",
+
+	// Clipboard
+	"copy_success": "✓ Copied to clipboard",
+	"copy_failed":  "✗ Copy failed",
+}
+
 // ConfirmationMessages centralizes all confirmation dialog messages by domain
 // Replaces old ConfirmationTitles + ConfirmationExplanations + ConfirmationLabels
 var ConfirmationMessages = map[string]ConfirmationMessage{
@@ -436,42 +481,6 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 		{Key: "Enter", Desc: "confirm"},
 		{Key: "Esc", Desc: "cancel"},
 	},
-}
-
-// LegacyFooterHints maintains backward compatibility for string-based hints
-var LegacyFooterHints = map[string]string{
-	"mark_all_files":         "Mark all files with SPACE before continuing",
-	"resolve_conflicts_help": "Resolve %d conflicted file(s) - SPACE to mark, ENTER to continue, ESC to abort",
-	"error_writing_file":     "Error writing %s: %v",
-	"error_staging_file":     "Error staging %s: %s",
-	"already_marked_column":  "Already marked in this column",
-	"marked_file_column":     "Marked: %s → %s",
-	"visual_mode_active":     "-- VISUAL --",
-	"copy_success":           "✓ Copied to clipboard",
-	"copy_failed":            "✗ Copy failed",
-	"no_commits_yet":         "No commits yet. Create an initial commit to enable sync actions.",
-
-	// Time travel messages
-	"time_travel_success":        "Time travel successful. Press ESC to return to menu.",
-	"time_travel_merge_success":  "Time travel merge successful. Press ESC to return to menu.",
-	"time_travel_return_success": "Time travel return successful. Press ESC to return to menu.",
-	"time_traveling_status":      "Time traveling... (ESC to abort)",
-	"restoration_complete":       "Restoration complete. Press ESC to continue.",
-	"restoring_time_travel":      "Restoring from incomplete time travel session...",
-	"step_1_discarding":          "Step 1: Discarding changes from time travel...",
-	"step_2_returning":           "Step 2: Returning to %s...",
-	"step_3_restoring_work":      "Step 3: Restoring original uncommitted work...",
-	"step_4_cleaning_marker":     "Step 4: Cleaning up time travel marker...",
-	"original_work_restored":     "Original work restored",
-	"restoration_error":          "Restoration error: %s",
-	"marker_corrupted":           "Marker file corrupted. Cleaned up.",
-	"warning_discard_changes":    "Warning: Could not discard working tree changes",
-	"warning_remove_untracked":   "Warning: Could not remove untracked files",
-	"error_checkout_branch":      "Error: Failed to checkout %s",
-	"warning_restore_work":       "Warning: Could not restore original work (may have been lost)",
-	"warning_cleanup_stash":      "Warning: Could not clean up stash entry",
-	"warning_remove_marker":      "Warning: Could not remove marker: %v",
-	"error_detect_state":         "Error detecting state after restoration: %v",
 }
 
 // DialogMessages centralizes dialog box content (titles + explanations)

@@ -168,7 +168,7 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.menuItems = menu
 	if len(menu) > 0 {
 		if a.gitState != nil && a.gitState.Remote == git.HasRemote && a.gitState.Timeline == "" && a.gitState.CurrentHash == "" {
-			a.footerHint = LegacyFooterHints["no_commits_yet"]
+
 		} else {
 			a.footerHint = menu[0].Hint
 		}
@@ -1160,9 +1160,9 @@ func (a *Application) handleFileHistoryCopy(app *Application) (tea.Model, tea.Cm
 	if len(linesToCopy) > 0 {
 		textToCopy := strings.Join(linesToCopy, "\n")
 		if err := clipboard.WriteAll(textToCopy); err == nil {
-			app.footerHint = LegacyFooterHints["copy_success"]
+			app.footerHint = ConsoleMessages["copy_success"]
 		} else {
-			app.footerHint = LegacyFooterHints["copy_failed"]
+			app.footerHint = ConsoleMessages["copy_failed"]
 		}
 	}
 
@@ -1185,7 +1185,7 @@ func (a *Application) handleFileHistoryVisualMode(app *Application) (tea.Model, 
 		// Enter visual mode from current cursor
 		app.fileHistoryState.VisualModeActive = true
 		app.fileHistoryState.VisualModeStart = app.fileHistoryState.DiffLineCursor
-		app.footerHint = LegacyFooterHints["visual_mode_active"]
+		app.footerHint = ConsoleMessages["visual_mode_active"]
 	}
 
 	return app, nil
