@@ -69,7 +69,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 				return a, nil
 			}
 		}
-		
+
 		// Detect new state after init/clone/checkout
 		state, err := git.DetectState()
 		if err != nil {
@@ -78,7 +78,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			return a, nil
 		}
 		a.gitState = state
-		
+
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -173,14 +173,15 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// CONTRACT: Rebuild cache before showing completion (commit changes history)
 		cacheCmd := a.invalidateHistoryCaches()
 
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
+
+		// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
+		// This ensures cache messages appear before "Press ESC to return to menu"
 
 		return a, cacheCmd
 
 	case OpForcePush:
-		// Force push completed - reload state, stay in console  
+		// Force push completed - reload state, stay in console
 		// User presses ESC to return to menu
 		state, err := git.DetectState()
 		if err != nil {
@@ -312,35 +313,35 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 // handleTimeTravelCheckout handles git.TimeTravelCheckoutMsg
 func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
-	
+
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
-		
+
 		// Try to cleanup time travel info file
 		git.ClearTimeTravelInfo()
-		
+
 		// Return to history mode
 		a.mode = ModeHistory
 		return a, nil
 	}
-	
+
 	// Time travel successful - reload git state
 	state, err := git.DetectState()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_travel"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
-		
+
 		// Try to cleanup time travel info file
 		git.ClearTimeTravelInfo()
-		
+
 		// Return to history mode
 		a.mode = ModeHistory
 		return a, nil
 	}
-	
+
 	a.gitState = state
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
@@ -361,7 +362,7 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 // handleTimeTravelMerge handles git.TimeTravelMergeMsg
 func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
-	
+
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_merge_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
@@ -411,24 +412,22 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 		a.mode = ModeMenu
 		return a, nil
 	}
-	
+
 	// Time travel merge successful - reload git state
 	state, err := git.DetectState()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_merge"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
-		
+
 		// Return to menu
 		a.mode = ModeMenu
 		return a, nil
 	}
-	
+
 	a.gitState = state
-	buffer.Append(LegacyFooterHints["time_travel_merge_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = LegacyFooterHints["time_travel_merge_success"]
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
@@ -438,9 +437,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 		cacheCmd = a.invalidateHistoryCaches()
 	}
 
-	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
-	// Mode remains ModeConsole, user presses ESC when ready
-	// (Consistent with time travel checkout, commit, push, etc.)
+	// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
 
 	return a, cacheCmd
 }
@@ -448,7 +445,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 // handleTimeTravelReturn handles git.TimeTravelReturnMsg
 func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
-	
+
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_return_failed"], msg.Error), ui.TypeStderr)
 		a.asyncOperationActive = false
@@ -478,9 +475,9 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 			// setupConflictResolver will auto-detect only stages 2 and 3 exist
 			// and use labels[1] and labels[2] (skipping labels[0])
 			labels := []string{
-				"", // Placeholder for BASE (won't be used)
+				"",                                       // Placeholder for BASE (won't be used)
 				fmt.Sprintf("%s %s", mainHash, mainDate), // MAIN branch (stage 2)
-				"YOUR CHANGES", // Stashed changes (stage 3)
+				"YOUR CHANGES",                           // Stashed changes (stage 3)
 			}
 
 			return a.setupConflictResolver("time_travel_return", labels)
@@ -490,24 +487,22 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 		a.mode = ModeMenu
 		return a, nil
 	}
-	
+
 	// Time travel return successful - reload git state
 	state, err := git.DetectState()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_return"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
-		
+
 		// Return to menu
 		a.mode = ModeMenu
 		return a, nil
 	}
-	
+
 	a.gitState = state
-	buffer.Append(LegacyFooterHints["time_travel_return_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = LegacyFooterHints["time_travel_return_success"]
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
@@ -517,9 +512,7 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 		cacheCmd = a.invalidateHistoryCaches()
 	}
 
-	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
-	// Mode remains ModeConsole, user presses ESC when ready
-	// (Consistent with time travel checkout, commit, push, etc.)
+	// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
 
 	return a, cacheCmd
 }
@@ -530,9 +523,9 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 //   - columnLabels: human-readable labels for the 3 columns (e.g., ["BASE", "LOCAL (yours)", "REMOTE (theirs)"])
 func (a *Application) setupConflictResolver(operation string, columnLabels []string) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
-	
+
 	buffer.Append(OutputMessages["detecting_conflicts"], ui.TypeInfo)
-	
+
 	// Get list of conflicted files from git status
 	conflictFiles, err := git.ListConflictedFiles()
 	if err != nil {
@@ -542,9 +535,9 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		a.mode = ModeConsole
 		return a, nil
 	}
-	
+
 	buffer.Append(fmt.Sprintf("Found %d conflicted file(s)", len(conflictFiles)), ui.TypeInfo)
-	
+
 	if len(conflictFiles) == 0 {
 		// No conflicts found - should not happen, but handle gracefully
 		buffer.Append(OutputMessages["conflict_detection_none"], ui.TypeInfo)
@@ -552,7 +545,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		a.mode = ModeConsole
 		return a, nil
 	}
-	
+
 	// Detect which stages exist by checking the first conflicted file
 	// This determines how many columns we'll show (2-way vs 3-way merge)
 	var stagesPresent []int
@@ -597,14 +590,14 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 
 	// Read versions for each conflicted file
 	resolveState := &ConflictResolveState{
-		Files:               make([]ui.ConflictFileGeneric, 0, len(conflictFiles)),
-		SelectedFileIndex:   0,
-		FocusedPane:         0,
-		NumColumns:          numColumns,
-		ColumnLabels:        activeLabels,
-		ScrollOffsets:       make([]int, numColumns),
-		LineCursors:         make([]int, numColumns),
-		Operation:           operation,
+		Files:             make([]ui.ConflictFileGeneric, 0, len(conflictFiles)),
+		SelectedFileIndex: 0,
+		FocusedPane:       0,
+		NumColumns:        numColumns,
+		ColumnLabels:      activeLabels,
+		ScrollOffsets:     make([]int, numColumns),
+		LineCursors:       make([]int, numColumns),
+		Operation:         operation,
 	}
 
 	for _, filePath := range conflictFiles {
@@ -627,16 +620,16 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		}
 		resolveState.Files = append(resolveState.Files, conflictFile)
 	}
-	
+
 	// Store conflict state and transition to resolver UI
 	a.conflictResolveState = resolveState
 	a.asyncOperationActive = false
 	a.mode = ModeConflictResolve
 	a.footerHint = fmt.Sprintf(LegacyFooterHints["resolve_conflicts_help"], len(conflictFiles))
-	
+
 	buffer.Append(fmt.Sprintf(OutputMessages["conflicts_detected_count"], len(conflictFiles)), ui.TypeInfo)
 	buffer.Append(OutputMessages["mark_choices_in_resolver"], ui.TypeInfo)
-	
+
 	return a, nil
 }
 

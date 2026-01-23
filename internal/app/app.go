@@ -856,11 +856,20 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 		diffsReady := a.cacheDiffs
 		a.diffCacheMutex.Unlock()
 
-		// If both caches complete AND in console mode during time travel, show final message
-		if metadataReady && diffsReady && a.mode == ModeConsole && a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
+		// If both caches complete AND in console mode after async operation finished,
+		// show "Press ESC to return to menu" message
+		if metadataReady && diffsReady && a.mode == ModeConsole && !a.asyncOperationActive {
 			buffer := ui.GetBuffer()
-			buffer.Append("Time travel successful. Press ESC to return to menu.", ui.TypeStatus)
-			a.footerHint = "Time travel successful. Press ESC to return to menu."
+
+			// Check if this is time travel mode (handled separately)
+			if a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
+				buffer.Append("Time travel successful. Press ESC to return to menu.", ui.TypeStatus)
+				a.footerHint = "Time travel successful. Press ESC to return to menu."
+			} else {
+				// Regular operation (commit, push, etc.) - show completion message
+				buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+				a.footerHint = GetFooterMessageText(MessageOperationComplete)
+			}
 		}
 	}
 

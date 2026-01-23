@@ -412,9 +412,11 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 
 	// Console
 	"console_running": {
+		{Key: "↑↓", Desc: "scroll"},
 		{Key: "Esc", Desc: "abort"},
 	},
 	"console_complete": {
+		{Key: "↑↓", Desc: "scroll"},
 		{Key: "Esc", Desc: "back"},
 	},
 
