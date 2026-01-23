@@ -31,6 +31,7 @@ footerTextColor = "#519299"            # lagoon (footer hints)
 
 # Borders - Conflict Resolver specific
 boxBorderColor = "#8CC9D9"                    # dolphin (borders for all boxes)
+separatorColor = "#1B2A31"                    # dark (separator lines)
 conflictPaneUnfocusedBorder = "#2C4144"       # littleMermaid (OLD-TIT EXACT - unfocused)
 conflictPaneFocusedBorder = "#8CC9D9"         # dolphin (OLD-TIT EXACT - focused)
 
@@ -101,15 +102,16 @@ type ThemeDefinition struct {
 
 		// Borders
 		BoxBorderColor string `toml:"boxBorderColor"`
-		
+		SeparatorColor string `toml:"separatorColor"`
+
 		// Conflict Resolver - Borders
 		ConflictPaneUnfocusedBorder string `toml:"conflictPaneUnfocusedBorder"`
 		ConflictPaneFocusedBorder   string `toml:"conflictPaneFocusedBorder"`
-		
+
 		// Conflict Resolver - Selection
 		ConflictSelectionForeground string `toml:"conflictSelectionForeground"`
 		ConflictSelectionBackground string `toml:"conflictSelectionBackground"`
-		
+
 		// Conflict Resolver - Pane Headers
 		ConflictPaneTitleColor string `toml:"conflictPaneTitleColor"`
 
@@ -143,12 +145,12 @@ type ThemeDefinition struct {
 		DiffRemovedLineColor string `toml:"diffRemovedLineColor"`
 
 		// Console Output Colors
-		OutputStdoutColor string `toml:"outputStdoutColor"`
-		OutputStderrColor string `toml:"outputStderrColor"`
-		OutputStatusColor string `toml:"outputStatusColor"`
+		OutputStdoutColor  string `toml:"outputStdoutColor"`
+		OutputStderrColor  string `toml:"outputStderrColor"`
+		OutputStatusColor  string `toml:"outputStatusColor"`
 		OutputWarningColor string `toml:"outputWarningColor"`
-		OutputDebugColor  string `toml:"outputDebugColor"`
-		OutputInfoColor   string `toml:"outputInfoColor"`
+		OutputDebugColor   string `toml:"outputDebugColor"`
+		OutputInfoColor    string `toml:"outputInfoColor"`
 	} `toml:"palette"`
 }
 
@@ -173,15 +175,16 @@ type Theme struct {
 
 	// Borders
 	BoxBorderColor string
-	
+	SeparatorColor string
+
 	// Conflict Resolver - Borders
 	ConflictPaneUnfocusedBorder string
 	ConflictPaneFocusedBorder   string
-	
+
 	// Conflict Resolver - Selection
 	ConflictSelectionForeground string
 	ConflictSelectionBackground string
-	
+
 	// Conflict Resolver - Pane Headers
 	ConflictPaneTitleColor string
 
@@ -255,15 +258,16 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 
 		// Borders
 		BoxBorderColor: themeDef.Palette.BoxBorderColor,
-		
+		SeparatorColor: themeDef.Palette.SeparatorColor,
+
 		// Conflict Resolver - Borders
 		ConflictPaneUnfocusedBorder: themeDef.Palette.ConflictPaneUnfocusedBorder,
 		ConflictPaneFocusedBorder:   themeDef.Palette.ConflictPaneFocusedBorder,
-		
+
 		// Conflict Resolver - Selection
 		ConflictSelectionForeground: themeDef.Palette.ConflictSelectionForeground,
 		ConflictSelectionBackground: themeDef.Palette.ConflictSelectionBackground,
-		
+
 		// Conflict Resolver - Pane Headers
 		ConflictPaneTitleColor: themeDef.Palette.ConflictPaneTitleColor,
 

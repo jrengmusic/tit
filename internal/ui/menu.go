@@ -44,7 +44,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 			keyPad := strings.Repeat(" ", keyColWidth)
 			sepLine := strings.Repeat("─", emojiColWidth+labelColWidth)
 			separator := keyPad + lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.DimmedTextColor)).
+				Foreground(lipgloss.Color(theme.SeparatorColor)).
 				Render(sepLine)
 			lines = append(lines, separator)
 			continue

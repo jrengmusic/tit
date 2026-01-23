@@ -96,7 +96,7 @@
 
 ## ROLE ASSIGNMENT REGISTRATION
 
-ANALYST: Amp (Claude Sonnet 4)
+ANALYST: Amp (Claude Sonnet 4) — Registered 2026-01-23
 SCAFFOLDER: OpenCode (CLI Agent) — Code scaffolding specialist, literal implementation
 CARETAKER: OpenCode (CLI Agent) — Structural reviewer, error handling, pattern enforcement
 INSPECTOR: Amp (Claude Sonnet 4) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
@@ -257,6 +257,118 @@ JOURNALIST: Mistral-Vibe (devstral-2) — Session documentation, log compilation
 ---
 
 
+
+## Session 84: Console Full-Screen Mode & Separator Color Standardization ✅
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-23
+
+### Objectives
+- Transform console output from header/footer-wrapped mode to full-screen mode
+- Add proper padding and status bar to console output
+- Standardize separator color across header and menu components
+- Fix console status bar alignment and scroll status display
+
+### Implementation Summary
+
+**Console Full-Screen Transformation:**
+- Removed header/footer wrapper from console output (ModeConsole/ModeClone)
+- Implemented full-screen console rendering similar to History mode pattern
+- Added 1-cell left/right padding using `lipgloss.Padding(0, 1)`
+- Status bar positioned at bottom with left-aligned shortcuts and right-aligned scroll status
+
+**Status Bar Improvements:**
+- Shortcuts on left: "↑↓ scroll", "ESC back to menu"
+- Scroll status on right: "(at bottom)", "(can scroll up)", "↓ N more lines"
+- Ctrl+C override mode shows centered message only
+- Fixed width calculation to account for padded layout
+
+**Separator Color Standardization:**
+- Added new `separatorColor = "#1B2A31"` (dark) to theme palette
+- Updated both header and menu components to use `theme.SeparatorColor`
+- Replaced inconsistent usage of `BoxBorderColor` and `DimmedTextColor` for separators
+- Ensured visual consistency across all UI components
+
+### Files Modified (6 total)
+
+**internal/ui/console.go:**
+- Replaced `RenderConsoleOutput` with `RenderConsoleOutputFullScreen` taking terminal dimensions
+- Added 1-cell left/right padding with `lipgloss.Padding(0, 1)`
+- Implemented status bar with shortcuts (left) + scroll status (right)
+- Added override mode for centered Ctrl+C messages
+- Fixed status bar width calculation for padded layout
+
+**internal/ui/theme.go:**
+- Added `separatorColor = "#1B2A31"` (dark) for separator lines
+- Updated ThemeDefinition struct with SeparatorColor field
+- Updated Theme struct with SeparatorColor field
+- Updated LoadTheme function to load separator color from config
+- Improved code formatting and consistency
+
+**internal/ui/header.go:**
+- Changed separator line to use `theme.SeparatorColor` instead of `theme.BoxBorderColor`
+- Ensured visual consistency with menu separators
+
+**internal/ui/menu.go:**
+- Changed separator line to use `theme.SeparatorColor` instead of `theme.DimmedTextColor`
+- Ensured visual consistency with header separators
+
+**internal/ui/statusbar.go:**
+- Added `sepStyle` to StatusBarStyles for separator rendering
+- Improved status bar styling consistency
+
+**internal/app/app.go:**
+- Added ModeConsole/ModeClone to full-screen mode check (bypasses header/footer)
+- Updated console rendering to use new full-screen function with terminal dimensions
+- Ensured console follows same pattern as History mode
+
+### Technical Details
+
+**Layout Structure:**
+```
+┌────────────────────────────────────────┐ ← Terminal top
+│ OUTPUT                                 │
+│                                        │
+│ [scrollable console output content]    │
+│ ...                                    │
+│                                        │
+├────────────────────────────────────────┤
+│  ↑↓ scroll  │  ESC back to menu    │   │ ← Left/right aligned
+│          (at bottom)                   │
+└────────────────────────────────────────┘ ← Terminal bottom
+     Padding(0,1)
+```
+
+**SSOT:** `separatorColor = "#1B2A31"` (dark) used by both header and menu separators
+
+**Console Output Pattern:** Follows History mode pattern (`RenderHistorySplitPane`)
+
+### Success Criteria Met
+
+✅ Console output now uses full terminal (no header/footer wrapper)
+✅ Proper 1-cell left/right padding applied
+✅ Status bar correctly positioned at bottom
+✅ Shortcuts and scroll status properly aligned
+✅ Ctrl+C override messages centered
+✅ Separator color standardized across all components
+✅ Visual consistency between header and menu separators
+✅ Clean build with `./build.sh`
+✅ No regressions in existing functionality
+
+### Build Status
+✅ Clean compile with `./build.sh`
+
+### Testing Status
+✅ VERIFIED — All success criteria met, console full-screen mode working as specified
+
+### Notes
+
+- Console output now matches History mode pattern for full-screen rendering
+- Separator color standardization improves visual consistency across UI
+- Status bar improvements provide better user guidance and feedback
+- All changes follow existing patterns and SSOT principles
+
+---
 
 ## Session 82: Critical Bug Fixes & Code Quality Audit ⚠️
 

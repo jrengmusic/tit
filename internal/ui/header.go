@@ -91,7 +91,7 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 	// Separator
 	separatorLine := lipgloss.NewStyle().
 		Width(totalWidth).
-		Foreground(lipgloss.Color(theme.BoxBorderColor)).
+		Foreground(lipgloss.Color(theme.SeparatorColor)).
 		Render(strings.Repeat("─", totalWidth))
 	fullWidthLines = append(fullWidthLines, separatorLine)
 
