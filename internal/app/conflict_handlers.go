@@ -108,14 +108,14 @@ func (a *Application) handleConflictSpace(app *Application) (tea.Model, tea.Cmd)
 
 			// Radio button behavior: if already chosen in this column, do nothing
 			if file.Chosen == focusedPane {
-				a.footerHint = FooterHints["already_marked_column"]
+				a.footerHint = LegacyFooterHints["already_marked_column"]
 				return a, nil
 			}
 
 			// Mark this column as chosen (radio button - switches from other column)
 			file.Chosen = focusedPane
 			columnLabel := a.conflictResolveState.ColumnLabels[focusedPane]
-			a.footerHint = fmt.Sprintf(FooterHints["marked_file_column"], file.Path, columnLabel)
+			a.footerHint = fmt.Sprintf(LegacyFooterHints["marked_file_column"], file.Path, columnLabel)
 		}
 	}
 
@@ -139,7 +139,7 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	if !allMarked {
-		app.footerHint = FooterHints["mark_all_files"]
+		app.footerHint = LegacyFooterHints["mark_all_files"]
 		return app, nil
 	}
 
@@ -152,14 +152,14 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		// Write chosen version to file
 		chosenContent := file.Versions[file.Chosen]
 		if err := os.WriteFile(file.Path, []byte(chosenContent), 0644); err != nil {
-			app.footerHint = fmt.Sprintf(FooterHints["error_writing_file"], file.Path, err)
+			app.footerHint = fmt.Sprintf(LegacyFooterHints["error_writing_file"], file.Path, err)
 			return app, nil
 		}
 
 		// Stage the resolved file
 		result := git.Execute("add", file.Path)
 		if !result.Success {
-			app.footerHint = fmt.Sprintf(FooterHints["error_staging_file"], file.Path, result.Stderr)
+			app.footerHint = fmt.Sprintf(LegacyFooterHints["error_staging_file"], file.Path, result.Stderr)
 			return app, nil
 		}
 	}

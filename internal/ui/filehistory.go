@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -40,14 +38,14 @@ type FileHistoryState struct {
 
 // RenderFileHistorySplitPane renders the file(s) history split-pane view (3-pane layout)
 // Layout: Top row (Commits + Files side-by-side), Bottom row (Diff full-width)
-// Returns content exactly `width` chars wide and `height - 2` lines tall (for outer border)
+// Returns content exactly `width` chars wide and `height - 1` lines tall (footer handled externally)
 // Parameters:
 //   - state: interface{} (FileHistoryState from app package)
 //   - theme: Theme (colors, styles)
 //   - width, height: Terminal dimensions
 //
 // Returns: String representation of the rendered pane
-func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height int, statusBarOverride string) string {
+func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -58,11 +56,10 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 		return "Error: invalid file history state"
 	}
 
-	// Calculate dimensions from terminal height
-	// Reserve 1 line for status bar + 1 for newline separator
-	totalPaneHeight := height - 5
+	// Calculate dimensions from terminal height (footer handled externally)
+	totalPaneHeight := height
 	topRowHeight := totalPaneHeight / 3
-	bottomRowHeight := totalPaneHeight - topRowHeight
+	bottomRowHeight := totalPaneHeight - topRowHeight - 5
 
 	// Calculate column widths for top row (2 columns: Commits + Files)
 	// No gaps, borders touch directly
@@ -79,15 +76,8 @@ func RenderFileHistorySplitPane(state interface{}, theme Theme, width, height in
 	// Render bottom row (Diff pane - full width, single column)
 	bottomRow := renderFileHistoryDiffPane(fileHistoryState, theme, width, bottomRowHeight)
 
-	var statusBar string
-	if fileHistoryState.FocusedPane == PaneDiff {
-		statusBar = buildDiffStatusBar(fileHistoryState.VisualModeActive, width, theme, statusBarOverride)
-	} else {
-		statusBar = buildFileHistoryStatusBar(fileHistoryState.FocusedPane, width, theme, statusBarOverride)
-	}
-
-	// Stack everything with no gaps: topRow + bottomRow + statusBar
-	return topRow + "\n" + bottomRow + "\n" + statusBar
+	// Stack: topRow + bottomRow (footer handled externally)
+	return topRow + "\n" + bottomRow
 }
 
 // renderFileHistoryCommitsPane renders the commits list pane (left)
@@ -185,63 +175,4 @@ func renderFileHistoryDiffPane(state *FileHistoryState, theme Theme, width, heig
 	state.DiffScrollOff = newScrollOffset
 
 	return rendered
-}
-
-// buildFileHistoryStatusBar builds the status bar for file history mode
-func buildFileHistoryStatusBar(focusedPane FileHistoryPane, width int, theme Theme, overrideMessage string) string {
-	styles := NewStatusBarStyles(&theme)
-
-	// Status bar shortcuts
-	parts := []string{
-		styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" navigate"),
-		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" cycle panes"),
-		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
-	}
-
-	return BuildStatusBar(StatusBarConfig{
-		Parts:    parts,
-		Width:    width,
-		Centered: true,
-		Theme:    &theme,
-	})
-}
-
-// buildDiffStatusBar builds the status bar for diff pane (when focused)
-// Shows different hints in visual mode vs normal mode (matches old-tit)
-func buildDiffStatusBar(visualModeActive bool, width int, theme Theme, overrideMessage string) string {
-	styles := NewStatusBarStyles(&theme)
-
-	// Handle override message for visual mode
-	if overrideMessage != "" {
-		return overrideMessage
-	}
-
-	if visualModeActive {
-		// VISUAL mode: simplified, left-aligned
-		parts := []string{
-			styles.visualStyle.Render("VISUAL"),
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" select"),
-			styles.shortcutStyle.Render("Y") + styles.descStyle.Render(" copy"),
-			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
-		}
-		// For visual mode, use custom join (no separator styling)
-		return strings.Join(parts, styles.descStyle.Render("  ")) // Left-aligned, no padding
-	}
-
-	// NORMAL mode: full shortcuts, centered
-	parts := []string{
-		styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
-		styles.shortcutStyle.Render("TAB") + styles.descStyle.Render(" cycle"),
-		styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back"),
-		styles.shortcutStyle.Render("V") + styles.descStyle.Render(" visual"),
-		styles.shortcutStyle.Render("Y") + styles.descStyle.Render(" copy"),
-	}
-
-	return BuildStatusBar(StatusBarConfig{
-		Parts:           parts,
-		Width:           width,
-		Centered:        true,
-		Theme:           &theme,
-		OverrideMessage: overrideMessage,
-	})
 }

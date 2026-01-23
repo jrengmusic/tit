@@ -320,7 +320,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
 	if len(menu) > 0 && !shouldRestore {
 		// Only set hint if not restoring
 		if app.gitState != nil && app.gitState.Remote == git.HasRemote && app.gitState.Timeline == "" && app.gitState.CurrentHash == "" {
-			app.footerHint = FooterHints["no_commits_yet"]
+			app.footerHint = LegacyFooterHints["no_commits_yet"]
 		} else {
 			app.footerHint = menu[0].Hint
 		}
@@ -353,7 +353,7 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
-		buffer.Append(FooterHints["restoring_time_travel"], ui.TypeStatus)
+		buffer.Append(LegacyFooterHints["restoring_time_travel"], ui.TypeStatus)
 
 		// Load time travel info
 		ttInfo, err := git.LoadTimeTravelInfo()
@@ -375,7 +375,7 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 		if ttInfo == nil {
 			// Marker exists but no info - cleanup and continue
 			git.ClearTimeTravelInfo()
-			buffer.Append(FooterHints["marker_corrupted"], ui.TypeStatus)
+			buffer.Append(LegacyFooterHints["marker_corrupted"], ui.TypeStatus)
 			return RestoreTimeTravelMsg{
 				Success: true,
 				Error:   "",
@@ -383,23 +383,23 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 		}
 
 		// Step 1: Discard any changes made during time travel
-		buffer.Append(FooterHints["step_1_discarding"], ui.TypeStatus)
+		buffer.Append(LegacyFooterHints["step_1_discarding"], ui.TypeStatus)
 		// Use reset --hard instead of checkout . (works with uncommitted changes)
 		resetResult := git.Execute("reset", "--hard", "HEAD")
 		if !resetResult.Success {
-			buffer.Append(FooterHints["warning_discard_changes"], ui.TypeStatus)
+			buffer.Append(LegacyFooterHints["warning_discard_changes"], ui.TypeStatus)
 		}
 
 		cleanResult := git.Execute("clean", "-fd")
 		if !cleanResult.Success {
-			buffer.Append(FooterHints["warning_remove_untracked"], ui.TypeStatus)
+			buffer.Append(LegacyFooterHints["warning_remove_untracked"], ui.TypeStatus)
 		}
 
 		// Step 2: Return to original branch
-		buffer.Append(fmt.Sprintf(FooterHints["step_2_returning"], ttInfo.OriginalBranch), ui.TypeStatus)
+		buffer.Append(fmt.Sprintf(LegacyFooterHints["step_2_returning"], ttInfo.OriginalBranch), ui.TypeStatus)
 		checkoutBranchResult := git.Execute("checkout", ttInfo.OriginalBranch)
 		if !checkoutBranchResult.Success {
-			buffer.Append(fmt.Sprintf(FooterHints["error_checkout_branch"], ttInfo.OriginalBranch), ui.TypeStderr)
+			buffer.Append(fmt.Sprintf(LegacyFooterHints["error_checkout_branch"], ttInfo.OriginalBranch), ui.TypeStderr)
 			return RestoreTimeTravelMsg{
 				Success: false,
 				Error:   "Failed to checkout original branch",
@@ -408,27 +408,27 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 
 		// Step 3: Restore original stashed work if any
 		if ttInfo.OriginalStashID != "" {
-			buffer.Append(FooterHints["step_3_restoring_work"], ui.TypeStatus)
+			buffer.Append(LegacyFooterHints["step_3_restoring_work"], ui.TypeStatus)
 			applyResult := git.Execute("stash", "apply", ttInfo.OriginalStashID)
 			if !applyResult.Success {
-				buffer.Append(FooterHints["warning_restore_work"], ui.TypeStatus)
+				buffer.Append(LegacyFooterHints["warning_restore_work"], ui.TypeStatus)
 			} else {
-				buffer.Append(FooterHints["original_work_restored"], ui.TypeStatus)
+				buffer.Append(LegacyFooterHints["original_work_restored"], ui.TypeStatus)
 				dropResult := git.Execute("stash", "drop", ttInfo.OriginalStashID)
 				if !dropResult.Success {
-					buffer.Append(FooterHints["warning_cleanup_stash"], ui.TypeStatus)
+					buffer.Append(LegacyFooterHints["warning_cleanup_stash"], ui.TypeStatus)
 				}
 			}
 		}
 
 		// Step 4: Clean up marker
-		buffer.Append(FooterHints["step_4_cleaning_marker"], ui.TypeStatus)
+		buffer.Append(LegacyFooterHints["step_4_cleaning_marker"], ui.TypeStatus)
 		err = git.ClearTimeTravelInfo()
 		if err != nil {
-			buffer.Append(fmt.Sprintf(FooterHints["warning_remove_marker"], err), ui.TypeStatus)
+			buffer.Append(fmt.Sprintf(LegacyFooterHints["warning_remove_marker"], err), ui.TypeStatus)
 		}
 
-		buffer.Append(FooterHints["restoration_complete"], ui.TypeStatus)
+		buffer.Append(LegacyFooterHints["restoration_complete"], ui.TypeStatus)
 
 		return RestoreTimeTravelMsg{
 			Success: true,
@@ -469,7 +469,7 @@ func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Mod
 
 	if !msg.Success {
 		buffer := ui.GetBuffer()
-		buffer.Append(fmt.Sprintf(FooterHints["restoration_error"], msg.Error), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(LegacyFooterHints["restoration_error"], msg.Error), ui.TypeStderr)
 		a.footerHint = "Press ESC to acknowledge error"
 		// Stay in console mode so user can read error
 		return a, nil
@@ -479,7 +479,7 @@ func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Mod
 	state, err := git.DetectState()
 	if err != nil {
 		buffer := ui.GetBuffer()
-		buffer.Append(fmt.Sprintf(FooterHints["error_detect_state"], err), ui.TypeStderr)
+		buffer.Append(fmt.Sprintf(LegacyFooterHints["error_detect_state"], err), ui.TypeStderr)
 	} else {
 		a.gitState = state
 	}
@@ -652,12 +652,7 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
 
 	case ModeConsole, ModeClone:
-		// Console output (full-screen mode, no header/footer)
-		// Status bar at bottom, centered, console height dynamic
-		statusOverride := ""
-		if a.quitConfirmActive {
-			statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
-		}
+		// Console output (full-screen mode, footer handled by GetFooterContent)
 		contentText = ui.RenderConsoleOutputFullScreen(
 			&a.consoleState,
 			a.outputBuffer,
@@ -667,7 +662,6 @@ func (a *Application) View() string {
 			a.asyncOperationActive && !a.asyncOperationAborted,
 			a.asyncOperationAborted,
 			a.consoleAutoScroll,
-			statusOverride,
 		)
 
 	case ModeConfirmation:
@@ -743,48 +737,34 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 
 	case ModeHistory:
-		// Render history split-pane view (full terminal, no header/footer)
+		// Render history split-pane view (footer handled by GetFooterContent)
 		if a.historyState == nil {
 			contentText = "History state not initialized"
 		} else {
-			statusOverride := ""
-			if a.quitConfirmActive {
-				statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
-			}
 			contentText = ui.RenderHistorySplitPane(
 				a.historyState,
 				a.theme,
 				a.sizing.TerminalWidth,
 				a.sizing.TerminalHeight,
-				statusOverride,
 			)
 		}
 	case ModeFileHistory:
-		// Render file(s) history split-pane view (full terminal, no header/footer)
+		// Render file(s) history split-pane view (footer handled by GetFooterContent)
 		if a.fileHistoryState == nil {
 			contentText = "File history state not initialized"
 		} else {
-			statusOverride := ""
-			if a.quitConfirmActive {
-				statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
-			}
 			contentText = ui.RenderFileHistorySplitPane(
 				a.fileHistoryState,
 				a.theme,
 				a.sizing.TerminalWidth,
 				a.sizing.TerminalHeight,
-				statusOverride,
 			)
 		}
 	case ModeConflictResolve:
-		// Render conflict resolution UI using generic N-column view
+		// Render conflict resolution UI using generic N-column view (footer handled by GetFooterContent)
 		if a.conflictResolveState == nil {
 			contentText = "No conflict state initialized"
 		} else {
-			statusOverride := ""
-			if a.quitConfirmActive {
-				statusOverride = GetFooterMessageText(MessageCtrlCConfirm)
-			}
 			contentText = ui.RenderConflictResolveGeneric(
 				a.conflictResolveState.Files,
 				a.conflictResolveState.SelectedFileIndex,
@@ -796,7 +776,6 @@ func (a *Application) View() string {
 				a.width,
 				a.height,
 				a.theme,
-				statusOverride,
 			)
 		}
 	case ModeSetupWizard:
@@ -806,19 +785,20 @@ func (a *Application) View() string {
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
 
-	// Full-screen modes use full terminal (no header/footer, no wrapper)
+	// Full-screen modes: skip header, show footer only
 	if a.mode == ModeConsole || a.mode == ModeClone || a.mode == ModeFileHistory || a.mode == ModeHistory || a.mode == ModeConflictResolve {
-		return contentText
+		footer := a.GetFooterContent()
+		return contentText + "\n" + footer
 	}
 
 	// Render header using state header (or placeholder)
 	header := a.RenderStateHeader()
 
-	// Render footer content
-	footerContent := a.GetFooterHint()
+	// Render footer content using unified footer system
+	footer := a.GetFooterContent()
 
 	// Use reactive layout
-	return ui.RenderReactiveLayout(a.sizing, a.theme, header, contentText, footerContent)
+	return ui.RenderReactiveLayout(a.sizing, a.theme, header, contentText, footer)
 }
 
 // Init initializes the application

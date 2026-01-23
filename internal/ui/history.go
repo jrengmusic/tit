@@ -26,14 +26,14 @@ type HistoryState struct {
 }
 
 // RenderHistorySplitPane renders the history split-pane view (2 columns side-by-side)
-// Returns content exactly `width` chars wide and `height - 2` lines tall (for outer border)
+// Returns content exactly `width` chars wide and `height - 1` lines tall (footer handled externally)
 // Parameters:
 //   - state: interface{} (HistoryState from app package)
 //   - theme: Theme (colors, styles)
 //   - width, height: Terminal dimensions
 //
 // Returns: String representation of the rendered pane
-func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, statusBarOverride string) string {
+func RenderHistorySplitPane(state interface{}, theme Theme, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -44,8 +44,7 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, s
 		return "Error: invalid history state"
 	}
 
-	// Calculate pane height from terminal height
-	// Reserve 1 line for status bar + 1 for newline separator
+	// Calculate pane height from terminal height (footer takes 1 line)
 	paneHeight := height - 3
 
 	// Calculate column widths based on CONTENT NEEDS
@@ -60,11 +59,7 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int, s
 	// Join columns horizontally (side-by-side)
 	mainRow := lipgloss.JoinHorizontal(lipgloss.Top, listPaneContent, detailsPaneContent)
 
-	statusBar := buildHistoryStatusBar(historyState.PaneFocused, width, theme, statusBarOverride)
-
-	// Stack: mainRow + statusBar
-	// Total height will be (height - 3) + 1 = height - 2 (correct for outer wrapper)
-	return mainRow + "\n" + statusBar
+	return mainRow
 }
 
 // buildCommitListItems creates ListItems from commit data for rendering in list panes
@@ -147,36 +142,4 @@ func renderHistoryDetailsPane(state *HistoryState, theme Theme, width, height in
 	state.DetailsScrollOff = newScrollOffset
 
 	return rendered
-}
-
-// buildHistoryStatusBar builds the status bar with keyboard shortcuts (matches Conflict Resolver)
-func buildHistoryStatusBar(listPaneFocused bool, width int, theme Theme, overrideMessage string) string {
-	styles := NewStatusBarStyles(&theme)
-
-	// Build shortcuts based on focused pane
-	var parts []string
-	if listPaneFocused {
-		// List pane - navigate commits
-		parts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" navigate"),
-		}
-	} else {
-		// Details pane - scroll content
-		parts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
-		}
-	}
-	parts = append(parts,
-		styles.shortcutStyle.Render("TAB")+styles.descStyle.Render(" switch pane"),
-		styles.shortcutStyle.Render("ENTER")+styles.descStyle.Render(" time travel"),
-		styles.shortcutStyle.Render("ESC")+styles.descStyle.Render(" back"),
-	)
-
-	return BuildStatusBar(StatusBarConfig{
-		Parts:           parts,
-		Width:           width,
-		Centered:        true,
-		Theme:           &theme,
-		OverrideMessage: overrideMessage,
-	})
 }

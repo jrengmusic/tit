@@ -42,9 +42,9 @@ func (s *ConsoleOutState) ScrollDown() {
 	}
 }
 
-// RenderConsoleOutputFullScreen renders console output for full-screen mode (no header/footer)
+// RenderConsoleOutputFullScreen renders console output for full-screen mode (footer handled externally)
 // Takes terminal dimensions directly, returns content that occupies full terminal
-// Pattern matches RenderHistorySplitPane: content + status bar at bottom
+// Pattern matches RenderHistorySplitPane: content only, footer handled externally
 func RenderConsoleOutputFullScreen(
 	state *ConsoleOutState,
 	buffer *OutputBuffer,
@@ -54,7 +54,6 @@ func RenderConsoleOutputFullScreen(
 	operationInProgress bool,
 	abortConfirmActive bool,
 	autoScroll bool,
-	statusBarOverride string,
 ) string {
 	if termWidth <= 0 || termHeight <= 0 {
 		return ""
@@ -64,10 +63,9 @@ func RenderConsoleOutputFullScreen(
 	consoleHeight := termHeight
 
 	// Content lines available (title + blank + content = 2 lines used)
-	// Status bar takes 1 line, so content gets the rest
+	// No status bar, so content gets full height minus title
 	titleHeight := 2
-	statusHeight := 1
-	contentHeight := consoleHeight - titleHeight - statusHeight
+	contentHeight := consoleHeight - titleHeight
 
 	if contentHeight < 1 {
 		contentHeight = 1
@@ -145,13 +143,6 @@ func RenderConsoleOutputFullScreen(
 
 	scrollOffset := int(state.ScrollOffset)
 
-	// Calculate scroll status
-	atBottom := scrollOffset >= maxScroll
-	remainingLines := totalOutputLines - (scrollOffset + contentHeight)
-	if remainingLines < 0 {
-		remainingLines = 0
-	}
-
 	// Extract visible window
 	start := scrollOffset
 	end := start + contentHeight
@@ -206,91 +197,16 @@ func RenderConsoleOutputFullScreen(
 		contentBox,
 	)
 
-	// Pad panel to exact height (consoleHeight - statusHeight for status bar)
+	// Pad panel to exact height (consoleHeight for full content, footer handled externally)
 	panelLines := strings.Split(panel, "\n")
-	for len(panelLines) < consoleHeight-statusHeight {
+	for len(panelLines) < consoleHeight {
 		panelLines = append(panelLines, blankLine)
 	}
-	if len(panelLines) > consoleHeight-statusHeight {
-		panelLines = panelLines[:consoleHeight-statusHeight]
+	if len(panelLines) > consoleHeight {
+		panelLines = panelLines[:consoleHeight]
 	}
 	panel = strings.Join(panelLines, "\n")
 
-	// Build centered status bar at bottom (account for 1-cell left/right padding)
-	statusBar := buildConsoleStatusBar(termWidth-2, palette, operationInProgress, abortConfirmActive, statusBarOverride, atBottom, remainingLines)
-
-	// Combine panel and status bar, then apply padding
-	result := panel + "\n" + statusBar
-	return lipgloss.NewStyle().Padding(0, 1).Render(result)
-}
-
-// buildConsoleStatusBar builds a status bar for console output with shortcuts (left) and scroll status (right)
-func buildConsoleStatusBar(width int, palette Theme, operationInProgress bool, abortConfirmActive bool, overrideMessage string, atBottom bool, remainingLines int) string {
-	styles := NewStatusBarStyles(&palette)
-
-	// If override message is set, show centered only (no shortcuts or scroll status)
-	if overrideMessage != "" {
-		return BuildStatusBar(StatusBarConfig{
-			Width:           width,
-			Centered:        true,
-			Theme:           &palette,
-			OverrideMessage: overrideMessage,
-		})
-	}
-
-	// Build shortcuts (left side)
-	var leftParts []string
-	if abortConfirmActive {
-		leftParts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
-			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back to menu"),
-		}
-	} else if operationInProgress {
-		leftParts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
-			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" abort"),
-		}
-	} else {
-		leftParts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
-			styles.shortcutStyle.Render("ESC") + styles.descStyle.Render(" back to menu"),
-		}
-	}
-
-	statusLeft := strings.Join(leftParts, styles.sepStyle.Render("  │  "))
-
-	// Build scroll status (right side)
-	var statusRight string
-	if atBottom {
-		statusRight = styles.descStyle.Render("(at bottom)")
-	} else if remainingLines > 0 {
-		statusRight = styles.sepStyle.Render("↓ ") + styles.descStyle.Render(fmt.Sprintf("%d more lines", remainingLines))
-	} else {
-		statusRight = styles.descStyle.Render("(can scroll up)")
-	}
-
-	// Combine with proper spacing
-	leftWidth := lipgloss.Width(statusLeft)
-	rightWidth := lipgloss.Width(statusRight)
-	padding := width - leftWidth - rightWidth
-	if padding < 0 {
-		padding = 0
-	}
-
-	return statusLeft + strings.Repeat(" ", padding) + statusRight
-}
-
-// Helper functions for min/max
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	// Return panel only (footer handled externally)
+	return lipgloss.NewStyle().Padding(0, 1).Render(panel)
 }

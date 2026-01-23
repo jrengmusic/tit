@@ -425,10 +425,10 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	}
 	
 	a.gitState = state
-	buffer.Append(FooterHints["time_travel_merge_success"], ui.TypeStatus)
+	buffer.Append(LegacyFooterHints["time_travel_merge_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = FooterHints["time_travel_merge_success"]
+	a.footerHint = LegacyFooterHints["time_travel_merge_success"]
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
@@ -504,10 +504,10 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	}
 	
 	a.gitState = state
-	buffer.Append(FooterHints["time_travel_return_success"], ui.TypeStatus)
+	buffer.Append(LegacyFooterHints["time_travel_return_success"], ui.TypeStatus)
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
-	a.footerHint = FooterHints["time_travel_return_success"]
+	a.footerHint = LegacyFooterHints["time_travel_return_success"]
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
@@ -632,7 +632,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	a.conflictResolveState = resolveState
 	a.asyncOperationActive = false
 	a.mode = ModeConflictResolve
-	a.footerHint = fmt.Sprintf(FooterHints["resolve_conflicts_help"], len(conflictFiles))
+	a.footerHint = fmt.Sprintf(LegacyFooterHints["resolve_conflicts_help"], len(conflictFiles))
 	
 	buffer.Append(fmt.Sprintf(OutputMessages["conflicts_detected_count"], len(conflictFiles)), ui.TypeInfo)
 	buffer.Append(OutputMessages["mark_choices_in_resolver"], ui.TypeInfo)

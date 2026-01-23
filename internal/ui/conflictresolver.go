@@ -29,7 +29,7 @@ type ConflictFileGeneric struct {
 // RenderConflictResolveGeneric renders the generic N-column parallel view
 // Top row: N columns showing file lists with checkboxes
 // Bottom row: N columns showing content for selected file
-// Returns content exactly `width` chars wide and `height - 2` lines tall (for outer border)
+// Returns content exactly `width` chars wide and `height - 1` lines tall (footer handled externally)
 func RenderConflictResolveGeneric(
 	files []ConflictFileGeneric,
 	selectedFileIndex int,
@@ -41,17 +41,13 @@ func RenderConflictResolveGeneric(
 	width int,
 	height int,
 	theme Theme,
-	statusBarOverride string, // Optional override for status bar (e.g., Ctrl+C message)
 ) string {
 	if width <= 0 || height <= 0 || numColumns == 0 {
 		return ""
 	}
 
-	// Return height - 2 lines (wrapper will add border(2))
-	// Layout: topRow + bottomRow + status = height - 2
-	// Available for panes: (height - 2) - status(1) = height - 3
-	 
-	totalPaneHeight := height - 5
+	// Layout: topRow + bottomRow = height - 1 (footer takes 1 line)
+	totalPaneHeight := height - 4
 	topRowHeight := totalPaneHeight / 3
 	bottomRowHeight := totalPaneHeight - topRowHeight
 
@@ -78,14 +74,13 @@ func RenderConflictResolveGeneric(
 		// Calculate column width: base + 1 if we have remainder
 		columnWidth := baseColumnWidth
 		if col >= numColumns-remainder {
-			columnWidth++  
+			columnWidth++
 		}
 
 		// Use ListPane for file list
 		listPane := NewListPane(label, &theme)
 		listItems := convertFilesToListItems(files, selectedFileIndex, col, &theme)
 
-		 
 		visibleLines := topRowHeight - 4
 		if visibleLines < 1 {
 			visibleLines = 1
@@ -123,7 +118,7 @@ func RenderConflictResolveGeneric(
 		// Calculate column width: base + 1 if we have remainder
 		columnWidth := baseColumnWidth
 		if col >= numColumns-remainder {
-			columnWidth++  
+			columnWidth++
 		}
 
 		// Render content column with cursor using SSOT TextPane
@@ -141,11 +136,8 @@ func RenderConflictResolveGeneric(
 	// Join bottom row columns - lipgloss will place them side-by-side with borders touching
 	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top, bottomRowLines...)
 
-	 
-	statusBar := buildGenericConflictStatusBar(focusedPane, numColumns, width, theme, statusBarOverride)
-
-	// Stack everything with no gaps: topRow + bottomRow + statusBar
-	return topRow + "\n" + bottomRow + "\n" + statusBar
+	// Stack: topRow + bottomRow (footer handled externally)
+	return topRow + "\n" + bottomRow
 }
 
 // ========================================
@@ -175,39 +167,6 @@ func convertFilesToListItems(files []ConflictFileGeneric, selectedFileIndex int,
 		})
 	}
 	return items
-}
-
-// buildGenericConflictStatusBar builds the status bar with keyboard shortcuts for N-column view
-func buildGenericConflictStatusBar(focusedPane int, numColumns int, width int, theme Theme, overrideMessage string) string {
-	styles := NewStatusBarStyles(&theme)
-
-	// Build shortcuts based on focused pane
-	var parts []string
-	if focusedPane < numColumns {
-		// Top row (file list) - can navigate and mark
-		parts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" navigate"),
-			styles.shortcutStyle.Render("SPACE") + styles.descStyle.Render(" mark"),
-		}
-	} else {
-		// Bottom row (content) - can scroll
-		parts = []string{
-			styles.shortcutStyle.Render("↑↓") + styles.descStyle.Render(" scroll"),
-		}
-	}
-	parts = append(parts,
-		styles.shortcutStyle.Render("TAB")+styles.descStyle.Render(" switch pane"),
-		styles.shortcutStyle.Render("ENTER")+styles.descStyle.Render(" apply"),
-		styles.shortcutStyle.Render("ESC")+styles.descStyle.Render(" abort"),
-	)
-
-	return BuildStatusBar(StatusBarConfig{
-		Parts:           parts,
-		Width:           width,
-		Centered:        true,
-		Theme:           &theme,
-		OverrideMessage: overrideMessage,
-	})
 }
 
 // colorizeIncomingPaneTitle colors the hash portion of "COMMIT ABC1234" using AccentTextColor

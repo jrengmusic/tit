@@ -2,6 +2,8 @@ package app
 
 import (
 	"time"
+
+	"tit/internal/ui"
 )
 
 // TickMsg is a custom message for quit confirmation timeout
@@ -348,8 +350,94 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 	},
 }
 
-// FooterHints centralizes footer hint messages
-var FooterHints = map[string]string{
+// FooterShortcut represents a single keyboard shortcut hint
+// NOTE: This is a duplicate of ui.FooterShortcut for legacy compatibility.
+// New code should use ui.FooterShortcut and FooterHintShortcuts.
+type FooterShortcut struct {
+	Key  string // e.g., "↑↓", "Enter", "Esc"
+	Desc string // e.g., "navigate", "select", "back"
+}
+
+// FooterHintShortcuts defines all mode-specific footer shortcuts (SSOT)
+// Key = mode identifier, Value = list of shortcuts
+var FooterHintShortcuts = map[string][]ui.FooterShortcut{
+	// History mode
+	"history_list": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "Enter", Desc: "time travel"},
+		{Key: "Tab", Desc: "details"},
+		{Key: "Esc", Desc: "back"},
+	},
+	"history_details": {
+		{Key: "↑↓", Desc: "scroll"},
+		{Key: "Tab", Desc: "list"},
+		{Key: "Esc", Desc: "back"},
+	},
+
+	// File History mode
+	"filehistory_commits": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "Tab", Desc: "files"},
+		{Key: "Esc", Desc: "back"},
+	},
+	"filehistory_files": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "Tab", Desc: "diff"},
+		{Key: "Esc", Desc: "back"},
+	},
+	"filehistory_diff": {
+		{Key: "↑↓", Desc: "scroll"},
+		{Key: "v", Desc: "visual"},
+		{Key: "Tab", Desc: "commits"},
+		{Key: "Esc", Desc: "back"},
+	},
+	"filehistory_visual": {
+		{Key: "↑↓", Desc: "extend"},
+		{Key: "y", Desc: "yank"},
+		{Key: "Esc", Desc: "cancel"},
+	},
+
+	// Conflict Resolver
+	"conflict_list": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "Space", Desc: "toggle"},
+		{Key: "Tab", Desc: "diff"},
+		{Key: "Enter", Desc: "resolve"},
+	},
+	"conflict_diff": {
+		{Key: "↑↓", Desc: "scroll"},
+		{Key: "Tab", Desc: "list"},
+		{Key: "Esc", Desc: "back"},
+	},
+
+	// Console
+	"console_running": {
+		{Key: "Esc", Desc: "abort"},
+	},
+	"console_complete": {
+		{Key: "Esc", Desc: "back"},
+	},
+
+	// Input
+	"input_single": {
+		{Key: "Enter", Desc: "submit"},
+		{Key: "Esc", Desc: "cancel"},
+	},
+	"input_multi": {
+		{Key: "Enter", Desc: "submit"},
+		{Key: "Esc", Desc: "cancel"},
+	},
+
+	// Confirmation
+	"confirmation": {
+		{Key: "←→", Desc: "select"},
+		{Key: "Enter", Desc: "confirm"},
+		{Key: "Esc", Desc: "cancel"},
+	},
+}
+
+// LegacyFooterHints maintains backward compatibility for string-based hints
+var LegacyFooterHints = map[string]string{
 	"mark_all_files":         "Mark all files with SPACE before continuing",
 	"resolve_conflicts_help": "Resolve %d conflicted file(s) - SPACE to mark, ENTER to continue, ESC to abort",
 	"error_writing_file":     "Error writing %s: %v",
