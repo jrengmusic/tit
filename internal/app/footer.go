@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"tit/internal/ui"
 )
 
@@ -31,9 +32,31 @@ func (a *Application) GetFooterContent() string {
 		return ""
 	}
 
-	// Lookup shortcuts from SSOT and render with styling
+	// Lookup shortcuts from SSOT
 	shortcuts := FooterHintShortcuts[hintKey]
-	return ui.RenderFooter(shortcuts, width, &a.theme)
+
+	// Special case: Console mode needs scroll status on right
+	var rightContent string
+	if a.mode == ModeConsole || a.mode == ModeClone {
+		rightContent = a.computeConsoleScrollStatus()
+	}
+
+	return ui.RenderFooter(shortcuts, width, &a.theme, rightContent)
+}
+
+// computeConsoleScrollStatus returns the right-side scroll status for console mode
+func (a *Application) computeConsoleScrollStatus() string {
+	state := &a.consoleState
+	atBottom := state.ScrollOffset >= state.MaxScroll
+	remainingLines := state.MaxScroll - state.ScrollOffset
+
+	if atBottom {
+		return "(at bottom)"
+	}
+	if remainingLines > 0 {
+		return fmt.Sprintf("↓ %d more", remainingLines)
+	}
+	return "(can scroll up)"
 }
 
 // getFooterHintKey returns the SSOT key for current mode/state

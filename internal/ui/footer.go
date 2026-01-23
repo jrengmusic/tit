@@ -92,26 +92,50 @@ type FooterShortcut struct {
 	Desc string // e.g., "navigate", "select", "back"
 }
 
-// RenderFooter renders footer shortcuts with proper styling
-func RenderFooter(shortcuts []FooterShortcut, width int, theme *Theme) string {
-	if theme == nil || len(shortcuts) == 0 {
+// RenderFooter renders footer shortcuts with optional right-side content
+// If rightContent is provided: shortcuts on left, rightContent on right
+// If rightContent is empty: shortcuts centered
+func RenderFooter(shortcuts []FooterShortcut, width int, theme *Theme, rightContent string) string {
+	if theme == nil {
 		return ""
 	}
 
 	styles := NewFooterStyles(theme)
 
-	// Build styled parts: "Key desc"
+	// If rightContent provided, render left shortcuts + right content
+	if rightContent != "" {
+		// Build styled parts: "Key desc"
+		var leftParts []string
+		for _, sc := range shortcuts {
+			part := styles.shortcutStyle.Render(sc.Key) + styles.descStyle.Render(" "+sc.Desc)
+			leftParts = append(leftParts, part)
+		}
+		leftJoined := strings.Join(leftParts, styles.sepStyle.Render("  │  "))
+
+		// Style right content
+		rightStyled := styles.descStyle.Render(rightContent)
+
+		// Calculate spacing
+		leftWidth := lipgloss.Width(leftJoined)
+		rightWidth := lipgloss.Width(rightStyled)
+		padding := width - leftWidth - rightWidth
+		if padding < 0 {
+			padding = 0
+		}
+
+		return leftJoined + strings.Repeat(" ", padding) + rightStyled
+	}
+
+	// No rightContent: center shortcuts
 	var parts []string
 	for _, sc := range shortcuts {
 		part := styles.shortcutStyle.Render(sc.Key) + styles.descStyle.Render(" "+sc.Desc)
 		parts = append(parts, part)
 	}
 
-	// Join with styled separator
 	sep := styles.sepStyle.Render("  ·  ")
 	content := strings.Join(parts, sep)
 
-	// Center in terminal width
 	return lipgloss.NewStyle().
 		Width(width).
 		Align(lipgloss.Center).
@@ -120,7 +144,7 @@ func RenderFooter(shortcuts []FooterShortcut, width int, theme *Theme) string {
 
 // RenderFooterOverride renders override message (e.g., Ctrl+C confirm)
 func RenderFooterOverride(message string, width int, theme *Theme) string {
-	if theme == nil || message == "" {
+	if message == "" {
 		return ""
 	}
 	style := lipgloss.NewStyle().
