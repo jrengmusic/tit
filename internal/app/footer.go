@@ -83,11 +83,11 @@ func (a *Application) getFooterHintKey() string {
 	case ModeConflictResolve:
 		return a.getConflictHintKey()
 
-	case ModeInput:
-		if a.inputHeight > 1 {
-			return "input_multi"
+	case ModeInput, ModeCloneURL, ModeSetupWizard:
+		if a.inputValue == "" {
+			return "input_empty"
 		}
-		return "input_single"
+		return "input_filled"
 
 	case ModeConfirmation:
 		return "confirmation"

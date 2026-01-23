@@ -519,3 +519,5 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 
 	return nil
 }
+
+

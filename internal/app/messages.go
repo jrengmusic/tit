@@ -464,13 +464,13 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 	},
 
 	// Input
-	"input_single": {
+	"input_empty": {
 		{Key: "Enter", Desc: "submit"},
-		{Key: "Esc", Desc: "cancel"},
+		{Key: "Esc", Desc: "back"},
 	},
-	"input_multi": {
+	"input_filled": {
 		{Key: "Enter", Desc: "submit"},
-		{Key: "Esc", Desc: "cancel"},
+		{Key: "Esc", Desc: "clear"},
 	},
 
 	// Confirmation

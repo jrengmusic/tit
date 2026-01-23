@@ -199,6 +199,7 @@ var MenuItems = map[string]MenuItem{
 		Hint:     "Create new folder and clone there",
 		Enabled:  true,
 	},
+
 }
 
 // GetMenuItem retrieves a menu item by ID from the SSOT map

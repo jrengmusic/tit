@@ -98,7 +98,7 @@
 
 ANALYST: Amp (Claude Sonnet 4) — Registered 2026-01-23
 SCAFFOLDER: OpenCode (CLI Agent) — Code scaffolding specialist, literal implementation
-CARETAKER: OpenCode (CLI Agent) — Structural reviewer, error handling, pattern enforcement
+CARETAKER: Amp (Claude Sonnet 4) — Registered 2026-01-23
 INSPECTOR: OpenCode (CLI Agent) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
 SURGEON: OpenCode (CLI Agent) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Mistral-Vibe (devstral-2) — Session documentation, log compilation, git commit messages
@@ -267,6 +267,45 @@ All references now use "footer" terminology:
 
 ### Additional CARETAKER Work
 
+#### Text Input Component Unification ✅
+**Completed by:** CARETAKER (84-CARETAKER-TEXT-INPUT-UNIFICATION.md)
+- Fixed SSOT violations in text input components
+- Unified all text input to use single SSOT component
+- Problem: Two separate implementations (`RenderTextInput` and `RenderInputField`)
+- Solution: All input modes now use `RenderTextInputFullScreen`
+
+**Changes Made:**
+1. **Unified Rendering Component:**
+   - All input modes use `RenderTextInputFullScreen`
+   - `ModeCloneURL` changed from inline to full-screen (matches `ModeInput`)
+   - Setup wizard email step uses same `RenderTextInput` component
+
+2. **Fixed InputHeight Default:**
+   - `transitionTo()` defaults `inputHeight = 4` for `ModeInput` and `ModeCloneURL`
+   - Prevents blank renders when `InputHeight` not explicitly set
+
+3. **Unified Footer Logic:**
+   - Added `ModeCloneURL` and `ModeSetupWizard` to footer hint lookup
+   - Dynamic footer based on input content:
+     - Empty input: `Enter submit │ Esc back`
+     - Filled input: `Enter submit │ Esc clear`
+
+4. **Deleted Duplicate Component:**
+   - Removed `internal/ui/input.go` (contained unused `RenderInputField`, `InputFieldState`)
+
+**Files Modified (5):**
+- `internal/app/app.go` — Added inputHeight default, updated ModeCloneURL, added setup email early return
+- `internal/app/footer.go` — Added ModeCloneURL/ModeSetupWizard to footer hint lookup, changed hints
+- `internal/app/messages.go` — Renamed footer hints: `input_single` → `input_empty`, `input_multi` → `input_filled`
+- `internal/app/setup_wizard.go` — Rewrote `renderSetupEmail()` to use `RenderTextInput` with Continue button
+
+**Files Deleted (1):**
+- `internal/ui/input.go` — Duplicate input component (SSOT violation)
+
+**SSOT Compliance:**
+- All 7 text input flows share same component, footer SSOT, layout, and constants
+- Verified flows: init_branch_name, init_subdir_name, add_remote_url, clone_url, clone_here, clone_to_subdir, setup_email
+
 #### Commit Input Layout Fix ✅
 **Completed by:** CARETAKER (84-CARETAKER-COMMIT-INPUT-LAYOUT.md)
 - Fixed 4 layout issues with commit message text input:
@@ -320,6 +359,7 @@ All references now use "footer" terminology:
 - `.carol/84-SCAFFOLDER-FOOTER-CONTENT.md` — Phase 2 execution
 - `.carol/84-SCAFFOLDER-REMOVE-STATUSBARS.md` — Phases 3-7 execution
 - `.carol/84-SCAFFOLDER-FOOTER-UNIFICATION.md` — Complete summary
+- `.carol/84-CARETAKER-TEXT-INPUT-UNIFICATION.md` — Text input unification
 - `.carol/84-CARETAKER-COMMIT-INPUT-LAYOUT.md` — Commit input layout fix
 - `.carol/84-INSPECTOR-HEADER-HEIGHT-FIX.md` — Header height bug fix
 - `.carol/84-INSPECTOR-LEGACY-REMOVAL.md` — Legacy constants cleanup
@@ -332,6 +372,7 @@ The following files will be deleted as per JOURNALIST protocol:
 - `.carol/84-SCAFFOLDER-FOOTER-CONTENT.md`
 - `.carol/84-SCAFFOLDER-REMOVE-STATUSBARS.md`
 - `.carol/84-SCAFFOLDER-FOOTER-UNIFICATION.md`
+- `.carol/84-CARETAKER-TEXT-INPUT-UNIFICATION.md`
 - `.carol/84-CARETAKER-COMMIT-INPUT-LAYOUT.md`
 - `.carol/84-INSPECTOR-HEADER-HEIGHT-FIX.md`
 - `.carol/84-INSPECTOR-LEGACY-REMOVAL.md`

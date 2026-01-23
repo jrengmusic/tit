@@ -240,32 +240,37 @@ func (a *Application) renderSetupPrerequisites() string {
 
 // renderSetupEmail renders the email input step
 func (a *Application) renderSetupEmail() string {
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(a.theme.LabelTextColor)).
-		Render("Enter your email")
+	textInputState := ui.TextInputState{
+		Value:     a.inputValue,
+		CursorPos: a.inputCursorPosition,
+		Height:    4,
+	}
 
-	hint := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(a.theme.DimmedTextColor)).
-		Render("This email will be used as the SSH key comment")
-
-	// Use the standard RenderInputField for consistency
-	inputField := ui.RenderInputField(
-		ui.InputFieldState{
-			Label:      "Email:",
-			Value:      a.inputValue,
-			CursorPos:  a.inputCursorPosition,
-			IsActive:   true, // Always active in this step
-			BorderColor: a.theme.BoxBorderColor,
-		},
-		50, // Width
-		4,  // Height (1 label + 3 box lines)
+	// Render input component
+	inputContent := ui.RenderTextInput(
+		"Email (for SSH key comment):",
+		textInputState,
 		a.theme,
+		a.sizing.ContentInnerWidth,
+		textInputState.Height,
 	)
 
+	// Add continue button below input
 	button := renderButton("Continue", true, a.theme)
+	combined := lipgloss.JoinVertical(lipgloss.Center, inputContent, "", button)
 
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", hint, "", inputField, "", button)
+	// Center in content area
+	contentAreaHeight := a.sizing.TerminalHeight - ui.FooterHeight
+	centeredContent := lipgloss.Place(
+		a.sizing.TerminalWidth,
+		contentAreaHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		combined,
+	)
+
+	footer := a.GetFooterContent()
+	return lipgloss.JoinVertical(lipgloss.Left, centeredContent, footer)
 }
 
 // renderSetupGenerate renders the key generation step

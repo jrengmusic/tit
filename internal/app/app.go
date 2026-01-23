@@ -162,6 +162,9 @@ func (a *Application) transitionTo(config ModeTransition) {
 	}
 	if config.InputHeight > 0 {
 		a.inputHeight = config.InputHeight
+	} else if config.Mode == ModeInput || config.Mode == ModeCloneURL {
+		// Default to single-line input (4 = label + 3-line box)
+		a.inputHeight = 4
 	}
 
 	// Reset workflow-specific fields based on the configuration
@@ -712,22 +715,17 @@ func (a *Application) View() string {
 		textInputState := ui.TextInputState{
 			Value:     a.inputValue,
 			CursorPos: a.inputCursorPosition,
-			Height:    1,
+			Height:    a.inputHeight,
 		}
 
-		inputContent := ui.RenderTextInput(
+		footer := a.GetFooterContent()
+		return ui.RenderTextInputFullScreen(
+			a.sizing,
+			a.theme,
 			a.inputPrompt,
 			textInputState,
-			a.theme,
-			a.sizing.ContentInnerWidth,
-			a.sizing.ContentHeight-2,
+			footer,
 		)
-
-		if a.inputValidationMsg != "" {
-			inputContent += "\n\n" + a.inputValidationMsg
-		}
-
-		contentText = inputContent
 	case ModeCloneLocation:
 		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuCloneLocation()), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 	case ModeInitializeLocation:
@@ -776,7 +774,11 @@ func (a *Application) View() string {
 			)
 		}
 	case ModeSetupWizard:
-		// Git environment setup wizard
+		// Email step uses same full-screen input as ModeInput
+		if a.setupWizardStep == SetupStepEmail {
+			return a.renderSetupEmail()
+		}
+		// Other setup wizard steps
 		contentText = a.renderSetupWizard()
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
