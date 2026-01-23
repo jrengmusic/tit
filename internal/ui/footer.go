@@ -133,7 +133,7 @@ func RenderFooter(shortcuts []FooterShortcut, width int, theme *Theme, rightCont
 		parts = append(parts, part)
 	}
 
-	sep := styles.sepStyle.Render("  ·  ")
+	sep := styles.sepStyle.Render("  │  ")
 	content := strings.Join(parts, sep)
 
 	return lipgloss.NewStyle().

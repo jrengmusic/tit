@@ -864,11 +864,9 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 			// Check if this is time travel mode (handled separately)
 			if a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
 				buffer.Append("Time travel successful. Press ESC to return to menu.", ui.TypeStatus)
-				a.footerHint = "Time travel successful. Press ESC to return to menu."
 			} else {
 				// Regular operation (commit, push, etc.) - show completion message
 				buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-				a.footerHint = GetFooterMessageText(MessageOperationComplete)
 			}
 		}
 	}
