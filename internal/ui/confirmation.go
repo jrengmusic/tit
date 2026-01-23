@@ -130,8 +130,8 @@ func (c *ConfirmationDialog) colorizeCommitHashes(text string) string {
 	return output.String()
 }
 
-// Render renders the confirmation dialog centered within ContentHeight bounds using SSOT
-func (c *ConfirmationDialog) Render() string {
+// Render renders the confirmation dialog centered within the given height using DynamicSizing
+func (c *ConfirmationDialog) Render(height int) string {
 	// Always render when in confirmation mode
 	config := c.ApplyContext()
 
@@ -143,8 +143,8 @@ func (c *ConfirmationDialog) Render() string {
 	unselectedBg := lipgloss.Color(c.Theme.InlineBackgroundColor)
 	unselectedFg := lipgloss.Color(c.Theme.ContentTextColor)
 
-	// Dialog width uses ContentInnerWidth from SSOT (76 = 80 - 4 for outer content box)
-	dialogWidth := ContentInnerWidth - 10 // Leave padding for visual centering
+	// Dialog width uses c.Width (passed from DynamicSizing.ContentInnerWidth)
+	dialogWidth := c.Width - 10 // Leave padding for visual centering
 
 	// Create styles
 	dialogStyle := lipgloss.NewStyle().
@@ -228,11 +228,11 @@ func (c *ConfirmationDialog) Render() string {
 	// Build the dialog
 	dialog := dialogStyle.Render(content.String())
 
-	// Center the dialog vertically and horizontally within ContentHeight
+	// Center the dialog vertically and horizontally within the given height
 	// Use lipgloss.Place to center within the content box area
 	centeredDialog := lipgloss.Place(
-		ContentInnerWidth,
-		ContentHeight,
+		c.Width,
+		height,
 		lipgloss.Center,
 		lipgloss.Center,
 		dialog,

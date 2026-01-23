@@ -74,15 +74,14 @@ func (b *ListPaneBuilder) Render(items []ListItem, width, height int) string {
 // Render renders the list pane as a single bordered box string.
 // The box will be exactly width x height characters (including borders).
 func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, columnPos int, numColumns int) string {
-	// Border color based on focus state (like old-tit)
+	// Border color based on focus state
 	borderColor := lp.Theme.ConflictPaneUnfocusedBorder
 	if isActive {
 		borderColor = lp.Theme.ConflictPaneFocusedBorder
 	}
 
-	 
 	// Box will have borders (2 chars) and padding (2 chars: left+right)
-	 
+
 	contentWidth := width - 4
 
 	if contentWidth <= 0 {
@@ -100,9 +99,9 @@ func (lp *ListPane) Render(items []ListItem, width, height int, isActive bool, c
 
 	// Calculate visible lines for items
 	// Box has Height(height) which includes borders
-	 
+
 	// Interior contains: title(1) + separator(1) + items(?)
-	 
+
 	visibleLines := height - 2
 	if visibleLines < 1 {
 		visibleLines = 1

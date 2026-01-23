@@ -99,10 +99,243 @@
 ANALYST: Amp (Claude Sonnet 4) — Registered 2026-01-23
 SCAFFOLDER: OpenCode (CLI Agent) — Code scaffolding specialist, literal implementation
 CARETAKER: OpenCode (CLI Agent) — Structural reviewer, error handling, pattern enforcement
-INSPECTOR: Amp (Claude Sonnet 4) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
+INSPECTOR: OpenCode (CLI Agent) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
 SURGEON: OpenCode (CLI Agent) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Mistral-Vibe (devstral-2) — Session documentation, log compilation, git commit messages
 
+
+---
+
+## Session 84: Footer Unification (Status Bar → Footer) ✅
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-23
+
+### Overview
+**Status:** ✅ COMPLETED - All 7 phases executed successfully
+**Role:** SCAFFOLDER (OpenCode CLI Agent)
+**Planned by:** ANALYST (Amp - Claude Sonnet 4)
+**Documents compiled:** 84-ANALYST-KICKOFF.md, 84-SCAFFOLDER-*.md (4 files)
+
+### Problem Statement
+With reactive layout implementation (Session 80), footer and status bar were functionally identical - both sat at the bottom showing mode-specific hints. Current implementation had:
+
+1. **Footer** - rendered by `RenderReactiveLayout()` as 1-line bottom section
+2. **Status bar** - rendered INSIDE content by each mode (`buildHistoryStatusBar()`, `buildFileHistoryStatusBar()`, etc.)
+
+**Issues:**
+- Terminology confusion (two names for same concept)
+- Duplicated rendering logic
+- Status bar height subtracted from content, then footer adds another line
+- Inconsistent naming across codebase (`statusBar`, `StatusBar`, `status_bar`)
+
+### Solution Architecture
+**Unified everything under FOOTER:**
+
+1. ✅ Removed all "status bar" terminology
+2. ✅ Footer content is mode-driven via `GetFooterContent()`
+3. ✅ Full-screen modes (History, FileHistory, Console, ConflictResolver) return content WITHOUT embedded status bar
+4. ✅ `RenderReactiveLayout()` handles footer rendering for ALL modes
+
+### Target Architecture
+```
+┌─────────────────────────────────────┐
+│ HEADER                              │
+├─────────────────────────────────────┤
+│ CONTENT                             │
+│ ┌─────────────────────────────────┐ │
+│ │ ... mode content ...            │ │  ← No embedded footer
+│ │                                 │ │
+│ └─────────────────────────────────┘ │
+├─────────────────────────────────────┤
+│ FOOTER                              │  ← Single source, mode-driven
+└─────────────────────────────────────┘
+```
+
+### Implementation Summary
+
+#### Phase 1: Rename statusbar.go → footer.go ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-FOOTER-RENAME.md)
+- Renamed `internal/ui/statusbar.go` → `internal/ui/footer.go`
+- Updated all type/function references (StatusBar → Footer)
+- Modified files: footer.go, console.go, filehistory.go, history.go, conflictresolver.go
+
+#### Phase 2: Create footer.go (app package) ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-FOOTER-CONTENT.md)
+- Created `internal/app/footer.go` with `GetFooterContent()` function
+- Added `FooterHintShortcuts` SSOT to `messages.go`
+- Implemented priority system: quitConfirm > clearConfirm > mode-specific hints
+- Added helper functions: `getFooterHintKey()`, `getFileHistoryHintKey()`, `getConflictHintKey()`
+- Modified files: app/footer.go, ui/footer.go, app/messages.go, handlers.go, app.go, git_handlers.go, conflict_handlers.go, confirmation_handlers.go
+
+#### Phase 3: Update History Mode ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-REMOVE-STATUSBARS.md)
+- Removed `statusBarOverride` parameter from `RenderHistorySplitPane()`
+- Removed `buildHistoryStatusBar()` function
+- Updated paneHeight calculation (height-1)
+- Modified files: ui/history.go
+
+#### Phase 4: Update FileHistory Mode ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-REMOVE-STATUSBARS.md)
+- Removed `statusBarOverride` parameter from `RenderFileHistorySplitPane()`
+- Removed `buildFileHistoryStatusBar()` and `buildDiffStatusBar()` functions
+- Updated height calculation
+- Removed unused strings import
+- Modified files: ui/filehistory.go
+
+#### Phase 5: Update Console Mode ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-REMOVE-STATUSBARS.md)
+- Removed `statusBarOverride`, `operationInProgress`, `abortConfirmActive` parameters
+- Removed `buildConsoleStatusBar()` function
+- Removed min/max helper functions
+- Updated content height calculation
+- Modified files: ui/console.go
+
+#### Phase 6: Update ConflictResolver Mode ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-REMOVE-STATUSBARS.md)
+- Removed `statusBarOverride` parameter from `RenderConflictResolveGeneric()`
+- Removed `buildGenericConflictStatusBar()` function
+- Updated height calculation
+- Modified files: ui/conflictresolver.go
+
+#### Phase 7: Unify View() ✅
+**Completed by:** SCAFFOLDER (84-SCAFFOLDER-REMOVE-STATUSBARS.md)
+- Removed all `statusOverride` variables and parameters
+- Changed `footerContent := a.GetFooterHint()` to `footer := a.GetFooterContent()`
+- Updated all mode render calls to use unified footer system
+- Modified files: app/app.go
+
+### Files Created (2)
+- `internal/app/footer.go` — Core footer logic with `GetFooterContent()` and helper functions
+- `internal/ui/footer.go` — Renamed from statusbar.go with Footer types and render functions
+
+### Files Deleted (1)
+- `internal/ui/statusbar.go` — Replaced by footer.go
+
+### Files Modified (12 total)
+- `internal/ui/footer.go` — Renamed types (StatusBar → Footer), added `RenderFooter()` with rightContent support, added `RenderFooterOverride()`
+- `internal/ui/history.go` — Removed `buildHistoryStatusBar()`, updated `RenderHistorySplitPane()` signature
+- `internal/ui/filehistory.go` — Removed status bar functions, updated `RenderFileHistorySplitPane()`
+- `internal/ui/console.go` — Removed `buildConsoleStatusBar()`, updated `RenderConsoleOutputFullScreen()`
+- `internal/ui/conflictresolver.go` — Removed `buildGenericConflictStatusBar()`, updated `RenderConflictResolveGeneric()`
+- `internal/app/messages.go` — Added `FooterHintShortcuts` SSOT map, added `ConsoleMessages` SSOT map, removed `LegacyFooterHints`
+- `internal/app/app.go` — Updated `View()` to use `GetFooterContent()`, fixed message order for cache operations
+- `internal/app/handlers.go` — Updated `FooterHints` → `LegacyFooterHints` (4 references)
+- `internal/app/git_handlers.go` — Updated `FooterHints` → `LegacyFooterHints` (5 references)
+- `internal/app/conflict_handlers.go` — Updated `FooterHints` → `LegacyFooterHints` (5 references)
+- `internal/app/confirmation_handlers.go` — Updated `FooterHints` → `LegacyFooterHints` (2 references)
+
+### Breaking Changes Fixed
+- Console footer now shows `↑↓ scroll │ Esc abort` with scroll status on right
+- Removed `Ctrl+Enter` shortcut (was incorrectly added from kickoff plan)
+- Fixed message order: cache building completes BEFORE "Press ESC to return to menu"
+- All separators standardized to `│` (pipe character)
+
+### Cleanup Performed
+- Removed `LegacyFooterHints` entirely — all messages now in `ConsoleMessages` SSOT map
+- Removed dead `a.footerHint` assignments (50+ instances) that were not used
+- Removed temporary debug code
+
+### Naming Convention (MANDATORY) - Fully Implemented
+All references now use "footer" terminology:
+- `statusBar` → `footer` ✅
+- `StatusBar` → `Footer` ✅
+- `statusBarOverride` → (removed — use `GetFooterContent()`) ✅
+- `buildXxxStatusBar()` → (removed — footer is centralized) ✅
+- `StatusBarConfig` → `FooterConfig` ✅
+- `StatusBarStyles` → `FooterStyles` ✅
+
+### Success Criteria - All Met ✅
+1. ✅ No "statusBar" or "StatusBar" references in codebase
+2. ✅ All modes use unified `GetFooterContent()`
+3. ✅ Footer content is mode-driven (SSOT in messages.go)
+4. ✅ Ctrl+C confirmation works in all modes
+5. ✅ ESC clear confirmation works in input modes
+6. ✅ Footer renders correctly in all modes
+7. ✅ Clean build with `./build.sh`
+
+### Build Status
+✅ Clean compile with `./build.sh`
+✅ All tests pass
+
+### Testing Status
+✅ VERIFIED — All success criteria met, footer unification working as specified
+
+### Dependencies
+- **Prerequisite for:** Session 85 (Timeline Sync), Session 86 (Config Menu)
+- **Depends on:** Reactive layout (Session 80) — already implemented
+
+### Additional CARETAKER Work
+
+#### Commit Input Layout Fix ✅
+**Completed by:** CARETAKER (84-CARETAKER-COMMIT-INPUT-LAYOUT.md)
+- Fixed 4 layout issues with commit message text input:
+  - Not centered horizontally/vertically
+  - Border truncated
+  - Footer not at bottom
+  - Gap between label and input box
+- Root cause: `inputHeight` was never set (defaulted to 0), height calculation scattered
+- Solution: Clean flow using DynamicSizing as SSOT:
+  - Dispatchers calculate height → `transitionTo` sets → state passes → render uses
+- Modified files:
+  - `internal/ui/textinput.go` — Removed blank line between label and box
+  - `internal/app/app.go` — Added `InputHeight` to `ModeTransition` struct, updated `transitionTo` to set `inputHeight`
+  - `internal/app/dispatchers.go` — Set `InputHeight = TerminalHeight - FooterHeight` in commit dispatchers
+  - `internal/ui/layout.go` — Simplified `RenderTextInputFullScreen` to use `state.Height` directly, center with `lipgloss.Place`, stick footer with `JoinVertical`
+- Cleanup: Removed dead code (height recalculation, state copy, duplicate parameters)
+- No manual string concatenation for footer (now uses `JoinVertical`)
+
+### Additional INSPECTOR Work
+
+#### Header Height Fix ✅
+**Completed by:** INSPECTOR (84-INSPECTOR-HEADER-HEIGHT-FIX.md)
+- Fixed header truncation bug (off-by-one height calculation)
+- Root cause: banner rendering added trailing newline on last row
+- Solution: Skip newline on last row in `RenderBannerDynamic()` loop
+- Additional fix: `contentHeight = termHeight - HeaderHeight - FooterHeight - 1` (reserves line for cursor)
+- Modified files: `internal/ui/layout.go` (lines 32-44, 68)
+- Verified: Header full when banner disabled and enabled
+
+#### Legacy Constants Removal ✅
+**Completed by:** INSPECTOR (84-INSPECTOR-LEGACY-REMOVAL.md)
+- Removed all legacy constants (`ContentInnerWidth = 76`, `ContentHeight = 24`)
+- Updated `ConfirmationDialog.Render()` to accept height parameter
+- Removed deprecated comments about legacy system
+- Modified files: `internal/ui/sizing.go`, `internal/ui/confirmation.go`, `internal/app/modes.go`, `internal/app/messages.go`, `internal/app/app.go`
+- All code now uses `DynamicSizing` struct fields instead of hardcoded constants
+
+#### Old/Deprecated Code Removal ✅
+**Completed by:** INSPECTOR (84-INSPECTOR-OLD-DEPRECATED-REMOVAL.md)
+- Removed 25+ [DEBUG] logging statements from confirmation handlers
+- Removed 30+ DEBUG logging statements from git execute functions
+- Removed all "OLD-TIT EXACT" and "old-tit exact" comments
+- Removed all "(like old-tit)" and "(same logic as old-tit)" comments
+- Removed outdated maxWidth reference comment (legacy constant 76)
+- Modified files: `internal/app/confirmation_handlers.go`, `internal/git/execute.go`, `internal/ui/theme.go`, `internal/app/app.go`, `internal/app/dispatchers.go`, `internal/app/handlers.go`, `internal/app/operations.go`, `internal/ui/listpane.go`, `internal/ui/textinput.go`
+- Build verified clean with `./build.sh`
+
+### Task Summary Files Compiled
+- `.carol/84-ANALYST-KICKOFF.md` — Original plan by ANALYST
+- `.carol/84-SCAFFOLDER-FOOTER-RENAME.md` — Phase 1 execution
+- `.carol/84-SCAFFOLDER-FOOTER-CONTENT.md` — Phase 2 execution
+- `.carol/84-SCAFFOLDER-REMOVE-STATUSBARS.md` — Phases 3-7 execution
+- `.carol/84-SCAFFOLDER-FOOTER-UNIFICATION.md` — Complete summary
+- `.carol/84-CARETAKER-COMMIT-INPUT-LAYOUT.md` — Commit input layout fix
+- `.carol/84-INSPECTOR-HEADER-HEIGHT-FIX.md` — Header height bug fix
+- `.carol/84-INSPECTOR-LEGACY-REMOVAL.md` — Legacy constants cleanup
+- `.carol/84-INSPECTOR-OLD-DEPRECATED-REMOVAL.md` — Old/deprecated code removal
+
+### Files to Delete After Compilation
+The following files will be deleted as per JOURNALIST protocol:
+- `.carol/84-ANALYST-KICKOFF.md`
+- `.carol/84-SCAFFOLDER-FOOTER-RENAME.md`
+- `.carol/84-SCAFFOLDER-FOOTER-CONTENT.md`
+- `.carol/84-SCAFFOLDER-REMOVE-STATUSBARS.md`
+- `.carol/84-SCAFFOLDER-FOOTER-UNIFICATION.md`
+- `.carol/84-CARETAKER-COMMIT-INPUT-LAYOUT.md`
+- `.carol/84-INSPECTOR-HEADER-HEIGHT-FIX.md`
+- `.carol/84-INSPECTOR-LEGACY-REMOVAL.md`
+- `.carol/84-INSPECTOR-OLD-DEPRECATED-REMOVAL.md`
 
 ---
 
@@ -258,7 +491,7 @@ JOURNALIST: Mistral-Vibe (devstral-2) — Session documentation, log compilation
 
 
 
-## Session 84: Console Full-Screen Mode & Separator Color Standardization ✅
+## Session 85: Console Full-Screen Mode & Separator Color Standardization ✅
 
 **Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
 **Date:** 2026-01-23

@@ -1026,7 +1026,7 @@ func (a *Application) updateFileHistoryDiff() {
 	commit := a.fileHistoryState.Commits[a.fileHistoryState.SelectedCommitIdx]
 	file := a.fileHistoryState.Files[a.fileHistoryState.SelectedFileIdx]
 
-	// Determine version based on current working tree state (same logic as old-tit)
+	// Determine version based on current working tree state
 	// If working tree is Dirty (has unstaged changes) → use "wip" diff (commit vs working tree)
 	// Otherwise → use "parent" diff (commit vs parent commit)
 	version := "parent"

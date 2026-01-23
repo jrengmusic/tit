@@ -133,9 +133,9 @@ func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 		InputPrompt: InputMessages["commit_message"].Prompt,
 		InputAction: "commit_message",
 		FooterHint:  InputMessages["commit_message"].Hint,
+		InputHeight: app.sizing.TerminalHeight - ui.FooterHeight,
 		ResetFields: []string{},
 	})
-	app.inputHeight = 16 // Multiline for commit message
 	return nil
 }
 
@@ -146,9 +146,9 @@ func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 		InputPrompt: InputMessages["commit_message"].Prompt,
 		InputAction: "commit_push_message",
 		FooterHint:  "Enter commit message (will commit and push)",
+		InputHeight: app.sizing.TerminalHeight - ui.FooterHeight,
 		ResetFields: []string{},
 	})
-	app.inputHeight = 16 // Multiline for commit message
 	return nil
 }
 
@@ -192,7 +192,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchForcePush shows confirmation dialog for destructive action (like old-tit)
+// dispatchForcePush shows confirmation dialog for destructive action
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	// Show confirmation dialog for destructive action
 	app.mode = ModeConfirmation
@@ -213,7 +213,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchReplaceLocal shows confirmation dialog for destructive action (like old-tit)
+// dispatchReplaceLocal shows confirmation dialog for destructive action
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 	// Show confirmation dialog for destructive action
 	app.mode = ModeConfirmation

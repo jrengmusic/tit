@@ -396,8 +396,6 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 }
 
 // FooterShortcut represents a single keyboard shortcut hint
-// NOTE: This is a duplicate of ui.FooterShortcut for legacy compatibility.
-// New code should use ui.FooterShortcut and FooterHintShortcuts.
 type FooterShortcut struct {
 	Key  string // e.g., "↑↓", "Enter", "Esc"
 	Desc string // e.g., "navigate", "select", "back"

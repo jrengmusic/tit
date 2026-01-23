@@ -47,9 +47,9 @@ func RenderConflictResolveGeneric(
 	}
 
 	// Layout: topRow + bottomRow = height - 1 (footer takes 1 line)
-	totalPaneHeight := height - 4
+	totalPaneHeight := height
 	topRowHeight := totalPaneHeight / 3
-	bottomRowHeight := totalPaneHeight - topRowHeight
+	bottomRowHeight := totalPaneHeight - topRowHeight - 5
 
 	// Adjust: add 2 to top row, reduce from bottom row
 	topRowHeight += 2

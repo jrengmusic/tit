@@ -29,7 +29,7 @@ func RenderBannerDynamic(width, height int) string {
 
 	var output strings.Builder
 
-	for _, row := range brailleArray {
+	for i, row := range brailleArray {
 		for _, bc := range row {
 			hex := banner.RGBToHex(bc.Color.R, bc.Color.G, bc.Color.B)
 			styledChar := lipgloss.NewStyle().
@@ -37,7 +37,9 @@ func RenderBannerDynamic(width, height int) string {
 				Render(string(bc.Char))
 			output.WriteString(styledChar)
 		}
-		output.WriteString("\n")
+		if i < len(brailleArray)-1 {
+			output.WriteString("\n")
+		}
 	}
 
 	return output.String()
@@ -65,16 +67,18 @@ func RenderReactiveLayout(sizing DynamicSizing, theme Theme, header, content, fo
 		return renderTooSmallMessage(sizing.TerminalWidth, sizing.TerminalHeight)
 	}
 
-	contentHeight := sizing.TerminalHeight - HeaderHeight - FooterHeight
+	contentHeight := sizing.TerminalHeight - HeaderHeight - FooterHeight - 1 // -1 for terminal rendering
 
-	// Header: fixed height, top-aligned
-	headerSection := lipgloss.NewStyle().
-		Width(sizing.TerminalWidth).
-		Height(HeaderHeight).
-		AlignVertical(lipgloss.Top).
-		Render(header)
+	// Header: stick to top, exact height
+	headerSection := lipgloss.Place(
+		sizing.TerminalWidth,
+		HeaderHeight,
+		lipgloss.Left,
+		lipgloss.Top,
+		header,
+	)
 
-	// Content: fills middle space, centered
+	// Content: fills middle space
 	contentSection := lipgloss.NewStyle().
 		Width(sizing.TerminalWidth).
 		Height(contentHeight).
@@ -82,27 +86,52 @@ func RenderReactiveLayout(sizing DynamicSizing, theme Theme, header, content, fo
 		AlignVertical(lipgloss.Center).
 		Render(content)
 
-	// Footer: single line, centered
-	footerSection := lipgloss.NewStyle().
-		Width(sizing.TerminalWidth).
-		Height(FooterHeight).
-		Align(lipgloss.Center).
-		Foreground(lipgloss.Color(theme.FooterTextColor)).
-		Render(footer)
-
-	// Join sections
-	combined := lipgloss.JoinVertical(lipgloss.Left, headerSection, contentSection, footerSection)
-
-	// Place in exact terminal dimensions - footer sticks to bottom
-	return lipgloss.Place(
+	// Footer: stick to bottom, exact height
+	footerSection := lipgloss.Place(
 		sizing.TerminalWidth,
-		sizing.TerminalHeight,
+		FooterHeight,
 		lipgloss.Left,
-		lipgloss.Bottom,
-		combined,
+		lipgloss.Top,
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.FooterTextColor)).
+			Render(footer),
 	)
+
+	// Join sections vertically - no wrapping Place
+	return lipgloss.JoinVertical(lipgloss.Left, headerSection, contentSection, footerSection)
 }
 
+// RenderTextInputFullScreen renders text input centered with footer at bottom
+func RenderTextInputFullScreen(
+	sizing DynamicSizing,
+	theme Theme,
+	prompt string,
+	state TextInputState,
+	footer string,
+) string {
+	if sizing.CheckIsTooSmall() {
+		return renderTooSmallMessage(sizing.TerminalWidth, sizing.TerminalHeight)
+	}
+
+	inputContent := RenderTextInput(
+		prompt,
+		state,
+		theme,
+		sizing.ContentInnerWidth,
+		state.Height,
+	)
+
+	contentAreaHeight := sizing.TerminalHeight - FooterHeight
+	centeredContent := lipgloss.Place(
+		sizing.TerminalWidth,
+		contentAreaHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		inputContent,
+	)
+
+	return lipgloss.JoinVertical(lipgloss.Left, centeredContent, footer)
+}
 func renderTooSmallMessage(w, h int) string {
 	msg := "Terminal too small.\nResize to >= 70×20."
 	return lipgloss.NewStyle().

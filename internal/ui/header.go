@@ -133,23 +133,21 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 	fullWidthSection := strings.Join(fullWidthLines, "\n")
 
 	// Combine sections vertically
-	return twoColumnSection + "\n" + fullWidthSection
+	result := lipgloss.JoinVertical(lipgloss.Left, twoColumnSection, fullWidthSection)
+
+	return result
 }
 
-// RenderHeader renders header with margins and padding
+// RenderHeader renders header with margins
 func RenderHeader(sizing DynamicSizing, theme Theme, info string) string {
 	marginStyle := lipgloss.NewStyle().
 		PaddingLeft(HorizontalMargin).
 		PaddingRight(HorizontalMargin)
 
-	// Add 1-line padding top and bottom
-	paddedInfo := "\n" + info + "\n"
-
 	infoStyled := lipgloss.NewStyle().
 		Width(sizing.HeaderInnerWidth).
-		Height(HeaderHeight).
 		AlignVertical(lipgloss.Top).
-		Render(paddedInfo)
+		Render(info)
 
 	return marginStyle.Render(infoStyled)
 }

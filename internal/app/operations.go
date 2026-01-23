@@ -369,7 +369,7 @@ func (a *Application) cmdInitSubdirectory() tea.Cmd {
 	}
 }
 
-// cmdForcePush executes git push --force-with-lease (like old-tit)
+// cmdForcePush executes git push --force-with-lease
 func (a *Application) cmdForcePush() tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()

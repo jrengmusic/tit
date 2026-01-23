@@ -1,15 +1,14 @@
 package ui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
+	"strings"
 )
 
 // TextInputState holds state for text input component
 type TextInputState struct {
 	Value                 string
-	CursorPos             int  // Cursor position (byte index in Value)
+	CursorPos             int // Cursor position (byte index in Value)
 	ShowClearConfirmation bool
 	Height                int // Number of lines (1 for single-line, 16 for multi-line, etc.)
 }
@@ -44,14 +43,13 @@ func RenderTextInput(
 	}
 
 	// Calculate box height from totalHeight
-	 
+
 	// Box content height from state.Height
-	boxContentHeight := state.Height
+	boxContentHeight := state.Height - 3
 	if boxContentHeight < 1 {
 		boxContentHeight = 1 // Minimum 1 line
 	}
 
-	 
 	if state.CursorPos < 0 {
 		state.CursorPos = 0
 	}
@@ -115,9 +113,8 @@ func RenderTextInput(
 
 	box := boxStyle.Render(constrainedText)
 
-	// Combine label (1) + blank (1) + box
-	blankLine := strings.Repeat(" ", maxWidth)
-	combined := lipgloss.JoinVertical(lipgloss.Left, label, blankLine, box)
+	// Combine label (1) + box (no gap)
+	combined := lipgloss.JoinVertical(lipgloss.Left, label, box)
 
 	// Ensure exactly totalHeight lines and exact width
 	combinedLines := strings.Split(combined, "\n")
@@ -149,7 +146,6 @@ func GetInputBoxHeight(height int) int {
 	if height < 1 {
 		height = 1
 	}
-	// Label (1 line) + blank line (1) + content (height lines)
-	// Border is added by RenderContent wrapper
-	return 1 + 1 + height
+	// Label (1 line) + content (height lines) + borders (2)
+	return 1 + height + 2
 }

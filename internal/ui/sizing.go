@@ -4,11 +4,10 @@ package ui
 const (
 	MinWidth            = 69
 	MinHeight           = 19
-	HeaderHeight        = 9
+	HeaderHeight        = 7
 	FooterHeight        = 1
 	MinContentHeight    = 4
 	HorizontalMargin    = 2
-	BannerWidth         = 30
 	CommitListPaneWidth = 24 // "07-Jan 02:11 957f977" = 20 chars + border + padding
 )
 
@@ -37,8 +36,8 @@ func CalculateDynamicSizing(termWidth, termHeight int) DynamicSizing {
 	contentInnerWidth := termWidth - (HorizontalMargin * 2)
 	footerInnerWidth := termWidth - (HorizontalMargin * 2)
 
-	// Menu column width = content width minus banner and gap
-	menuColumnWidth := contentInnerWidth - BannerWidth - 2
+	// Menu column width = content width minus 50% for banner and gap (2 chars)
+	menuColumnWidth := contentInnerWidth/2 - 2
 
 	return DynamicSizing{
 		TerminalWidth:     termWidth,
@@ -56,9 +55,3 @@ func CalculateDynamicSizing(termWidth, termHeight int) DynamicSizing {
 func (s DynamicSizing) CheckIsTooSmall() bool {
 	return s.TerminalWidth < MinWidth || s.TerminalHeight < MinHeight
 }
-
-// Legacy constants for backward compatibility (deprecated, use DynamicSizing)
-const (
-	ContentInnerWidth = 76
-	ContentHeight     = 24
-)

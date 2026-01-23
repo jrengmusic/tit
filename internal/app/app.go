@@ -45,7 +45,7 @@ type Application struct {
 	inputPrompt         string // e.g., "Repository name:"
 	inputValue          string
 	inputCursorPosition int    // Cursor byte position in inputValue
-	inputHeight         int    // Input height: 1 for single-line, 16 for multiline commit message
+	inputHeight         int    // Input height
 	inputAction         string // Action being performed (e.g., "init_location", "canon_branch")
 	inputValidationMsg  string // Validation feedback message (empty = valid, shows message otherwise)
 	clearConfirmActive  bool   // True when waiting for second ESC to clear input
@@ -72,12 +72,12 @@ type Application struct {
 	// Console output state (for clone, init, etc)
 	consoleState      ui.ConsoleOutState
 	outputBuffer      *ui.OutputBuffer
-	consoleAutoScroll bool // Auto-scroll console to bottom (like old-tit)
+	consoleAutoScroll bool
 
 	// Confirmation dialog state
 	confirmationDialog *ui.ConfirmationDialog
-	confirmType        string            // Type of confirmation for old-tit compatibility
-	confirmContext     map[string]string // Context for old-tit compatibility
+	confirmType        string
+	confirmContext     map[string]string
 
 	// Conflict resolution state
 	conflictResolveState *ConflictResolveState
@@ -135,7 +135,8 @@ type ModeTransition struct {
 	InputPrompt string
 	InputAction string
 	FooterHint  string
-	ResetFields []string // Field names to reset: "clone", "init", "all"
+	InputHeight int
+	ResetFields []string
 }
 
 // transitionTo handles standardized mode transitions and state resets.
@@ -158,6 +159,9 @@ func (a *Application) transitionTo(config ModeTransition) {
 	}
 	if config.FooterHint != "" {
 		a.footerHint = config.FooterHint
+	}
+	if config.InputHeight > 0 {
+		a.inputHeight = config.InputHeight
 	}
 
 	// Reset workflow-specific fields based on the configuration
@@ -667,7 +671,7 @@ func (a *Application) View() string {
 	case ModeConfirmation:
 		// Confirmation dialog (centered in content area)
 		if a.confirmationDialog != nil {
-			contentText = a.confirmationDialog.Render()
+			contentText = a.confirmationDialog.Render(a.sizing.ContentHeight)
 		} else {
 			// Fallback if no dialog - return to menu
 			a.mode = ModeMenu
@@ -693,24 +697,17 @@ func (a *Application) View() string {
 		textInputState := ui.TextInputState{
 			Value:     a.inputValue,
 			CursorPos: a.inputCursorPosition,
-			Height:    a.inputHeight, // Use configured height
+			Height:    a.inputHeight,
 		}
 
-		// Render text input with optional validation message
-		inputContent := ui.RenderTextInput(
+		footer := a.GetFooterContent()
+		return ui.RenderTextInputFullScreen(
+			a.sizing,
+			a.theme,
 			a.inputPrompt,
 			textInputState,
-			a.theme,
-			a.sizing.ContentInnerWidth,
-			a.sizing.ContentHeight-2,
+			footer,
 		)
-
-		// Append validation message if present
-		if a.inputValidationMsg != "" {
-			inputContent += "\n\n" + a.inputValidationMsg
-		}
-
-		contentText = inputContent
 	case ModeCloneURL:
 		textInputState := ui.TextInputState{
 			Value:     a.inputValue,

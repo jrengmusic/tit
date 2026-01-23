@@ -32,8 +32,8 @@ footerTextColor = "#519299"            # lagoon (footer hints)
 # Borders - Conflict Resolver specific
 boxBorderColor = "#8CC9D9"                    # dolphin (borders for all boxes)
 separatorColor = "#1B2A31"                    # dark (separator lines)
-conflictPaneUnfocusedBorder = "#2C4144"       # littleMermaid (OLD-TIT EXACT - unfocused)
-conflictPaneFocusedBorder = "#8CC9D9"         # dolphin (OLD-TIT EXACT - focused)
+	conflictPaneUnfocusedBorder = "#2C4144"
+	conflictPaneFocusedBorder = "#8CC9D9"
 
 # Selection - Conflict Resolver specific
 conflictSelectionForeground = "#090D12"       # bunker (selection text color)
@@ -65,8 +65,8 @@ buttonSelectedTextColor = "#0D1418"    # dark text on bright button background
 # Animation
 spinnerColor = "#00FFFF"               # electric cyan (vivid loading spinner)
 
-# Diff Colors (muted/desaturated for readability - old-tit exact)
-diffAddedLineColor = "#5A9C7A"          # muted green (added lines in diff)
+	# Diff Colors (muted/desaturated for readability)
+	diffAddedLineColor = "#5A9C7A"          # muted green (added lines in diff)
 diffRemovedLineColor = "#B07070"        # muted red/burgundy (removed lines in diff)
 
 # Console Output (semantic colors for different output types)

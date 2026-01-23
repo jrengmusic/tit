@@ -25,14 +25,14 @@ const (
 	ModeConfirmation
 	ModeHistory
 	ModeConflictResolve
-	ModeInitializeLocation    // Choose: init current dir or create subdir
-	ModeInitializeBranches    // Both canon + working branch inputs (canon pre-filled with "main")
-	ModeCloneURL              // Input clone URL
-	ModeCloneLocation         // Choose: clone to current dir or create subdir
-	ModeClone                 // Clone operation with console output
-	ModeSelectBranch          // Dynamic menu to select canon branch from cloned repo
-	ModeFileHistory           // File(s) history browser mode
-	ModeSetupWizard           // Git environment setup wizard (first-time setup)
+	ModeInitializeLocation // Choose: init current dir or create subdir
+	ModeInitializeBranches // Both canon + working branch inputs (canon pre-filled with "main")
+	ModeCloneURL           // Input clone URL
+	ModeCloneLocation      // Choose: clone to current dir or create subdir
+	ModeClone              // Clone operation with console output
+	ModeSelectBranch       // Dynamic menu to select canon branch from cloned repo
+	ModeFileHistory        // File(s) history browser mode
+	ModeSetupWizard        // Git environment setup wizard (first-time setup)
 )
 
 // SetupWizardStep represents the current step in the setup wizard
@@ -89,7 +89,7 @@ var modeDescriptions = map[AppMode]ModeMetadata{
 	},
 	ModeInput: {
 		Name:         "input",
-		Description:  "Generic text input (deprecated: being phased out in favor of dedicated modes)",
+		Description:  "Generic text input mode",
 		AcceptsInput: true,
 		IsAsync:      false,
 	},
