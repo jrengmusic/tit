@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -127,6 +128,22 @@ type Application struct {
 	historyCacheMutex     sync.Mutex
 	fileHistoryCacheMutex sync.Mutex
 	diffCacheMutex        sync.Mutex
+
+	// Timeline sync state (Session 85)
+	timelineSyncInProgress bool      // True while fetch is running
+	timelineSyncLastUpdate time.Time // Last successful sync timestamp
+	timelineSyncFrame      int       // Animation frame for spinner
+
+	// Config state (Session 86)
+	appConfig         *config.Config // Loaded from ~/.config/tit/config.toml
+	configMenuItems   []MenuItem
+	configSelectedIdx int
+
+	// Branch picker state (Session 86)
+	branchPickerState *ui.BranchPickerState
+
+	// Preferences state (Session 86)
+	preferencesState *PreferencesState
 }
 
 // ModeTransition configuration for streamlined mode changes
@@ -288,6 +305,23 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
 		cacheLoadingStarted:   false,
 		cacheMetadata:         false,
 		cacheDiffs:            false,
+
+		// Config state (Session 86)
+		appConfig:         nil, // Will be loaded in Init()
+		configMenuItems:   make([]MenuItem, 0),
+		configSelectedIdx: 0,
+		branchPickerState: &ui.BranchPickerState{
+			SelectedIndex:  0,
+			ScrollOffset:   0,
+			Branches:       make([]ui.BranchInfo, 0),
+			LoadingCache:   false,
+			CacheProgress:  0,
+			CacheTotal:     0,
+			AnimationFrame: 0,
+		},
+		preferencesState: &PreferencesState{
+			SelectedRow: 0,
+		},
 	}
 
 	// Build and cache key handler registry once
@@ -638,10 +672,34 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Success {
 			if newState, err := git.DetectState(); err == nil {
 				a.gitState = newState
-				a.menuItems = a.GenerateMenu()
-				a.rebuildMenuShortcuts()
-				a.updateFooterHintFromMenu()
+				// Only regenerate menu if we're in ModeMenu (don't interfere with other modes)
+				if a.mode == ModeMenu {
+					a.menuItems = a.GenerateMenu()
+					a.rebuildMenuShortcuts()
+					a.updateFooterHintFromMenu()
+				}
 			}
+		}
+		return a, nil
+
+	case TimelineSyncMsg:
+		// Background timeline sync completed
+		return a.handleTimelineSyncMsg(msg)
+
+	case TimelineSyncTickMsg:
+		// Periodic timeline sync tick
+		return a.handleTimelineSyncTickMsg()
+
+	case ToggleAutoUpdateMsg:
+		// Auto-update toggle completed
+		if msg.Success {
+			if msg.Enabled {
+				a.footerHint = "Auto-update enabled"
+			} else {
+				a.footerHint = "Auto-update disabled"
+			}
+		} else {
+			a.footerHint = "Failed to toggle auto-update: " + msg.Error
 		}
 		return a, nil
 	}
@@ -780,6 +838,66 @@ func (a *Application) View() string {
 		}
 		// Other setup wizard steps
 		contentText = a.renderSetupWizard()
+
+	case ModeConfig:
+		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
+
+	case ModeBranchPicker:
+		if a.branchPickerState == nil {
+			// Initialize branch picker state if not yet created
+			a.branchPickerState = &ui.BranchPickerState{
+				Branches:      []ui.BranchInfo{},
+				SelectedIndex: 0,
+			}
+		}
+		// Convert git.BranchDetails to ui.BranchInfo for rendering
+		uiBranches := make([]ui.BranchInfo, len(a.branchPickerState.Branches))
+		for i, b := range a.branchPickerState.Branches {
+			uiBranches[i] = ui.BranchInfo{
+				Name:           b.Name,
+				IsCurrent:      b.IsCurrent,
+				LastCommitTime: b.LastCommitTime,
+				LastCommitHash: b.LastCommitHash,
+				LastCommitSubj: b.LastCommitSubj,
+				Author:         b.Author,
+				TrackingRemote: b.TrackingRemote,
+				Ahead:          b.Ahead,
+				Behind:         b.Behind,
+			}
+		}
+		renderState := &ui.BranchPickerState{
+			SelectedIndex:  a.branchPickerState.SelectedIndex,
+			ScrollOffset:   a.branchPickerState.ScrollOffset,
+			Branches:       uiBranches,
+			LoadingCache:   a.branchPickerState.LoadingCache,
+			CacheProgress:  a.branchPickerState.CacheProgress,
+			CacheTotal:     a.branchPickerState.CacheTotal,
+			AnimationFrame: a.branchPickerState.AnimationFrame,
+		}
+		contentText = ui.RenderBranchPickerSplitPane(renderState, a.width, a.height-3)
+
+	case ModePreferences:
+		if a.preferencesState == nil {
+			// Initialize preferences state if not yet created
+			a.preferencesState = &PreferencesState{
+				SelectedRow: 0,
+			}
+		}
+		// Convert config.Config to ui.Config for rendering
+		var uiConfig *ui.Config
+		if a.appConfig != nil {
+			uiConfig = &ui.Config{
+				AutoUpdate: ui.AutoUpdateConfig{
+					Enabled:         a.appConfig.AutoUpdate.Enabled,
+					IntervalMinutes: a.appConfig.AutoUpdate.IntervalMinutes,
+				},
+				Appearance: ui.AppearanceConfig{
+					Theme: a.appConfig.Appearance.Theme,
+				},
+			}
+		}
+		contentText = ui.RenderPreferencesPane(a.preferencesState.SelectedRow, uiConfig, a.width, a.height-3)
+
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
@@ -805,6 +923,12 @@ func (a *Application) Init() tea.Cmd {
 	// sizing is already set from NewApplication with default dimensions (80, 40)
 	// WindowSizeMsg will update it to actual terminal dimensions
 
+	// Load config on startup (Session 86)
+	cfg, err := config.Load()
+	if err == nil {
+		a.appConfig = cfg
+	}
+
 	// CONTRACT: Start cache building immediately on app startup
 	// Cache MUST be ready before history menus can be used
 	commands := []tea.Cmd{tea.EnableBracketedPaste}
@@ -820,6 +944,10 @@ func (a *Application) Init() tea.Cmd {
 	// Without this, timeline state uses stale local refs
 	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
 		commands = append(commands, cmdFetchRemote())
+		// Also start timeline sync for background updates (Session 85)
+		a.startTimelineSync()
+		commands = append(commands, a.cmdTimelineSync())
+		commands = append(commands, a.cmdTimelineSyncTicker())
 	}
 
 	return tea.Batch(commands...)
@@ -835,16 +963,20 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 	// Cache progress received - regenerate menu to show updated progress
 	// Menu generator will read progress fields and show disabled state with progress
 
-	// Always regenerate menu on progress update (menu reads progress fields)
-	menu := a.GenerateMenu()
-	a.menuItems = menu
-	if !a.quitConfirmActive && len(menu) > 0 && a.selectedIndex < len(menu) {
-		a.footerHint = menu[a.selectedIndex].Hint
+	// Only regenerate menu if we're in ModeMenu (don't interfere with other modes)
+	if a.mode == ModeMenu {
+		menu := a.GenerateMenu()
+		a.menuItems = menu
+		if !a.quitConfirmActive && len(menu) > 0 && a.selectedIndex < len(menu) {
+			a.footerHint = menu[a.selectedIndex].Hint
+		}
 	}
 
 	if msg.Complete {
-		// Cache complete - rebuild menu shortcuts to enable items
-		a.rebuildMenuShortcuts()
+		// Cache complete - rebuild menu shortcuts to enable items (only in ModeMenu)
+		if a.mode == ModeMenu {
+			a.rebuildMenuShortcuts()
+		}
 
 		// Check if BOTH caches are now complete (for time travel success message)
 		a.historyCacheMutex.Lock()
@@ -893,11 +1025,13 @@ func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
 	// Advance animation frame
 	a.cacheAnimationFrame++
 
-	// Regenerate menu to show updated progress
-	menu := a.GenerateMenu()
-	a.menuItems = menu
-	if !a.quitConfirmActive && len(menu) > 0 && a.selectedIndex < len(menu) {
-		a.footerHint = menu[a.selectedIndex].Hint
+	// Only regenerate menu if we're in ModeMenu (don't interfere with other modes)
+	if a.mode == ModeMenu {
+		menu := a.GenerateMenu()
+		a.menuItems = menu
+		if !a.quitConfirmActive && len(menu) > 0 && a.selectedIndex < len(menu) {
+			a.footerHint = menu[a.selectedIndex].Hint
+		}
 	}
 
 	// Re-schedule another tick
@@ -1001,6 +1135,8 @@ func (a *Application) RenderStateHeader() string {
 		TimelineLabel:    timelineLabel,
 		TimelineDesc:     timelineDesc,
 		TimelineColor:    timelineColor,
+		SyncInProgress:   a.timelineSyncInProgress,
+		SyncFrame:        a.timelineSyncFrame,
 	}
 
 	info := ui.RenderHeaderInfo(a.sizing, a.theme, headerState)
@@ -1040,6 +1176,7 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 		"ctrl+c": a.handleKeyCtrlC,
 		"q":      a.handleKeyCtrlC,
 		"esc":    a.handleKeyESC,
+		"/":      a.handleKeySlash, // Open config menu
 		"ctrl+v": a.handleKeyPaste, // Linux/Windows/macOS
 		"cmd+v":  a.handleKeyPaste, // macOS cmd+v
 		"meta+v": a.handleKeyPaste, // macOS meta (cmd) - Bubble Tea may send this
@@ -1142,6 +1279,28 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 		ModeSetupWizard: NewModeHandlers().
 			On("enter", a.handleSetupWizardEnter).
 			Build(),
+		ModeConfig: NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleConfigMenuEnter).
+			Build(),
+		ModeBranchPicker: NewModeHandlers().
+			On("up", a.handleBranchPickerUp).
+			On("k", a.handleBranchPickerUp).
+			On("down", a.handleBranchPickerDown).
+			On("j", a.handleBranchPickerDown).
+			On("enter", a.handleBranchPickerEnter).
+			Build(),
+		ModePreferences: NewModeHandlers().
+			On("up", a.handlePreferencesUp).
+			On("k", a.handlePreferencesUp).
+			On("down", a.handlePreferencesDown).
+			On("j", a.handlePreferencesDown).
+			On(" ", a.handlePreferencesSpace).
+			On("=", a.handlePreferencesIncrement1).
+			On("-", a.handlePreferencesDecrement1).
+			On("+", a.handlePreferencesIncrement10).
+			On("_", a.handlePreferencesDecrement10).
+			Build(),
 	}
 
 	// Merge global handlers into each mode (global takes priority)
@@ -1173,6 +1332,7 @@ func (a *Application) rebuildMenuShortcuts() {
 		"ctrl+c": a.handleKeyCtrlC,
 		"q":      a.handleKeyCtrlC,
 		"esc":    a.handleKeyESC,
+		"/":      a.handleKeySlash, // Open config menu
 		"ctrl+v": a.handleKeyPaste,
 		"cmd+v":  a.handleKeyPaste,
 		"meta+v": a.handleKeyPaste,

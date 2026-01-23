@@ -9,23 +9,39 @@ import (
 const EmojiColumnWidth = 3
 
 type HeaderState struct {
-	CurrentDirectory string
-	RemoteURL        string
-	RemoteColor      string
-	OperationEmoji   string
-	OperationLabel   string
-	OperationColor   string
-	BranchEmoji      string
-	BranchLabel      string
-	BranchColor      string
-	WorkingTreeEmoji string
-	WorkingTreeLabel string
-	WorkingTreeDesc  []string
-	WorkingTreeColor string
-	TimelineEmoji    string
-	TimelineLabel    string
-	TimelineDesc     []string
-	TimelineColor    string
+	CurrentDirectory    string
+	RemoteURL           string
+	RemoteColor         string
+	OperationEmoji      string
+	OperationLabel      string
+	OperationColor      string
+	BranchEmoji         string
+	BranchLabel         string
+	BranchColor         string
+	WorkingTreeEmoji    string
+	WorkingTreeLabel    string
+	WorkingTreeDesc     []string
+	WorkingTreeColor    string
+	TimelineEmoji       string
+	TimelineLabel       string
+	TimelineDesc        []string
+	TimelineColor       string
+	SyncInProgress      bool   // True when timeline sync is running
+	SyncFrame           int    // Animation frame for spinner
+}
+
+// TimelineSyncSpinner returns spinner frame based on animation frame
+func TimelineSyncSpinner(frame int) string {
+	spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	return spinnerFrames[frame%len(spinnerFrames)]
+}
+
+// TimelineSyncLabel returns timeline label with spinner when syncing
+func TimelineSyncLabel(baseEmoji, baseLabel string, syncInProgress bool, frame int) string {
+	if syncInProgress {
+		return TimelineSyncSpinner(frame) + " Syncing..."
+	}
+	return baseEmoji + " " + baseLabel
 }
 
 // RenderHeaderInfo renders header info section (9 content rows + 2 padding = 11 lines)
@@ -113,12 +129,13 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 		fullWidthLines = append(fullWidthLines, descLine)
 	}
 
-	// Timeline label
+	// Timeline label (with spinner when syncing)
+	tlLabel := TimelineSyncLabel(state.TimelineEmoji, state.TimelineLabel, state.SyncInProgress, state.SyncFrame)
 	tlLabelLine := lipgloss.NewStyle().
 		Width(totalWidth).
 		Bold(true).
 		Foreground(lipgloss.Color(state.TimelineColor)).
-		Render(state.TimelineEmoji + " " + state.TimelineLabel)
+		Render(tlLabel)
 	fullWidthLines = append(fullWidthLines, tlLabelLine)
 
 	// Timeline descriptions (indented)

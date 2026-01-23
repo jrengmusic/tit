@@ -293,3 +293,42 @@ func (a *Application) menuCloneLocation() []MenuItem {
 		GetMenuItem("clone_subdir"),
 	}
 }
+
+// GenerateConfigMenu generates config menu items based on dynamic git state
+func (a *Application) GenerateConfigMenu() []MenuItem {
+	var items []MenuItem
+
+	// Remote operations (dynamic based on remote state)
+	if a.gitState != nil && a.gitState.Remote == git.NoRemote {
+		items = append(items, GetMenuItem("config_add_remote"))
+	} else {
+		items = append(items, GetMenuItem("config_switch_remote"))
+	}
+
+	items = append(items, Item("").Separator().Build())
+
+	// Remove remote (only when remote exists)
+	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
+		items = append(items, GetMenuItem("config_remove_remote"))
+	}
+
+	// Auto update toggle (only when remote exists)
+	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
+		items = append(items, GetMenuItem("config_toggle_auto_update"))
+	}
+
+	items = append(items, Item("").Separator().Build())
+
+	// Branch switching (always available)
+	items = append(items, GetMenuItem("config_switch_branch"))
+
+	// Preferences (always available)
+	items = append(items, GetMenuItem("config_preferences"))
+
+	items = append(items, Item("").Separator().Build())
+
+	// Back to main menu
+	items = append(items, GetMenuItem("config_back"))
+
+	return items
+}

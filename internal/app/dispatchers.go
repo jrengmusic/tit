@@ -1,14 +1,15 @@
 package app
 
 import (
+	"fmt"
 	"os"
 	"sort"
 	"strings"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ActionHandler is a function type for action dispatchers
@@ -20,15 +21,14 @@ type ActionHandler func(*Application) tea.Cmd
 func isCwdEmpty() bool {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return false // If we can't read dir, assume not empty (safe)
+		return false
 	}
 
 	entries, err := os.ReadDir(cwd)
 	if err != nil {
-		return false // If we can't read dir, assume not empty (safe)
+		return false
 	}
 
-	// Count entries, ignoring macOS metadata
 	count := 0
 	for _, entry := range entries {
 		name := entry.Name()
@@ -60,6 +60,13 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"time_travel_files_history": a.dispatchFileHistory,
 		"time_travel_merge":         a.dispatchTimeTravelMerge,
 		"time_travel_return":        a.dispatchTimeTravelReturn,
+		// Config menu actions
+		"config_add_remote":         a.dispatchConfigAddRemote,
+		"config_switch_remote":      a.dispatchConfigSwitchRemote,
+		"config_remove_remote":      a.dispatchConfigRemoveRemote,
+		"config_toggle_auto_update": a.dispatchConfigToggleAutoUpdate,
+		"config_switch_branch":      a.dispatchConfigSwitchBranch,
+		"config_preferences":        a.dispatchConfigPreferences,
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -69,18 +76,11 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 }
 
 // dispatchInit starts the repository initialization workflow
-// Smart dispatch: if CWD not empty, skip to subdir initialization
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
-
 	cwdEmpty := isCwdEmpty()
-
 	if !cwdEmpty {
-		// CWD not empty: can't init here, must use subdir
-		// Auto-dispatch to subdir init (skip location menu)
 		return a.cmdInitSubdirectory()
 	}
-
-	// CWD is empty: show location choice menu
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInitializeLocation,
 		ResetFields: []string{"init"},
@@ -89,19 +89,14 @@ func (a *Application) dispatchInit(app *Application) tea.Cmd {
 }
 
 // dispatchClone starts the clone workflow
-// If CWD empty: show location menu first (user chooses mode), then ask URL
-// If CWD not empty: ask URL, then clone to subdir directly
 func (a *Application) dispatchClone(app *Application) tea.Cmd {
 	cwdEmpty := isCwdEmpty()
-
 	if cwdEmpty {
-		// CWD empty: show location menu first (user decides: clone here or subdir)
 		app.transitionTo(ModeTransition{
 			Mode:        ModeCloneLocation,
 			ResetFields: []string{"clone"},
 		})
 	} else {
-		// CWD not empty: ask URL, then clone to subdir
 		app.cloneMode = "subdir"
 		app.transitionTo(ModeTransition{
 			Mode:        ModeCloneURL,
@@ -114,7 +109,7 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchAddRemote starts the add remote workflow by asking for URL
+// dispatchAddRemote starts the add remote workflow
 func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
@@ -126,7 +121,7 @@ func (a *Application) dispatchAddRemote(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchCommit starts the commit workflow by asking for message
+// dispatchCommit starts the commit workflow
 func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
@@ -139,7 +134,7 @@ func (a *Application) dispatchCommit(app *Application) tea.Cmd {
 	return nil
 }
 
-// dispatchCommitPush starts commit+push workflow by asking for message
+// dispatchCommitPush starts commit+push workflow
 func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
@@ -154,27 +149,21 @@ func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 
 // dispatchPush pushes to remote
 func (a *Application) dispatchPush(app *Application) tea.Cmd {
-	// Set up async state for console display
 	a.asyncOperationActive = true
 	a.asyncOperationAborted = false
 	a.previousMode = ModeMenu
 	a.previousMenuIndex = 0
 	a.mode = ModeConsole
 	a.consoleState.Reset()
-
-	// Execute push asynchronously using operations pattern
 	return app.cmdPush()
 }
 
 // dispatchPullMerge pulls with merge strategy
 func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
-	// Determine confirmation type based on timeline state
 	confirmType := string(ConfirmPullMerge)
 	if app.gitState.Timeline == git.Diverged {
 		confirmType = string(ConfirmPullMergeDiverged)
 	}
-
-	// Show confirmation dialog for pull (merge) - may cause conflicts
 	app.mode = ModeConfirmation
 	msg := ConfirmationMessages[confirmType]
 	app.confirmationDialog = ui.NewConfirmationDialog(
@@ -188,18 +177,15 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 		a.sizing.ContentInnerWidth,
 		&app.theme,
 	)
-	app.confirmationDialog.SelectNo() // Right (Cancel) selected by default
+	app.confirmationDialog.SelectNo()
 	return nil
 }
 
-// dispatchForcePush shows confirmation dialog for destructive action
+// dispatchForcePush shows confirmation dialog for force push
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
-	// Show confirmation dialog for destructive action
 	app.mode = ModeConfirmation
 	app.confirmType = "force_push"
 	app.confirmContext = map[string]string{}
-
-	// Create the confirmation dialog from SSOT
 	msg := ConfirmationMessages["force_push"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -209,18 +195,14 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 		ActionID:    "force_push",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-
 	return nil
 }
 
 // dispatchReplaceLocal shows confirmation dialog for destructive action
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
-	// Show confirmation dialog for destructive action
 	app.mode = ModeConfirmation
 	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
-
-	// Create the confirmation dialog from SSOT
 	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -230,93 +212,61 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 		ActionID:    "hard_reset",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-
 	return nil
 }
 
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 	app.mode = ModeHistory
-
-	// Use cached metadata to build commits list
 	app.historyCacheMutex.Lock()
 	defer app.historyCacheMutex.Unlock()
 
 	var commits []ui.CommitInfo
-
-	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
 	for hash, details := range app.historyMetadataCache {
-		commitTime, err := parseCommitDate(details.Date)
-		if err != nil {
-			commitTime = time.Now()
-		}
-		commits = append(commits, ui.CommitInfo{
-			Hash:    hash,
-			Subject: details.Message, // Full message (not just first line)
-			Time:    commitTime,
-		})
-	}
-
-	// CRITICAL: Sort commits by time (newest first) - map iteration is unordered!
-	sort.Slice(commits, func(i, j int) bool {
-		return commits[i].Time.After(commits[j].Time)
-	})
-
-	// Always initialize state (even if commits empty)
-	app.historyState = &ui.HistoryState{
-		Commits:           commits,
-		SelectedIdx:       0,
-		PaneFocused:       true, // List pane focused initially
-		DetailsLineCursor: 0,    // Start at top of details
-		DetailsScrollOff:  0,    // No scroll initially
-	}
-
-	// Show appropriate hint
-	if len(commits) == 0 {
-		if app.cacheMetadata {
-			app.footerHint = "No commits found in history"
-		} else {
-			app.footerHint = "Loading commit history..."
-		}
-	}
-
-	return nil
-}
-
-// dispatchFileHistory shows file(s) history
-func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
-	app.mode = ModeFileHistory
-
-	// Use cached data to build file history state
-	app.fileHistoryCacheMutex.Lock()
-	defer app.fileHistoryCacheMutex.Unlock()
-
-	var commits []ui.CommitInfo
-
-	// Build commits from cache if available
-	for hash, details := range app.historyMetadataCache {
-		commitTime, err := parseCommitDate(details.Date)
-		if err != nil {
-			commitTime = time.Now()
-		}
+		commitTime, _ := parseCommitDate(details.Date)
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
 			Subject: details.Message,
 			Time:    commitTime,
 		})
 	}
-
-	// Sort commits by time (newest first)
 	sort.Slice(commits, func(i, j int) bool {
 		return commits[i].Time.After(commits[j].Time)
 	})
 
-	// Get files for first commit (if any)
+	app.historyState = &ui.HistoryState{
+		Commits:           commits,
+		SelectedIdx:       0,
+		PaneFocused:       true,
+		DetailsLineCursor: 0,
+		DetailsScrollOff:  0,
+	}
+	return nil
+}
+
+// dispatchFileHistory shows file(s) history
+func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
+	app.mode = ModeFileHistory
+	app.fileHistoryCacheMutex.Lock()
+	defer app.fileHistoryCacheMutex.Unlock()
+
+	var commits []ui.CommitInfo
+	for hash, details := range app.historyMetadataCache {
+		commitTime, _ := parseCommitDate(details.Date)
+		commits = append(commits, ui.CommitInfo{
+			Hash:    hash,
+			Subject: details.Message,
+			Time:    commitTime,
+		})
+	}
+	sort.Slice(commits, func(i, j int) bool {
+		return commits[i].Time.After(commits[j].Time)
+	})
+
 	var files []ui.FileInfo
 	if len(commits) > 0 {
 		firstCommitHash := commits[0].Hash
 		if gitFileList, exists := app.fileHistoryFilesCache[firstCommitHash]; exists {
-			// Convert git.FileInfo to ui.FileInfo
 			for _, gitFile := range gitFileList {
 				files = append(files, ui.FileInfo{
 					Path:   gitFile.Path,
@@ -326,50 +276,24 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 		}
 	}
 
-	// Convert commits to git.CommitInfo for app state
-	var gitCommits []git.CommitInfo
-	for _, uiCommit := range commits {
-		gitCommits = append(gitCommits, git.CommitInfo{
-			Hash:    uiCommit.Hash,
-			Subject: uiCommit.Subject,
-			Time:    uiCommit.Time,
-		})
-	}
-
-	// Initialize state
 	app.fileHistoryState = &ui.FileHistoryState{
 		Commits:           commits,
 		Files:             files,
 		SelectedCommitIdx: 0,
 		SelectedFileIdx:   0,
-		FocusedPane:       ui.PaneCommits, // Start with commits pane focused
+		FocusedPane:       ui.PaneCommits,
 		CommitsScrollOff:  0,
 		FilesScrollOff:    0,
 		DiffScrollOff:     0,
 		DiffLineCursor:    0,
-		DiffContent:       "", // Will be populated below
+		DiffContent:       "",
 		VisualModeActive:  false,
 		VisualModeStart:   0,
 	}
-
-	// Populate initial diff for first commit + first file
 	a.updateFileHistoryDiff()
-
-	// Show appropriate hint
-	if len(commits) == 0 {
-		if app.cacheDiffs {
-			app.footerHint = "No commits found in file history"
-		} else {
-			app.footerHint = "Loading file history..."
-		}
-	} else {
-		app.footerHint = "File(s) History │ ↑↓ navigate │ TAB cycle panes │ ESC back"
-	}
-
 	return nil
 }
 
-// parseCommitDate parses git commit date format
 func parseCommitDate(dateStr string) (time.Time, error) {
 	return time.Parse("Mon, 2 Jan 2006 15:04:05 -0700", dateStr)
 }
@@ -379,8 +303,6 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	app.mode = ModeConfirmation
 	app.confirmType = "dirty_pull"
 	app.confirmContext = map[string]string{}
-
-	// Create the confirmation dialog from SSOT
 	msg := ConfirmationMessages["dirty_pull"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -390,76 +312,50 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 		ActionID:    "dirty_pull",
 	}
 	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-
 	return nil
 }
 
 // dispatchTimeTravelHistory handles the "Browse History" action during time travel
 func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
-	// Enter history mode to browse commits while time traveling
-	// Use same logic as dispatchHistory to populate state from cache
 	app.mode = ModeHistory
-
-	// Use cached metadata to build commits list
 	app.historyCacheMutex.Lock()
 	defer app.historyCacheMutex.Unlock()
 
 	var commits []ui.CommitInfo
-
-	// Build commits from cache if available (convert git.CommitInfo → ui.CommitInfo)
 	for hash, details := range app.historyMetadataCache {
-		commitTime, err := parseCommitDate(details.Date)
-		if err != nil {
-			commitTime = time.Now()
-		}
+		commitTime, _ := parseCommitDate(details.Date)
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
-			Subject: details.Message, // Full message (not just first line)
+			Subject: details.Message,
 			Time:    commitTime,
 		})
 	}
-
-	// CRITICAL: Sort commits by time (newest first) - map iteration is unordered!
 	sort.Slice(commits, func(i, j int) bool {
 		return commits[i].Time.After(commits[j].Time)
 	})
 
-	// Always initialize state (even if commits empty)
 	app.historyState = &ui.HistoryState{
 		Commits:           commits,
 		SelectedIdx:       0,
-		PaneFocused:       true, // List pane focused initially
-		DetailsLineCursor: 0,    // Start at top of details
-		DetailsScrollOff:  0,    // No scroll initially
+		PaneFocused:       true,
+		DetailsLineCursor: 0,
+		DetailsScrollOff:  0,
 	}
-
-	// Show appropriate hint
-	if len(commits) == 0 {
-		if app.cacheMetadata {
-			app.footerHint = "No commits found in history"
-		} else {
-			app.footerHint = "Loading commit history..."
-		}
-	}
-
 	return nil
 }
 
 // dispatchTimeTravelMerge handles the "Merge back" action during time travel
 func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
-	// Check if working tree is dirty
 	statusResult := git.Execute("status", "--porcelain")
 	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
 
-	// Determine which confirmation to show
 	var confirmType ConfirmationType
 	if hasDirtyTree {
-		confirmType = ConfirmTimeTravelMergeDirty // Ask: Commit & merge or Discard
+		confirmType = ConfirmTimeTravelMergeDirty
 	} else {
-		confirmType = ConfirmTimeTravelMerge // Normal merge confirmation
+		confirmType = ConfirmTimeTravelMerge
 	}
 
-	// Show confirmation dialog
 	app.mode = ModeConfirmation
 	msg := ConfirmationMessages[string(confirmType)]
 	app.confirmationDialog = ui.NewConfirmationDialog(
@@ -473,18 +369,16 @@ func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
 		a.sizing.ContentInnerWidth,
 		&app.theme,
 	)
-	app.confirmationDialog.SelectNo() // Right (Cancel/Discard) selected by default
+	app.confirmationDialog.SelectNo()
 	return nil
 }
 
 // dispatchTimeTravelReturn handles the "Return without merge" action during time travel
 func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
-	// Check if working tree is dirty
 	statusResult := git.Execute("status", "--porcelain")
 	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
 
 	if hasDirtyTree {
-		// Show dialog: Merge or Discard (ESC to cancel)
 		app.mode = ModeConfirmation
 		app.confirmationDialog = ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
@@ -497,10 +391,8 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
-		// Default to NO (Discard) as safer option
 		app.confirmationDialog.SelectNo()
 	} else {
-		// Clean tree: simple return confirmation
 		app.mode = ModeConfirmation
 		msg := ConfirmationMessages[string(ConfirmTimeTravelReturn)]
 		app.confirmationDialog = ui.NewConfirmationDialog(
@@ -516,8 +408,109 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 		)
 		app.confirmationDialog.SelectNo()
 	}
-
 	return nil
 }
 
+// ========================================
+// Config Menu Dispatchers
+// ========================================
 
+// dispatchConfigAddRemote starts add remote workflow from config menu
+func (a *Application) dispatchConfigAddRemote(app *Application) tea.Cmd {
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInput,
+		InputPrompt: "New remote URL:",
+		InputAction: "config_add_remote_url",
+		FooterHint:  "Enter remote repository URL",
+		ResetFields: []string{},
+	})
+	return nil
+}
+
+// dispatchConfigSwitchRemote starts switch remote workflow from config menu
+func (a *Application) dispatchConfigSwitchRemote(app *Application) tea.Cmd {
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInput,
+		InputPrompt: "New remote URL:",
+		InputAction: "config_switch_remote_url",
+		FooterHint:  "Enter new remote repository URL",
+		ResetFields: []string{},
+	})
+	return nil
+}
+
+// dispatchConfigRemoveRemote shows confirmation dialog to remove remote
+func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
+	app.mode = ModeConfirmation
+	app.confirmType = "config_remove_remote"
+	app.confirmContext = map[string]string{}
+	msg := ConfirmationMessages["remove_remote"]
+	config := ui.ConfirmationConfig{
+		Title:       msg.Title,
+		Explanation: msg.Explanation,
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
+		ActionID:    "config_remove_remote",
+	}
+	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
+	return nil
+}
+
+// dispatchConfigToggleAutoUpdate toggles auto-update setting
+func (a *Application) dispatchConfigToggleAutoUpdate(app *Application) tea.Cmd {
+	return app.cmdToggleAutoUpdate()
+}
+
+// dispatchConfigSwitchBranch enters branch picker mode
+func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
+	// Load branches into the branch picker state
+	branches, err := git.ListBranchesWithDetails()
+	if err != nil {
+		app.footerHint = fmt.Sprintf("Failed to load branches: %v", err)
+		return nil
+	}
+
+	// Convert git.BranchDetails to ui.BranchInfo
+	uiBranches := make([]ui.BranchInfo, len(branches))
+	for i, b := range branches {
+		uiBranches[i] = ui.BranchInfo{
+			Name:           b.Name,
+			IsCurrent:      b.IsCurrent,
+			LastCommitTime: b.LastCommitTime,
+			LastCommitHash: b.LastCommitHash,
+			LastCommitSubj: b.LastCommitSubj,
+			Author:         b.Author,
+			TrackingRemote: b.TrackingRemote,
+			Ahead:          b.Ahead,
+			Behind:         b.Behind,
+		}
+	}
+
+	// Initialize branch picker state
+	app.branchPickerState = &ui.BranchPickerState{
+		SelectedIndex: 0,
+		ScrollOffset:  0,
+		Branches:      uiBranches,
+		LoadingCache:  false,
+	}
+
+	// Switch to branch picker mode
+	app.mode = ModeBranchPicker
+	app.footerHint = "↑/↓ Navigate • Enter: Switch • ESC: Cancel"
+	return nil
+}
+
+// dispatchConfigPreferences enters preferences mode
+func (a *Application) dispatchConfigPreferences(app *Application) tea.Cmd {
+	// Initialize preferences state if needed
+	if app.preferencesState == nil {
+		app.preferencesState = &PreferencesState{
+			SelectedRow: 0,
+		}
+	}
+
+	// Switch to preferences mode
+	app.mode = ModePreferences
+	app.footerHint = "↑/↓ Navigate • Space: Toggle • +/-: Adjust • ESC: Cancel"
+	return nil
+}

@@ -92,6 +92,15 @@ func (a *Application) getFooterHintKey() string {
 	case ModeConfirmation:
 		return "confirmation"
 
+	case ModeBranchPicker:
+		return "branch_picker"
+
+	case ModePreferences:
+		return "preferences"
+
+	case ModeConfig:
+		return "menu" // Config menu uses same footer as menu
+
 	default:
 		return ""
 	}

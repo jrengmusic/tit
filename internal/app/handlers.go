@@ -1203,3 +1203,416 @@ func (a *Application) handleFileHistoryEsc(app *Application) (tea.Model, tea.Cmd
 	// Not in visual mode, return to menu
 	return app.returnToMenu()
 }
+
+// ========================================
+// Config Menu Handlers
+// ========================================
+
+// handleConfigMenuEnter handles ENTER key in config menu mode
+func (a *Application) handleConfigMenuEnter(app *Application) (tea.Model, tea.Cmd) {
+	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
+		return app, nil
+	}
+	item := app.menuItems[app.selectedIndex]
+
+	// CONTRACT: Cannot execute separators or disabled items
+	if item.Separator || !item.Enabled {
+		return app, nil
+	}
+
+	// Handle back action - return to main menu
+	if item.ID == "config_back" {
+		return app.returnToMenu()
+	}
+
+	// Handle config menu actions
+	return app, app.dispatchAction(item.ID)
+}
+
+// handleConfigAddRemoteURLSubmit handles URL input from config add remote menu
+func (a *Application) handleConfigAddRemoteURLSubmit(app *Application) (tea.Model, tea.Cmd) {
+	url := app.inputValue
+	if url == "" {
+		app.footerHint = "URL cannot be empty"
+		return app, nil
+	}
+
+	if !ui.ValidateRemoteURL(url) {
+		app.footerHint = ui.GetRemoteURLError()
+		return app, nil
+	}
+
+	result := git.Execute("remote", "get-url", "origin")
+	if result.Success {
+		app.footerHint = ErrorMessages["remote_already_exists_validation"]
+		return app, nil
+	}
+
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeConfig
+	app.previousMenuIndex = app.selectedIndex
+	app.mode = ModeConsole
+	app.consoleState.Reset()
+	app.inputValue = ""
+
+	return app, a.cmdConfigAddRemote(url)
+}
+
+// handleConfigSwitchRemoteURLSubmit handles URL input from config switch remote menu
+func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.Model, tea.Cmd) {
+	url := app.inputValue
+	if url == "" {
+		app.footerHint = "URL cannot be empty"
+		return app, nil
+	}
+
+	if !ui.ValidateRemoteURL(url) {
+		app.footerHint = ui.GetRemoteURLError()
+		return app, nil
+	}
+
+	result := git.Execute("remote", "get-url", "origin")
+	if !result.Success {
+		app.footerHint = "No remote configured to switch"
+		return app, nil
+	}
+
+	app.asyncOperationActive = true
+	app.asyncOperationAborted = false
+	app.previousMode = ModeConfig
+	app.previousMenuIndex = app.selectedIndex
+	app.mode = ModeConsole
+	app.consoleState.Reset()
+	app.inputValue = ""
+
+	return app, a.cmdConfigSwitchRemote(url)
+}
+
+// cmdConfigAddRemote adds a new remote from config menu
+func (a *Application) cmdConfigAddRemote(url string) tea.Cmd {
+	return func() tea.Msg {
+		result := git.ExecuteWithStreaming("remote", "add", "origin", url)
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "config_add_remote",
+				Success: false,
+				Error:   "Failed to add remote",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "config_add_remote",
+			Success: true,
+			Output:  "Remote added successfully",
+		}
+	}
+}
+
+// cmdConfigSwitchRemote updates an existing remote URL
+func (a *Application) cmdConfigSwitchRemote(url string) tea.Cmd {
+	return func() tea.Msg {
+		result := git.ExecuteWithStreaming("remote", "set-url", "origin", url)
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "config_switch_remote",
+				Success: false,
+				Error:   "Failed to update remote URL",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "config_switch_remote",
+			Success: true,
+			Output:  "Remote URL updated successfully",
+		}
+	}
+}
+
+// cmdConfigRemoveRemote removes the origin remote
+func (a *Application) cmdConfigRemoveRemote() tea.Cmd {
+	return func() tea.Msg {
+		result := git.ExecuteWithStreaming("remote", "remove", "origin")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    "config_remove_remote",
+				Success: false,
+				Error:   "Failed to remove remote",
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    "config_remove_remote",
+			Success: true,
+			Output:  "Remote removed successfully",
+		}
+	}
+}
+
+// handleKeySlash opens config menu when "/" is pressed in menu mode
+func (a *Application) handleKeySlash(app *Application) (tea.Model, tea.Cmd) {
+	if app.mode == ModeMenu {
+		app.mode = ModeConfig
+		app.selectedIndex = 0
+		configMenu := app.GenerateConfigMenu()
+		app.menuItems = configMenu
+		if len(configMenu) > 0 {
+			app.footerHint = configMenu[0].Hint
+		}
+		app.rebuildMenuShortcuts()
+	}
+	return app, nil
+}
+
+// ========================================
+// Preferences Mode Handlers
+// ========================================
+
+// handlePreferencesEnter handles ENTER key in preferences mode
+func (a *Application) handlePreferencesEnter(app *Application) (tea.Model, tea.Cmd) {
+	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
+		return app, nil
+	}
+	item := app.menuItems[app.selectedIndex]
+
+	// CONTRACT: Cannot execute separators or disabled items
+	if item.Separator || !item.Enabled {
+		return app, nil
+	}
+
+	// Handle back action - return to config menu
+	if item.ID == "preferences_back" {
+		app.mode = ModeConfig
+		app.selectedIndex = 0
+		configMenu := app.GenerateConfigMenu()
+		app.menuItems = configMenu
+		if len(configMenu) > 0 {
+			app.footerHint = configMenu[0].Hint
+		}
+		app.rebuildMenuShortcuts()
+		return app, nil
+	}
+
+	// Handle preferences actions
+	return app, app.dispatchAction(item.ID)
+}
+
+// ========================================
+// Branch Picker Mode Handlers
+// ========================================
+
+// handleBranchPickerEnter handles ENTER key in branch picker mode
+func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.Cmd) {
+	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
+		return app, nil
+	}
+	item := app.menuItems[app.selectedIndex]
+
+	// CONTRACT: Cannot execute separators or disabled items
+	if item.Separator || !item.Enabled {
+		return app, nil
+	}
+
+	// Handle back action - return to config menu
+	if item.ID == "branch_picker_back" {
+		app.mode = ModeConfig
+		app.selectedIndex = 0
+		configMenu := app.GenerateConfigMenu()
+		app.menuItems = configMenu
+		if len(configMenu) > 0 {
+			app.footerHint = configMenu[0].Hint
+		}
+		app.rebuildMenuShortcuts()
+		return app, nil
+	}
+
+	// Handle branch selection actions
+	return app, app.dispatchAction(item.ID)
+}
+
+// ========================================
+// Branch Picker Navigation Handlers
+// ========================================
+
+// handleBranchPickerUp handles UP/K navigation in branch picker
+func (a *Application) handleBranchPickerUp(app *Application) (tea.Model, tea.Cmd) {
+	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+		return app, nil
+	}
+
+	if app.branchPickerState.SelectedIndex > 0 {
+		app.branchPickerState.SelectedIndex--
+	}
+	return app, nil
+}
+
+// handleBranchPickerDown handles DOWN/J navigation in branch picker
+func (a *Application) handleBranchPickerDown(app *Application) (tea.Model, tea.Cmd) {
+	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+		return app, nil
+	}
+
+	if app.branchPickerState.SelectedIndex < len(app.branchPickerState.Branches)-1 {
+		app.branchPickerState.SelectedIndex++
+	}
+	return app, nil
+}
+
+// ========================================
+// Preferences Navigation Handlers
+// ========================================
+
+// handlePreferencesUp handles UP/K navigation in preferences
+func (a *Application) handlePreferencesUp(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil {
+		return app, nil
+	}
+
+	if app.preferencesState.SelectedRow > 0 {
+		app.preferencesState.SelectedRow--
+	}
+	return app, nil
+}
+
+// handlePreferencesDown handles DOWN/J navigation in preferences
+func (a *Application) handlePreferencesDown(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil {
+		return app, nil
+	}
+
+	maxRow := 2 // 3 rows: auto-update, interval, theme (0-indexed)
+	if app.preferencesState.SelectedRow < maxRow {
+		app.preferencesState.SelectedRow++
+	}
+	return app, nil
+}
+
+// handlePreferencesSpace handles SPACE (toggle) in preferences
+func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil || app.appConfig == nil {
+		return app, nil
+	}
+
+	switch app.preferencesState.SelectedRow {
+	case 0: // Auto-update toggle
+		if err := app.appConfig.SetAutoUpdateEnabled(!app.appConfig.AutoUpdate.Enabled); err != nil {
+			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
+		} else {
+			if app.appConfig.AutoUpdate.Enabled {
+				app.footerHint = "Auto-update enabled"
+			} else {
+				app.footerHint = "Auto-update disabled"
+			}
+		}
+	case 2: // Theme cycling
+		nextTheme, err := ui.GetNextTheme(app.appConfig.Appearance.Theme)
+		if err != nil {
+			app.footerHint = fmt.Sprintf("Failed to get next theme: %v", err)
+			return app, nil
+		}
+
+		// Load and apply the new theme
+		newTheme, err := ui.LoadThemeByName(nextTheme)
+		if err != nil {
+			app.footerHint = fmt.Sprintf("Failed to load theme: %v", err)
+			return app, nil
+		}
+
+		// Update config and save
+		if err := app.appConfig.SetTheme(nextTheme); err != nil {
+			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
+		} else {
+			// Apply the theme to the app
+			app.theme = newTheme
+			app.footerHint = fmt.Sprintf("Theme changed to %s", nextTheme)
+
+			// IMPORTANT: Force re-render of current preferences view with new theme colors
+			// The preferences UI will automatically pick up the new app.theme colors
+			// No need to regenerate menu items - just let the next render cycle use new colors
+		}
+	}
+
+	return app, nil
+}
+
+// handlePreferencesIncrement1 handles = (increase by 1 minute) in preferences
+func (a *Application) handlePreferencesIncrement1(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil || app.appConfig == nil {
+		return app, nil
+	}
+
+	if app.preferencesState.SelectedRow == 1 { // Interval adjustment
+		newInterval := app.appConfig.AutoUpdate.IntervalMinutes + 1
+		if newInterval <= 120 { // Max 2 hours
+			if err := app.appConfig.SetAutoUpdateInterval(newInterval); err != nil {
+				app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
+			} else {
+				app.footerHint = fmt.Sprintf("Interval set to %d minutes", newInterval)
+			}
+		}
+	}
+
+	return app, nil
+}
+
+// handlePreferencesDecrement1 handles - (decrease by 1 minute) in preferences
+func (a *Application) handlePreferencesDecrement1(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil || app.appConfig == nil {
+		return app, nil
+	}
+
+	if app.preferencesState.SelectedRow == 1 { // Interval adjustment
+		newInterval := app.appConfig.AutoUpdate.IntervalMinutes - 1
+		if newInterval < 1 {
+			newInterval = 1
+		}
+		if err := app.appConfig.SetAutoUpdateInterval(newInterval); err != nil {
+			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
+		} else {
+			app.footerHint = fmt.Sprintf("Interval set to %d minutes", newInterval)
+		}
+	}
+
+	return app, nil
+}
+
+// handlePreferencesIncrement10 handles shift+= (increase by 10 minutes) in preferences
+func (a *Application) handlePreferencesIncrement10(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil || app.appConfig == nil {
+		return app, nil
+	}
+
+	if app.preferencesState.SelectedRow == 1 { // Interval adjustment
+		newInterval := app.appConfig.AutoUpdate.IntervalMinutes + 10
+		if newInterval <= 120 { // Max 2 hours
+			if err := app.appConfig.SetAutoUpdateInterval(newInterval); err != nil {
+				app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
+			} else {
+				app.footerHint = fmt.Sprintf("Interval set to %d minutes", newInterval)
+			}
+		}
+	}
+
+	return app, nil
+}
+
+// handlePreferencesDecrement10 handles shift+- (decrease by 10 minutes) in preferences
+func (a *Application) handlePreferencesDecrement10(app *Application) (tea.Model, tea.Cmd) {
+	if app.preferencesState == nil || app.appConfig == nil {
+		return app, nil
+	}
+
+	if app.preferencesState.SelectedRow == 1 { // Interval adjustment
+		newInterval := app.appConfig.AutoUpdate.IntervalMinutes - 10
+		if newInterval < 1 {
+			newInterval = 1
+		}
+		if err := app.appConfig.SetAutoUpdateInterval(newInterval); err != nil {
+			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
+		} else {
+			app.footerHint = fmt.Sprintf("Interval set to %d minutes", newInterval)
+		}
+	}
+
+	return app, nil
+}

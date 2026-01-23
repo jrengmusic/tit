@@ -97,9 +97,9 @@
 ## ROLE ASSIGNMENT REGISTRATION
 
 ANALYST: Amp (Claude Sonnet 4) — Registered 2026-01-23
-SCAFFOLDER: OpenCode (CLI Agent) — Code scaffolding specialist, literal implementation
-CARETAKER: Amp (Claude Sonnet 4) — Registered 2026-01-23
-INSPECTOR: OpenCode (CLI Agent) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
+SCAFFOLDER: OpenCode (CLI Agent) — Code scaffolding specialist, literal implementation — Registered 2026-01-23
+CARETAKER: OpenCode (CLI Agent) — Code quality specialist, structural improvements — Registered 2026-01-23
+INSPECTOR: GPT-5.1-Codex-Max (Droid) — Auditing code against SPEC.md and ARCHITECTURE.md, verifying SSOT compliance
 SURGEON: OpenCode (CLI Agent) — Diagnosing and fixing bugs, architectural violations, testing
 JOURNALIST: Mistral-Vibe (devstral-2) — Session documentation, log compilation, git commit messages
 
@@ -641,6 +641,627 @@ The following files will be deleted as per JOURNALIST protocol:
 - Separator color standardization improves visual consistency across UI
 - Status bar improvements provide better user guidance and feedback
 - All changes follow existing patterns and SSOT principles
+
+---
+
+## Session 85: Background Timeline Sync 📝 PLANNED
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-23
+
+### Overview
+**Status:** 📝 PLANNED - ANALYST kickoff created, awaiting implementation
+**Role:** ANALYST (Amp - Claude Sonnet 4)
+**Document:** `.carol/85-ANALYST-KICKOFF-TIMELINE-SYNC.md`
+
+### Problem Statement
+Timeline state detection (`DetectState()`) compares local HEAD against **cached local refs** (`refs/remotes/origin/<branch>`). These refs only update after `git fetch`. Current behavior:
+
+1. App starts → `DetectState()` → Shows timeline from **stale refs**
+2. Async `cmdFetchRemote()` runs in background
+3. `RemoteFetchMsg` → Re-runs `DetectState()` → **Now accurate**
+
+**Issue:** User briefly sees stale "In Sync" before it updates to "Behind" — no visual indication that sync is in progress.
+
+### Proposed Solution
+Implement **TimelineSync** — a background synchronization mechanism mirroring the existing cache building pattern:
+
+1. **Non-blocking async fetch** — UI remains responsive
+2. **Dimmed timeline display** during sync — indicates stale data
+3. **Spinner animation** — visual feedback that sync is in progress
+4. **Periodic refresh** — only triggers when `mode == ModeMenu`
+5. **On-demand re-sync** — user can force refresh via menu or shortcut
+
+### Design Pattern (Mirrors Cache Building)
+
+**New Types (messages.go):**
+- `TimelineSyncMsg` — signals completion of background timeline sync
+- `TimelineSyncTickMsg` — triggers periodic sync while in menu mode
+
+**New Application Fields (app.go):**
+- `timelineSyncInProgress bool` — True while fetch is running
+- `timelineSyncLastUpdate time.Time` — Last successful sync timestamp
+- `timelineSyncInterval time.Duration` — Default: 60 seconds
+- `timelineSyncFrame int` — Animation frame for spinner
+
+**New Functions (timeline_sync.go — new file):**
+- `cmdTimelineSync()` — runs git fetch in background and updates timeline
+- `cmdTimelineSyncTicker()` — schedules periodic timeline sync
+- `shouldRunTimelineSync()` — checks if sync should run
+
+### Sync Flow
+```
+App Init (HasRemote)
+    │
+    ├─► timelineSyncInProgress = true
+    ├─► cmdTimelineSync() — async fetch
+    └─► cmdTimelineSyncTicker() — schedules refresh ticks
+            │
+            ▼
+    [Every 100ms while timelineSyncInProgress]
+        │
+        ├─► TimelineSyncTickMsg received
+        ├─► If mode != ModeMenu → no-op (don't update UI)
+        ├─► If mode == ModeMenu → increment timelineSyncFrame, regenerate header
+        └─► Schedule next tick
+            │
+            ▼
+    [Fetch completes]
+        │
+        ├─► TimelineSyncMsg received
+        ├─► timelineSyncInProgress = false
+        ├─► DetectState() — refresh git state
+        ├─► timelineSyncLastUpdate = time.Now()
+        └─► If mode == ModeMenu → schedule next sync after interval
+```
+
+### Header Rendering Changes (ui/header.go)
+```go
+// When timelineSyncInProgress == true:
+// - Timeline label shows spinner: "🔄 Syncing..." or "⏳ Checking..."
+// - Timeline description dimmed or shows "Checking remote..."
+// - After sync: normal timeline display
+
+func (hs *HeaderState) TimelineLabel(syncInProgress bool, frame int) string {
+    if syncInProgress {
+        spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+        return spinnerFrames[frame % len(spinnerFrames)] + " Syncing"
+    }
+    return hs.TimelineEmoji + " " + hs.TimelineLabel
+}
+```
+
+### Implementation Phases
+
+#### Phase 1: Core Sync Infrastructure
+**Files:** `messages.go`, `app.go`, `timeline_sync.go` (new)
+- Add message types and application fields
+- Implement `cmdTimelineSync()` and `cmdTimelineSyncTicker()`
+- Handle `TimelineSyncMsg` in Update()
+- Trigger sync on Init() when HasRemote
+
+#### Phase 2: Header Visual Feedback
+**Files:** `ui/header.go`, `app.go`
+- Pass `timelineSyncInProgress` and `timelineSyncFrame` to header
+- Render spinner when sync in progress
+- Dim timeline description during sync
+
+#### Phase 3: Periodic Refresh
+**Files:** `timeline_sync.go`
+- Implement periodic sync scheduling (default: 60s interval)
+- Only schedule when returning to ModeMenu
+- Add `shouldRunTimelineSync()` guard
+
+#### Phase 4: Menu Integration (Optional)
+**Files:** `menu_items.go`
+- Add "(syncing...)" hint to timeline-dependent items
+- Consider adding "Refresh Timeline" menu item for manual sync
+
+### Constants (SSOT)
+```go
+const (
+    TimelineSyncInterval    = 60 * time.Second  // Periodic sync interval
+    TimelineSyncTickRate    = 100 * time.Millisecond  // Animation refresh rate
+)
+```
+
+### Success Criteria
+1. ✅ Timeline shows spinner during initial sync on startup
+2. ✅ Spinner animation updates every 100ms (when in ModeMenu)
+3. ✅ Timeline updates to accurate state after fetch completes
+4. ✅ Periodic sync runs every 60s while in ModeMenu
+5. ✅ No sync activity when in other modes (History, Input, Console)
+6. ✅ No UI blocking during fetch — remains fully responsive
+7. ✅ Clean build with `./build.sh`
+
+### Files to Create
+- `internal/app/timeline_sync.go` — Core sync logic
+
+### Files to Modify
+- `internal/app/messages.go` — Add `TimelineSyncMsg`, `TimelineSyncTickMsg`
+- `internal/app/app.go` — Add fields, Init trigger, Update handler
+- `internal/ui/header.go` — Spinner rendering, dimmed state
+- `internal/ui/sizing.go` — Sync interval constants
+
+### Current Status
+**PLANNED** - ANALYST kickoff document created 2026-01-23
+- Kickoff plan: `.carol/85-ANALYST-KICKOFF-TIMELINE-SYNC.md`
+- Implementation: Not started
+- SCAFFOLDER assignment: Pending
+
+**Next Steps:**
+- User to assign SCAFFOLDER: "@CAROL.md SCAFFOLDER: Rock 'n Roll"
+- SCAFFOLDER to implement Phase 1 (core sync infrastructure)
+- Follow kickoff plan for complete implementation
+
+---
+
+## Session 86: Config Menu & Preferences 📝 PLANNED
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-23
+
+### Overview
+**Status:** 📝 PLANNED - ANALYST kickoff created, awaiting implementation
+**Role:** ANALYST (Amp - Claude Sonnet 4)
+**Document:** `.carol/86-ANALYST-KICKOFF-CONFIG-MENU.md`
+
+### Problem Statement
+TIT needs a comprehensive configuration system for repository settings and user preferences. Current limitations:
+- No centralized config menu
+- No persistent user preferences
+- Timeline sync settings hardcoded
+- Theme switching requires manual file editing
+
+### Solution Architecture
+Add new `ModeConfig` menu accessible via `/` shortcut from main menu. Provides repository configuration (remote, branch) and user preferences (auto-update, themes).
+
+### Config Menu Structure
+
+**Shortcut:** `/` from ModeMenu
+
+**Dynamic Menu Items (based on git state):**
+
+| Condition | Menu Items |
+|-----------|------------|
+| NoRemote | Add Remote |
+| HasRemote | Switch Remote |
+| — | ───────── (separator) |
+| HasRemote | Remove Remote |
+| NoRemote | Toggle Auto Update *(disabled)* |
+| HasRemote | Toggle Auto Update |
+| Always | Switch Branch |
+| — | ───────── (separator) |
+| Always | Preferences |
+
+### Component 1: Remote Operations
+
+#### Add Remote (NoRemote)
+- Flow: ModeInput → prompt URL → `git remote add origin <url>` → fetch → DetectState
+- Identical to existing "Add Remote" from main menu
+- After success: menu shows "Switch Remote" instead
+
+#### Switch Remote (HasRemote)
+- Flow: ModeInput → prompt URL → `git remote set-url origin <url>` → fetch → DetectState
+- Same UI as Add Remote, different git command
+
+#### Remove Remote (HasRemote)
+- Flow: Confirmation dialog → `git remote remove origin` → DetectState
+- After success: menu shows "Add Remote" instead
+
+### Component 2: Toggle Auto Update
+
+**Behavior:** Single toggle action (no sub-menu)
+
+```
+Toggle Auto Update    ON   →   Toggle Auto Update    OFF
+```
+
+- `Enter` on menu item → toggle value → write config → apply immediately
+- When OFF: TimelineSync disabled (no background fetch)
+- When ON: TimelineSync enabled with configured interval
+- Disabled when NoRemote (no remote to sync with)
+
+### Component 3: Switch Branch
+
+**New Mode:** `ModeBranchPicker`
+
+**UI Layout:** 2-pane (identical to History)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  BRANCHES                                                           │
+├──────────────────────────────┬──────────────────────────────────────┤
+│ ● main                       │  Branch: main                        │
+│   feature/config             │  Last Commit: 2 hours ago            │
+│   feature/timeline-sync      │  Subject: fix: timeline sync issue   │
+│   hotfix/crash               │  Author: jreng <jreng@example.com>   │
+│                              │  Tracking: origin/main ↑2            │
+│                              │                                      │
+├──────────────────────────────┴──────────────────────────────────────┤
+│  Enter select · Esc back · Ctrl+C quit                              │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Left Pane (Branch List):**
+- `●` marks current branch
+- Local branches only (no remote-only branches)
+- Sorted: current first, then alphabetical
+
+**Right Pane (Branch Details):**
+- Branch name
+- Last commit relative time
+- Last commit subject
+- Author
+- Tracking status (remote branch + ahead/behind, or "local only")
+
+**Navigation:**
+- `↑/↓` or `j/k` — move selection
+- `Enter` — switch to selected branch
+- `Esc` — back to config menu
+
+**Switch Flow (Clean WorkingTree):**
+```
+Enter on branch
+    │
+    └─► git switch <branch> → DetectState → back to ModeMenu
+```
+
+**Switch Flow (Dirty WorkingTree):**
+```
+Enter on branch
+    │
+    └─► Prompt: "Commit changes" or "Switch anyway"
+            │
+            ├─► Commit → ModeInput (message) → commit → switch → DetectState
+            │
+            └─► Switch anyway → git stash → git switch → git stash pop
+                    │
+                    ├─► Success → DetectState → ModeMenu
+                    └─► Conflict → ModeConflictResolver
+```
+
+**Caching (identical to History):**
+- Preload branch metadata on entering ModeBranchPicker
+- Cache: `branchMetadataCache map[string]*BranchDetails`
+- Show loading spinner while building cache
+
+### Component 4: Preferences Pane
+
+**New Mode:** `ModePreferences`
+
+**UI Layout:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  PREFERENCES                                                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ▸ Auto-update Enabled      ON                                      │
+│    Auto-update Interval     5 min                                   │
+│    Theme                    dark                                    │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  Space toggle · +/- interval · Esc save                             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Rows:**
+1. **Auto-update Enabled** — `space` toggles ON/OFF
+2. **Auto-update Interval** — `+`/`=` increase, `-` decrease (1-60 min)
+3. **Theme** — `space` cycles through available themes
+
+**Navigation:**
+- `↑/↓` or `j/k` — move between rows
+- `space` — toggle/cycle current row
+- `+`/`=` — increase interval (row 2 only)
+- `-` — decrease interval (row 2 only)
+- `Esc` — save and return to config menu
+- `Ctrl+C` — quit confirmation (reuse existing pattern)
+
+**Behavior:**
+- Changes apply immediately (hot reload)
+- Changes write to config file immediately
+- App reads from config (SSOT)
+
+### Config File Infrastructure
+
+**Path:** `~/.config/tit/config.toml`
+
+**Format:** TOML (consistent with existing theme files)
+
+**Schema:**
+```toml
+# TIT Configuration
+
+[auto_update]
+enabled = true
+interval_minutes = 5
+
+[appearance]
+theme = "default"
+```
+
+**Startup Flow:**
+```
+App Init
+    │
+    └─► CheckConfigFile()
+            │
+            ├─► Exists + Valid → Load
+            │
+            ├─► Exists + Invalid → Log warning, create default, load
+            │
+            └─► Not exists → Create with defaults, load
+```
+
+**Default Values:**
+```go
+DefaultConfigTOML = `# TIT Configuration
+
+[auto_update]
+enabled = true
+interval_minutes = 5
+
+[appearance]
+theme = "default"
+`
+```
+
+**Package:** `internal/config/config.go`
+
+**Dependencies:** `github.com/pelletier/go-toml/v2` (already in use for themes)
+
+### New Types
+
+#### AppMode (modes.go)
+```go
+const (
+    // ... existing modes
+    ModeConfig        AppMode = "config"
+    ModeBranchPicker  AppMode = "branch_picker"
+    ModePreferences   AppMode = "preferences"
+)
+```
+
+#### Config Struct (config/config.go)
+```go
+type Config struct {
+    AutoUpdate AutoUpdateConfig `toml:"auto_update"`
+    Appearance AppearanceConfig `toml:"appearance"`
+}
+
+type AutoUpdateConfig struct {
+    Enabled         bool `toml:"enabled"`
+    IntervalMinutes int  `toml:"interval_minutes"`
+}
+
+type AppearanceConfig struct {
+    Theme string `toml:"theme"`
+}
+```
+
+#### BranchDetails (git/branch.go — new)
+```go
+type BranchDetails struct {
+    Name           string
+    IsCurrent      bool
+    LastCommitTime time.Time
+    LastCommitHash string
+    LastCommitSubj string
+    Author         string
+    TrackingRemote string    // e.g., "origin/main"
+    Ahead          int
+    Behind         int
+}
+```
+
+### Implementation Phases
+
+#### Phase 1: Config Infrastructure
+**Files:** `internal/config/config.go` (new), `go.mod`
+- Config struct with YAML tags
+- Load/Save functions
+- Startup check (create default if missing)
+- Add `gopkg.in/yaml.v3` dependency
+
+#### Phase 2: ModeConfig Menu
+**Files:** `modes.go`, `app.go`, `handlers.go`, `menu_items.go`
+- Add ModeConfig
+- Generate config menu items (dynamic based on state)
+- Handle `/` shortcut from ModeMenu
+- Wire up navigation and item selection
+
+#### Phase 3: Remote Operations
+**Files:** `operations.go`, `git_handlers.go`
+- Implement Switch Remote (reuse Add Remote flow)
+- Implement Remove Remote (with confirmation)
+- Integrate with config menu
+
+#### Phase 4: ModePreferences
+**Files:** `ui/preferences.go` (new), `app.go`, `handlers.go`
+- PreferencesState struct
+- Render function (3 rows with selection)
+- Key handlers (space, +/-, up/down)
+- Hot reload on change
+- Write to config on change
+
+#### Phase 5: ModeBranchPicker
+**Files:** `ui/branchpicker.go` (new), `git/branch.go` (new), `app.go`, `handlers.go`
+- BranchPickerState struct (mirrors HistoryState)
+- 2-pane layout (list + details)
+- Branch metadata caching
+- Switch flow with dirty handling
+
+#### Phase 6: Integration & Polish
+**Files:** Various
+- Wire up TimelineSync to respect config
+- Theme switching integration
+- Footer hints for all new modes
+- Test all flows
+
+### Files to Create
+
+| File | Purpose |
+|------|---------|
+| `internal/config/config.go` | Config loading/saving, YAML schema |
+| `internal/ui/preferences.go` | Preferences pane rendering |
+| `internal/ui/branchpicker.go` | Branch picker 2-pane component |
+| `internal/git/branch.go` | Branch listing and metadata |
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `go.mod` | (no change - TOML already imported) |
+| `internal/app/modes.go` | Add ModeConfig, ModeBranchPicker, ModePreferences |
+| `internal/app/app.go` | Add config/state fields, Init loading, Update handlers |
+| `internal/app/handlers.go` | Key handlers for new modes |
+| `internal/app/menu_items.go` | Config menu generation |
+| `internal/app/operations.go` | Switch/Remove remote commands |
+| `internal/app/messages.go` | New message types if needed |
+
+### Success Criteria
+
+1. ✅ `/` opens config menu from main menu
+2. ✅ Config menu shows correct items based on remote state
+3. ✅ Add/Switch/Remove Remote work correctly
+4. ✅ Toggle Auto Update toggles and persists
+5. ✅ Branch picker shows all local branches with metadata
+6. ✅ Branch switch works (clean and dirty)
+7. ✅ Preferences pane allows editing all settings
+8. ✅ Changes persist to `~/.config/tit/config.yaml`
+9. ✅ Changes apply immediately (hot reload)
+10. ✅ Footer shows correct hints in all modes
+11. ✅ Ctrl+C confirmation works in all modes
+12. ✅ Clean build with `./build.sh`
+
+### Current Status
+**PLANNED** - ANALYST kickoff document created 2026-01-23
+- Kickoff plan: `.carol/86-ANALYST-KICKOFF-CONFIG-MENU.md`
+- Implementation: Not started
+- SCAFFOLDER assignment: Pending
+
+**Next Steps:**
+- User to assign SCAFFOLDER: "@CAROL.md SCAFFOLDER: Rock 'n Roll"
+- SCAFFOLDER to implement Phase 1 (config infrastructure)
+- Follow kickoff plan for complete implementation
+
+---
+
+## Current State: Sessions 85-86 Implementation Status
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-23
+
+### Current State
+
+✅ **Working Features:**
+- Config menu opens with "/" and stays open (no more interference)
+- Timeline sync respects appConfig.AutoUpdate.Enabled setting
+- Preferences navigation with ↑↓, space to toggle, =/-/+/_ for intervals
+- Theme cycling reads real themes and immediately refreshes UI colors
+- All panic conditions eliminated, build passes
+
+🚧 **Incomplete Work:**
+
+1. **Startup Theme Generation (90% complete)**
+- Created mathematical theme generation system with HSL color space
+- Defined 5 seasonal themes: GFX (base) + Spring/Summer/Autumn/Winter
+- Missing: Integration with app startup - need to wire EnsureFiveThemesExist() into initialization
+
+2. **Theme Generation Testing**
+- Mathematical formulas implemented but unverified
+- Need to test that color transformations produce readable, distinct schemes
+
+### Technical Details for Next Session
+
+**Theme System Architecture:**
+```go
+// In internal/ui/theme.go - IMPLEMENTED
+func EnsureFiveThemesExist() error  // Creates all 5 themes mathematically
+func GetSeasonalThemes() []SeasonalTheme  // Defines hue/saturation/lightness per season
+// NEEDS INTEGRATION - likely in internal/app/app.go
+// Wire into NewApplication() or Init() to call EnsureFiveThemesExist()
+```
+
+**Seasonal Theme Definitions:**
+- Spring: +60° hue (green), 0.95 lightness, 1.1 saturation
+- Summer: +30° hue (blue-cyan), 1.0 lightness, 1.2 saturation  
+- Autumn: -60° hue (orange-red), 0.85 lightness, 1.0 saturation
+- Winter: +120° hue (purple), 0.8 lightness, 0.9 saturation
+
+**Current Theme Files (to be replaced by generation):**
+- `~/.config/tit/themes/gfx.toml`          # Base theme (renamed from default)
+- `~/.config/tit/themes/spring.toml`       # Manual - will be generated  
+- `~/.config/tit/themes/summer.toml`       # Manual - will be generated
+- `~/.config/tit/themes/autumn.toml`       # Manual - will be generated
+- `~/.config/tit/themes/winter.toml`       # Manual - will be generated
+
+### Next Session Objectives
+
+**Immediate Tasks (High Priority):**
+1. **Complete Startup Theme Integration**
+   - Find where themes are currently initialized in app startup
+   - Wire EnsureFiveThemesExist() into app initialization
+   - Ensure themes are generated before any theme loading attempts
+
+2. **Test Mathematical Theme Generation**
+   - Remove existing manual theme files from ~/.config/tit/themes/
+   - Run app to verify 5 themes generate correctly  
+   - Visually test each seasonal theme for readability and distinctness
+   - Verify theme cycling works through all 5 generated themes
+
+3. **Validate Color Transformations**
+   - Test HSL math produces expected hue shifts
+   - Verify saturation and lightness adjustments look good
+   - May need to adjust transformation parameters if colors are unreadable
+
+**Code Context for Next Session:**
+```go
+// internal/ui/theme.go
+EnsureFiveThemesExist() // Ready to wire into startup
+CreateDefaultThemeIfMissing() // Currently calls EnsureFiveThemesExist()
+// internal/app/app.go  
+NewApplication() // Likely place to add theme generation
+Init() // Alternative place for startup theme creation
+// internal/config/config.go
+Load() // Already sets default theme to "gfx"
+```
+
+**Current Build Status:** ✅ Builds successfully with ./build.sh
+
+**Testing Instructions for Next Session:**
+```bash
+# 1. Remove manual themes to test generation
+rm ~/.config/tit/themes/*.toml
+# 2. Run app - should generate all 5 themes
+./tit_x64
+# 3. Test theme cycling
+# Press "/" → navigate to "Preferences" → space on theme row → verify cycling works
+# Each theme should look visually distinct with appropriate seasonal colors
+# 4. Verify config persistence  
+# Change themes, restart app, verify theme setting persists
+```
+
+**Architecture Context:**
+The theme system follows TIT's reactive architecture:
+- Themes are TOML files defining color palettes
+- Theme changes update app.theme field
+- Next render cycle automatically applies new colors
+- No manual refresh needed - built-in reactive updates
+
+**Files Most Likely to Need Changes:**
+1. `internal/app/app.go` - Wire startup theme generation
+2. `internal/ui/theme.go` - Possible color formula adjustments
+3. Test files in `~/.config/tit/themes/` - Verify generation results
+
+**Success Criteria:**
+- App generates 5 distinct, readable seasonal themes on first run
+- Theme cycling works through all generated themes  
+- Each seasonal theme reflects appropriate mood (spring=fresh, winter=cool, etc.)
+- No build errors, no runtime panics
+- Theme preferences persist across app restarts
 
 ---
 

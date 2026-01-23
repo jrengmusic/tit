@@ -2,13 +2,267 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
 
-// DefaultThemeTOML is the embedded default theme content
+// HSLColor represents a color in HSL space
+type HSLColor struct {
+	H, S, L float64
+}
+
+// hslToHex converts HSL to hex color string
+func hslToHex(h, s, l float64) string {
+	// Normalize hue to 0-360
+	h = math.Mod(h, 360)
+	if h < 0 {
+		h += 360
+	}
+
+	// Convert HSL to RGB
+	c := (1 - math.Abs(2*l-1)) * s
+	x := c * (1 - math.Abs(math.Mod(h/60, 2)-1))
+	m := l - c/2
+
+	var r, g, b float64
+
+	switch {
+	case h < 60:
+		r, g, b = c, x, 0
+	case h < 120:
+		r, g, b = x, c, 0
+	case h < 180:
+		r, g, b = 0, c, x
+	case h < 240:
+		r, g, b = 0, x, c
+	case h < 300:
+		r, g, b = x, 0, c
+	default:
+		r, g, b = c, 0, x
+	}
+
+	// Add m and convert to 0-255 range
+	r = (r + m) * 255
+	g = (g + m) * 255
+	b = (b + m) * 255
+
+	// Clamp values
+	if r < 0 {
+		r = 0
+	}
+	if r > 255 {
+		r = 255
+	}
+	if g < 0 {
+		g = 0
+	}
+	if g > 255 {
+		g = 255
+	}
+	if b < 0 {
+		b = 0
+	}
+	if b > 255 {
+		b = 255
+	}
+
+	return fmt.Sprintf("#%02X%02X%02X", int(r), int(g), int(b))
+}
+
+// hexToHSL converts hex color to HSL
+func hexToHSL(hex string) (float64, float64, float64) {
+	// Remove # if present
+	hex = strings.TrimPrefix(hex, "#")
+
+	// Parse RGB
+	r, _ := strconv.ParseInt(hex[0:2], 16, 0)
+	g, _ := strconv.ParseInt(hex[2:4], 16, 0)
+	b, _ := strconv.ParseInt(hex[4:6], 16, 0)
+
+	// Normalize to 0-1
+	rf := float64(r) / 255.0
+	gf := float64(g) / 255.0
+	bf := float64(b) / 255.0
+
+	max := math.Max(rf, math.Max(gf, bf))
+	min := math.Min(rf, math.Min(gf, bf))
+
+	h, s, l := 0.0, 0.0, (max+min)/2.0
+
+	if max == min {
+		h, s = 0.0, 0.0 // achromatic
+	} else {
+		d := max - min
+		if l > 0.5 {
+			s = d / (2.0 - max - min)
+		} else {
+			s = d / (max + min)
+		}
+
+		switch max {
+		case rf:
+			h = (gf - bf) / d
+			if gf < bf {
+				h += 6
+			}
+		case gf:
+			h = (bf-rf)/d + 2
+		case bf:
+			h = (rf-gf)/d + 4
+		}
+		h /= 6
+	}
+
+	return h * 360, s, l
+}
+
+// adjustColorHue shifts a hex color by the given hue degrees and adjusts lightness
+func adjustColorHue(hex string, hueShift float64, lightnessMultiplier float64) string {
+	h, s, l := hexToHSL(hex)
+	h += hueShift
+	l *= lightnessMultiplier
+	if l > 1.0 {
+		l = 1.0
+	}
+	if l < 0.0 {
+		l = 0.0
+	}
+	return hslToHex(h, s, l)
+}
+
+// SeasonalTheme defines a seasonal color variation
+type SeasonalTheme struct {
+	Name        string
+	Description string
+	HueShift    float64 // degrees to shift hue
+	Lightness   float64 // lightness multiplier (0.8-1.0)
+	Saturation  float64 // saturation multiplier (0.8-1.2)
+}
+
+// GetSeasonalThemes returns the 4 seasonal theme definitions
+func GetSeasonalThemes() []SeasonalTheme {
+	return []SeasonalTheme{
+		{
+			Name:        "spring",
+			Description: "Fresh spring greens with vibrant energy",
+			HueShift:    60,   // Green hues
+			Lightness:   0.95, // Bright and fresh
+			Saturation:  1.1,  // More vibrant
+		},
+		{
+			Name:        "summer",
+			Description: "Warm summer blues and bright sunshine",
+			HueShift:    30,  // Blue-cyan hues
+			Lightness:   1.0, // Full brightness
+			Saturation:  1.2, // Most saturated
+		},
+		{
+			Name:        "autumn",
+			Description: "Rich autumn oranges and warm earth tones",
+			HueShift:    -60,  // Orange-red hues
+			Lightness:   0.85, // Warmer, less bright
+			Saturation:  1.0,  // Natural saturation
+		},
+		{
+			Name:        "winter",
+			Description: "Cool winter purples with subtle elegance",
+			HueShift:    120, // Purple-magenta hues
+			Lightness:   0.8, // Dimmer for winter mood
+			Saturation:  0.9, // Slightly muted
+		},
+	}
+}
+
+// generateSeasonalTheme creates a theme variant from the base GFX theme
+func generateSeasonalTheme(baseTheme string, seasonal SeasonalTheme) string {
+	lines := strings.Split(baseTheme, "\n")
+	result := make([]string, 0, len(lines))
+
+	// Update name and description
+	for i, line := range lines {
+		if strings.HasPrefix(line, "name = ") {
+			result = append(result, fmt.Sprintf(`name = "%s"`, strings.Title(seasonal.Name)))
+		} else if strings.HasPrefix(line, "description = ") {
+			result = append(result, fmt.Sprintf(`description = "%s"`, seasonal.Description))
+		} else if strings.Contains(line, " = \"#") && strings.Contains(line, "\"") {
+			// This is a color line - extract and transform the hex color
+			parts := strings.Split(line, " = \"")
+			if len(parts) == 2 {
+				colorPart := strings.Split(parts[1], "\"")[0]
+				if strings.HasPrefix(colorPart, "#") && len(colorPart) == 7 {
+					// Transform the color
+					h, s, l := hexToHSL(colorPart)
+					h += seasonal.HueShift
+					s *= seasonal.Saturation
+					l *= seasonal.Lightness
+
+					// Clamp values
+					if s > 1.0 {
+						s = 1.0
+					}
+					if s < 0.0 {
+						s = 0.0
+					}
+					if l > 1.0 {
+						l = 1.0
+					}
+					if l < 0.0 {
+						l = 0.0
+					}
+
+					newColor := hslToHex(h, s, l)
+					newLine := strings.Replace(line, colorPart, newColor, 1)
+					result = append(result, newLine)
+				} else {
+					result = append(result, line)
+				}
+			} else {
+				result = append(result, line)
+			}
+		} else {
+			result = append(result, line)
+		}
+
+		// Skip the rest if we're at the end
+		if i >= len(lines)-1 {
+			break
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// EnsureFiveThemesExist creates/regenerates all 5 themes at startup
+func EnsureFiveThemesExist() error {
+	configThemeDir := filepath.Join(getConfigDirectory(), "themes")
+	if err := os.MkdirAll(configThemeDir, 0755); err != nil {
+		return fmt.Errorf("failed to create themes directory: %w", err)
+	}
+
+	// Always regenerate gfx.toml from SSOT
+	gfxPath := filepath.Join(configThemeDir, "gfx.toml")
+	if err := os.WriteFile(gfxPath, []byte(DefaultThemeTOML), 0644); err != nil {
+		return fmt.Errorf("failed to write gfx theme: %w", err)
+	}
+
+	// Generate seasonal themes
+	seasonalThemes := GetSeasonalThemes()
+	for _, seasonal := range seasonalThemes {
+		themeContent := generateSeasonalTheme(DefaultThemeTOML, seasonal)
+		themePath := filepath.Join(configThemeDir, seasonal.Name+".toml")
+		if err := os.WriteFile(themePath, []byte(themeContent), 0644); err != nil {
+			return fmt.Errorf("failed to write %s theme: %w", seasonal.Name, err)
+		}
+	}
+
+	return nil
+}
+
 const DefaultThemeTOML = `name = "Default (TIT)"
 description = "TIT color scheme"
 
@@ -312,32 +566,15 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 	return theme, nil
 }
 
-// CreateDefaultThemeIfMissing creates or regenerates the default theme file
-// SSOT: DefaultThemeTOML is regenerated on every launch to ensure all colors are current
+// CreateDefaultThemeIfMissing creates or regenerates all 5 themes (gfx + 4 seasons)
+// SSOT: Always regenerates from DefaultThemeTOML to ensure all colors are current
 func CreateDefaultThemeIfMissing() (string, error) {
-	configThemeDir := filepath.Join(getConfigDirectory(), "themes")
-	configThemeFile := filepath.Join(configThemeDir, "default.toml")
-
-	if err := os.MkdirAll(configThemeDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create config themes directory: %w", err)
-	}
-
-	// Always regenerate from DefaultThemeTOML SSOT to ensure latest colors
-	if err := os.WriteFile(configThemeFile, []byte(DefaultThemeTOML), 0644); err != nil {
-		return "", fmt.Errorf("failed to write default theme: %w", err)
-	}
-
-	return configThemeFile, nil
+	return "", EnsureFiveThemesExist()
 }
 
-// LoadDefaultTheme loads the default theme
+// LoadDefaultTheme loads the default gfx theme
 func LoadDefaultTheme() (Theme, error) {
-	themeFile := filepath.Join(getConfigDirectory(), "themes", "default.toml")
-
-	if _, err := os.Stat(themeFile); err != nil {
-		return Theme{}, fmt.Errorf("theme file not found: %s", themeFile)
-	}
-
+	themeFile := filepath.Join(getConfigDirectory(), "themes", "gfx.toml")
 	return LoadTheme(themeFile)
 }
 
@@ -348,4 +585,55 @@ func getConfigDirectory() string {
 		return ".tit"
 	}
 	return filepath.Join(home, ".config", "tit")
+}
+
+// DiscoverAvailableThemes returns a list of available theme names
+func DiscoverAvailableThemes() ([]string, error) {
+	themesDir := filepath.Join(getConfigDirectory(), "themes")
+
+	files, err := os.ReadDir(themesDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read themes directory: %w", err)
+	}
+
+	var themes []string
+	for _, file := range files {
+		if !file.IsDir() && filepath.Ext(file.Name()) == ".toml" {
+			themeName := file.Name()[:len(file.Name())-5] // Remove .toml extension
+			themes = append(themes, themeName)
+		}
+	}
+
+	return themes, nil
+}
+
+// LoadThemeByName loads a theme by name from the themes directory
+func LoadThemeByName(themeName string) (Theme, error) {
+	themeFile := filepath.Join(getConfigDirectory(), "themes", themeName+".toml")
+	return LoadTheme(themeFile)
+}
+
+// GetNextTheme cycles to the next available theme
+func GetNextTheme(currentTheme string) (string, error) {
+	themes, err := DiscoverAvailableThemes()
+	if err != nil {
+		return "", err
+	}
+
+	if len(themes) == 0 {
+		return "", fmt.Errorf("no themes found")
+	}
+
+	// Find current theme index
+	currentIndex := -1
+	for i, theme := range themes {
+		if theme == currentTheme {
+			currentIndex = i
+			break
+		}
+	}
+
+	// Cycle to next (or first if current not found)
+	nextIndex := (currentIndex + 1) % len(themes)
+	return themes[nextIndex], nil
 }

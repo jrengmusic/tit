@@ -3,7 +3,9 @@ package app
 import (
 	"fmt"
 	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -283,4 +285,35 @@ func (a *Application) invalidateHistoryCaches() tea.Cmd {
 		a.cmdPreloadHistoryMetadata(),
 		a.cmdPreloadFileHistoryDiffs(),
 	)
+}
+
+// cmdToggleAutoUpdate toggles auto-update setting and updates config
+func (a *Application) cmdToggleAutoUpdate() tea.Cmd {
+	return func() tea.Msg {
+		// Load current config
+		cfg, err := config.Load()
+		if err != nil {
+			return ToggleAutoUpdateMsg{Success: false, Error: err.Error()}
+		}
+
+		// Toggle the setting
+		newValue := !cfg.AutoUpdate.Enabled
+		if err := cfg.SetAutoUpdateEnabled(newValue); err != nil {
+			return ToggleAutoUpdateMsg{Success: false, Error: err.Error()}
+		}
+
+		// Update timeline sync state based on new setting
+		if newValue {
+			a.startTimelineSync()
+		}
+
+		return ToggleAutoUpdateMsg{Success: true, Enabled: newValue}
+	}
+}
+
+// ToggleAutoUpdateMsg is sent when auto-update toggle completes
+type ToggleAutoUpdateMsg struct {
+	Success bool
+	Error   string
+	Enabled bool
 }

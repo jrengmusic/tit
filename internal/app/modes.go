@@ -33,6 +33,9 @@ const (
 	ModeSelectBranch       // Dynamic menu to select canon branch from cloned repo
 	ModeFileHistory        // File(s) history browser mode
 	ModeSetupWizard        // Git environment setup wizard (first-time setup)
+	ModeConfig             // Configuration menu (remote, auto-update, branch, preferences)
+	ModeBranchPicker       // Branch selection with details pane
+	ModePreferences        // Preferences editor (auto-update, theme)
 )
 
 // SetupWizardStep represents the current step in the setup wizard
@@ -156,6 +159,24 @@ var modeDescriptions = map[AppMode]ModeMetadata{
 	ModeSetupWizard: {
 		Name:         "setup_wizard",
 		Description:  "First-time git environment setup (SSH key generation, agent config)",
+		AcceptsInput: true,
+		IsAsync:      false,
+	},
+	ModeConfig: {
+		Name:         "config",
+		Description:  "Configuration menu: remote management, auto-update, branch switching, preferences",
+		AcceptsInput: true,
+		IsAsync:      false,
+	},
+	ModeBranchPicker: {
+		Name:         "branch_picker",
+		Description:  "Branch selector with details pane showing commit info and tracking status",
+		AcceptsInput: true,
+		IsAsync:      false,
+	},
+	ModePreferences: {
+		Name:         "preferences",
+		Description:  "Preferences editor: auto-update settings, theme selection",
 		AcceptsInput: true,
 		IsAsync:      false,
 	},

@@ -200,6 +200,63 @@ var MenuItems = map[string]MenuItem{
 		Enabled:  true,
 	},
 
+	// Config menu items (used in GenerateConfigMenu)
+	"config_add_remote": {
+		ID:       "config_add_remote",
+		Shortcut: "a",
+		Emoji:    "🔗",
+		Label:    "Add Remote",
+		Hint:     "Configure a remote repository URL",
+		Enabled:  true,
+	},
+	"config_switch_remote": {
+		ID:       "config_switch_remote",
+		Shortcut: "s",
+		Emoji:    "🔗",
+		Label:    "Switch Remote",
+		Hint:     "Change the remote repository URL",
+		Enabled:  true,
+	},
+	"config_remove_remote": {
+		ID:       "config_remove_remote",
+		Shortcut: "r",
+		Emoji:    "🗑️",
+		Label:    "Remove Remote",
+		Hint:     "Remove the configured remote repository",
+		Enabled:  true,
+	},
+	"config_toggle_auto_update": {
+		ID:       "config_toggle_auto_update",
+		Shortcut: "u",
+		Emoji:    "🔄",
+		Label:    "Toggle Auto Update",
+		Hint:     "Enable/disable background timeline sync",
+		Enabled:  true,
+	},
+	"config_switch_branch": {
+		ID:       "config_switch_branch",
+		Shortcut: "b",
+		Emoji:    "🌿",
+		Label:    "Switch Branch",
+		Hint:     "Switch to a different local branch",
+		Enabled:  true,
+	},
+	"config_preferences": {
+		ID:       "config_preferences",
+		Shortcut: "p",
+		Emoji:    "⚙️",
+		Label:    "Preferences",
+		Hint:     "Configure auto-update and theme settings",
+		Enabled:  true,
+	},
+	"config_back": {
+		ID:       "config_back",
+		Shortcut: "esc",
+		Emoji:    "🔙",
+		Label:    "Back",
+		Hint:     "Return to main menu",
+		Enabled:  true,
+	},
 }
 
 // GetMenuItem retrieves a menu item by ID from the SSOT map
@@ -220,4 +277,99 @@ func ShortcutMap() map[string][]string {
 		}
 	}
 	return conflicts
+}
+
+// getConfigMenuItems returns config menu items based on current git state
+// Dynamic menu items based on remote state (Session 86)
+func (a *Application) getConfigMenuItems() []MenuItem {
+	items := []MenuItem{}
+
+	if a.gitState == nil {
+		return items
+	}
+
+	hasRemote := a.gitState.Remote == "has_remote"
+
+	// Remote operations (conditional)
+	if !hasRemote {
+		items = append(items, MenuItem{
+			ID:       "config_add_remote",
+			Shortcut: "a",
+			Emoji:    "🔗",
+			Label:    "Add Remote",
+			Hint:     "Add a new remote repository URL",
+			Enabled:  true,
+		})
+	} else {
+		items = append(items, MenuItem{
+			ID:       "config_switch_remote",
+			Shortcut: "s",
+			Emoji:    "🔄",
+			Label:    "Switch Remote",
+			Hint:     "Change the remote repository URL",
+			Enabled:  true,
+		})
+		items = append(items, MenuItem{
+			ID:       "config_remove_remote",
+			Shortcut: "r",
+			Emoji:    "✕",
+			Label:    "Remove Remote",
+			Hint:     "Disconnect the remote repository",
+			Enabled:  true,
+		})
+	}
+
+	// Separator marker
+	items = append(items, MenuItem{
+		ID:      "config_sep_1",
+		Emoji:   "───────",
+		Label:   "───────",
+		Enabled: false,
+	})
+
+	// Auto-update (only available with remote)
+	autoUpdateLabel := "Toggle Auto Update"
+	autoUpdateHint := "Enable or disable background sync"
+	if !hasRemote {
+		autoUpdateHint = "Enable or disable background sync (requires remote)"
+	}
+
+	items = append(items, MenuItem{
+		ID:       "config_toggle_autoupdate",
+		Shortcut: "u",
+		Emoji:    "⟳",
+		Label:    autoUpdateLabel,
+		Hint:     autoUpdateHint,
+		Enabled:  hasRemote,
+	})
+
+	// Branch switching (always available)
+	items = append(items, MenuItem{
+		ID:       "config_switch_branch",
+		Shortcut: "b",
+		Emoji:    "🌿",
+		Label:    "Switch Branch",
+		Hint:     "View and switch to a different branch",
+		Enabled:  true,
+	})
+
+	// Separator marker
+	items = append(items, MenuItem{
+		ID:      "config_sep_2",
+		Emoji:   "───────",
+		Label:   "───────",
+		Enabled: false,
+	})
+
+	// Preferences (always available)
+	items = append(items, MenuItem{
+		ID:       "config_preferences",
+		Shortcut: "p",
+		Emoji:    "⚙️",
+		Label:    "Preferences",
+		Hint:     "Edit theme, auto-update settings",
+		Enabled:  true,
+	})
+
+	return items
 }

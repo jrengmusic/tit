@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"tit/internal/git"
 	"tit/internal/ui"
 )
 
@@ -60,6 +61,18 @@ type RemoteFetchMsg struct {
 	Success bool
 	Error   string
 }
+
+// TimelineSyncMsg signals completion of background timeline sync
+type TimelineSyncMsg struct {
+	Success  bool
+	Error    string
+	Timeline git.Timeline // Timeline state label
+	Ahead    int
+	Behind   int
+}
+
+// TimelineSyncTickMsg triggers periodic sync while in menu mode
+type TimelineSyncTickMsg struct{}
 
 // CacheProgressMsg reports cache building progress (for UI updates)
 type CacheProgressMsg struct {
@@ -478,6 +491,22 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 		{Key: "←→", Desc: "select"},
 		{Key: "Enter", Desc: "confirm"},
 		{Key: "Esc", Desc: "cancel"},
+	},
+
+	// Branch Picker
+	"branch_picker": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "Enter", Desc: "switch"},
+		{Key: "Esc", Desc: "cancel"},
+	},
+
+	// Preferences
+	"preferences": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "Space", Desc: "toggle"},
+		{Key: "=/-", Desc: "±1min"},
+		{Key: "+/_", Desc: "±10min"},
+		{Key: "Esc", Desc: "back"},
 	},
 }
 
