@@ -173,6 +173,14 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		app.outputBuffer.Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizePullMerge()
+	} else if app.conflictResolveState.Operation == "branch_switch" {
+		// Branch switch with conflicts: finalize by committing resolved files
+		// Transition to console to show finalization operation
+		app.asyncOperationActive = true
+		app.mode = ModeConsole
+		app.outputBuffer.Clear()
+		app.consoleState.Reset()
+		return app, app.cmdFinalizeBranchSwitch()
 	} else if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
 		// Dirty pull merge conflicts resolved: commit merge before reapplying stash
 		// Must finalize the merge commit before proceeding to stash apply

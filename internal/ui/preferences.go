@@ -4,86 +4,95 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
+	"tit/internal/config"
 )
 
-// PreferencesPane renders the preferences editor (3 rows: auto-update, interval, theme)
-func RenderPreferencesPane(selectedRow int, config *Config, width int, height int) string {
-	// Placeholder config type for rendering
-	if config == nil {
+// RenderPreferencesPane renders the preferences editor (3 rows: auto-update, interval, theme)
+// Uses real config.Config, theme, and dynamic sizing
+// Layout: 50/50 split with banner (matches menu layout)
+func RenderPreferencesPane(selectedRow int, cfg *config.Config, theme Theme, sizing DynamicSizing) string {
+	if cfg == nil {
 		return "No config loaded"
 	}
 
-	const rowHeight = 1
-	const padding = 2
+	// 50/50 split
+	leftWidth := sizing.ContentInnerWidth / 2
+	rightWidth := sizing.ContentInnerWidth - leftWidth
 
-	// Build rows
+	// Build rows with theme + styling
 	rows := []string{
-		renderAutoUpdateRow(selectedRow == 0, config.AutoUpdate.Enabled),
-		renderIntervalRow(selectedRow == 1, config.AutoUpdate.IntervalMinutes),
-		renderThemeRow(selectedRow == 2, config.Appearance.Theme),
+		renderAutoUpdateRow(selectedRow == 0, cfg.AutoUpdate.Enabled, theme),
+		renderIntervalRow(selectedRow == 1, cfg.AutoUpdate.IntervalMinutes, theme),
+		renderThemeRow(selectedRow == 2, cfg.Appearance.Theme, theme),
 	}
 
-	// Render with spacing
-	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	// Render preferences content (centered H/V in left column)
+	prefsContent := lipgloss.JoinVertical(lipgloss.Left, rows...)
 
-	// Add padding
-	styled := lipgloss.NewStyle().
-		Width(width-padding*2).
-		Padding(1, 1).
-		Render(content)
+	prefsColumn := lipgloss.NewStyle().
+		Width(leftWidth).
+		Height(sizing.ContentHeight).
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(prefsContent)
 
-	return styled
+	// Render banner in right column (centered H/V like menu does)
+	banner := RenderBannerDynamic(rightWidth, sizing.ContentHeight)
+
+	bannerColumn := lipgloss.NewStyle().
+		Width(rightWidth).
+		Height(sizing.ContentHeight).
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(banner)
+
+	// Join columns horizontally (50/50 split)
+	return lipgloss.JoinHorizontal(lipgloss.Top, prefsColumn, bannerColumn)
 }
 
-// Config is a placeholder for the config type
-type Config struct {
-	AutoUpdate AutoUpdateConfig
-	Appearance AppearanceConfig
-}
-
-type AutoUpdateConfig struct {
-	Enabled         bool
-	IntervalMinutes int
-}
-
-type AppearanceConfig struct {
-	Theme string
-}
-
-func renderAutoUpdateRow(selected bool, enabled bool) string {
+func renderAutoUpdateRow(selected bool, enabled bool, theme Theme) string {
 	status := "OFF"
 	if enabled {
 		status = "ON"
 	}
 
 	label := fmt.Sprintf("▸ Auto-update Enabled    %s", status)
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.ContentTextColor))
+	
 	if selected {
-		return lipgloss.NewStyle().
+		style = style.
 			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Render(label)
+			Foreground(lipgloss.Color(theme.HighlightTextColor))
 	}
-	return label
+	
+	return style.Render(label)
 }
 
-func renderIntervalRow(selected bool, minutes int) string {
+func renderIntervalRow(selected bool, minutes int, theme Theme) string {
 	label := fmt.Sprintf("  Auto-update Interval   %d min", minutes)
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.ContentTextColor))
+	
 	if selected {
-		return lipgloss.NewStyle().
+		style = style.
 			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Render(label)
+			Foreground(lipgloss.Color(theme.HighlightTextColor))
 	}
-	return label
+	
+	return style.Render(label)
 }
 
-func renderThemeRow(selected bool, theme string) string {
+func renderThemeRow(selected bool, theme string, appTheme Theme) string {
 	label := fmt.Sprintf("  Theme                  %s", theme)
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(appTheme.ContentTextColor))
+	
 	if selected {
-		return lipgloss.NewStyle().
+		style = style.
 			Bold(true).
-			Foreground(lipgloss.Color("12")).
-			Render(label)
+			Foreground(lipgloss.Color(appTheme.HighlightTextColor))
 	}
-	return label
+	
+	return style.Render(label)
 }

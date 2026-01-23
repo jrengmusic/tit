@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,29 +10,36 @@ import (
 
 // Timeline sync constants (SSOT)
 const (
-	TimelineSyncTickRate = 100 * time.Millisecond // Animation refresh rate
+	TimelineSyncTickRate   = 100 * time.Millisecond // Animation refresh rate
+	TimelineSyncInterval   = 60 * time.Second       // Default periodic sync interval
 )
 
 // cmdTimelineSync runs git fetch in background and updates timeline
-// CONTRACT: Only runs when HasRemote, returns immediately if NoRemote
+// CONTRACT: Checks remote existence before running; includes stderr on fetch failure
 func (a *Application) cmdTimelineSync() tea.Cmd {
+	// Capture remote state BEFORE returning closure (avoid stale closure captures)
+	hasRemote := a.gitState != nil && a.gitState.Remote == git.HasRemote
+	
 	return func() tea.Msg {
-		// Check if remote exists - no-op if no remote
-		if a.gitState == nil || a.gitState.Remote != git.HasRemote {
+		// Check if remote exists - fail-fast with explicit error
+		if !hasRemote {
 			return TimelineSyncMsg{
-				Success:  true,
-				Timeline: "",
-				Ahead:    0,
-				Behind:   0,
+				Success: false,
+				Error:   "no remote configured",
 			}
 		}
 
 		// Run git fetch
 		result := git.Execute("fetch", "origin")
 		if !result.Success {
+			// FAIL-FAST: Include stderr in error message, not just generic text
+			errMsg := "fetch failed"
+			if result.Stderr != "" {
+				errMsg += ": " + result.Stderr
+			}
 			return TimelineSyncMsg{
 				Success: false,
-				Error:   "fetch failed",
+				Error:   errMsg,
 			}
 		}
 
@@ -40,7 +48,7 @@ func (a *Application) cmdTimelineSync() tea.Cmd {
 		if err != nil {
 			return TimelineSyncMsg{
 				Success: false,
-				Error:   err.Error(),
+				Error:   "failed to detect state after fetch: " + err.Error(),
 			}
 		}
 
@@ -79,9 +87,9 @@ func (a *Application) shouldRunTimelineSync() bool {
 		return false
 	}
 
-	// Recently synced - check interval from config
+	// Recently synced - check interval from config or use SSOT default
 	if !a.timelineSyncLastUpdate.IsZero() {
-		interval := 60 * time.Second // default
+		interval := TimelineSyncInterval // SSOT: 60 seconds default
 		if a.appConfig != nil && a.appConfig.AutoUpdate.IntervalMinutes > 0 {
 			interval = time.Duration(a.appConfig.AutoUpdate.IntervalMinutes) * time.Minute
 		}
@@ -94,11 +102,14 @@ func (a *Application) shouldRunTimelineSync() bool {
 }
 
 // handleTimelineSyncMsg processes the result of background timeline sync
+// CONTRACT: Only mark last-sync on success; don't update on no-remote error
 func (a *Application) handleTimelineSyncMsg(msg TimelineSyncMsg) (tea.Model, tea.Cmd) {
 	a.timelineSyncInProgress = false
-	a.timelineSyncLastUpdate = time.Now()
 
 	if msg.Success {
+		// Mark successful sync time (only on actual fetch, not on error)
+		a.timelineSyncLastUpdate = time.Now()
+		
 		// Update git state with new timeline info
 		if a.gitState != nil {
 			a.gitState.Timeline = msg.Timeline
@@ -111,6 +122,20 @@ func (a *Application) handleTimelineSyncMsg(msg TimelineSyncMsg) (tea.Model, tea
 			a.menuItems = a.GenerateMenu()
 			a.rebuildMenuShortcuts()
 			a.updateFooterHintFromMenu()
+		}
+		
+		// Update footer hint in preferences to show sync completed
+		if a.mode == ModePreferences {
+			a.footerHint = "Auto-update sync completed"
+		}
+	} else {
+		// On error (including no-remote), don't update last-sync timestamp
+		// This allows shouldRunTimelineSync to retry sooner on failure
+		if msg.Error != "" {
+			// Surface error to footer in preferences mode
+			if a.mode == ModePreferences {
+				a.footerHint = fmt.Sprintf("Sync failed: %s", msg.Error)
+			}
 		}
 	}
 
@@ -129,23 +154,21 @@ func (a *Application) handleTimelineSyncMsg(msg TimelineSyncMsg) (tea.Model, tea
 }
 
 // handleTimelineSyncTickMsg handles periodic sync ticks
-// Only updates UI when in ModeMenu to avoid disrupting other modes
+// Updates animation frame while sync is in progress
 func (a *Application) handleTimelineSyncTickMsg() (tea.Model, tea.Cmd) {
-	// Only process ticks when in ModeMenu
-	if a.mode != ModeMenu {
-		return a, nil
-	}
-
-	// Advance animation frame for spinner
+	// Advance animation frame for spinner (all modes with headers show this)
 	a.timelineSyncFrame++
 
-	// Check if we should run a new sync
-	if a.shouldRunTimelineSync() {
-		a.timelineSyncInProgress = true
-		return a, a.cmdTimelineSync()
+	// Only schedule new syncs when in ModeMenu (auto-sync only in menu)
+	if a.mode == ModeMenu {
+		// Check if we should run a new sync
+		if a.shouldRunTimelineSync() {
+			a.timelineSyncInProgress = true
+			return a, a.cmdTimelineSync()
+		}
 	}
 
-	// Schedule next tick if sync still in progress (for animation)
+	// Schedule next tick if sync still in progress (for animation in all modes)
 	if a.timelineSyncInProgress {
 		return a, a.cmdTimelineSyncTicker()
 	}

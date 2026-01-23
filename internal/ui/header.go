@@ -138,13 +138,23 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 		Render(tlLabel)
 	fullWidthLines = append(fullWidthLines, tlLabelLine)
 
-	// Timeline descriptions (indented)
-	for _, desc := range state.TimelineDesc {
+	// Timeline descriptions (indented) - show sync message or actual descriptions
+	if state.SyncInProgress {
+		// Show clear sync message instead of stale/confusing description
 		descLine := lipgloss.NewStyle().
 			Width(totalWidth).
-			Foreground(lipgloss.Color(theme.ContentTextColor)).
-			Render(indent + desc)
+			Foreground(lipgloss.Color(theme.DimmedTextColor)).
+			Render(indent + "Fetching remote updates...")
 		fullWidthLines = append(fullWidthLines, descLine)
+	} else {
+		// Show actual timeline descriptions
+		for _, desc := range state.TimelineDesc {
+			descLine := lipgloss.NewStyle().
+				Width(totalWidth).
+				Foreground(lipgloss.Color(theme.ContentTextColor)).
+				Render(indent + desc)
+			fullWidthLines = append(fullWidthLines, descLine)
+		}
 	}
 
 	fullWidthSection := strings.Join(fullWidthLines, "\n")

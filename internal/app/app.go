@@ -135,9 +135,8 @@ type Application struct {
 	timelineSyncFrame      int       // Animation frame for spinner
 
 	// Config state (Session 86)
-	appConfig         *config.Config // Loaded from ~/.config/tit/config.toml
-	configMenuItems   []MenuItem
-	configSelectedIdx int
+	appConfig       *config.Config // Loaded from ~/.config/tit/config.toml
+	configMenuItems []MenuItem     // Uses menuItems + selectedIndex (no separate state needed)
 
 	// Branch picker state (Session 86)
 	branchPickerState *ui.BranchPickerState
@@ -218,7 +217,7 @@ func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEn
 }
 
 // NewApplication creates a new application instance
-func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
+func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config) *Application {
 	// PRIORITY 0: Check git environment BEFORE anything else
 	// If git/ssh not available or SSH key missing, show setup wizard
 	gitEnv := git.DetectGitEnvironment()
@@ -306,18 +305,16 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme) *Application {
 		cacheMetadata:         false,
 		cacheDiffs:            false,
 
-		// Config state (Session 86)
-		appConfig:         nil, // Will be loaded in Init()
-		configMenuItems:   make([]MenuItem, 0),
-		configSelectedIdx: 0,
+		// Config state (Session 86) - passed from main.go (fail-fast on load errors)
+		appConfig:       cfg,
+		configMenuItems: make([]MenuItem, 0),
 		branchPickerState: &ui.BranchPickerState{
-			SelectedIndex:  0,
-			ScrollOffset:   0,
-			Branches:       make([]ui.BranchInfo, 0),
-			LoadingCache:   false,
-			CacheProgress:  0,
-			CacheTotal:     0,
-			AnimationFrame: 0,
+			Branches:          make([]ui.BranchInfo, 0),
+			SelectedIdx:       0,
+			PaneFocused:       true, // Start with list pane focused
+			ListScrollOffset:  0,
+			DetailsLineCursor: 0,
+			DetailsScrollOff:  0,
 		},
 		preferencesState: &PreferencesState{
 			SelectedRow: 0,
@@ -846,35 +843,16 @@ func (a *Application) View() string {
 		if a.branchPickerState == nil {
 			// Initialize branch picker state if not yet created
 			a.branchPickerState = &ui.BranchPickerState{
-				Branches:      []ui.BranchInfo{},
-				SelectedIndex: 0,
+				Branches:          []ui.BranchInfo{},
+				SelectedIdx:       0,
+				PaneFocused:       true,
+				ListScrollOffset:  0,
+				DetailsLineCursor: 0,
+				DetailsScrollOff:  0,
 			}
 		}
-		// Convert git.BranchDetails to ui.BranchInfo for rendering
-		uiBranches := make([]ui.BranchInfo, len(a.branchPickerState.Branches))
-		for i, b := range a.branchPickerState.Branches {
-			uiBranches[i] = ui.BranchInfo{
-				Name:           b.Name,
-				IsCurrent:      b.IsCurrent,
-				LastCommitTime: b.LastCommitTime,
-				LastCommitHash: b.LastCommitHash,
-				LastCommitSubj: b.LastCommitSubj,
-				Author:         b.Author,
-				TrackingRemote: b.TrackingRemote,
-				Ahead:          b.Ahead,
-				Behind:         b.Behind,
-			}
-		}
-		renderState := &ui.BranchPickerState{
-			SelectedIndex:  a.branchPickerState.SelectedIndex,
-			ScrollOffset:   a.branchPickerState.ScrollOffset,
-			Branches:       uiBranches,
-			LoadingCache:   a.branchPickerState.LoadingCache,
-			CacheProgress:  a.branchPickerState.CacheProgress,
-			CacheTotal:     a.branchPickerState.CacheTotal,
-			AnimationFrame: a.branchPickerState.AnimationFrame,
-		}
-		contentText = ui.RenderBranchPickerSplitPane(renderState, a.width, a.height-3)
+		// Render using SSOT (ListPane + TextPane) matching history pattern
+		contentText = ui.RenderBranchPickerSplitPane(a.branchPickerState, a.theme, a.sizing.TerminalWidth, a.sizing.TerminalHeight)
 
 	case ModePreferences:
 		if a.preferencesState == nil {
@@ -883,27 +861,15 @@ func (a *Application) View() string {
 				SelectedRow: 0,
 			}
 		}
-		// Convert config.Config to ui.Config for rendering
-		var uiConfig *ui.Config
-		if a.appConfig != nil {
-			uiConfig = &ui.Config{
-				AutoUpdate: ui.AutoUpdateConfig{
-					Enabled:         a.appConfig.AutoUpdate.Enabled,
-					IntervalMinutes: a.appConfig.AutoUpdate.IntervalMinutes,
-				},
-				Appearance: ui.AppearanceConfig{
-					Theme: a.appConfig.Appearance.Theme,
-				},
-			}
-		}
-		contentText = ui.RenderPreferencesPane(a.preferencesState.SelectedRow, uiConfig, a.width, a.height-3)
+		// Pass real config, theme, and sizing to render preferences
+		contentText = ui.RenderPreferencesPane(a.preferencesState.SelectedRow, a.appConfig, a.theme, a.sizing)
 
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}
 
 	// Full-screen modes: skip header, show footer only
-	if a.mode == ModeConsole || a.mode == ModeClone || a.mode == ModeFileHistory || a.mode == ModeHistory || a.mode == ModeConflictResolve {
+	if a.mode == ModeConsole || a.mode == ModeClone || a.mode == ModeFileHistory || a.mode == ModeHistory || a.mode == ModeConflictResolve || a.mode == ModeBranchPicker {
 		footer := a.GetFooterContent()
 		return contentText + "\n" + footer
 	}
@@ -922,12 +888,7 @@ func (a *Application) View() string {
 func (a *Application) Init() tea.Cmd {
 	// sizing is already set from NewApplication with default dimensions (80, 40)
 	// WindowSizeMsg will update it to actual terminal dimensions
-
-	// Load config on startup (Session 86)
-	cfg, err := config.Load()
-	if err == nil {
-		a.appConfig = cfg
-	}
+	// Config is already loaded in main.go and passed to NewApplication (fail-fast)
 
 	// CONTRACT: Start cache building immediately on app startup
 	// Cache MUST be ready before history menus can be used
@@ -942,12 +903,16 @@ func (a *Application) Init() tea.Cmd {
 
 	// Async fetch remote on startup to ensure timeline accuracy
 	// Without this, timeline state uses stale local refs
+	// CONTRACT: Only start timeline sync if HasRemote AND AutoUpdate.Enabled
 	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
 		commands = append(commands, cmdFetchRemote())
-		// Also start timeline sync for background updates (Session 85)
-		a.startTimelineSync()
-		commands = append(commands, a.cmdTimelineSync())
-		commands = append(commands, a.cmdTimelineSyncTicker())
+		
+		// Only start timeline sync if auto-update is enabled
+		if a.appConfig != nil && a.appConfig.AutoUpdate.Enabled {
+			a.startTimelineSync()
+			commands = append(commands, a.cmdTimelineSync())
+			commands = append(commands, a.cmdTimelineSyncTicker())
+		}
 	}
 
 	return tea.Batch(commands...)

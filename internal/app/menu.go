@@ -312,11 +312,6 @@ func (a *Application) GenerateConfigMenu() []MenuItem {
 		items = append(items, GetMenuItem("config_remove_remote"))
 	}
 
-	// Auto update toggle (only when remote exists)
-	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
-		items = append(items, GetMenuItem("config_toggle_auto_update"))
-	}
-
 	items = append(items, Item("").Separator().Build())
 
 	// Branch switching (always available)

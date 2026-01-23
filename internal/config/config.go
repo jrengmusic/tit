@@ -36,39 +36,50 @@ type AppearanceConfig struct {
 }
 
 // GetConfigPath returns the path to the config file
-func GetConfigPath() string {
+// CONTRACT: returns error if UserHomeDir fails (fail-fast)
+func GetConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return filepath.Join(homeDir, ".config", "tit", "config.toml")
+	return filepath.Join(homeDir, ".config", "tit", "config.toml"), nil
 }
 
 // GetConfigDir returns the directory containing the config file
-func GetConfigDir() string {
+// CONTRACT: returns error if UserHomeDir fails (fail-fast)
+func GetConfigDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return filepath.Join(homeDir, ".config", "tit")
+	return filepath.Join(homeDir, ".config", "tit"), nil
 }
 
 // Load loads the configuration from the config file
-// Returns default config if file doesn't exist or is invalid
+// CONTRACT: fail-fast on UserHomeDir errors; create default and persist if missing
+// Returns structured error on parse/read failures (fail-fast)
 func Load() (*Config, error) {
-	configPath := GetConfigPath()
+	configPath, err := GetConfigPath()
+	if err != nil {
+		return nil, err // FAIL-FAST: UserHomeDir error
+	}
 
 	// Check if config file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Create default config and return it
+		// File missing: create default and attempt to save it
 		defaultConfig := &Config{
 			AutoUpdate: AutoUpdateConfig{
 				Enabled:         true,
 				IntervalMinutes: 5,
 			},
 			Appearance: AppearanceConfig{
-				Theme: "default",
+				Theme: "gfx",
 			},
+		}
+		// Attempt to save; if it fails, still return config but surface error
+		if saveErr := Save(defaultConfig); saveErr != nil {
+			// Log/return error but allow app to continue with in-memory default
+			return defaultConfig, saveErr
 		}
 		return defaultConfig, nil
 	}
@@ -76,15 +87,15 @@ func Load() (*Config, error) {
 	// Read config file
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		// Return default on read error
-		return createDefaultConfig()
+		// FAIL-FAST: propagate read error
+		return nil, err
 	}
 
 	// Parse TOML
 	var config Config
 	if err := toml.Unmarshal(data, &config); err != nil {
-		// Return default on parse error
-		return createDefaultConfig()
+		// FAIL-FAST: propagate parse error
+		return nil, err
 	}
 
 	// Apply defaults for missing fields
@@ -98,30 +109,15 @@ func Load() (*Config, error) {
 	return &config, nil
 }
 
-// createDefaultConfig creates the default config file and returns it
-func createDefaultConfig() (*Config, error) {
-	config := &Config{
-		AutoUpdate: AutoUpdateConfig{
-			Enabled:         true,
-			IntervalMinutes: 5,
-		},
-		Appearance: AppearanceConfig{
-			Theme: "gfx",
-		},
-	}
 
-	// Create default config file
-	if err := Save(config); err != nil {
-		return config, nil // Return config anyway, file creation failed
-	}
-
-	return config, nil
-}
 
 // Save saves the configuration to the config file
 func Save(config *Config) error {
 	// Create directory if it doesn't exist
-	configDir := GetConfigDir()
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return err // FAIL-FAST: UserHomeDir error
+	}
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return err
 	}
@@ -133,7 +129,10 @@ func Save(config *Config) error {
 	}
 
 	// Write to file
-	configPath := GetConfigPath()
+	configPath, err := GetConfigPath()
+	if err != nil {
+		return err // FAIL-FAST: UserHomeDir error
+	}
 	return os.WriteFile(configPath, data, 0644)
 }
 

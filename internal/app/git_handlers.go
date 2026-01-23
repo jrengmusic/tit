@@ -28,6 +28,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		return a.setupConflictResolverForPull(msg)
 	}
 
+	if msg.ConflictDetected && msg.Step == "branch_switch" {
+		// Branch switch with conflicts: setup conflict resolver
+		a.asyncOperationActive = false
+		return a.setupConflictResolverForBranchSwitch(msg)
+	}
+
 	// Handle other failures
 	if !msg.Success {
 		buffer.Append(msg.Error, ui.TypeStderr)
@@ -179,6 +185,53 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// This ensures cache messages appear before "Press ESC to return to menu"
 
 		return a, cacheCmd
+
+	case "branch_switch":
+		// Branch switch completed successfully (no conflicts or conflicts resolved)
+		// Reload state and return to config menu
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			return a, nil
+		}
+		a.gitState = state
+		
+		// Regenerate menu with new branch state
+		menu := a.GenerateMenu()
+		a.menuItems = menu
+		a.selectedIndex = 0
+		
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		a.mode = ModeConsole // Stay in console so user sees the success message
+
+	case "finalize_branch_switch":
+		// Branch switch conflicts resolved and finalized
+		// Reload state and return to config menu
+		state, err := git.DetectState()
+		if err != nil {
+			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+			a.asyncOperationActive = false
+			a.isExitAllowed = true
+			a.mode = ModeConsole
+			return a, nil
+		}
+		a.gitState = state
+		
+		// Regenerate menu with new branch state
+		menu := a.GenerateMenu()
+		a.menuItems = menu
+		a.selectedIndex = 0
+		
+		buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
+		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+		a.footerHint = GetFooterMessageText(MessageOperationComplete)
+		a.asyncOperationActive = false
+		a.isExitAllowed = true
+		a.conflictResolveState = nil
+		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 
 	case OpForcePush:
 		// Force push completed - reload state, stay in console
@@ -642,4 +695,23 @@ func (a *Application) setupConflictResolverForPull(msg GitOperationMsg) (tea.Mod
 func (a *Application) setupConflictResolverForDirtyPull(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
 	operation := "dirty_pull_" + conflictPhase
 	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+}
+
+// setupConflictResolverForBranchSwitch initializes conflict resolver for branch switch conflicts (convenience wrapper)
+// Conflicts occur when switching would overwrite local changes
+func (a *Application) setupConflictResolverForBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	targetBranch := msg.BranchName
+	currentBranch := ""
+	if a.gitState != nil {
+		currentBranch = a.gitState.CurrentBranch
+	}
+	
+	// Column labels: BASE, LOCAL (current branch), REMOTE (target branch)
+	labels := []string{
+		"BASE",
+		fmt.Sprintf("LOCAL (%s)", currentBranch),
+		fmt.Sprintf("REMOTE (%s)", targetBranch),
+	}
+	
+	return a.setupConflictResolver("branch_switch", labels)
 }

@@ -486,17 +486,19 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 		}
 	}
 
-	// Initialize branch picker state
+	// Initialize branch picker state (mirrors history state pattern: list + details pane)
 	app.branchPickerState = &ui.BranchPickerState{
-		SelectedIndex: 0,
-		ScrollOffset:  0,
-		Branches:      uiBranches,
-		LoadingCache:  false,
+		Branches:          uiBranches,
+		SelectedIdx:       0,
+		PaneFocused:       true,                     // Start with list pane focused
+		ListScrollOffset:  0,
+		DetailsLineCursor: 0,
+		DetailsScrollOff:  0,
 	}
 
 	// Switch to branch picker mode
 	app.mode = ModeBranchPicker
-	app.footerHint = "↑/↓ Navigate • Enter: Switch • ESC: Cancel"
+	app.footerHint = "↑/↓ Navigate • Tab: Switch panes • Enter: Switch branch • ESC: Cancel"
 	return nil
 }
 

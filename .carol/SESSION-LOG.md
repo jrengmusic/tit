@@ -532,115 +532,669 @@ The following files will be deleted as per JOURNALIST protocol:
 
 
 
-## Session 85: Console Full-Screen Mode & Separator Color Standardization ✅
+## Session 85: Background Timeline Sync ✅
 
 **Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
-**Date:** 2026-01-23
+**Date:** 2026-01-24
 
-### Objectives
-- Transform console output from header/footer-wrapped mode to full-screen mode
-- Add proper padding and status bar to console output
-- Standardize separator color across header and menu components
-- Fix console status bar alignment and scroll status display
+### Overview
+**Status:** ✅ COMPLETED - Timeline sync implemented with config integration and error handling
+**Role:** SCAFFOLDER (Cline CLI Agent) + CARETAKER (GPT-5.1-Codex-Max)
+**Planned by:** ANALYST (Amp - Claude Sonnet 4)
+**Documents compiled:** 85-ANALYST-KICKOFF-TIMELINE-SYNC.md, 85-SCAFFOLDER-PHASE1.md, 85-86-CARETAKER-CONFIG-INTEGRATION.md, 85-86-INSPECTOR-AUDIT.md, 87-CARETAKER-CONFIG-PREFERENCES-FIXES.md
+
+### Problem Statement
+Timeline state detection (`DetectState()`) compares local HEAD against **cached local refs** (`refs/remotes/origin/<branch>`). These refs only update after `git fetch`. Current behavior:
+
+1. App starts → `DetectState()` → Shows timeline from **stale refs**
+2. Async `cmdFetchRemote()` runs in background
+3. `RemoteFetchMsg` → Re-runs `DetectState()` → **Now accurate**
+
+**Issue:** User briefly sees stale "In Sync" before it updates to "Behind" — no visual indication that sync is in progress.
+
+### Solution Implemented
+**TimelineSync** — background synchronization mechanism with visual feedback:
+
+1. ✅ **Non-blocking async fetch** — UI remains responsive
+2. ✅ **Spinner animation** — visual feedback during sync (frames: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏)
+3. ✅ **Config integration** — respects `appConfig.AutoUpdate.Enabled` and `IntervalMinutes`
+4. ✅ **Error handling** — surfaces fetch errors with stderr, handles no-remote condition
+5. ✅ **Mode-aware updates** — only updates UI when in ModeMenu
+
+### Architecture
+
+**New Types (messages.go):**
+- `TimelineSyncMsg` — signals completion of background timeline sync
+- `TimelineSyncTickMsg` — triggers periodic sync ticks (100ms interval)
+
+**New Application Fields (app.go):**
+- `timelineSyncInProgress bool` — True while fetch is running
+- `timelineSyncLastUpdate time.Time` — Last successful sync timestamp
+- `timelineSyncInterval time.Duration` — Configurable sync interval
+- `timelineSyncFrame int` — Animation frame for spinner
+
+**New Functions (timeline_sync.go):**
+- `cmdTimelineSync()` — Async git fetch with state detection
+- `cmdTimelineSyncTicker()` — Periodic sync tick scheduling
+- `shouldRunTimelineSync()` — Sync eligibility check
+- `handleTimelineSyncMsg()` — Sync completion handler
+- `handleTimelineSyncTickMsg()` — Tick handler for animation
+- `startTimelineSync()` — Startup sync initiator
+
+### Sync Flow
+```
+App Init (HasRemote)
+    │
+    ├─► Check appConfig.AutoUpdate.Enabled
+    ├─► Check remote exists
+    ├─► timelineSyncInProgress = true
+    ├─► cmdTimelineSync() — async fetch
+    └─► cmdTimelineSyncTicker() — schedules refresh ticks
+            │
+            ▼
+    [Every 100ms while timelineSyncInProgress]
+        │
+        ├─► TimelineSyncTickMsg received
+        ├─► If mode != ModeMenu → no-op (don't update UI)
+        ├─► If mode == ModeMenu → increment timelineSyncFrame, regenerate header
+        └─► Schedule next tick
+            │
+            ▼
+    [Fetch completes]
+        │
+        ├─► TimelineSyncMsg received
+        ├─► timelineSyncInProgress = false
+        ├─► If error: surface stderr, don't update last-sync
+        ├─► If success: DetectState(), update timelineSyncLastUpdate
+        └─► If mode == ModeMenu → schedule next sync after interval
+```
+
+### Header Rendering (ui/header.go)
+```go
+// When timelineSyncInProgress == true:
+// - Timeline label shows spinner: "⠋ Syncing" (animated)
+// - Timeline description shows "Checking remote..."
+// - After sync: normal timeline display with accurate state
+
+func (hs *HeaderState) TimelineLabel(syncInProgress bool, frame int) string {
+    if syncInProgress {
+        spinnerFrames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+        return spinnerFrames[frame % len(spinnerFrames)] + " Syncing"
+    }
+    return hs.TimelineEmoji + " " + hs.TimelineLabel
+}
+```
 
 ### Implementation Summary
 
-**Console Full-Screen Transformation:**
-- Removed header/footer wrapper from console output (ModeConsole/ModeClone)
-- Implemented full-screen console rendering similar to History mode pattern
-- Added 1-cell left/right padding using `lipgloss.Padding(0, 1)`
-- Status bar positioned at bottom with left-aligned shortcuts and right-aligned scroll status
+#### Phase 1: Core Sync Infrastructure ✅
+**Completed by:** SCAFFOLDER (85-SCAFFOLDER-PHASE1.md)
+- Created `internal/app/timeline_sync.go` with core sync logic
+- Added message types: `TimelineSyncMsg`, `TimelineSyncTickMsg`
+- Added application state fields for sync tracking
+- Implemented async fetch with state detection
+- Added periodic tick scheduling (100ms for animation)
+- Modified files: timeline_sync.go, messages.go, app.go, header.go
 
-**Status Bar Improvements:**
-- Shortcuts on left: "↑↓ scroll", "ESC back to menu"
-- Scroll status on right: "(at bottom)", "(can scroll up)", "↓ N more lines"
-- Ctrl+C override mode shows centered message only
-- Fixed width calculation to account for padded layout
+#### Phase 2: Header Visual Feedback ✅
+**Completed by:** SCAFFOLDER (85-SCAFFOLDER-PHASE1.md)
+- Added spinner animation to header during sync
+- Implemented `TimelineSyncSpinner()` helper function
+- Updated `RenderHeaderInfo()` to show sync state
+- Spinner updates every 100ms when in ModeMenu
 
-**Separator Color Standardization:**
-- Added new `separatorColor = "#1B2A31"` (dark) to theme palette
-- Updated both header and menu components to use `theme.SeparatorColor`
-- Replaced inconsistent usage of `BoxBorderColor` and `DimmedTextColor` for separators
-- Ensured visual consistency across all UI components
+#### Phase 3: Config Integration ✅
+**Completed by:** CARETAKER (85-86-CARETAKER-CONFIG-INTEGRATION.md, 87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Timeline sync now respects `appConfig.AutoUpdate.Enabled`
+- Uses configured interval from `appConfig.AutoUpdate.IntervalMinutes`
+- Added SSOT constant `TimelineSyncInterval` (60s)
+- Fixed error handling to surface fetch stderr
+- Prevents sync when no remote available
+- Modified files: timeline_sync.go, app.go, config.go
 
-### Files Modified (6 total)
+#### Phase 4: Error Handling & Fail-Fast ✅
+**Completed by:** CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Config loading now fails fast on UserHomeDir/read/parse errors
+- Timeline sync returns explicit error on no-remote condition
+- Fetch errors include stderr for debugging
+- Last-sync timestamp only updated on successful fetch
+- Removed silent fallback logic
 
-**internal/ui/console.go:**
-- Replaced `RenderConsoleOutput` with `RenderConsoleOutputFullScreen` taking terminal dimensions
-- Added 1-cell left/right padding with `lipgloss.Padding(0, 1)`
-- Implemented status bar with shortcuts (left) + scroll status (right)
-- Added override mode for centered Ctrl+C messages
-- Fixed status bar width calculation for padded layout
+### Files Created (1)
+- `internal/app/timeline_sync.go` — Core sync logic with 6 functions and 2 constants
 
-**internal/ui/theme.go:**
-- Added `separatorColor = "#1B2A31"` (dark) for separator lines
-- Updated ThemeDefinition struct with SeparatorColor field
-- Updated Theme struct with SeparatorColor field
-- Updated LoadTheme function to load separator color from config
-- Improved code formatting and consistency
+### Files Modified (7)
+- `internal/app/messages.go` — Added TimelineSyncMsg, TimelineSyncTickMsg
+- `internal/app/app.go` — Added sync state fields, Init trigger, Update handlers
+- `internal/ui/header.go` — Added sync state fields, spinner rendering
+- `internal/app/timeline_sync.go` — Config compliance, error handling
+- `internal/config/config.go` — Fail-fast error handling
+- `internal/app/handlers.go` — Config integration
+- `internal/app/menu_items.go` — Dead code removal
 
-**internal/ui/header.go:**
-- Changed separator line to use `theme.SeparatorColor` instead of `theme.BoxBorderColor`
-- Ensured visual consistency with menu separators
+### Critical Fixes Applied
 
-**internal/ui/menu.go:**
-- Changed separator line to use `theme.SeparatorColor` instead of `theme.DimmedTextColor`
-- Ensured visual consistency with header separators
+#### Config SSOT & Fail-Fast
+- Changed theme default from "default" to "gfx" (SSOT unification)
+- Config loading propagates errors instead of silent fallbacks
+- Timeline sync respects `AutoUpdate.Enabled` setting
+- Interval clamps consistent (1-60 minutes)
 
-**internal/ui/statusbar.go:**
-- Added `sepStyle` to StatusBarStyles for separator rendering
-- Improved status bar styling consistency
+#### Timeline Sync Compliance
+- Only starts when `AutoUpdate.Enabled` is true AND remote exists
+- Uses configured interval instead of hardcoded 60s
+- Surfaces fetch errors with stderr
+- No-remote condition explicitly reported
+- Last-sync only updated on successful fetch
 
-**internal/app/app.go:**
-- Added ModeConsole/ModeClone to full-screen mode check (bypasses header/footer)
-- Updated console rendering to use new full-screen function with terminal dimensions
-- Ensured console follows same pattern as History mode
+#### Preferences Integration
+- Preferences UI uses real config, theme, and sizing
+- Auto-update toggle calls `startTimelineSync()` when enabled
+- Interval adjustments respect 1-60 minute range
 
-### Technical Details
-
-**Layout Structure:**
-```
-┌────────────────────────────────────────┐ ← Terminal top
-│ OUTPUT                                 │
-│                                        │
-│ [scrollable console output content]    │
-│ ...                                    │
-│                                        │
-├────────────────────────────────────────┤
-│  ↑↓ scroll  │  ESC back to menu    │   │ ← Left/right aligned
-│          (at bottom)                   │
-└────────────────────────────────────────┘ ← Terminal bottom
-     Padding(0,1)
-```
-
-**SSOT:** `separatorColor = "#1B2A31"` (dark) used by both header and menu separators
-
-**Console Output Pattern:** Follows History mode pattern (`RenderHistorySplitPane`)
-
-### Success Criteria Met
-
-✅ Console output now uses full terminal (no header/footer wrapper)
-✅ Proper 1-cell left/right padding applied
-✅ Status bar correctly positioned at bottom
-✅ Shortcuts and scroll status properly aligned
-✅ Ctrl+C override messages centered
-✅ Separator color standardized across all components
-✅ Visual consistency between header and menu separators
-✅ Clean build with `./build.sh`
-✅ No regressions in existing functionality
+### Success Criteria - All Met ✅
+1. ✅ Timeline shows spinner during initial sync on startup
+2. ✅ Spinner animation updates every 100ms (when in ModeMenu)
+3. ✅ Timeline updates to accurate state after fetch completes
+4. ✅ Periodic sync runs using configured interval while in ModeMenu
+5. ✅ No sync activity when in other modes (History, Input, Console)
+6. ✅ No sync when `AutoUpdate.Enabled` is false
+7. ✅ No sync when no remote available
+8. ✅ No UI blocking during fetch — remains fully responsive
+9. ✅ Fetch errors include stderr for debugging
+10. ✅ Clean build with `./build.sh`
 
 ### Build Status
 ✅ Clean compile with `./build.sh`
+✅ All tests pass
 
 ### Testing Status
-✅ VERIFIED — All success criteria met, console full-screen mode working as specified
+✅ VERIFIED — All success criteria met, timeline sync working as specified
 
-### Notes
+### Dependencies
+- **Depends on:** Session 84 (Footer Unification) — footer hints for sync status
+- **Prerequisite for:** Session 86 (Config Menu) — config controls timeline sync
 
-- Console output now matches History mode pattern for full-screen rendering
-- Separator color standardization improves visual consistency across UI
-- Status bar improvements provide better user guidance and feedback
-- All changes follow existing patterns and SSOT principles
+### Task Summary Files Compiled
+- `.carol/85-ANALYST-KICKOFF-TIMELINE-SYNC.md` — Original plan by ANALYST
+- `.carol/85-SCAFFOLDER-PHASE1.md` — Core infrastructure implementation
+- `.carol/85-86-CARETAKER-CONFIG-INTEGRATION.md` — Integration and fixes
+- `.carol/85-86-INSPECTOR-AUDIT.md` — Audit findings and recommendations
+- `.carol/87-CARETAKER-CONFIG-PREFERENCES-FIXES.md` — Config and error handling fixes
+
+### Files to Delete After Compilation
+The following files will be deleted as per JOURNALIST protocol:
+- `.carol/85-ANALYST-KICKOFF-TIMELINE-SYNC.md`
+- `.carol/85-SCAFFOLDER-PHASE1.md`
+- `.carol/85-86-CARETAKER-CONFIG-INTEGRATION.md`
+- `.carol/85-86-INSPECTOR-AUDIT.md`
+- `.carol/87-CARETAKER-CONFIG-PREFERENCES-FIXES.md`
+
+---
+
+## Session 86: Config Menu & Preferences ✅
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-24
+
+### Overview
+**Status:** ✅ COMPLETED - Config menu fully functional with preferences and branch picker
+**Role:** SCAFFOLDER (OpenCode CLI Agent) + CARETAKER (GPT-5.1-Codex-Max)
+**Planned by:** ANALYST (Amp - Claude Sonnet 4)
+**Documents compiled:** 86-ANALYST-KICKOFF-CONFIG-MENU.md, 86-SCAFFOLDER-PHASES-2-5.md, 85-86-CARETAKER-CONFIG-INTEGRATION.md, 85-86-INSPECTOR-AUDIT.md, 86-CARETAKER-ANALYSIS.md, 87-CARETAKER-CONFIG-PREFERENCES-FIXES.md
+
+### Problem Statement
+TIT needed a comprehensive configuration system for repository settings and user preferences. Current limitations:
+- No centralized config menu
+- No persistent user preferences
+- Timeline sync settings hardcoded
+- Theme switching required manual file editing
+
+### Solution Implemented
+**Complete Config Menu System:**
+
+1. ✅ **Config Menu** — accessible via `/` shortcut from main menu
+2. ✅ **Preferences Editor** — toggle auto-update, adjust interval, cycle themes
+3. ✅ **Branch Picker** — 2-pane layout with branch switching and dirty handling
+4. ✅ **Remote Operations** — add/switch/remove remote with proper git integration
+5. ✅ **Config File Infrastructure** — TOML-based config with auto-generation
+6. ✅ **Theme System Overhaul** — mathematical generation of 5 seasonal themes
+
+### Architecture
+
+**Config File Infrastructure:**
+- **Path:** `~/.config/tit/config.toml`
+- **Format:** TOML (consistent with existing theme files)
+- **Schema:** `[auto_update]` and `[appearance]` sections
+- **Startup:** Auto-generates with defaults if missing
+
+**New Types:**
+```go
+// AppMode (modes.go)
+const (
+    ModeConfig        AppMode = "config"
+    ModeBranchPicker  AppMode = "branch_picker"
+    ModePreferences   AppMode = "preferences"
+)
+
+// Config Struct (config/config.go)
+type Config struct {
+    AutoUpdate AutoUpdateConfig `toml:"auto_update"`
+    Appearance AppearanceConfig `toml:"appearance"`
+}
+
+type AutoUpdateConfig struct {
+    Enabled         bool `toml:"enabled"`
+    IntervalMinutes int  `toml:"interval_minutes"`
+}
+
+type AppearanceConfig struct {
+    Theme string `toml:"theme"`
+}
+
+// BranchDetails (git/branch.go)
+type BranchDetails struct {
+    Name           string
+    IsCurrent      bool
+    LastCommitTime time.Time
+    LastCommitHash string
+    LastCommitSubj string
+    Author         string
+    TrackingRemote string
+    Ahead          int
+    Behind         int
+}
+```
+
+### Implementation Summary
+
+#### Phase 1: Config Infrastructure ✅
+**Completed by:** SCAFFOLDER (Session 85)
+- Created `internal/config/config.go` with TOML support
+- Implemented Load/Save functions with fail-fast error handling
+- Auto-generates default config at `~/.config/tit/config.toml`
+- Changed default theme from "default" to "gfx" (SSOT unification)
+
+#### Phase 2: ModeConfig Menu ✅
+**Completed by:** SCAFFOLDER (86-SCAFFOLDER-PHASES-2-5.md)
+- Added `ModeConfig` to app modes
+- Created dynamic menu generation based on git state
+- Added `/` shortcut handler to open config menu
+- Menu items: Add/Switch/Remove Remote, Auto-update toggle, Switch Branch, Preferences
+
+**Fixed by CARETAKER (85-86-CARETAKER-CONFIG-INTEGRATION.md):**
+- Prevented background process interference (timeline sync, cache building)
+- Added mode checks to prevent menu regeneration in non-menu modes
+- Fixed panic conditions in View() method
+
+#### Phase 3: Remote Operations ✅
+**Completed by:** SCAFFOLDER (86-SCAFFOLDER-PHASES-2-5.md)
+- Implemented Add Remote (NoRemote → HasRemote)
+- Implemented Switch Remote (change existing remote URL)
+- Implemented Remove Remote (with confirmation dialog)
+- All operations trigger fetch and DetectState()
+
+**Fixed by CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md):**
+- Wired remote operation handlers to menu items
+- Added proper error handling and user feedback
+
+#### Phase 4: ModePreferences ✅
+**Completed by:** SCAFFOLDER (86-SCAFFOLDER-PHASES-2-5.md)
+- Created `internal/ui/preferences.go` with 3-row editor
+- Rows: Auto-update Enabled (space toggle), Auto-update Interval (±/- adjust), Theme (space cycle)
+- Added selection highlighting and proper theme colors
+
+**Fixed by CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md):**
+- Replaced placeholder structs with real `config.Config`
+- Fixed SSOT compliance (theme, sizing, config)
+- Wired toggle to actually update `app.appConfig` and reschedule sync
+- Fixed interval clamps (1-60 minutes, consistent across handlers)
+- Added proper error handling and fail-fast behavior
+
+#### Phase 5: ModeBranchPicker ✅
+**Completed by:** SCAFFOLDER (86-SCAFFOLDER-PHASES-2-5.md)
+- Created `internal/ui/branchpicker.go` with 2-pane layout
+- Left pane: branch list with ● current marker
+- Right pane: branch details (last commit, author, tracking status)
+- Added branch metadata caching (mirrors History pattern)
+
+**Fixed by CARETAKER (85-86-CARETAKER-CONFIG-INTEGRATION.md, 87-CARETAKER-CONFIG-PREFERENCES-FIXES.md):**
+- Refactored to use SSOT ListPane + TextPane components
+- Implemented branch switching with dirty tree handling
+- Added conflict detection and resolution integration
+- Wired ENTER key to perform actual branch switch
+- Added proper navigation (↑/↓) and pane switching (Tab)
+
+#### Phase 6: Integration & Polish ✅
+**Completed by:** CARETAKER (85-86-CARETAKER-CONFIG-INTEGRATION.md, 87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Wired TimelineSync to respect `appConfig.AutoUpdate.Enabled`
+- Added footer hints for all new modes
+- Implemented theme cycling with real filesystem themes
+- Added comprehensive error handling and fail-fast behavior
+- Removed dead code and unified SSOT
+
+### Files Created (6)
+- `internal/config/config.go` — Config loading/saving infrastructure
+- `internal/ui/preferences.go` — Preferences pane rendering
+- `internal/ui/branchpicker.go` — Branch picker 2-pane component
+- `internal/git/branch.go` — Branch listing and metadata operations
+- `internal/app/preferences_state.go` — Preferences state management
+- `internal/app/timeline_sync.go` — Timeline sync integration
+
+### Files Modified (12)
+- `internal/app/modes.go` — Added ModeConfig, ModeBranchPicker, ModePreferences
+- `internal/app/app.go` — Config state, View cases, handlers, initialization
+- `internal/app/handlers.go` — Config menu actions, preferences controls, branch switching
+- `internal/app/menu_items.go` — Config menu generation, dead code removal
+- `internal/app/dispatchers.go` — Mode transitions, branch picker initialization
+- `internal/app/operations.go` — Remote operations, conflict resolution
+- `internal/app/conflict_handlers.go` — Branch switch conflict handling
+- `internal/app/footer.go` — Footer hints for new modes
+- `internal/ui/layout.go` — Branch picker layout integration
+- `internal/git/execute.go` — Branch switching git operations
+- `internal/app/git_handlers.go` — Conflict detection and resolution
+- `internal/app/confirmation_handlers.go` — Branch switch confirmation dialogs
+
+### Critical Fixes Applied
+
+#### Config Menu Stability
+- **Problem:** Background processes (timeline sync, cache building) constantly overwriting config menu
+- **Solution:** Added mode checks to prevent menu regeneration in non-menu modes
+- **Impact:** Config menu now stays open and functional
+
+#### View Method Integration
+- **Problem:** ModeBranchPicker and ModePreferences missing from View() method
+- **Solution:** Added proper View() cases with type conversion
+- **Impact:** No more panic on "Unknown app mode"
+
+#### Preferences State Management
+- **Problem:** Preferences used placeholder structs instead of real config
+- **Solution:** Replaced with real `config.Config`, theme, and sizing
+- **Impact:** Preferences now actually work and persist
+
+#### Branch Switching Integration
+- **Problem:** Branch picker was render-only with no actual switching
+- **Solution:** Implemented full branch switching with dirty handling and conflict resolution
+- **Impact:** Branch switching now fully functional
+
+#### Theme System Overhaul
+- **Problem:** Manual theme files, no generation
+- **Solution:** Mathematical generation of 5 seasonal themes (GFX + Spring/Summer/Autumn/Winter)
+- **Impact:** Consistent, maintainable theme system
+
+### Success Criteria - All Met ✅
+1. ✅ `/` opens config menu from main menu
+2. ✅ Config menu shows correct items based on remote state
+3. ✅ Add/Switch/Remove Remote work correctly
+4. ✅ Toggle Auto Update toggles and persists
+5. ✅ Auto-update interval adjustable (1-60 minutes)
+6. ✅ Theme cycling works through available themes
+7. ✅ Branch picker shows all local branches with metadata
+8. ✅ Branch switch works (clean working tree)
+9. ✅ Branch switch handles dirty working tree (stash/commit prompt)
+10. ✅ Conflict detection and resolution for branch switching
+11. ✅ Preferences pane allows editing all settings
+12. ✅ Changes persist to `~/.config/tit/config.toml`
+13. ✅ Changes apply immediately (hot reload)
+14. ✅ Timeline sync respects config.AutoUpdate.Enabled
+15. ✅ Timeline sync uses configured interval
+16. ✅ Footer shows correct hints in all modes
+17. ✅ Ctrl+C confirmation works in all modes
+18. ✅ Clean build with `./build.sh`
+
+### Build Status
+✅ Clean compile with `./build.sh`
+✅ All tests pass
+
+### Testing Status
+✅ VERIFIED — All success criteria met, config menu fully functional
+
+### Dependencies
+- **Depends on:** Session 84 (Footer Unification) — footer hints for new modes
+- **Depends on:** Session 85 (Timeline Sync) — config controls timeline sync
+- **Prerequisite for:** Session 87 (Theme Generation) — theme system completion
+
+### Task Summary Files Compiled
+- `.carol/86-ANALYST-KICKOFF-CONFIG-MENU.md` — Original plan by ANALYST
+- `.carol/86-SCAFFOLDER-PHASES-2-5.md` — Scaffolding implementation
+- `.carol/85-86-CARETAKER-CONFIG-INTEGRATION.md` — Integration and fixes
+- `.carol/85-86-INSPECTOR-AUDIT.md` — Audit findings and recommendations
+- `.carol/86-CARETAKER-ANALYSIS.md` — Critical missing pieces analysis
+- `.carol/87-CARETAKER-CONFIG-PREFERENCES-FIXES.md` — Config and error handling fixes
+
+### Files to Delete After Compilation
+The following files will be deleted as per JOURNALIST protocol:
+- `.carol/86-ANALYST-KICKOFF-CONFIG-MENU.md`
+- `.carol/86-SCAFFOLDER-PHASES-2-5.md`
+- `.carol/85-86-CARETAKER-CONFIG-INTEGRATION.md`
+- `.carol/85-86-INSPECTOR-AUDIT.md`
+- `.carol/86-CARETAKER-ANALYSIS.md`
+- `.carol/87-CARETAKER-CONFIG-PREFERENCES-FIXES.md`
+
+---
+
+## Session 87: Theme Generation & Final Integration ✅
+
+**Agent:** Mistral-Vibe (devstral-2) — JOURNALIST
+**Date:** 2026-01-24
+
+### Overview
+**Status:** ✅ COMPLETED - Theme generation system implemented and integrated
+**Role:** CARETAKER (GPT-5.1-Codex-Max)
+**Documents compiled:** 85-86-CARETAKER-CONFIG-INTEGRATION.md, 87-CARETAKER-CONFIG-PREFERENCES-FIXES.md
+
+### Problem Statement
+Theme system needed mathematical generation to replace manual theme files and provide consistent seasonal themes. Previous limitations:
+- Manual theme files required user creation
+- No consistent color scheme across themes
+- Theme switching required file system manipulation
+- No integration with config system
+
+### Solution Implemented
+**Mathematical Theme Generation System:**
+
+1. ✅ **HSL Color Space Manipulation** — Convert between HSL and hex colors
+2. ✅ **Seasonal Theme Definitions** — 5 themes with distinct characteristics
+3. ✅ **Startup Generation** — Auto-generates themes on first run
+4. ✅ **Theme Cycling** — Cycles through generated themes with real filesystem integration
+5. ✅ **Config Integration** — Theme preference persists in config file
+
+### Architecture
+
+**HSL Color Mathematics:**
+```go
+// HSL to Hex conversion
+func hslToHex(h, s, l float64) string
+
+// Hex to HSL parsing
+func hexToHSL(hex string) (h, s, l float64)
+
+// Seasonal theme generation
+func generateSeasonalTheme(baseTheme Theme, season Season) Theme
+```
+
+**Seasonal Theme Definitions:**
+```go
+// 5 Themes Total: GFX (base) + 4 seasons
+const (
+    ThemeGFX     = "gfx"
+    ThemeSpring  = "spring"
+    ThemeSummer  = "summer" 
+    ThemeAutumn  = "autumn"
+    ThemeWinter  = "winter"
+)
+
+// Seasonal characteristics
+var seasonalThemes = map[Season]SeasonalTheme{
+    SeasonSpring:  {HueShift: 60, Lightness: 0.95, Saturation: 1.1},  // Green, fresh/vibrant
+    SeasonSummer:  {HueShift: 30, Lightness: 1.0, Saturation: 1.2},   // Blue-cyan, bright/energetic
+    SeasonAutumn:  {HueShift: -60, Lightness: 0.85, Saturation: 1.0}, // Orange-red, warm/muted
+    SeasonWinter:  {HueShift: 120, Lightness: 0.8, Saturation: 0.9},  // Purple, cool/subdued
+}
+```
+
+### Implementation Summary
+
+#### Critical Timeline Sync Fixes ✅
+**Completed by:** CARETAKER (87-CARETAKER-ALL-FIXES.md)
+- Fixed 10 critical issues across timeline sync, config, preferences, and branch picker
+
+**Timeline Sync Issues Fixed:**
+
+1. **Closure Bug - Stuck "Syncing..." (CRITICAL):**
+   - **Problem:** Auto-update animation stuck due to closure capturing stale state
+   - **Fix:** Capture `hasRemote` boolean BEFORE returning closure
+   - **Impact:** Sync now completes properly instead of hanging
+   - **Files:** `internal/app/timeline_sync.go`
+
+2. **Auto-Update Toggle Animation (UX BUG):**
+   - **Problem:** Toggle ON didn't start sync or show animation
+   - **Fix:** Immediately schedule sync + ticker: `tea.Batch(cmdTimelineSync(), cmdTimelineSyncTicker())`
+   - **Impact:** User sees immediate feedback when enabling auto-update
+   - **Files:** `internal/app/handlers.go`, `internal/app/timeline_sync.go`
+
+3. **Timeline Sync Display Confusion (UX IMPROVEMENT):**
+   - **Problem:** Stale timeline description shown during sync
+   - **Fix:** Hide stale data, show "Fetching remote updates..." during sync
+   - **Impact:** Clear visual feedback that sync is active
+   - **Files:** `internal/ui/header.go`
+
+**Config & Theme Issues Fixed:**
+
+4. **Theme Not Persisted + Silent Fail Pattern (CRITICAL):**
+   - **Problem:** Theme changes not saved, silent fallbacks hiding errors
+   - **Fix:** Fail-fast loading (panic on errors), load user's preferred theme
+   - **Impact:** Theme persistence works, no more hidden failures
+   - **Files:** `cmd/tit/main.go`, `internal/app/app.go`
+
+5. **Config Menu Duplicate Items:**
+   - **Problem:** "Toggle Auto Update" duplicated in config menu and preferences
+   - **Fix:** Removed from config menu (single SSOT in preferences)
+   - **Impact:** Cleaner UI, no user confusion
+   - **Files:** `internal/app/menu.go`
+
+**Preferences Issues Fixed:**
+
+6. **Preferences Missing Banner (Layout Inconsistency):**
+   - **Problem:** Preferences didn't match menu's 50/50 layout
+   - **Fix:** Changed to 50/50 layout (left: content, right: banner)
+   - **Impact:** Consistent layout across all modes
+   - **Files:** `internal/ui/preferences.go`
+
+**Branch Picker Issues Fixed:**
+
+7. **Manual Rendering → SSOT Components:**
+   - **Problem:** 60+ lines of manual rendering with hardcoded colors
+   - **Fix:** Replaced with SSOT ListPane + TextPane components
+   - **Impact:** Consistent with History mode, respects theme colors
+   - **Files:** `internal/ui/branchpicker.go`
+
+8. **Wrong Metadata Display:**
+   - **Problem:** Showed commit times instead of branch metadata
+   - **Fix:** Display branch-specific info (tracking status, divergence)
+   - **Impact:** User sees relevant branch information
+   - **Files:** `internal/ui/branchpicker.go`
+
+9. **Header Removal:**
+   - **Problem:** Branch picker showed header (wasted space)
+   - **Fix:** Added to full-screen modes list (no header)
+   - **Impact:** Maximizes vertical space for content
+   - **Files:** `internal/app/app.go`
+
+10. **Width & Height Calculation Bugs:**
+    - **Width:** Changed from narrow constant to 50/50 split
+    - **Height:** Fixed double subtraction bug (`height-6` → `height-3`)
+    - **Impact:** Proper layout and full content visibility
+    - **Files:** `internal/ui/branchpicker.go`, `internal/app/app.go`
+
+**Files Modified (8 total):**
+- `internal/app/timeline_sync.go` — Critical closure bug fix + animation improvements
+- `internal/app/handlers.go` — Auto-update toggle immediate sync start
+- `internal/ui/header.go` — Clear sync status display
+- `cmd/tit/main.go` — Fail-fast config/theme loading
+- `internal/app/app.go` — Structural changes for config passing
+- `internal/app/menu.go` — Removed duplicate menu items
+- `internal/ui/preferences.go` — 50/50 banner layout
+- `internal/ui/branchpicker.go` — Complete refactor to SSOT components
+
+**Result:** Timeline sync works reliably, auto-update provides immediate feedback, theme persistence works, UI is consistent, and branch picker matches History mode structure.
+
+#### Theme Generation Functions ✅
+**Completed by:** CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Implemented `hslToHex()` and `hexToHSL()` functions
+- Created `generateSeasonalTheme()` for mathematical theme transformation
+- Added `EnsureFiveThemesExist()` to generate all 5 themes at startup
+- Modified files: `internal/ui/theme.go`
+
+#### Theme Discovery & Cycling ✅
+**Completed by:** CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Implemented `DiscoverAvailableThemes()` to scan themes directory
+- Created `GetNextTheme()` for cycling through available themes
+- Wired theme cycling to preferences menu
+- Modified files: `internal/ui/theme.go`, `internal/app/handlers.go`
+
+#### Config Integration ✅
+**Completed by:** CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Changed default theme from "default" to "gfx" (SSOT unification)
+- Wired theme preference to config system
+- Added theme persistence across app restarts
+- Modified files: `internal/config/config.go`, `internal/app/app.go`
+
+#### Startup Integration ✅
+**Completed by:** CARETAKER (87-CARETAKER-CONFIG-PREFERENCES-FIXES.md)
+- Integrated `EnsureFiveThemesExist()` into app initialization
+- Themes generated before any theme loading attempts
+- Auto-generates themes on first run
+- Modified files: `internal/app/app.go`
+
+### Files Modified (3)
+- `internal/ui/theme.go` — HSL math, seasonal generation, startup creation
+- `internal/app/app.go` — Startup theme generation integration
+- `internal/config/config.go` — Theme default and config integration
+
+### Theme Files Generated (5)
+- `~/.config/tit/themes/gfx.toml` — Base theme (teal/cyan, renamed from default)
+- `~/.config/tit/themes/spring.toml` — Generated spring variant (+60° hue, green)
+- `~/.config/tit/themes/summer.toml` — Generated summer variant (+30° hue, blue-cyan)
+- `~/.config/tit/themes/autumn.toml` — Generated autumn variant (-60° hue, orange-red)
+- `~/.config/tit/themes/winter.toml` — Generated winter variant (+120° hue, purple)
+
+### Success Criteria - All Met ✅
+1. ✅ App generates 5 distinct, readable seasonal themes on first run
+2. ✅ Theme cycling works through all generated themes
+3. ✅ Each seasonal theme reflects appropriate mood (spring=fresh, winter=cool, etc.)
+4. ✅ No build errors, no runtime panics
+5. ✅ Theme preferences persist across app restarts
+6. ✅ Theme changes apply immediately (hot reload)
+7. ✅ Clean build with `./build.sh`
+
+### Build Status
+✅ Clean compile with `./build.sh`
+✅ All tests pass
+
+### Testing Status
+✅ VERIFIED — Theme generation working, all 5 themes created successfully
+
+### Dependencies
+- **Depends on:** Session 86 (Config Menu) — theme preference storage
+- **Completes:** Theme system overhaul started in Session 86
+
+### Task Summary Files Compiled
+- `.carol/85-86-CARETAKER-CONFIG-INTEGRATION.md` — Integration work including theme system
+- `.carol/87-CARETAKER-CONFIG-PREFERENCES-FIXES.md` — Theme generation implementation
+- `.carol/87-CARETAKER-BRANCH-PICKER-FIXES.md` — Branch picker refactor and fixes
+- `.carol/87-CARETAKER-ALL-FIXES.md` — Comprehensive fixes across all components
+
+### Files to Delete After Compilation
+The following files will be deleted as per JOURNALIST protocol:
+- `.carol/85-86-CARETAKER-CONFIG-INTEGRATION.md`
+- `.carol/87-CARETAKER-CONFIG-PREFERENCES-FIXES.md`
+- `.carol/87-CARETAKER-BRANCH-PICKER-FIXES.md`
+- `.carol/87-CARETAKER-ALL-FIXES.md`
+
+---
+
+## Session 82: Critical Bug Fixes & Code Quality Audit ⚠️
 
 ---
 

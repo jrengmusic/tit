@@ -2,24 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// BranchPickerState holds state for the branch picker mode
-// Mirrors HistoryState pattern with 2-pane layout (list + details)
-type BranchPickerState struct {
-	SelectedIndex  int // Current selection in branch list
-	ScrollOffset   int // Scroll position in branch list
-	Branches       []BranchInfo
-	LoadingCache   bool // True while building branch metadata cache
-	CacheProgress  int  // Current branch processed
-	CacheTotal     int  // Total branches to process
-	AnimationFrame int  // Animation frame for loading spinner
-}
-
 // BranchInfo represents a single branch with metadata
+// Used by branch picker to display branch details
 type BranchInfo struct {
 	Name           string
 	IsCurrent      bool
@@ -32,102 +22,180 @@ type BranchInfo struct {
 	Behind         int
 }
 
-// RenderBranchPickerSplitPane renders 2-pane layout (left: list, right: details)
-func RenderBranchPickerSplitPane(state *BranchPickerState, width int, height int) string {
-	if state == nil || len(state.Branches) == 0 {
-		return "No branches found"
-	}
-
-	// Split width
-	leftPaneWidth := width / 2
-	rightPaneWidth := width - leftPaneWidth - 1
-
-	// Render left pane (branch list)
-	leftPane := renderBranchList(state, leftPaneWidth, height-3)
-
-	// Render right pane (branch details)
-	rightPane := renderBranchDetails(state, rightPaneWidth, height-3)
-
-	// Join panes horizontally
-	panes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, " ", rightPane)
-
-	return panes
+// BranchPickerState represents the state of the branch picker (2-pane split-view)
+// Mirrors HistoryState pattern: list pane (left) + details pane (right)
+// Uses SSOT: ListPane + TextPane for consistent rendering with history mode
+type BranchPickerState struct {
+	Branches          []BranchInfo // List of all branches
+	SelectedIdx       int          // Currently selected branch (0-indexed)
+	PaneFocused       bool         // true = list pane, false = details pane
+	ListScrollOffset  int          // Scroll offset for branch list
+	DetailsLineCursor int          // Line cursor position in details pane
+	DetailsScrollOff  int          // Scroll offset for details pane
 }
 
-func renderBranchList(state *BranchPickerState, width int, height int) string {
-	lines := []string{}
-	for i, branch := range state.Branches {
-		marker := " "
-		if branch.IsCurrent {
-			marker = "●"
-		}
-		line := fmt.Sprintf("%s %s", marker, branch.Name)
-
-		if i == state.SelectedIndex {
-			line = lipgloss.NewStyle().
-				Background(lipgloss.Color("4")).
-				Bold(true).
-				Width(width).
-				Render(line)
-		} else {
-			line = lipgloss.NewStyle().Width(width).Render(line)
-		}
-		lines = append(lines, line)
-
-		if len(lines) >= height {
-			break
-		}
-	}
-
-	// Pad to height
-	for len(lines) < height {
-		lines = append(lines, "")
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left, lines...)
-}
-
-func renderBranchDetails(state *BranchPickerState, width int, height int) string {
-	if state.SelectedIndex < 0 || state.SelectedIndex >= len(state.Branches) {
+// RenderBranchPickerSplitPane renders the branch picker split-pane view (2 columns side-by-side)
+// Uses SSOT: ListPane (left) + TextPane (right) matching History mode pattern
+// Returns content exactly `width` chars wide and `height - 1` lines tall (footer handled externally)
+func RenderBranchPickerSplitPane(state interface{}, theme Theme, width, height int) string {
+	if width <= 0 || height <= 0 {
 		return ""
 	}
 
-	b := state.Branches[state.SelectedIndex]
-	timeStr := formatRelativeTime(b.LastCommitTime)
-
-	lines := []string{
-		fmt.Sprintf("Branch: %s", b.Name),
-		fmt.Sprintf("Last Commit: %s", timeStr),
-		fmt.Sprintf("Subject: %s", b.LastCommitSubj),
-		fmt.Sprintf("Author: %s", b.Author),
+	// Type assert to BranchPickerState
+	branchState, ok := state.(*BranchPickerState)
+	if !ok || branchState == nil {
+		return "Error: invalid branch picker state"
 	}
 
-	// Tracking status
-	if b.TrackingRemote != "" {
-		trackStr := fmt.Sprintf("Tracking: %s", b.TrackingRemote)
-		if b.Ahead > 0 || b.Behind > 0 {
-			trackStr += fmt.Sprintf(" (↑%d ↓%d)", b.Ahead, b.Behind)
-		}
-		lines = append(lines, trackStr)
-	} else {
-		lines = append(lines, "Tracking: local only")
+	if len(branchState.Branches) == 0 {
+		return "No branches found"
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+	// Calculate pane height from terminal height (footer takes 1 line)
+	paneHeight := height - 3
+
+	// 50/50 split for branch picker (list and details get equal width)
+	listPaneWidth := width / 2
+	detailsPaneWidth := width - listPaneWidth // Remaining width for details
+
+	// Render both panes at same height using SSOT components (matches history/conflict resolver pattern)
+	listPaneContent := renderBranchListPane(branchState, &theme, listPaneWidth, paneHeight)
+	detailsPaneContent := renderBranchDetailsPane(branchState, &theme, detailsPaneWidth, paneHeight)
+
+	// Join columns horizontally using lipgloss (SSOT with history + conflict resolver)
+	mainRow := lipgloss.JoinHorizontal(lipgloss.Top, listPaneContent, detailsPaneContent)
+
+	return mainRow
 }
 
-func formatRelativeTime(t time.Time) string {
-	now := time.Now()
-	diff := now.Sub(t)
+// buildBranchListItems creates ListItems from branch data
+// Shows branch-specific metadata (tracking status, divergence) not commit metadata
+func buildBranchListItems(branches []BranchInfo, selectedIdx int, theme *Theme) []ListItem {
+	items := make([]ListItem, len(branches))
+	for i, branch := range branches {
+		// Attribute: tracking status and divergence (branch-specific metadata)
+		attrText := ""
+		attrColor := theme.DimmedTextColor
+		
+		if branch.IsCurrent {
+			attrText = "● "
+			attrColor = theme.AccentTextColor
+		} else {
+			attrText = "  "
+		}
+		
+		// Show tracking/divergence info
+		if branch.TrackingRemote != "" {
+			// Has upstream: show divergence if any
+			if branch.Ahead > 0 || branch.Behind > 0 {
+				attrText += fmt.Sprintf("↑%d ↓%d", branch.Ahead, branch.Behind)
+			} else {
+				attrText += "synced"
+			}
+		} else {
+			// Local only branch
+			attrText += "local"
+		}
 
-	if diff < time.Minute {
-		return "now"
-	} else if diff < time.Hour {
-		return fmt.Sprintf("%d min ago", int(diff.Minutes()))
-	} else if diff < 24*time.Hour {
-		return fmt.Sprintf("%d hours ago", int(diff.Hours()))
-	} else if diff < 7*24*time.Hour {
-		return fmt.Sprintf("%d days ago", int(diff.Hours()/24))
+		items[i] = ListItem{
+			AttributeText:  attrText,
+			AttributeColor: attrColor,
+			ContentText:    branch.Name,
+			ContentColor:   theme.ContentTextColor,
+			ContentBold:    branch.IsCurrent, // Bold current branch
+			IsSelected:     i == selectedIdx,
+		}
 	}
-	return t.Format("2006-01-02")
+	return items
+}
+
+// renderBranchListPane renders the list pane with branch list using SSOT ListPane
+func renderBranchListPane(state *BranchPickerState, theme *Theme, width, height int) string {
+	// Create list pane (SSOT with history)
+	listPane := NewListPane("Branches", theme)
+	listPane.ScrollOffset = state.ListScrollOffset
+
+	// Build list items from actual branches
+	items := buildBranchListItems(state.Branches, state.SelectedIdx, theme)
+
+	visibleLines := height - 2
+	if visibleLines < 1 {
+		visibleLines = 1
+	}
+
+	// Adjust scroll to keep selected branch visible
+	listPane.AdjustScroll(state.SelectedIdx, visibleLines)
+	state.ListScrollOffset = listPane.ScrollOffset
+
+	// Render list pane (active when list pane is focused)
+	return listPane.Render(items, width, height, state.PaneFocused, 0, 1)
+}
+
+// renderBranchDetailsPane renders the details pane with branch details using SSOT TextPane
+// Clearly separates branch metadata from tip commit metadata
+func renderBranchDetailsPane(state *BranchPickerState, theme *Theme, width, height int) string {
+	// Build content string
+	var lines []string
+
+	if len(state.Branches) > 0 && state.SelectedIdx >= 0 && state.SelectedIdx < len(state.Branches) {
+		branch := state.Branches[state.SelectedIdx]
+
+		// === BRANCH METADATA ===
+		lines = append(lines, "BRANCH")
+		lines = append(lines, fmt.Sprintf("  Name: %s", branch.Name))
+		
+		if branch.IsCurrent {
+			lines = append(lines, "  Status: ● Current")
+		} else {
+			lines = append(lines, "  Status: Not current")
+		}
+		
+		// Tracking/upstream info
+		if branch.TrackingRemote != "" {
+			trackStr := fmt.Sprintf("  Upstream: %s", branch.TrackingRemote)
+			if branch.Ahead > 0 || branch.Behind > 0 {
+				trackStr += fmt.Sprintf(" (↑%d ↓%d)", branch.Ahead, branch.Behind)
+			} else {
+				trackStr += " (synced)"
+			}
+			lines = append(lines, trackStr)
+		} else {
+			lines = append(lines, "  Upstream: none (local only)")
+		}
+		
+		lines = append(lines, "")
+		
+		// === TIP COMMIT ===
+		lines = append(lines, "TIP COMMIT")
+		lines = append(lines, fmt.Sprintf("  Hash: %s", branch.LastCommitHash))
+		lines = append(lines, fmt.Sprintf("  Author: %s", branch.Author))
+		lines = append(lines, fmt.Sprintf("  Date: %s", branch.LastCommitTime.Format("Mon, 2 Jan 2006 15:04:05 -0700")))
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("  %s", branch.LastCommitSubj))
+	} else {
+		lines = append(lines, "(no branch selected)")
+	}
+
+	content := strings.Join(lines, "\n")
+
+	// Use SSOT TextPane with line cursor (like history + conflict resolver diff pane)
+	rendered, newScrollOffset := RenderTextPane(
+		content,
+		width,
+		height,
+		state.DetailsLineCursor, // Line cursor for navigation
+		state.DetailsScrollOff,  // Current scroll offset
+		false,                   // No line numbers
+		!state.PaneFocused,      // Active when list is NOT focused
+		false,                   // Not diff mode
+		theme,
+		false, // No visual mode in branch picker
+		0,
+	)
+
+	// Update scroll offset in state
+	state.DetailsScrollOff = newScrollOffset
+
+	return rendered
 }

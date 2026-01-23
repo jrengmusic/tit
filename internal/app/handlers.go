@@ -341,6 +341,48 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 	return app, nil
 }
 
+// cmdSwitchBranch performs git switch to the target branch
+// Handles conflicts if they occur during the switch (files that would be overwritten)
+func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		
+		// Execute git switch
+		result := git.ExecuteWithStreaming("switch", targetBranch)
+		if !result.Success {
+			// Check if we're in a conflicted state after failed switch
+			// This can happen when switching would overwrite local changes
+			state, err := git.DetectState()
+			if err == nil && state.Operation == git.Conflicted {
+				buffer.Append(fmt.Sprintf("Conflicts detected while switching to %s", targetBranch), ui.TypeWarning)
+				return GitOperationMsg{
+					Step:             "branch_switch",
+					Success:          false,
+					ConflictDetected: true,
+					BranchName:       targetBranch,
+					Error:            fmt.Sprintf("Conflicts switching to %s", targetBranch),
+				}
+			}
+			
+			// Other failure (permissions, invalid branch, etc)
+			return GitOperationMsg{
+				Step:    "branch_switch",
+				Success: false,
+				Error:   fmt.Sprintf("Failed to switch to %s: %s", targetBranch, result.Stderr),
+			}
+		}
+
+		// Success - Update() will refresh state automatically
+		buffer.Append(fmt.Sprintf("Switched to branch %s", targetBranch), ui.TypeInfo)
+		return GitOperationMsg{
+			Step:       "branch_switch",
+			Success:    true,
+			Output:     fmt.Sprintf("Switched to branch %s", targetBranch),
+			BranchName: targetBranch,
+		}
+	}
+}
+
 // Console output handlers
 
 // handleConsoleUp scrolls console up one line
@@ -1190,7 +1232,6 @@ func (a *Application) handleFileHistoryVisualMode(app *Application) (tea.Model, 
 
 	return app, nil
 }
-
 // handleFileHistoryEsc handles ESC in file(s) history mode
 // If in visual mode, exit visual mode. Otherwise, return to menu.
 func (a *Application) handleFileHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
@@ -1398,23 +1439,43 @@ func (a *Application) handlePreferencesEnter(app *Application) (tea.Model, tea.C
 }
 
 // ========================================
-// Branch Picker Mode Handlers
+// Branch Picker Mode Handlers (SSOT: matches history navigation pattern)
 // ========================================
 
-// handleBranchPickerEnter handles ENTER key in branch picker mode
+// handleBranchPickerUp handles UP/K navigation in branch picker (list pane)
+func (a *Application) handleBranchPickerUp(app *Application) (tea.Model, tea.Cmd) {
+	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+		return app, nil
+	}
+
+	if app.branchPickerState.SelectedIdx > 0 {
+		app.branchPickerState.SelectedIdx--
+	}
+	return app, nil
+}
+
+// handleBranchPickerDown handles DOWN/J navigation in branch picker (list pane)
+func (a *Application) handleBranchPickerDown(app *Application) (tea.Model, tea.Cmd) {
+	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+		return app, nil
+	}
+
+	if app.branchPickerState.SelectedIdx < len(app.branchPickerState.Branches)-1 {
+		app.branchPickerState.SelectedIdx++
+	}
+	return app, nil
+}
+
+// handleBranchPickerEnter handles ENTER key to switch to selected branch (with dirty tree handling)
 func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.Cmd) {
-	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
-		return app, nil
-	}
-	item := app.menuItems[app.selectedIndex]
-
-	// CONTRACT: Cannot execute separators or disabled items
-	if item.Separator || !item.Enabled {
+	if app.branchPickerState == nil || app.branchPickerState.SelectedIdx < 0 || app.branchPickerState.SelectedIdx >= len(app.branchPickerState.Branches) {
 		return app, nil
 	}
 
-	// Handle back action - return to config menu
-	if item.ID == "branch_picker_back" {
+	selectedBranch := app.branchPickerState.Branches[app.branchPickerState.SelectedIdx]
+
+	// If already on this branch, just go back to config menu
+	if selectedBranch.IsCurrent {
 		app.mode = ModeConfig
 		app.selectedIndex = 0
 		configMenu := app.GenerateConfigMenu()
@@ -1426,36 +1487,34 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 		return app, nil
 	}
 
-	// Handle branch selection actions
-	return app, app.dispatchAction(item.ID)
-}
+	// Check if working tree is clean before switching branches
+	statusResult := git.Execute("status", "--porcelain")
+	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
 
-// ========================================
-// Branch Picker Navigation Handlers
-// ========================================
-
-// handleBranchPickerUp handles UP/K navigation in branch picker
-func (a *Application) handleBranchPickerUp(app *Application) (tea.Model, tea.Cmd) {
-	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+	if hasDirtyTree {
+		// Show confirmation dialog for dirty tree
+		app.mode = ModeConfirmation
+		app.confirmType = "branch_switch_dirty"
+		app.confirmContext = map[string]string{
+			"targetBranch": selectedBranch.Name,
+		}
+		app.confirmationDialog = ui.NewConfirmationDialog(
+			ui.ConfirmationConfig{
+				Title:       fmt.Sprintf("Switch to %s with uncommitted changes?", selectedBranch.Name),
+				Explanation: "You have uncommitted changes. Choose action:\n(ESC to cancel)",
+				YesLabel:    "Stash changes",
+				NoLabel:     "Discard changes",
+				ActionID:    "branch_switch_dirty_choice",
+			},
+			a.sizing.ContentInnerWidth,
+			&app.theme,
+		)
+		app.confirmationDialog.SelectNo()
 		return app, nil
 	}
 
-	if app.branchPickerState.SelectedIndex > 0 {
-		app.branchPickerState.SelectedIndex--
-	}
-	return app, nil
-}
-
-// handleBranchPickerDown handles DOWN/J navigation in branch picker
-func (a *Application) handleBranchPickerDown(app *Application) (tea.Model, tea.Cmd) {
-	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
-		return app, nil
-	}
-
-	if app.branchPickerState.SelectedIndex < len(app.branchPickerState.Branches)-1 {
-		app.branchPickerState.SelectedIndex++
-	}
-	return app, nil
+	// Clean tree - perform branch switch directly
+	return app, a.cmdSwitchBranch(selectedBranch.Name)
 }
 
 // ========================================
@@ -1494,14 +1553,24 @@ func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.C
 	}
 
 	switch app.preferencesState.SelectedRow {
-	case 0: // Auto-update toggle
+	case 0: // Auto-update toggle - reschedule/cancel sync on change
 		if err := app.appConfig.SetAutoUpdateEnabled(!app.appConfig.AutoUpdate.Enabled); err != nil {
 			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
 		} else {
 			if app.appConfig.AutoUpdate.Enabled {
-				app.footerHint = "Auto-update enabled"
+				app.footerHint = "Auto-update enabled - syncing..."
+				// Immediately start sync when enabled for better UX
+				if app.gitState != nil && app.gitState.Remote == git.HasRemote {
+					app.timelineSyncInProgress = true
+					app.timelineSyncFrame = 0
+					app.timelineSyncLastUpdate = time.Time{} // Reset to force immediate sync
+					// Start both sync command and ticker (for animation)
+					return app, tea.Batch(app.cmdTimelineSync(), app.cmdTimelineSyncTicker())
+				}
 			} else {
 				app.footerHint = "Auto-update disabled"
+				// Cancel ongoing sync
+				app.timelineSyncInProgress = false
 			}
 		}
 	case 2: // Theme cycling
@@ -1534,7 +1603,6 @@ func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.C
 
 	return app, nil
 }
-
 // handlePreferencesIncrement1 handles = (increase by 1 minute) in preferences
 func (a *Application) handlePreferencesIncrement1(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
@@ -1543,7 +1611,7 @@ func (a *Application) handlePreferencesIncrement1(app *Application) (tea.Model, 
 
 	if app.preferencesState.SelectedRow == 1 { // Interval adjustment
 		newInterval := app.appConfig.AutoUpdate.IntervalMinutes + 1
-		if newInterval <= 120 { // Max 2 hours
+		if newInterval <= 60 { // Match SetAutoUpdateInterval clamp (1-60)
 			if err := app.appConfig.SetAutoUpdateInterval(newInterval); err != nil {
 				app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
 			} else {
@@ -1554,7 +1622,6 @@ func (a *Application) handlePreferencesIncrement1(app *Application) (tea.Model, 
 
 	return app, nil
 }
-
 // handlePreferencesDecrement1 handles - (decrease by 1 minute) in preferences
 func (a *Application) handlePreferencesDecrement1(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
@@ -1575,7 +1642,6 @@ func (a *Application) handlePreferencesDecrement1(app *Application) (tea.Model, 
 
 	return app, nil
 }
-
 // handlePreferencesIncrement10 handles shift+= (increase by 10 minutes) in preferences
 func (a *Application) handlePreferencesIncrement10(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
@@ -1584,7 +1650,7 @@ func (a *Application) handlePreferencesIncrement10(app *Application) (tea.Model,
 
 	if app.preferencesState.SelectedRow == 1 { // Interval adjustment
 		newInterval := app.appConfig.AutoUpdate.IntervalMinutes + 10
-		if newInterval <= 120 { // Max 2 hours
+		if newInterval <= 60 { // Match SetAutoUpdateInterval clamp (1-60)
 			if err := app.appConfig.SetAutoUpdateInterval(newInterval); err != nil {
 				app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
 			} else {
@@ -1595,7 +1661,6 @@ func (a *Application) handlePreferencesIncrement10(app *Application) (tea.Model,
 
 	return app, nil
 }
-
 // handlePreferencesDecrement10 handles shift+- (decrease by 10 minutes) in preferences
 func (a *Application) handlePreferencesDecrement10(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
