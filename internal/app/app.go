@@ -102,11 +102,11 @@ type Application struct {
 	restoreTimeTravelInitiated bool                // True once restoration has been started
 
 	// Git Environment state (5th axis - checked before all other state)
-	gitEnvironment  git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
-	setupWizardStep SetupWizardStep    // Current step in setup wizard
-	setupWizardError string            // Error message to display in SetupStepError
-	setupEmail      string             // Email for SSH key generation
-	setupKeyCopied  bool               // True once public key copied to clipboard
+	gitEnvironment   git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
+	setupWizardStep  SetupWizardStep    // Current step in setup wizard
+	setupWizardError string             // Error message to display in SetupStepError
+	setupEmail       string             // Email for SSH key generation
+	setupKeyCopied   bool               // True once public key copied to clipboard
 
 	// Cache fields (Phase 2)
 	historyMetadataCache  map[string]*git.CommitDetails // hash → commit metadata
@@ -130,11 +130,6 @@ type Application struct {
 	fileHistoryCacheMutex sync.Mutex
 	diffCacheMutex        sync.Mutex
 
-	// Timeline sync state (Session 85)
-	timelineSyncInProgress bool      // True while fetch is running
-	timelineSyncLastUpdate time.Time // Last successful sync timestamp
-	timelineSyncFrame      int       // Animation frame for spinner
-
 	// Config state (Session 86)
 	appConfig       *config.Config // Loaded from ~/.config/tit/config.toml
 	configMenuItems []MenuItem     // Uses menuItems + selectedIndex (no separate state needed)
@@ -144,6 +139,14 @@ type Application struct {
 
 	// Preferences state (Session 86)
 	preferencesState *PreferencesState
+
+	// Menu activity tracking (Session 2 - Lazy auto-update)
+	lastMenuActivity    time.Time     // Track last menu navigation
+	menuActivityTimeout time.Duration // Default: 5 seconds
+
+	// Auto-update spinner state (Session 2)
+	autoUpdateInProgress bool // True when auto-update is running
+	autoUpdateFrame      int  // Animation frame for spinner
 }
 
 // ModeTransition configuration for streamlined mode changes
@@ -320,6 +323,9 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		preferencesState: &PreferencesState{
 			SelectedRow: 0,
 		},
+		// Menu activity tracking (Session 2 - Lazy auto-update)
+		lastMenuActivity:    time.Now().Add(-10 * time.Second), // Start as inactive
+		menuActivityTimeout: 5 * time.Second,
 	}
 
 	// Build and cache key handler registry once
@@ -680,26 +686,18 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
-	case TimelineSyncMsg:
-		// Background timeline sync completed
-		return a.handleTimelineSyncMsg(msg)
+	case AutoUpdateTickMsg:
+		// Periodic auto-update tick
+		return a.handleAutoUpdateTick()
 
-	case TimelineSyncTickMsg:
-		// Periodic timeline sync tick
-		return a.handleTimelineSyncTickMsg()
+	case AutoUpdateAnimationMsg:
+		// Auto-update spinner animation frame
+		return a.handleAutoUpdateAnimation()
 
-	case ToggleAutoUpdateMsg:
-		// Auto-update toggle completed
-		if msg.Success {
-			if msg.Enabled {
-				a.footerHint = TimelineSyncMessages["auto_update_enabled"]
-			} else {
-				a.footerHint = TimelineSyncMessages["auto_update_disabled"]
-			}
-		} else {
-			a.footerHint = "Failed to toggle auto-update: " + msg.Error
-		}
-		return a, nil
+	case AutoUpdateCompleteMsg:
+		// Background state detection completed
+		return a.handleAutoUpdateComplete(msg.State)
+
 	}
 
 	return a, nil
@@ -905,15 +903,14 @@ func (a *Application) Init() tea.Cmd {
 	// Async fetch remote on startup to ensure timeline accuracy
 	// Without this, timeline state uses stale local refs
 	// CONTRACT: Only start timeline sync if HasRemote AND AutoUpdate.Enabled
+	// Fetch remote if available
 	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
 		commands = append(commands, cmdFetchRemote())
-		
-		// Only start timeline sync if auto-update is enabled
-		if a.appConfig != nil && a.appConfig.AutoUpdate.Enabled {
-			a.startTimelineSync()
-			commands = append(commands, a.cmdTimelineSync())
-			commands = append(commands, a.cmdTimelineSyncTicker())
-		}
+	}
+
+	// Start auto-update (Phase 2)
+	if cmd := a.startAutoUpdate(); cmd != nil {
+		commands = append(commands, cmd)
 	}
 
 	return tea.Batch(commands...)
@@ -1101,8 +1098,8 @@ func (a *Application) RenderStateHeader() string {
 		TimelineLabel:    timelineLabel,
 		TimelineDesc:     timelineDesc,
 		TimelineColor:    timelineColor,
-		SyncInProgress:   a.timelineSyncInProgress,
-		SyncFrame:        a.timelineSyncFrame,
+		SyncInProgress:   a.autoUpdateInProgress,
+		SyncFrame:        a.autoUpdateFrame,
 	}
 
 	info := ui.RenderHeaderInfo(a.sizing, a.theme, headerState)
@@ -1341,6 +1338,7 @@ func (a *Application) rebuildMenuShortcuts() {
 
 // handleMenuUp moves selection up
 func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
+	app.lastMenuActivity = time.Now() // Track menu activity
 	if len(app.menuItems) > 0 {
 		startIdx := app.selectedIndex
 		app.selectedIndex = (app.selectedIndex - 1 + len(app.menuItems)) % len(app.menuItems)
@@ -1362,6 +1360,7 @@ func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
 
 // handleMenuDown moves selection down
 func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
+	app.lastMenuActivity = time.Now() // Track menu activity
 	if len(app.menuItems) > 0 {
 		startIdx := app.selectedIndex
 		app.selectedIndex = (app.selectedIndex + 1) % len(app.menuItems)
@@ -1383,6 +1382,7 @@ func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
 
 // handleMenuEnter selects current menu item and dispatches action
 func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
+	app.lastMenuActivity = time.Now() // Track menu activity
 	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
 		return app, nil
 	}

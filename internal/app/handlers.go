@@ -177,7 +177,8 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	// Rebuild shortcuts for new menu
 	a.rebuildMenuShortcuts()
 
-	return a, nil
+	// Restart auto-update when returning to menu
+	return a, a.startAutoUpdate()
 }
 
 // Init workflow handlers
@@ -346,7 +347,7 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
-		
+
 		// Execute git switch
 		result := git.ExecuteWithStreaming("switch", targetBranch)
 		if !result.Success {
@@ -363,7 +364,7 @@ func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 					Error:            fmt.Sprintf("Conflicts switching to %s", targetBranch),
 				}
 			}
-			
+
 			// Other failure (permissions, invalid branch, etc)
 			return GitOperationMsg{
 				Step:    "branch_switch",
@@ -1232,6 +1233,7 @@ func (a *Application) handleFileHistoryVisualMode(app *Application) (tea.Model, 
 
 	return app, nil
 }
+
 // handleFileHistoryEsc handles ESC in file(s) history mode
 // If in visual mode, exit visual mode. Otherwise, return to menu.
 func (a *Application) handleFileHistoryEsc(app *Application) (tea.Model, tea.Cmd) {
@@ -1557,20 +1559,15 @@ func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.C
 		if err := app.appConfig.SetAutoUpdateEnabled(!app.appConfig.AutoUpdate.Enabled); err != nil {
 			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
 		} else {
+			// Set footer hint directly
 			if app.appConfig.AutoUpdate.Enabled {
-				app.footerHint = TimelineSyncMessages["auto_update_enabled_syncing"]
-				// Immediately start sync when enabled for better UX
-				if app.gitState != nil && app.gitState.Remote == git.HasRemote {
-					app.timelineSyncInProgress = true
-					app.timelineSyncFrame = 0
-					app.timelineSyncLastUpdate = time.Time{} // Reset to force immediate sync
-					// Start both sync command and ticker (for animation)
-					return app, tea.Batch(app.cmdTimelineSync(), app.cmdTimelineSyncTicker())
-				}
+				app.footerHint = "Auto-update enabled"
 			} else {
-				app.footerHint = TimelineSyncMessages["auto_update_disabled"]
-				// Cancel ongoing sync
-				app.timelineSyncInProgress = false
+				app.footerHint = "Auto-update disabled"
+			}
+			// Re-start auto-update with new setting when enabled
+			if app.appConfig.AutoUpdate.Enabled && app.mode == ModeMenu {
+				return app, app.startAutoUpdate()
 			}
 		}
 	case 2: // Theme cycling
@@ -1603,6 +1600,7 @@ func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.C
 
 	return app, nil
 }
+
 // handlePreferencesIncrement1 handles = (increase by 1 minute) in preferences
 func (a *Application) handlePreferencesIncrement1(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
@@ -1622,6 +1620,7 @@ func (a *Application) handlePreferencesIncrement1(app *Application) (tea.Model, 
 
 	return app, nil
 }
+
 // handlePreferencesDecrement1 handles - (decrease by 1 minute) in preferences
 func (a *Application) handlePreferencesDecrement1(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
@@ -1642,6 +1641,7 @@ func (a *Application) handlePreferencesDecrement1(app *Application) (tea.Model, 
 
 	return app, nil
 }
+
 // handlePreferencesIncrement10 handles shift+= (increase by 10 minutes) in preferences
 func (a *Application) handlePreferencesIncrement10(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {
@@ -1661,6 +1661,7 @@ func (a *Application) handlePreferencesIncrement10(app *Application) (tea.Model,
 
 	return app, nil
 }
+
 // handlePreferencesDecrement10 handles shift+- (decrease by 10 minutes) in preferences
 func (a *Application) handlePreferencesDecrement10(app *Application) (tea.Model, tea.Cmd) {
 	if app.preferencesState == nil || app.appConfig == nil {

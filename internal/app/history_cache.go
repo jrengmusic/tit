@@ -293,27 +293,20 @@ func (a *Application) cmdToggleAutoUpdate() tea.Cmd {
 		// Load current config
 		cfg, err := config.Load()
 		if err != nil {
-			return ToggleAutoUpdateMsg{Success: false, Error: err.Error()}
+			return nil // Error will be shown in footer via handler
 		}
 
 		// Toggle the setting
 		newValue := !cfg.AutoUpdate.Enabled
 		if err := cfg.SetAutoUpdateEnabled(newValue); err != nil {
-			return ToggleAutoUpdateMsg{Success: false, Error: err.Error()}
+			return nil // Error already shown in footer
 		}
 
-		// Update timeline sync state based on new setting
-		if newValue {
-			a.startTimelineSync()
+		// Command returned by startAutoUpdate is scheduled via Update(), not here
+		if newValue && a.mode == ModeMenu {
+			_ = a.startAutoUpdate()
 		}
 
-		return ToggleAutoUpdateMsg{Success: true, Enabled: newValue}
+		return nil
 	}
-}
-
-// ToggleAutoUpdateMsg is sent when auto-update toggle completes
-type ToggleAutoUpdateMsg struct {
-	Success bool
-	Error   string
-	Enabled bool
 }

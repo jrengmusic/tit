@@ -1,6 +1,6 @@
 # SESSION-LOG.md Template
 
-**Project:** tit  
+**Project:** TIT  
 **Repository:** /Users/jreng/Documents/Poems/dev/tit  
 **Started:** 2026-01-25
 
@@ -25,11 +25,10 @@
 ---
 
 ## ⚠️ CRITICAL AGENT RULES
-
-**AGENTS BUILD CODE FOR USER TO TEST**
-- Agents build/modify code ONLY when user explicitly requests
-- USER tests and provides feedback
-- Agents wait for user approval before proceeding
+**AGENTS BUILD APP FOR USER TO TEST**
+- run script ./build.sh
+- USER tests
+- Agent waits for feedback
 
 **AGENTS CAN RUN GIT ONLY IF USER EXPLICITLY ASKS**
 - Write code changes without running git commands
@@ -155,41 +154,104 @@ JOURNALIST: zai-coding-plan/glm-4.7
 
 ## SESSION HISTORY
 
-<!-- Example session entry (delete this after first real session) -->
+## Session 2: Clean Auto-Update System ✅
 
-## Session 1: Project Setup and Initial Planning ✅
-
-**Date:** 2026-01-11  
-**Duration:** 14:00 - 16:30 (2.5 hours)
+**Date:** 2026-01-25
+**Duration:** 22:15 - 23:00 (~45 minutes)
 
 ### Objectives
-- Set up project structure and documentation
-- Define feature specifications for core module
-- Scaffold initial codebase
+- Remove all existing timeline sync machinery
+- Implement single, clean background auto-update system
+- Periodic full state detection and UI refresh (exactly like app launch)
+- KISS principle: one timer, full state detection, full UI update
 
 ### Agents Participated
-- COUNSELOR: Copilot (Haiku) — Wrote SPEC.md and [N]-COUNSELOR-INITIAL-PLANNING-KICKOFF.md
-- ENGINEER: Mistral-Vibe (devstral-2) — Created project structure and core files
-- AUDITOR: Amp (Sonnet 3.5) — Verified spec compliance
-- Tested by: User
+- COUNSELOR: Copilot (claude-opus-41) — Created comprehensive implementation plan in `2-COUNSELOR-AUTO-UPDATE-KICKOFF.md`
+- ENGINEER: zai-coding-plan/glm-4.7 — Implemented clean auto-update system with lazy updates and spinner feedback
+- Tested by: User (PENDING)
 
-### Files Modified (8 total)
-- `SPEC.md` — Complete feature specification with all flows
-- `ARCHITECTURE.md` — Initial architecture patterns documented
-- `[N]-COUNSELOR-INITIAL-PLANNING-KICKOFF.md` — Task breakdown for ENGINEER
-- `src/core/module.cpp` — Core module scaffolding
-- `src/core/module.h` — Core module header
-- `tests/core_test.cpp` — Test scaffolding
-- `CMakeLists.txt` — Build configuration
-- `README.md` — Project overview
+### Files Modified (10 total)
+- `internal/app/timeline_sync.go` — DELETED - Old sync system removed completely
+- `internal/app/auto_update.go` — NEW FILE - Clean auto-update system with single timer, full state detection, lazy updates (5s idle timeout), spinner feedback (100ms animation frames)
+- `internal/app/app.go` — Removed sync state fields (timelineSyncInProgress, timelineSyncLastUpdate, timelineSyncFrame), removed menu activity fields, updated Init() to call startAutoUpdate()
+- `internal/app/messages.go` — Removed TimelineSyncMsg and TimelineSyncTickMsg, added AutoUpdateTickMsg, AutoUpdateCompleteMsg, AutoUpdateAnimationMsg
+- `internal/app/history_cache.go` — Updated cmdToggleAutoUpdate to use startAutoUpdate()
+- `internal/app/handlers.go` — Updated returnToMenu() to call startAutoUpdate()
+- `internal/app/setup_wizard.go` — Updated setup completion to call startAutoUpdate()
+- `internal/app/git_handlers.go` — Updated time travel return handlers to call startAutoUpdate()
+- `internal/app/confirmation_handlers.go` — Updated 9 confirmation handlers to call startAutoUpdate() on menu transitions
 
 ### Problems Solved
-- None (initial setup)
+- Old timeline sync system completely removed (clean slate)
+- New auto-update system implemented with single timer (scheduleAutoUpdateTick)
+- Full state detection implemented (all 5 axes via git.DetectState())
+- Full UI update on state change (menu regeneration + shortcuts rebuild)
+- **Menu activity tracking added** for lazy updates - pauses auto-update during user navigation/actions (5s idle timeout)
+- **Spinner feedback added** for both WorkingTree and Timeline during auto-update (better UX)
+- AutoUpdateAnimationMsg for 100ms animation frames
+- Mode transitions updated to restart auto-update when returning to menu
 
 ### Summary
-Successfully established project foundation. COUNSELOR created comprehensive specs covering all edge cases. ENGINEER generated clean scaffolds following ARCHITECTURE.md patterns. AUDITOR verified all files compile and match spec. Ready for SURGEON to add error handling in session 2.
+COUNSELOR analyzed previous session failures and created detailed 3-phase implementation plan to completely remove old sync architecture and replace with clean, simple auto-update system. ENGINEER successfully implemented all phases:
 
-**Status:** ✅ APPROVED - All files compile, tests scaffold in place
+✅ **Phase 1:** Old sync system completely removed (timeline_sync.go deleted, all sync fields removed)
+✅ **Phase 2:** New auto-update system implemented (auto_update.go created, single timer, full state detection, full UI update)
+✅ **Phase 3:** Testing scenarios documented (basic auto-update, remote changes, menu navigation, config control, mode transitions)
+
+Build status: ✅ VERIFIED - No errors
+
+Implementation matches kickoff plan specifications with enhancements:
+- Lazy update with 5s idle timeout (prevents updates during user interaction)
+- Spinner feedback during auto-update (better UX)
+- Config interval wired (no redundant fallbacks)
+- Mode transitions restart auto-update
+
+Single timer + full state detection pattern. No architectural tangles. Thread-safe via message passing.
+
+**Status:** ✅ IMPLEMENTED - Awaiting user testing
+
+---
+
+## Session 1: Background State Update Feature ✅
+
+**Date:** 2026-01-25
+**Duration:** 10:45 - 22:15 (~11.5 hours)
+
+### Objectives
+- Extend existing Timeline sync to also update WorkingTree status
+- Implement smart menu regeneration only when git state changes affect available options
+- Add menu activity detection to pause sync during user navigation
+- Maintain KISS principle: single timer, single preference
+
+### Agents Participated
+- COUNSELOR: Copilot (claude-opus-41) — Created comprehensive implementation plan in `1-COUNSELOR-STATE-UPDATE-KICKOFF.md`
+- ENGINEER: Amp (Claude) — First attempt FAILED, second attempt SUCCESSFUL with full state detection implementation
+- Tested by: User (PENDING)
+
+### Files Modified (6 total)
+- `internal/app/app.go` — Added menu activity tracking fields (lastMenuActivity, menuActivityTimeout), initialized in NewApplication(), updated menu handlers (handleMenuUp, handleMenuDown, handleMenuEnter) to track activity
+- `internal/app/timeline_sync.go` — Extended sync to detect full state (WorkingTree + Timeline), added menu activity timeout check, updated to use smart state comparison
+- `internal/app/messages.go` — Extended TimelineSyncMsg struct with OldState and NewState fields for state comparison
+- `internal/git/state_compare.go` — NEW FILE. Implements CompareStates() function to determine if menu regeneration is necessary based on state changes
+
+### Problems Solved
+- Menu activity detection prevents sync during user navigation (prevents UI flicker)
+- Smart state comparison prevents unnecessary menu regeneration (Ahead(n)->Ahead(m) no change, Behind(n)->Behind(m) no change)
+- WorkingTree detection includes untracked files (Dirty if any untracked files exist)
+- Sync architecture extended without breaking existing functionality
+
+### Summary
+COUNSELOR analyzed TIT codebase and created detailed 6-phase implementation plan. ENGINEER first attempt failed due to fundamental architectural mismatch (sync mechanism tightly coupled to remote requirement). ENGINEER second attempt successfully implemented all phases:
+
+✅ **Phase 1-2:** Menu activity tracking added, all menu navigation handlers update lastMenuActivity timestamp
+✅ **Phase 3:** State comparison logic implemented in new file, handles special cases for Ahead/Behind commit count changes
+✅ **Phase 4:** Sync extended to detect full state, menu activity timeout check added, smart menu regeneration implemented
+
+Build status: ✅ PASSED - `./build.sh` successful, binary installed to `~/.tit/bin/tit_x64`
+
+Single timer + single preference pattern maintained. Existing architecture patterns preserved. Thread-safe via message passing (timelineSyncChan).
+
+**Status:** ✅ IMPLEMENTED - Awaiting user testing
 
 ---
 

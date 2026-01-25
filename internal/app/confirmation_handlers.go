@@ -688,7 +688,7 @@ func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 	// User cancelled return
 	a.confirmationDialog = nil
 	a.mode = ModeMenu
-	return a, nil
+	return a, a.startAutoUpdate()
 }
 
 // ========================================
@@ -732,7 +732,7 @@ func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
 	// User cancelled merge
 	a.confirmationDialog = nil
 	a.mode = ModeMenu
-	return a, nil
+	return a, a.startAutoUpdate()
 }
 
 // ========================================
@@ -749,7 +749,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	if !result.Success {
 		a.footerHint = "Failed to get current commit"
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 	shortHash := strings.TrimSpace(result.Stdout)
 
@@ -761,7 +761,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	if !stageResult.Success {
 		a.footerHint = fmt.Sprintf("Failed to stage changes: %s", stageResult.Stderr)
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	// Commit changes immediately
@@ -769,7 +769,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	if !commitResult.Success {
 		a.footerHint = fmt.Sprintf("Failed to commit: %s", commitResult.Stderr)
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	// Tree is now clean and changes committed - proceed directly with merge
@@ -778,7 +778,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	if !fullHashResult.Success {
 		a.footerHint = "Failed to get current commit"
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 	timeTravelHash := strings.TrimSpace(fullHashResult.Stdout)
 
@@ -820,7 +820,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	if !result.Success {
 		a.footerHint = "Failed to get current commit"
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	timeTravelHash := strings.TrimSpace(result.Stdout)
@@ -857,7 +857,7 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 	if err := a.discardWorkingTreeChanges(); err != nil {
 		a.footerHint = err.Error()
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	// Tree is now clean - proceed directly with return (no second confirmation)
@@ -885,7 +885,7 @@ func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) 
 	// User cancelled return
 	a.confirmationDialog = nil
 	a.mode = ModeMenu
-	return a, nil
+	return a, a.startAutoUpdate()
 }
 
 // executeConfirmRewind handles "Rewind" choice

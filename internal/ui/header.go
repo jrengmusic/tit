@@ -9,25 +9,25 @@ import (
 const EmojiColumnWidth = 3
 
 type HeaderState struct {
-	CurrentDirectory    string
-	RemoteURL           string
-	RemoteColor         string
-	OperationEmoji      string
-	OperationLabel      string
-	OperationColor      string
-	BranchEmoji         string
-	BranchLabel         string
-	BranchColor         string
-	WorkingTreeEmoji    string
-	WorkingTreeLabel    string
-	WorkingTreeDesc     []string
-	WorkingTreeColor    string
-	TimelineEmoji       string
-	TimelineLabel       string
-	TimelineDesc        []string
-	TimelineColor       string
-	SyncInProgress      bool   // True when timeline sync is running
-	SyncFrame           int    // Animation frame for spinner
+	CurrentDirectory string
+	RemoteURL        string
+	RemoteColor      string
+	OperationEmoji   string
+	OperationLabel   string
+	OperationColor   string
+	BranchEmoji      string
+	BranchLabel      string
+	BranchColor      string
+	WorkingTreeEmoji string
+	WorkingTreeLabel string
+	WorkingTreeDesc  []string
+	WorkingTreeColor string
+	TimelineEmoji    string
+	TimelineLabel    string
+	TimelineDesc     []string
+	TimelineColor    string
+	SyncInProgress   bool // True when timeline sync is running
+	SyncFrame        int  // Animation frame for spinner
 }
 
 // TimelineSyncSpinner returns spinner frame based on animation frame
@@ -111,22 +111,33 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 		Render(strings.Repeat("─", totalWidth))
 	fullWidthLines = append(fullWidthLines, separatorLine)
 
-	// WorkingTree label
+	// WorkingTree label (with spinner when syncing)
+	wtLabel := TimelineSyncLabel(state.WorkingTreeEmoji, state.WorkingTreeLabel, state.SyncInProgress, state.SyncFrame)
 	wtLabelLine := lipgloss.NewStyle().
 		Width(totalWidth).
 		Bold(true).
 		Foreground(lipgloss.Color(state.WorkingTreeColor)).
-		Render(state.WorkingTreeEmoji + " " + state.WorkingTreeLabel)
+		Render(wtLabel)
 	fullWidthLines = append(fullWidthLines, wtLabelLine)
 
 	// WorkingTree descriptions (indented)
 	indent := strings.Repeat(" ", EmojiColumnWidth)
-	for _, desc := range state.WorkingTreeDesc {
+	if state.SyncInProgress {
+		// Show clear sync message instead of stale/confusing description
 		descLine := lipgloss.NewStyle().
 			Width(totalWidth).
-			Foreground(lipgloss.Color(theme.ContentTextColor)).
-			Render(indent + desc)
+			Foreground(lipgloss.Color(theme.DimmedTextColor)).
+			Render(indent + "Checking local state...")
 		fullWidthLines = append(fullWidthLines, descLine)
+	} else {
+		// Show actual working tree descriptions
+		for _, desc := range state.WorkingTreeDesc {
+			descLine := lipgloss.NewStyle().
+				Width(totalWidth).
+				Foreground(lipgloss.Color(theme.ContentTextColor)).
+				Render(indent + desc)
+			fullWidthLines = append(fullWidthLines, descLine)
+		}
 	}
 
 	// Timeline label (with spinner when syncing)

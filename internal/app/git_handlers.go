@@ -196,12 +196,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			return a, nil
 		}
 		a.gitState = state
-		
+
 		// Regenerate menu with new branch state
 		menu := a.GenerateMenu()
 		a.menuItems = menu
 		a.selectedIndex = 0
-		
+
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -219,12 +219,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			return a, nil
 		}
 		a.gitState = state
-		
+
 		// Regenerate menu with new branch state
 		menu := a.GenerateMenu()
 		a.menuItems = menu
 		a.selectedIndex = 0
-		
+
 		buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
@@ -463,7 +463,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 
 		// Return to menu
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	// Time travel merge successful - reload git state
@@ -475,7 +475,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 
 		// Return to menu
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	a.gitState = state
@@ -538,7 +538,7 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 
 		// Return to menu
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 
 	// Time travel return successful - reload git state
@@ -550,12 +550,8 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 
 		// Return to menu
 		a.mode = ModeMenu
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
-
-	a.gitState = state
-	a.asyncOperationActive = false
-	a.isExitAllowed = true
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
@@ -705,13 +701,13 @@ func (a *Application) setupConflictResolverForBranchSwitch(msg GitOperationMsg) 
 	if a.gitState != nil {
 		currentBranch = a.gitState.CurrentBranch
 	}
-	
+
 	// Column labels: BASE, LOCAL (current branch), REMOTE (target branch)
 	labels := []string{
 		"BASE",
 		fmt.Sprintf("LOCAL (%s)", currentBranch),
 		fmt.Sprintf("REMOTE (%s)", targetBranch),
 	}
-	
+
 	return a.setupConflictResolver("branch_switch", labels)
 }

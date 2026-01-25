@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/atotto/clipboard"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -33,13 +33,13 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 			// Empty email, stay on this step
 			return a, nil
 		}
-		
+
 		// Simple email validation
 		if !strings.Contains(email, "@") || !strings.Contains(email, ".") {
 			// Invalid email format, stay on this step
 			return a, nil
 		}
-		
+
 		// Store email and advance to generate step
 		a.setupEmail = email
 		a.inputValue = ""
@@ -58,14 +58,14 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 	case SetupStepComplete:
 		// Setup complete - transition to normal TIT operation
 		a.gitEnvironment = git.Ready
-		
+
 		// Try to find and cd into git repository (same as normal NewApplication)
 		isRepo, repoPath := git.IsInitializedRepo()
 		if !isRepo {
 			// Check parent directories
 			isRepo, repoPath = git.HasParentRepo()
 		}
-		
+
 		if isRepo && repoPath != "" {
 			// Found a repo, cd into it and detect state
 			if err := os.Chdir(repoPath); err != nil {
@@ -83,10 +83,10 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 			// No repo found
 			a.gitState = &git.State{Operation: git.NotRepo}
 		}
-		
+
 		a.mode = ModeMenu
 		a.menuItems = a.GenerateMenu()
-		return a, nil
+		return a, a.startAutoUpdate()
 	}
 	return a, nil
 }
@@ -94,11 +94,11 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 // cmdGenerateSSHKey generates SSH key and configures SSH
 func (a *Application) cmdGenerateSSHKey() tea.Cmd {
 	email := a.setupEmail
-	
+
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
-		
+
 		// Generate SSH key
 		buffer.Append("Generating SSH key...", ui.TypeStatus)
 		if err := git.GenerateSSHKey(email); err != nil {
@@ -106,7 +106,7 @@ func (a *Application) cmdGenerateSSHKey() tea.Cmd {
 			return SetupErrorMsg{Step: "keygen", Error: err.Error()}
 		}
 		buffer.Append("✓ Created ~/.ssh/TIT_id_rsa", ui.TypeStdout)
-		
+
 		// Add key to SSH agent
 		buffer.Append("Adding to SSH agent...", ui.TypeStatus)
 		if err := git.AddKeyToAgent(); err != nil {
@@ -114,7 +114,7 @@ func (a *Application) cmdGenerateSSHKey() tea.Cmd {
 		} else {
 			buffer.Append("✓ Added to SSH agent", ui.TypeStdout)
 		}
-		
+
 		// Configure SSH
 		buffer.Append("Configuring ~/.ssh/config...", ui.TypeStatus)
 		if err := git.WriteSSHConfig(); err != nil {
@@ -122,7 +122,7 @@ func (a *Application) cmdGenerateSSHKey() tea.Cmd {
 		} else {
 			buffer.Append("✓ Configured ~/.ssh/config", ui.TypeStdout)
 		}
-		
+
 		return SetupCompleteMsg{Step: "generate"}
 	}
 }
@@ -228,7 +228,7 @@ func (a *Application) renderSetupPrerequisites() string {
 	}
 
 	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(a.theme.ContentTextColor))
-	
+
 	content := statusStyle.Render(gitStatus + "\n" + sshStatus)
 
 	// Show install instructions if needed
@@ -289,7 +289,7 @@ func (a *Application) renderSetupGenerate() string {
 
 	// Get console output
 	lines := ui.GetBuffer().GetAllLines()
-	
+
 	// Join lines with newlines
 	var output string
 	for _, line := range lines {
@@ -314,7 +314,7 @@ func (a *Application) renderSetupGenerate() string {
 		button = "\n" + renderButton("Continue", true, a.theme)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Center, title, "", content + button)
+	return lipgloss.JoinVertical(lipgloss.Center, title, "", content+button)
 }
 
 // renderSetupDisplayKey renders the public key display step
@@ -349,7 +349,7 @@ func (a *Application) renderSetupDisplayKey() string {
 	keyBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(a.theme.BoxBorderColor)).
-		Width(a.sizing.ContentInnerWidth - 4).
+		Width(a.sizing.ContentInnerWidth-4).
 		Height(8).
 		Padding(1, 2)
 
