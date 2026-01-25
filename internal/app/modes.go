@@ -48,6 +48,7 @@ const (
 	SetupStepGenerate                             // Generate SSH key + agent + config
 	SetupStepDisplayKey                           // Show public key + provider URLs
 	SetupStepComplete                             // Setup complete
+	SetupStepError                                // Error display step
 )
 
 func (s SetupWizardStep) String() string {
@@ -64,6 +65,8 @@ func (s SetupWizardStep) String() string {
 		return "display_key"
 	case SetupStepComplete:
 		return "complete"
+	case SetupStepError:
+		return "error"
 	default:
 		return "unknown"
 	}

@@ -225,6 +225,8 @@ var ErrorMessages = map[string]string{
 	// Rewind (reset --hard) errors
 	"rewind_commit_hash_empty": "Commit hash cannot be empty",
 	"rewind_failed":            "Reset failed: %s",
+	// Timeline sync errors
+	"timeline_sync_no_remote": "no remote configured",
 }
 
 // OutputMessages centralizes operation success messages
@@ -541,4 +543,13 @@ var StateDescriptions = map[string]string{
 	"operation_rebasing":    "Rebase in progress.",
 	"operation_dirty_op":    "Operation interrupted by uncommitted changes.",
 	"operation_time_travel": "Exploring commit %s from %s.",
+}
+
+// TimelineSyncMessages centralizes timeline sync footer hint messages (SSOT)
+var TimelineSyncMessages = map[string]string{
+	"sync_completed":    "Auto-update sync completed",
+	"sync_failed":       "Sync failed: %s",
+	"auto_update_enabled":  "Auto-update enabled",
+	"auto_update_disabled": "Auto-update disabled",
+	"auto_update_enabled_syncing": "Auto-update enabled - syncing...",
 }

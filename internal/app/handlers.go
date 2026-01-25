@@ -1558,7 +1558,7 @@ func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.C
 			app.footerHint = fmt.Sprintf("Failed to save config: %v", err)
 		} else {
 			if app.appConfig.AutoUpdate.Enabled {
-				app.footerHint = "Auto-update enabled - syncing..."
+				app.footerHint = TimelineSyncMessages["auto_update_enabled_syncing"]
 				// Immediately start sync when enabled for better UX
 				if app.gitState != nil && app.gitState.Remote == git.HasRemote {
 					app.timelineSyncInProgress = true
@@ -1568,7 +1568,7 @@ func (a *Application) handlePreferencesSpace(app *Application) (tea.Model, tea.C
 					return app, tea.Batch(app.cmdTimelineSync(), app.cmdTimelineSyncTicker())
 				}
 			} else {
-				app.footerHint = "Auto-update disabled"
+				app.footerHint = TimelineSyncMessages["auto_update_disabled"]
 				// Cancel ongoing sync
 				app.timelineSyncInProgress = false
 			}

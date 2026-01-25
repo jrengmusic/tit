@@ -7,7 +7,7 @@ version: "1.0"
 project:
   name: "tit"
   path: "/Users/jreng/Documents/Poems/dev/tit"
-  initialized: "2026-01-22"
+  initialized: "2026-01-25"
 
 carol:
   mode: "symlink"  # or "portable"
@@ -15,9 +15,9 @@ carol:
 
 agents:
   # Track which agents are assigned to roles
-  analyst: "Not Assigned"
-  scaffolder: "Not Assigned"
+  counselor: "Not Assigned"
+  engineer: "Not Assigned"
   surgeon: "Not Assigned"
-  inspector: "Not Assigned"
-  caretaker: "Not Assigned"
+  auditor: "Not Assigned"
+  machinist: "Not Assigned"
   journalist: "Not Assigned"

@@ -104,6 +104,7 @@ type Application struct {
 	// Git Environment state (5th axis - checked before all other state)
 	gitEnvironment  git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
 	setupWizardStep SetupWizardStep    // Current step in setup wizard
+	setupWizardError string            // Error message to display in SetupStepError
 	setupEmail      string             // Email for SSH key generation
 	setupKeyCopied  bool               // True once public key copied to clipboard
 
@@ -655,9 +656,9 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case SetupErrorMsg:
-		// Error occurred during setup
-		// For now, just log the error and stay on current step
-		// TODO: Show error to user in UI
+		// Error occurred during setup - show error to user
+		a.setupWizardError = msg.Error
+		a.setupWizardStep = SetupStepError
 		return a, nil
 
 	case RewindMsg:
@@ -691,9 +692,9 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Auto-update toggle completed
 		if msg.Success {
 			if msg.Enabled {
-				a.footerHint = "Auto-update enabled"
+				a.footerHint = TimelineSyncMessages["auto_update_enabled"]
 			} else {
-				a.footerHint = "Auto-update disabled"
+				a.footerHint = TimelineSyncMessages["auto_update_disabled"]
 			}
 		} else {
 			a.footerHint = "Failed to toggle auto-update: " + msg.Error

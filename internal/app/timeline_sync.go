@@ -9,9 +9,16 @@ import (
 )
 
 // Timeline sync constants (SSOT)
+// These constants define the timing behavior for background timeline synchronization.
 const (
-	TimelineSyncTickRate   = 100 * time.Millisecond // Animation refresh rate
-	TimelineSyncInterval   = 60 * time.Second       // Default periodic sync interval
+	// TimelineSyncTickRate is the animation refresh rate for the sync spinner.
+	// Updates every 100ms to provide smooth visual feedback during sync operations.
+	TimelineSyncTickRate = 100 * time.Millisecond
+
+	// TimelineSyncInterval is the default periodic sync interval.
+	// Timeline sync runs every 60 seconds when auto-update is enabled and user is in menu mode.
+	// This can be overridden by user configuration (appConfig.AutoUpdate.IntervalMinutes).
+	TimelineSyncInterval = 60 * time.Second
 )
 
 // cmdTimelineSync runs git fetch in background and updates timeline
@@ -25,7 +32,7 @@ func (a *Application) cmdTimelineSync() tea.Cmd {
 		if !hasRemote {
 			return TimelineSyncMsg{
 				Success: false,
-				Error:   "no remote configured",
+				Error:   ErrorMessages["timeline_sync_no_remote"],
 			}
 		}
 
@@ -126,7 +133,7 @@ func (a *Application) handleTimelineSyncMsg(msg TimelineSyncMsg) (tea.Model, tea
 		
 		// Update footer hint in preferences to show sync completed
 		if a.mode == ModePreferences {
-			a.footerHint = "Auto-update sync completed"
+			a.footerHint = TimelineSyncMessages["sync_completed"]
 		}
 	} else {
 		// On error (including no-remote), don't update last-sync timestamp
@@ -134,7 +141,7 @@ func (a *Application) handleTimelineSyncMsg(msg TimelineSyncMsg) (tea.Model, tea
 		if msg.Error != "" {
 			// Surface error to footer in preferences mode
 			if a.mode == ModePreferences {
-				a.footerHint = fmt.Sprintf("Sync failed: %s", msg.Error)
+				a.footerHint = fmt.Sprintf(TimelineSyncMessages["sync_failed"], msg.Error)
 			}
 		}
 	}

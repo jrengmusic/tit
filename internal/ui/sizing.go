@@ -9,6 +9,9 @@ const (
 	MinContentHeight    = 4
 	HorizontalMargin    = 2
 	CommitListPaneWidth = 24 // "07-Jan 02:11 957f977" = 20 chars + border + padding
+	// SplitPaneHeightOffset accounts for footer (1 line) + padding (2 lines) in split-pane layouts
+	// Used in History and BranchPicker modes where content is split into two panes
+	SplitPaneHeightOffset = 3
 )
 
 // DynamicSizing holds computed layout dimensions

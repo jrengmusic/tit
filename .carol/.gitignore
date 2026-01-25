@@ -1,7 +1,7 @@
 # CAROL Framework - Git Ignore
 
 # Temp session files
-SESSION-[0-9]*-*.md
+[0-9]*-*-*.md
 
 # Backup files
 *.bak

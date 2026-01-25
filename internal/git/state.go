@@ -60,11 +60,12 @@ func HasParentRepo() (bool, string) {
 // where possible and only executes git commands when necessary.
 //
 // Returns:
-// - *State: Complete git state representation
-// - error: Any error encountered during detection
+// - *State: Complete git state representation (always valid, never nil)
+// - error: Always nil (function never fails - uses graceful fallbacks)
 //
 // CONTRACT: This is MANDATORY precomputation - no on-the-fly state detection
 // in the application. All git state must flow through this function.
+// CONTRACT: Never returns error - all system-level failures use graceful fallbacks.
 
 func DetectState() (*State, error) {
 	state := &State{}
@@ -87,25 +88,31 @@ func DetectState() (*State, error) {
 	hasCommits := err == nil && hash != ""
 
 	// Detect working tree state (always applicable)
+	// Graceful fallback: assume Clean if git status fails
 	workingTree, err := detectWorkingTree()
 	if err != nil {
-		return nil, fmt.Errorf("detecting working tree: %w", err)
+		state.WorkingTree = Clean // Default to Clean on system-level failure
+	} else {
+		state.WorkingTree = workingTree
 	}
-	state.WorkingTree = workingTree
 
 	// Detect operation state (determines if timeline is applicable)
+	// Graceful fallback: assume Normal if detection fails
 	operation, err := detectOperation()
 	if err != nil {
-		return nil, fmt.Errorf("detecting operation: %w", err)
+		state.Operation = Normal // Default to Normal on system-level failure
+	} else {
+		state.Operation = operation
 	}
-	state.Operation = operation
 
 	// Detect remote presence (determines if timeline is applicable)
+	// Graceful fallback: assume NoRemote if detection fails
 	remote, err := detectRemote()
 	if err != nil {
-		return nil, fmt.Errorf("detecting remote: %w", err)
+		state.Remote = NoRemote // Default to NoRemote on system-level failure
+	} else {
+		state.Remote = remote
 	}
-	state.Remote = remote
 
 	// Detect timeline state (CONDITIONAL: only when on branch with tracking)
 	// Timeline = comparison between local vs remote tracking branch
@@ -113,11 +120,15 @@ func DetectState() (*State, error) {
 	if state.Operation == Normal && state.Remote == HasRemote && hasCommits {
 		timeline, ahead, behind, err := detectTimeline()
 		if err != nil {
-			return nil, fmt.Errorf("detecting timeline: %w", err)
+			// Graceful fallback: assume InSync if timeline detection fails
+			state.Timeline = InSync
+			state.CommitsAhead = 0
+			state.CommitsBehind = 0
+		} else {
+			state.Timeline = timeline
+			state.CommitsAhead = ahead
+			state.CommitsBehind = behind
 		}
-		state.Timeline = timeline
-		state.CommitsAhead = ahead
-		state.CommitsBehind = behind
 	} else {
 		// Timeline N/A (no remote, no commits, or detached HEAD/time traveling)
 		state.Timeline = ""
@@ -134,10 +145,14 @@ func DetectState() (*State, error) {
 		// rev-parse returns "HEAD" literally when detached
 		branch, err = executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
 		if err != nil {
-			return nil, fmt.Errorf("detecting current branch: %w", err)
+			// Graceful fallback: use "HEAD" if both commands fail
+			state.CurrentBranch = "HEAD"
+		} else {
+			state.CurrentBranch = branch
 		}
+	} else {
+		state.CurrentBranch = branch
 	}
-	state.CurrentBranch = branch
 
 	hash, err = executeGitCommand("rev-parse", "HEAD")
 	if err != nil {
@@ -161,11 +176,12 @@ func DetectState() (*State, error) {
 }
 
 // detectWorkingTree checks for staged/unstaged changes or untracked files
+// Returns Clean as fallback if git status fails (system-level issue)
 func detectWorkingTree() (WorkingTree, error) {
 	cmd := exec.Command("git", "status", "--porcelain=v2")
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("git status failed: %w", err)
+		return Clean, nil // Graceful fallback: assume Clean on system-level failure
 	}
 
 	outputStr := string(output)
@@ -298,12 +314,13 @@ func determineTimeline(ahead, behind int) Timeline {
 }
 
 // detectOperation checks for merge/rebase/conflict/cherry-pick
+// Returns Normal as fallback if detection fails (system-level issue)
 func detectOperation() (Operation, error) {
 	// Priority 1: Check for conflicts FIRST (highest priority)
 	cmd := exec.Command("git", "status", "--porcelain=v2")
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("checking for conflicts: %w", err)
+		return Normal, nil // Graceful fallback: assume Normal on system-level failure
 	}
 	for _, line := range strings.Split(string(output), "\n") {
 		if strings.HasPrefix(line, "u ") {
@@ -335,11 +352,12 @@ func detectOperation() (Operation, error) {
 }
 
 // detectRemote checks if remote exists
+// Returns NoRemote as fallback if detection fails (system-level issue)
 func detectRemote() (Remote, error) {
 	cmd := exec.Command("git", "remote")
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("detecting remote: %w", err)
+		return NoRemote, nil // Graceful fallback: assume NoRemote on system-level failure
 	}
 
 	if strings.TrimSpace(string(output)) == "" {

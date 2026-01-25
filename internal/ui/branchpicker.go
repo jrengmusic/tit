@@ -52,8 +52,8 @@ func RenderBranchPickerSplitPane(state interface{}, theme Theme, width, height i
 		return "No branches found"
 	}
 
-	// Calculate pane height from terminal height (footer takes 1 line)
-	paneHeight := height - 3
+	// Calculate pane height from terminal height (footer + padding)
+	paneHeight := height - SplitPaneHeightOffset
 
 	// 50/50 split for branch picker (list and details get equal width)
 	listPaneWidth := width / 2

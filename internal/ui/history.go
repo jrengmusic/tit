@@ -44,8 +44,8 @@ func RenderHistorySplitPane(state interface{}, theme Theme, width, height int) s
 		return "Error: invalid history state"
 	}
 
-	// Calculate pane height from terminal height (footer takes 1 line)
-	paneHeight := height - 3
+	// Calculate pane height from terminal height (footer + padding)
+	paneHeight := height - SplitPaneHeightOffset
 
 	// Calculate column widths based on CONTENT NEEDS
 	// Commits list: "07-Jan 02:11 957f977" = 20 chars + border(2) + padding(2)

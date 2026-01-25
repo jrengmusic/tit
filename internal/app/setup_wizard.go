@@ -50,6 +50,11 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 		a.setupWizardStep = SetupStepDisplayKey
 	case SetupStepDisplayKey:
 		a.setupWizardStep = SetupStepComplete
+	case SetupStepError:
+		// Go back to previous step (Generate step)
+		a.setupWizardError = ""
+		a.setupWizardStep = SetupStepGenerate
+		return a, nil
 	case SetupStepComplete:
 		// Setup complete - transition to normal TIT operation
 		a.gitEnvironment = git.Ready
@@ -151,6 +156,8 @@ func (a *Application) renderSetupWizard() string {
 		content = a.renderSetupDisplayKey()
 	case SetupStepComplete:
 		content = a.renderSetupComplete()
+	case SetupStepError:
+		content = a.renderSetupError()
 	default:
 		content = fmt.Sprintf("Unknown setup step: %d", a.setupWizardStep)
 	}
@@ -369,6 +376,27 @@ func (a *Application) renderSetupDisplayKey() string {
 		keyContent, "",
 		instructions, "",
 		button)
+}
+
+// renderSetupError renders the error step
+func (a *Application) renderSetupError() string {
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FC704C")).
+		Render("✗ Setup Error")
+
+	errorMsg := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(a.theme.ContentTextColor)).
+		Width(a.sizing.ContentInnerWidth - 4).
+		Render(a.setupWizardError)
+
+	body := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(a.theme.DimmedTextColor)).
+		Render("Press ESC to go back and try again.")
+
+	button := renderButton("Go Back", true, a.theme)
+
+	return lipgloss.JoinVertical(lipgloss.Center, title, "", errorMsg, "", body, "", button)
 }
 
 // renderSetupComplete renders the completion step
