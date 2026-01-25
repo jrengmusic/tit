@@ -36,3 +36,10 @@ ties/
 
 # TIT runtime data
 .tit/
+
+# Cache (OpenAI)
+.opencode/**/
+
+
+# .carol/
+.carol/
