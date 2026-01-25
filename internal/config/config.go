@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"tit/internal"
+
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -109,8 +111,6 @@ func Load() (*Config, error) {
 	return &config, nil
 }
 
-
-
 // Save saves the configuration to the config file
 func Save(config *Config) error {
 	// Create directory if it doesn't exist
@@ -118,7 +118,7 @@ func Save(config *Config) error {
 	if err != nil {
 		return err // FAIL-FAST: UserHomeDir error
 	}
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, internal.StashDirPerms); err != nil {
 		return err
 	}
 
@@ -133,7 +133,7 @@ func Save(config *Config) error {
 	if err != nil {
 		return err // FAIL-FAST: UserHomeDir error
 	}
-	return os.WriteFile(configPath, data, 0644)
+	return os.WriteFile(configPath, data, internal.GitignorePerms)
 }
 
 // SetAutoUpdateEnabled sets the auto-update enabled state and persists

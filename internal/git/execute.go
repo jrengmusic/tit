@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
 	"io"
 	"os"
 	"os/exec"
@@ -10,8 +9,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"tit/internal"
 	"tit/internal/config"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // CommandResult contains the output and exit code of a git command
@@ -130,7 +132,7 @@ func cleanStaleLocks() {
 		return // Can't determine repo path, skip cleanup
 	}
 
-	lockPath := filepath.Join(repoPath, ".git", "index.lock")
+	lockPath := filepath.Join(repoPath, internal.GitDirectoryName, "index.lock")
 	// Check if lock exists and delete it
 	// This is safe: git creates it during operations and deletes on completion
 	// If present, it means a previous operation was interrupted
@@ -442,7 +444,7 @@ func FetchRecentCommits(limit int, ref string) ([]CommitInfo, error) {
 		}
 
 		// Parse ISO date format: YYYY-MM-DD HH:MM:SS ±HHMM
-		parsedTime, err := time.Parse("2006-01-02 15:04:05 -0700", dateStr)
+		parsedTime, err := time.Parse(internal.GitTimestampFormat, dateStr)
 		if err != nil {
 			// If parsing fails, use zero time but continue
 			parsedTime = time.Time{}

@@ -5,9 +5,10 @@ import (
 	"os"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ========================================

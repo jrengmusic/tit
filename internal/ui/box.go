@@ -6,12 +6,12 @@ import (
 
 // BoxConfig defines a bordered box layout
 type BoxConfig struct {
-	Content       string // Pre-sized content (should be exact dimensions - 2 for border)
-	InnerWidth    int    // Width of content area (excluding border)
-	InnerHeight   int    // Height of content area (excluding border)
-	BorderColor   string // Theme color for border
-	TextColor     string // Theme color for text
-	Theme         Theme  // Theme for styling
+	Content     string // Pre-sized content (should be exact dimensions - 2 for border)
+	InnerWidth  int    // Width of content area (excluding border)
+	InnerHeight int    // Height of content area (excluding border)
+	BorderColor string // Theme color for border
+	TextColor   string // Theme color for text
+	Theme       Theme  // Theme for styling
 }
 
 // RenderBox renders a bordered box with content

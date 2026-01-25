@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tit/internal"
 )
 
 // IsInitializedRepo checks if current working directory is a git repository
@@ -17,7 +18,7 @@ func IsInitializedRepo() (bool, string) {
 		return false, ""
 	}
 
-	gitDir := filepath.Join(cwd, ".git")
+	gitDir := filepath.Join(cwd, internal.GitDirectoryName)
 	if _, err := os.Stat(gitDir); err == nil {
 		return true, cwd
 	}
@@ -34,7 +35,7 @@ func HasParentRepo() (bool, string) {
 
 	parent := filepath.Dir(cwd)
 	for parent != cwd {
-		gitDir := filepath.Join(parent, ".git")
+		gitDir := filepath.Join(parent, internal.GitDirectoryName)
 		if _, err := os.Stat(gitDir); err == nil {
 			return true, parent
 		}
@@ -68,10 +69,6 @@ func HasParentRepo() (bool, string) {
 // CONTRACT: Never returns error - all system-level failures use graceful fallbacks.
 
 func DetectState() (*State, error) {
-	// DEBUG: Log when DetectState is called
-	debugLog := fmt.Sprintf("[DEBUG] DetectState: Called at %s", time.Now().Format("15:04:05.000"))
-	os.Stderr.WriteString(debugLog + "\n")
-
 	state := &State{}
 
 	// PRIORITY CHECK: DirtyOperation trumps everything except NotRepo
@@ -185,44 +182,31 @@ func detectWorkingTree() (WorkingTree, error) {
 	cmd := exec.Command("git", "status", "--porcelain=v2")
 	output, err := cmd.Output()
 	if err != nil {
-		// DEBUG: Log error when git status fails
-		debugLog := fmt.Sprintf("[DEBUG] detectWorkingTree: git status failed: %v", err)
-		os.Stderr.WriteString(debugLog + "\n")
 		return Clean, nil // Graceful fallback: assume Clean on system-level failure
 	}
 
 	outputStr := string(output)
 
-	// DEBUG: Log the raw output from git status
-	debugLog := fmt.Sprintf("[DEBUG] detectWorkingTree: git status output (len=%d): %q", len(outputStr), outputStr)
-	os.Stderr.WriteString(debugLog + "\n")
-
 	if outputStr == "" {
-		// Empty output = clean working tree
-		os.Stderr.WriteString("[DEBUG] detectWorkingTree: Empty output - returning Clean\n")
 		return Clean, nil
 	}
 
 	lines := strings.Split(outputStr, "\n")
-	os.Stderr.WriteString(fmt.Sprintf("[DEBUG] detectWorkingTree: Processing %d lines\n", len(lines)))
 
-	for i, line := range lines {
+	for _, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
 		// Skip untracked ignored files (.DS_Store, etc)
 		if line[0] == '!' {
-			os.Stderr.WriteString(fmt.Sprintf("[DEBUG] detectWorkingTree: Line %d - Skipping ignored file: %q\n", i, line))
 			continue
 		}
 		// Lines starting with '1', '2' (changes) or '?' (untracked) indicate modifications
 		if line[0] == '1' || line[0] == '2' || line[0] == '?' {
-			os.Stderr.WriteString(fmt.Sprintf("[DEBUG] detectWorkingTree: Line %d - Found dirty indicator '%c': %q - returning Dirty\n", i, line[0], line))
 			return Dirty, nil
 		}
 	}
 
-	os.Stderr.WriteString("[DEBUG] detectWorkingTree: No dirty indicators found - returning Clean\n")
 	return Clean, nil
 }
 
@@ -347,7 +331,7 @@ func detectOperation() (Operation, error) {
 	}
 
 	// Priority 2: Check for time traveling (TIT-specific)
-	gitDir := ".git"
+	gitDir := internal.GitDirectoryName
 	if _, err := os.Stat(filepath.Join(gitDir, "TIT_TIME_TRAVEL")); err == nil {
 		return TimeTraveling, nil
 	}
@@ -414,7 +398,7 @@ func detectDirtyOperation() bool {
 // GetTimeTravelInfo reads the .git/TIT_TIME_TRAVEL file and returns the original branch
 // Returns: originalBranch, stashID, error
 func GetTimeTravelInfo() (string, string, error) {
-	gitDir := ".git"
+	gitDir := internal.GitDirectoryName
 	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
 
 	content, err := os.ReadFile(filePath)
@@ -438,7 +422,7 @@ func GetTimeTravelInfo() (string, string, error) {
 
 // WriteTimeTravelInfo writes the .git/TIT_TIME_TRAVEL file with original branch and optional stash ID
 func WriteTimeTravelInfo(originalBranch, stashID string) error {
-	gitDir := ".git"
+	gitDir := internal.GitDirectoryName
 	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
 
 	content := originalBranch + "\n"
@@ -446,7 +430,7 @@ func WriteTimeTravelInfo(originalBranch, stashID string) error {
 		content += stashID + "\n"
 	}
 
-	err := os.WriteFile(filePath, []byte(content), 0644)
+	err := os.WriteFile(filePath, []byte(content), internal.GitignorePerms)
 	if err != nil {
 		return fmt.Errorf("failed to write time travel info: %w", err)
 	}
@@ -470,7 +454,7 @@ func ClearTimeTravelInfo() error {
 // LoadTimeTravelInfo loads time travel metadata from .git/TIT_TIME_TRAVEL
 // Returns nil if marker doesn't exist (normal case)
 func LoadTimeTravelInfo() (*TimeTravelInfo, error) {
-	gitDir := ".git"
+	gitDir := internal.GitDirectoryName
 	markerPath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
 
 	// Check if marker exists

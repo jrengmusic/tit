@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"tit/internal"
 )
 
 // GenerateSSHKey generates a new SSH key pair
@@ -16,15 +17,15 @@ func GenerateSSHKey(email string) error {
 	}
 
 	sshDir := filepath.Join(home, ".ssh")
-	
+
 	// Create .ssh directory if it doesn't exist
-	if err := os.MkdirAll(sshDir, 0700); err != nil {
+	if err := os.MkdirAll(sshDir, internal.SSHDirPerms); err != nil {
 		return fmt.Errorf("could not create .ssh directory: %w", err)
 	}
 
 	// Use TIT-specific key names to avoid conflicts
 	keyPath := filepath.Join(sshDir, "TIT_id_rsa")
-	
+
 	// Check if TIT key already exists
 	if _, err := os.Stat(keyPath); err == nil {
 		// Key already exists, skip generation
@@ -49,7 +50,7 @@ func AddKeyToAgent() error {
 	}
 
 	keyPath := filepath.Join(home, ".ssh", "TIT_id_rsa")
-	
+
 	// Start ssh-agent if not running
 	if !isSSHAgentRunning() {
 		if err := startSSHAgent(); err != nil {
@@ -77,7 +78,7 @@ func WriteSSHConfig() error {
 
 	sshDir := filepath.Join(home, ".ssh")
 	configPath := filepath.Join(sshDir, "config")
-	
+
 	// Check if config already has the required settings
 	if configHasRequiredSettings(configPath) {
 		return nil
@@ -90,7 +91,7 @@ func WriteSSHConfig() error {
   IdentitiesOnly yes
 `
 
-	f, err := os.OpenFile(configPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(configPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, internal.ConfigFilePerms)
 	if err != nil {
 		return fmt.Errorf("could not open SSH config: %w", err)
 	}
@@ -111,7 +112,7 @@ func GetPublicKey() (string, error) {
 	}
 
 	pubKeyPath := filepath.Join(home, ".ssh", "TIT_id_rsa.pub")
-	
+
 	data, err := os.ReadFile(pubKeyPath)
 	if err != nil {
 		return "", fmt.Errorf("could not read public key: %w", err)
@@ -157,8 +158,8 @@ func configHasRequiredSettings(configPath string) bool {
 	}
 
 	configContent := string(data)
-	
+
 	// Check if config contains the key settings
 	return strings.Contains(configContent, "AddKeysToAgent yes") &&
-		   strings.Contains(configContent, "IdentityFile ~/.ssh/TIT_id_rsa")
+		strings.Contains(configContent, "IdentityFile ~/.ssh/TIT_id_rsa")
 }

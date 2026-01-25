@@ -19,17 +19,17 @@ const (
 	OpForcePush = "force_push"
 
 	// Pull operations
-	OpPull                = "pull"
-	OpPullMerge           = "pull_merge"
-	OpPullRebase          = "pull_rebase"
-	OpFinalizePullMerge   = "finalize_pull_merge"
-	OpAbortMerge          = "abort_merge"
+	OpPull              = "pull"
+	OpPullMerge         = "pull_merge"
+	OpPullRebase        = "pull_rebase"
+	OpFinalizePullMerge = "finalize_pull_merge"
+	OpAbortMerge        = "abort_merge"
 
 	// Remote operations
-	OpAddRemote  = "add_remote"
+	OpAddRemote   = "add_remote"
 	OpFetchRemote = "fetch_remote"
 	OpSetUpstream = "set_upstream"
-	OpCheckout   = "checkout"
+	OpCheckout    = "checkout"
 
 	// Reset/discard operations
 	OpHardReset = "hard_reset"
@@ -45,9 +45,9 @@ const (
 	OpInputModeSet = "input_mode_set"
 
 	// Time travel operations
-	OpTimeTravelCheckout        = "time_travel_checkout"
-	OpTimeTravelMerge           = "time_travel_merge"
-	OpFinalizeTravelMerge       = "finalize_time_travel_merge"
-	OpTimeTravelReturn          = "time_travel_return"
-	OpFinalizeTravelReturn      = "finalize_time_travel_return"
+	OpTimeTravelCheckout   = "time_travel_checkout"
+	OpTimeTravelMerge      = "time_travel_merge"
+	OpFinalizeTravelMerge  = "finalize_time_travel_merge"
+	OpTimeTravelReturn     = "time_travel_return"
+	OpFinalizeTravelReturn = "finalize_time_travel_return"
 )

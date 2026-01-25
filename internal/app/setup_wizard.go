@@ -5,11 +5,12 @@ import (
 	"os"
 	"strings"
 
+	"tit/internal/git"
+	"tit/internal/ui"
+
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"tit/internal/git"
-	"tit/internal/ui"
 )
 
 // handleSetupWizardEnter handles ENTER key in setup wizard
@@ -69,7 +70,7 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 		if isRepo && repoPath != "" {
 			// Found a repo, cd into it and detect state
 			if err := os.Chdir(repoPath); err != nil {
-				// Can't cd into repo - set NotRepo state
+				// cannot cd into repo - set NotRepo state
 				a.gitState = &git.State{Operation: git.NotRepo}
 			} else {
 				// Successfully cded into repo, detect state

@@ -8,36 +8,32 @@ TIT (Git Timeline Interface) is a state-driven terminal UI for git repository ma
 
 ---
 
-## Five-Axis State Model (Git Environment Priority)
+## Four-Axis State Model (Git Environment Pre-flight Check)
 
-Every moment in TIT is described by 5 git axes, checked in priority order:
+Every moment in TIT is described by **4 git axes**, checked in priority order:
 
 ```go
+// Application struct has GitEnvironment as separate pre-flight field:
+type Application struct {
+    gitEnvironment   git.GitEnvironment  // Ready, NeedsSetup, MissingGit, MissingSSH (PRE-FLIGHT)
+    gitState       *git.State // Contains 4 axes below
+}
+
+// git.State struct contains repository state axes:
 type State struct {
-    // Axis 0 (FIRST): Git Environment - precondition check (Ready, NeedsSetup, MissingGit, MissingSSH)
-    GitEnvironment   git.GitEnvironment  // Ready | NeedsSetup | MissingGit | MissingSSH
-    
-    // Axes 1-4: Git repository state
-    Operation        git.Operation       // NotRepo | Normal | Conflicted | Merging | Rebasing | DirtyOperation | TimeTraveling | Rewinding
-    WorkingTree      git.WorkingTree     // Clean | Dirty
-    Remote           git.Remote          // NoRemote | HasRemote
-    Timeline         git.Timeline        // InSync | Ahead | Behind | Diverged | "" (N/A)
-    
-    // Metadata
-    CurrentBranch    string              // Local branch name
-    LocalBranchOnRemote bool             // Whether current branch tracked on remote
-    CommitsAhead     int                 // Number of commits ahead of remote (when Ahead/Diverged)
-    CommitsBehind    int                 // Number of commits behind remote (when Behind/Diverged)
+    WorkingTree      git.WorkingTree     // Axis 1: Local file changes
+    Timeline         git.Timeline        // Axis 2: Local vs remote comparison
+    Operation        git.Operation       // Axis 3: Git operation state
+    Remote           git.Remote          // Axis 4: Remote repository presence
 }
 ```
 
-**State Detection:** `git.DetectState()` queries git commands (no config file tracking).
-
-**Detection Order (Priority):**
-1. **GitEnvironment** - Check if git/SSH properly configured (happens at startup)
-2. **NotRepo** - Check if .git/ directory exists
-3. **DirtyOperation** - Check for ongoing merge/rebase/stash (blocks startup)
-4. **Operation** - Detect git operation state (Normal, TimeTraveling, etc.)
+**State Detection Order (Priority):**
+1. **GitEnvironment** (PRE-FLIGHT, Application level) - Check if git/SSH properly configured
+   - If not `git.Ready` → Show setup wizard or fatal error
+2. **NotRepo** - Check if .git/ directory exists (Axis 3, FIRST in git state)
+3. **DirtyOperation** - Check for ongoing merge/rebase/stash
+4. **Operation** - Detect git operation state
 5. **WorkingTree** - Detect staged/unstaged changes
 6. **Remote** - Check if remote configured
 7. **Timeline** - Compare local vs remote (only if Normal + HasRemote + hasCommits)

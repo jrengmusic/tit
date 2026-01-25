@@ -1,8 +1,9 @@
 package ui
 
 import (
-	"github.com/charmbracelet/lipgloss"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ListPane represents a reusable list pane component with consistent

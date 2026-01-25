@@ -1,9 +1,11 @@
 package banner
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
+	"tit/internal"
 )
 
 // Point represents a 2D coordinate
@@ -36,6 +38,26 @@ type Intersection struct {
 	Direction int
 }
 
+// parseFloatOrPanic parses string to float64 with panic on failure
+// FAIL FAST: Panics immediately if parsing fails, enabling early debugging
+func parseFloatOrPanic(value string) float64 {
+	result, err := strconv.ParseFloat(value, internal.FloatParseBitSize)
+	if err != nil {
+		panic(fmt.Sprintf("SVG parse error: failed to parse float '%s': %v", value, err))
+	}
+	return result
+}
+
+// parseIntOrPanic parses string to int64 with panic on failure
+// FAIL FAST: Panics immediately if parsing fails, enabling early debugging
+func parseIntOrPanic(value string, base, bitSize int) int {
+	result, err := strconv.ParseInt(value, base, bitSize)
+	if err != nil {
+		panic(fmt.Sprintf("SVG parse error: failed to parse int '%s': %v", value, err))
+	}
+	return int(result)
+}
+
 // extractSvgDimensions extracts width/height from SVG string
 func extractSvgDimensions(svgString string) (width, height float64) {
 	// Try explicit width/height attributes
@@ -46,8 +68,8 @@ func extractSvgDimensions(svgString string) (width, height float64) {
 	heightMatch := heightRe.FindStringSubmatch(svgString)
 
 	if len(widthMatch) > 1 && len(heightMatch) > 1 {
-		w, _ := strconv.ParseFloat(widthMatch[1], 64)
-		h, _ := strconv.ParseFloat(heightMatch[1], 64)
+		w := parseFloatOrPanic(widthMatch[1])
+		h := parseFloatOrPanic(heightMatch[1])
 		return w, h
 	}
 
@@ -60,8 +82,8 @@ func extractSvgDimensions(svgString string) (width, height float64) {
 			return r == ' ' || r == ','
 		})
 		if len(parts) >= 4 {
-			w, _ := strconv.ParseFloat(parts[2], 64)
-			h, _ := strconv.ParseFloat(parts[3], 64)
+			w := parseFloatOrPanic(parts[2])
+			h := parseFloatOrPanic(parts[3])
 			return w, h
 		}
 	}
@@ -174,8 +196,8 @@ func parsePathDataAsSubpaths(pathData string) [][]Point {
 			}
 
 			if i+2 < len(tokens) {
-				x, _ := strconv.ParseFloat(tokens[i+1], 64)
-				y, _ := strconv.ParseFloat(tokens[i+2], 64)
+				x := parseFloatOrPanic(tokens[i+1])
+				y := parseFloatOrPanic(tokens[i+2])
 
 				if cmd == "M" {
 					currentPos = Point{x, y}
@@ -191,8 +213,8 @@ func parsePathDataAsSubpaths(pathData string) [][]Point {
 
 		case "L", "l":
 			if i+2 < len(tokens) {
-				x, _ := strconv.ParseFloat(tokens[i+1], 64)
-				y, _ := strconv.ParseFloat(tokens[i+2], 64)
+				x := parseFloatOrPanic(tokens[i+1])
+				y := parseFloatOrPanic(tokens[i+2])
 
 				if cmd == "L" {
 					currentPos = Point{x, y}
@@ -208,12 +230,12 @@ func parsePathDataAsSubpaths(pathData string) [][]Point {
 
 		case "C", "c":
 			if i+6 < len(tokens) {
-				cp1x, _ := strconv.ParseFloat(tokens[i+1], 64)
-				cp1y, _ := strconv.ParseFloat(tokens[i+2], 64)
-				cp2x, _ := strconv.ParseFloat(tokens[i+3], 64)
-				cp2y, _ := strconv.ParseFloat(tokens[i+4], 64)
-				x, _ := strconv.ParseFloat(tokens[i+5], 64)
-				y, _ := strconv.ParseFloat(tokens[i+6], 64)
+				cp1x := parseFloatOrPanic(tokens[i+1])
+				cp1y := parseFloatOrPanic(tokens[i+2])
+				cp2x := parseFloatOrPanic(tokens[i+3])
+				cp2y := parseFloatOrPanic(tokens[i+4])
+				x := parseFloatOrPanic(tokens[i+5])
+				y := parseFloatOrPanic(tokens[i+6])
 
 				var cp1, cp2, endPoint Point
 
@@ -227,7 +249,7 @@ func parsePathDataAsSubpaths(pathData string) [][]Point {
 					endPoint = Point{currentPos.X + x, currentPos.Y + y}
 				}
 
-				curvePoints := approximateCubicBezier(currentPos, cp1, cp2, endPoint, 20)
+				curvePoints := approximateCubicBezier(currentPos, cp1, cp2, endPoint, internal.BezierCurveResolution)
 				if len(curvePoints) > 1 {
 					currentPath = append(currentPath, curvePoints[1:]...)
 				}
@@ -241,10 +263,10 @@ func parsePathDataAsSubpaths(pathData string) [][]Point {
 
 		case "S", "s":
 			if i+4 < len(tokens) {
-				cp2x, _ := strconv.ParseFloat(tokens[i+1], 64)
-				cp2y, _ := strconv.ParseFloat(tokens[i+2], 64)
-				x, _ := strconv.ParseFloat(tokens[i+3], 64)
-				y, _ := strconv.ParseFloat(tokens[i+4], 64)
+				cp2x := parseFloatOrPanic(tokens[i+1])
+				cp2y := parseFloatOrPanic(tokens[i+2])
+				x := parseFloatOrPanic(tokens[i+3])
+				y := parseFloatOrPanic(tokens[i+4])
 
 				var cp1 Point
 				if lastControlPoint != nil {
@@ -266,7 +288,7 @@ func parsePathDataAsSubpaths(pathData string) [][]Point {
 					endPoint = Point{currentPos.X + x, currentPos.Y + y}
 				}
 
-				curvePoints := approximateCubicBezier(currentPos, cp1, cp2, endPoint, 20)
+				curvePoints := approximateCubicBezier(currentPos, cp1, cp2, endPoint, internal.BezierCurveResolution)
 				if len(curvePoints) > 1 {
 					currentPath = append(currentPath, curvePoints[1:]...)
 				}
@@ -307,9 +329,9 @@ func parseColor(styleAttr string) Color {
 	rgbRe := regexp.MustCompile(`rgb\((\d+),\s*(\d+),\s*(\d+)\)`)
 	rgbMatch := rgbRe.FindStringSubmatch(styleAttr)
 	if len(rgbMatch) == 4 {
-		r, _ := strconv.Atoi(rgbMatch[1])
-		g, _ := strconv.Atoi(rgbMatch[2])
-		b, _ := strconv.Atoi(rgbMatch[3])
+		r := parseIntOrPanic(rgbMatch[1], 10, 16)
+		g := parseIntOrPanic(rgbMatch[2], 10, 16)
+		b := parseIntOrPanic(rgbMatch[3], 10, 16)
 		return Color{r, g, b}
 	}
 
@@ -318,9 +340,9 @@ func parseColor(styleAttr string) Color {
 	hexMatch := hexRe.FindStringSubmatch(styleAttr)
 	if len(hexMatch) == 2 {
 		hex := hexMatch[1]
-		r, _ := strconv.ParseInt(hex[0:2], 16, 64)
-		g, _ := strconv.ParseInt(hex[2:4], 16, 64)
-		b, _ := strconv.ParseInt(hex[4:6], 16, 64)
+		r := parseIntOrPanic(hex[0:2], 16, internal.IntParseBitSize)
+		g := parseIntOrPanic(hex[2:4], 16, internal.IntParseBitSize)
+		b := parseIntOrPanic(hex[4:6], 16, internal.IntParseBitSize)
 		return Color{int(r), int(g), int(b)}
 	}
 

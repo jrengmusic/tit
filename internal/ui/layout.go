@@ -4,8 +4,9 @@ import (
 	"embed"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"tit/internal/banner"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 //go:embed assets/tit-logo.svg

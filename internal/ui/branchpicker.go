@@ -77,14 +77,14 @@ func buildBranchListItems(branches []BranchInfo, selectedIdx int, theme *Theme) 
 		// Attribute: tracking status and divergence (branch-specific metadata)
 		attrText := ""
 		attrColor := theme.DimmedTextColor
-		
+
 		if branch.IsCurrent {
 			attrText = "● "
 			attrColor = theme.AccentTextColor
 		} else {
 			attrText = "  "
 		}
-		
+
 		// Show tracking/divergence info
 		if branch.TrackingRemote != "" {
 			// Has upstream: show divergence if any
@@ -144,13 +144,13 @@ func renderBranchDetailsPane(state *BranchPickerState, theme *Theme, width, heig
 		// === BRANCH METADATA ===
 		lines = append(lines, "BRANCH")
 		lines = append(lines, fmt.Sprintf("  Name: %s", branch.Name))
-		
+
 		if branch.IsCurrent {
 			lines = append(lines, "  Status: ● Current")
 		} else {
 			lines = append(lines, "  Status: Not current")
 		}
-		
+
 		// Tracking/upstream info
 		if branch.TrackingRemote != "" {
 			trackStr := fmt.Sprintf("  Upstream: %s", branch.TrackingRemote)
@@ -163,9 +163,9 @@ func renderBranchDetailsPane(state *BranchPickerState, theme *Theme, width, heig
 		} else {
 			lines = append(lines, "  Upstream: none (local only)")
 		}
-		
+
 		lines = append(lines, "")
-		
+
 		// === TIP COMMIT ===
 		lines = append(lines, "TIP COMMIT")
 		lines = append(lines, fmt.Sprintf("  Hash: %s", branch.LastCommitHash))

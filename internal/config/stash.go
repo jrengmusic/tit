@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"tit/internal"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -44,7 +46,7 @@ func ensureStashDir() {
 	stashFile := getStashFilePath()
 	stashDir := filepath.Dir(stashFile)
 
-	if err := os.MkdirAll(stashDir, 0755); err != nil {
+	if err := os.MkdirAll(stashDir, internal.StashDirPerms); err != nil {
 		panic(fmt.Sprintf("FATAL: Failed to create stash directory %s: %v", stashDir, err))
 	}
 }

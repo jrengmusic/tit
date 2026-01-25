@@ -490,7 +490,7 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 	app.branchPickerState = &ui.BranchPickerState{
 		Branches:          uiBranches,
 		SelectedIdx:       0,
-		PaneFocused:       true,                     // Start with list pane focused
+		PaneFocused:       true, // Start with list pane focused
 		ListScrollOffset:  0,
 		DetailsLineCursor: 0,
 		DetailsScrollOff:  0,

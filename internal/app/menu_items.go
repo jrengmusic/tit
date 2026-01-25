@@ -278,5 +278,3 @@ func ShortcutMap() map[string][]string {
 	}
 	return conflicts
 }
-
-

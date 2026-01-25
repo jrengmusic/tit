@@ -7,10 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atotto/clipboard"
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	"github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // errorOrEmpty returns error string if err != nil, else empty string

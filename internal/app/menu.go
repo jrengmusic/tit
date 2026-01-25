@@ -148,7 +148,7 @@ func (a *Application) menuTimeline() []MenuItem {
 
 	case git.Ahead:
 		// Local ahead → show push ONLY if working tree is Clean
-		// Can't push uncommitted changes
+		// cannot push uncommitted changes
 		if a.gitState.WorkingTree == git.Clean {
 			items = append(items,
 				GetMenuItem("push"),

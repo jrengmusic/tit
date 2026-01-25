@@ -19,7 +19,7 @@ type DirtyOperationState struct {
 	RemoteBranch string // e.g., "main"
 
 	// Conflict information (populated if conflicts detected)
-	ConflictDetectedAt string // which phase: "changeset_apply", "snapshot_reapply"
+	ConflictDetectedAt string   // which phase: "changeset_apply", "snapshot_reapply"
 	ConflictFiles      []string // list of conflicted file paths
 
 	// Cleanup flags

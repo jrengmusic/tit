@@ -1,8 +1,9 @@
 package ui
 
 import (
-	"github.com/charmbracelet/lipgloss"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // TextInputState holds state for text input component

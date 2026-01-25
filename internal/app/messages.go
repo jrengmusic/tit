@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"tit/internal"
 	"tit/internal/git"
 	"tit/internal/ui"
 )
@@ -108,10 +109,11 @@ const (
 
 // GetFooterMessageText returns display text for a message type
 func GetFooterMessageText(msgType FooterMessageType) string {
+	timeoutStr := internal.QuitConfirmTimeout.String()
 	messages := map[FooterMessageType]string{
 		MessageNone:                "",
-		MessageCtrlCConfirm:        "Press Ctrl+C again to quit (3s timeout)",
-		MessageEscClearConfirm:     "Press ESC again to clear input (3s timeout)",
+		MessageCtrlCConfirm:        "Press Ctrl+C again to quit (" + timeoutStr + " timeout)",
+		MessageEscClearConfirm:     "Press ESC again to clear input (" + timeoutStr + " timeout)",
 		MessageInit:                "Initializing repository... (ESC to abort)",
 		MessageClone:               "Cloning repository... (ESC to abort)",
 		MessageCommit:              "Committing changes... (ESC to abort)",

@@ -6,10 +6,11 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ConfirmationType represents different kinds of confirmation dialogs
@@ -240,7 +241,7 @@ func (a *Application) getOriginalBranchForTimeTravel() string {
 
 	originalBranch, _, err := git.GetTimeTravelInfo()
 	if err != nil || originalBranch == "" {
-		panic("FATAL: Cannot determine original branch")
+		panic("FATAL: cannot determine original branch")
 	}
 	return originalBranch
 }

@@ -5,8 +5,9 @@ import (
 	"os"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // startAutoUpdate initiates background state updates if enabled

@@ -12,11 +12,11 @@ type ConflictResolveState struct {
 	StashNeedsDrop bool   // true if stash apply succeeded and we need to drop it later
 
 	// Conflict files - generic N-column model
-	Files              []ui.ConflictFileGeneric
-	SelectedFileIndex  int      // Which file is selected (shared across all top panes)
-	FocusedPane        int      // Which pane is focused (cyclic: 0...NumColumns*2-1)
-	NumColumns         int      // Number of version columns (2 for cherry-pick, 3 for dirty pull)
-	ColumnLabels       []string // Labels for each column (e.g., ["LOCAL", "REMOTE"])
-	ScrollOffsets      []int    // Scroll position for each bottom pane (length = NumColumns)
-	LineCursors        []int    // Line cursor for each bottom pane (length = NumColumns)
+	Files             []ui.ConflictFileGeneric
+	SelectedFileIndex int      // Which file is selected (shared across all top panes)
+	FocusedPane       int      // Which pane is focused (cyclic: 0...NumColumns*2-1)
+	NumColumns        int      // Number of version columns (2 for cherry-pick, 3 for dirty pull)
+	ColumnLabels      []string // Labels for each column (e.g., ["LOCAL", "REMOTE"])
+	ScrollOffsets     []int    // Scroll position for each bottom pane (length = NumColumns)
+	LineCursors       []int    // Line cursor for each bottom pane (length = NumColumns)
 }

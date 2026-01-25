@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ===== CACHE KEY SCHEMA DEFINITIONS =====

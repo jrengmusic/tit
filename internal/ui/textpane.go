@@ -129,7 +129,7 @@ func RenderTextPane(
 
 	// Scroll window calculation
 	var scrollWindow int
-	
+
 	if isDiffMode {
 		// Diff mode: no line wrapping, each line = 1 physical line
 		// Allow cursor to move beyond visible window before scrolling
@@ -138,7 +138,7 @@ func RenderTextPane(
 		// Plain text: conservative margin for line wrapping
 		scrollWindow = interiorHeight - 4
 	}
-	
+
 	if scrollWindow < 1 {
 		scrollWindow = 1
 	}
@@ -312,7 +312,7 @@ func RenderTextPane(
 		Render(contentText)
 
 	outerBox := lipgloss.NewStyle().
-		Width(width - 2).
+		Width(width-2).
 		Height(height).
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
@@ -329,7 +329,7 @@ func renderEmptyPane(width, height int, isActive bool, theme *Theme) string {
 	}
 
 	return lipgloss.NewStyle().
-		Width(width - 2).
+		Width(width-2).
 		Height(height).
 		MaxHeight(height).
 		Border(lipgloss.NormalBorder()).

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tit/internal"
 )
 
 // BranchDetails represents a single branch with all metadata
@@ -48,7 +49,7 @@ func ListBranchesWithDetails() ([]BranchDetails, error) {
 		}
 
 		isCurrent := parts[1] == "true"
-		commitTime, _ := time.Parse("2006-01-02 15:04:05 -0700", parts[2])
+		commitTime, _ := time.Parse(internal.GitTimestampFormat, parts[2])
 		commitHash := parts[3]
 		commitSubj := parts[4]
 		author := parts[6]

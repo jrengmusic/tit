@@ -6,10 +6,11 @@ import (
 	"sync"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Use ui.FileHistoryState and ui.FileHistoryPane (no duplication)
@@ -240,8 +241,8 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	if isRepo && repoPath != "" {
 		// Found a repo, cd into it and detect state
 		if err := os.Chdir(repoPath); err != nil {
-			// Can't cd into repo - this is a fatal error
-			panic(fmt.Sprintf("Cannot cd into repository at %s: %v", repoPath, err))
+			// cannot cd into repo - this is a fatal error
+			panic(fmt.Sprintf("cannot cd into repository at %s: %v", repoPath, err))
 		}
 		state, err := git.DetectState()
 		if err != nil {

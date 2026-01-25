@@ -3,8 +3,9 @@ package ui
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss"
 	"tit/internal/config"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // RenderPreferencesPane renders the preferences editor (3 rows: auto-update, interval, theme)
@@ -59,13 +60,13 @@ func renderAutoUpdateRow(selected bool, enabled bool, theme Theme) string {
 	label := fmt.Sprintf("▸ Auto-update Enabled    %s", status)
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.ContentTextColor))
-	
+
 	if selected {
 		style = style.
 			Bold(true).
 			Foreground(lipgloss.Color(theme.HighlightTextColor))
 	}
-	
+
 	return style.Render(label)
 }
 
@@ -73,13 +74,13 @@ func renderIntervalRow(selected bool, minutes int, theme Theme) string {
 	label := fmt.Sprintf("  Auto-update Interval   %d min", minutes)
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.ContentTextColor))
-	
+
 	if selected {
 		style = style.
 			Bold(true).
 			Foreground(lipgloss.Color(theme.HighlightTextColor))
 	}
-	
+
 	return style.Render(label)
 }
 
@@ -87,12 +88,12 @@ func renderThemeRow(selected bool, theme string, appTheme Theme) string {
 	label := fmt.Sprintf("  Theme                  %s", theme)
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(appTheme.ContentTextColor))
-	
+
 	if selected {
 		style = style.
 			Bold(true).
 			Foreground(lipgloss.Color(appTheme.HighlightTextColor))
 	}
-	
+
 	return style.Render(label)
 }

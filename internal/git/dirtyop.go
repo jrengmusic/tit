@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"tit/internal"
 )
 
 // DirtyOperationSnapshot stores the state before a dirty operation
@@ -17,13 +18,14 @@ type DirtyOperationSnapshot struct {
 
 // FilePath returns the path to the TIT_DIRTY_OP state file in .git/
 func (s *DirtyOperationSnapshot) FilePath() string {
-	return filepath.Join(".git", "TIT_DIRTY_OP")
+	return filepath.Join(internal.GitDirectoryName, "TIT_DIRTY_OP")
 }
 
 // Save writes the snapshot to .git/TIT_DIRTY_OP
 // Format:
-//   Line 1: original branch name
-//   Line 2: original commit hash
+//
+//	Line 1: original branch name
+//	Line 2: original commit hash
 func (s *DirtyOperationSnapshot) Save(branchName, headHash string) error {
 	if branchName == "" || headHash == "" {
 		return fmt.Errorf("branch name and head hash cannot be empty")
@@ -35,7 +37,7 @@ func (s *DirtyOperationSnapshot) Save(branchName, headHash string) error {
 	filePath := s.FilePath()
 	content := fmt.Sprintf("%s\n%s\n", branchName, headHash)
 
-	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(content), internal.GitignorePerms); err != nil {
 		return fmt.Errorf("failed to save dirty operation snapshot: %w", err)
 	}
 
@@ -83,7 +85,7 @@ func (s *DirtyOperationSnapshot) Delete() error {
 // IsDirtyOperationActive checks if a dirty operation is currently in progress
 // by looking for the snapshot file
 func IsDirtyOperationActive() bool {
-	filePath := filepath.Join(".git", "TIT_DIRTY_OP")
+	filePath := filepath.Join(internal.GitDirectoryName, "TIT_DIRTY_OP")
 	_, err := os.Stat(filePath)
 	return err == nil
 }
@@ -91,7 +93,7 @@ func IsDirtyOperationActive() bool {
 // ReadSnapshotState loads the snapshot without creating a DirtyOperationSnapshot struct
 // Useful for state detection and cleanup
 func ReadSnapshotState() (branchName, headHash string, err error) {
-	filePath := filepath.Join(".git", "TIT_DIRTY_OP")
+	filePath := filepath.Join(internal.GitDirectoryName, "TIT_DIRTY_OP")
 
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -116,7 +118,7 @@ func ReadSnapshotState() (branchName, headHash string, err error) {
 
 // CleanupSnapshot removes the snapshot file (final cleanup after successful operation)
 func CleanupSnapshot() error {
-	filePath := filepath.Join(".git", "TIT_DIRTY_OP")
+	filePath := filepath.Join(internal.GitDirectoryName, "TIT_DIRTY_OP")
 	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to cleanup snapshot: %w", err)
 	}

@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"tit/internal/git"
 	"tit/internal/ui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ========================================
@@ -481,7 +482,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			return GitOperationMsg{
 				Step:    OpHardReset,
 				Success: false,
-				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+				Error:   ErrorMessages["operation_failed"],
 			}
 		}
 		stderr, err = cmd.StderrPipe()
@@ -489,7 +490,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			return GitOperationMsg{
 				Step:    OpHardReset,
 				Success: false,
-				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+				Error:   ErrorMessages["operation_failed"],
 			}
 		}
 
@@ -520,7 +521,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			return GitOperationMsg{
 				Step:    OpHardReset,
 				Success: false,
-				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+				Error:   ErrorMessages["operation_failed"],
 			}
 		}
 		stderr, err = cmd.StderrPipe()
@@ -528,7 +529,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			return GitOperationMsg{
 				Step:    OpHardReset,
 				Success: false,
-				Error:   fmt.Sprintf(ErrorMessages["operation_failed"]),
+				Error:   ErrorMessages["operation_failed"],
 			}
 		}
 

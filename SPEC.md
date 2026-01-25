@@ -38,7 +38,7 @@ If Git would reject an action, it must not appear in the menu.
 
 Every decision in TIT derives from **four axes**:
 
-### WorkingTree — Local file changes
+### WorkingTree — Local file changes (Axis 1)
 | Code | Meaning |
 |------|---------|
 | `Clean` | No changes |
@@ -83,22 +83,30 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 
 ## 4. State Priority Rules
 
-**Priority 0: Pre-Flight Checks (Before Any Menu)**
+**Pre-Flight Check (Before Any State Detection): GitEnvironment**
+- Check if git/SSH properly configured
+- If `MissingGit` → Fatal error: Git not installed
+- If `MissingSSH` → Fatal error: SSH not installed
+- If `NeedsSetup` → Enter ModeSetupWizard (SSH key generation)
+- If `Ready` → Proceed to git state detection
+
+**Note:** GitEnvironment is a separate Application field checked BEFORE git state detection. It is NOT part of the git.State tuple.
+
+**Priority 2: Pre-Flight Checks (Git Repository State)**
 - If `Conflicted` OR `Merging` OR `Rebasing` OR `DirtyOperation` → Show error screen, prevent TIT startup
 - These are pre-existing abnormal states. User must resolve externally.
 
-**Priority 1: Operation State** (For Valid Startups)
-- `NotRepo` → Init/Clone
+**Priority 3: Operation State** (For Valid Startups)
+- `Normal` → Proceed to check other axes
 - `TimeTraveling` → Time travel menu (Browse history, Merge back, Return)
   - **Entered via:** History mode → select commit → ENTER
   - **NOT a standalone menu item** - accessed only through History
-- `Normal` → Proceed to check other axes
 
-**Priority 2: Remote Presence**
+**Priority 4: Remote Presence**
 - `Remote = NoRemote` → Hide sync actions, show "Add remote"
 - `Remote = HasRemote` → Enable sync menus based on Timeline
 
-**Priority 3: Timeline + WorkingTree**
+**Priority 5: WorkingTree + Timeline**
 - Determines which action menus appear
 
 ---
@@ -664,13 +672,34 @@ Implementation: `git reset --hard <commit>`
 
 ## 13. First-Time Setup
 
-### 12.1 Check Git Installation
-```bash
-git --version
-```
-If not found → Error
+### 13.1 Check GitEnvironment (Priority 0 - Before Any Git Operations)
 
-### 12.2 Check Git Configuration
+TIT checks machine readiness BEFORE git state detection:
+
+**Check sequence:**
+```bash
+1. Check git installed: git --version
+   If not found → GitEnvironmentMissingGit → Fatal error
+
+2. Check SSH installed: ssh -V
+   If not found → GitEnvironmentMissingSSH → Fatal error
+
+3. Check SSH keys configured:
+   - Scans ~/.ssh directory for private keys
+   - Looks for: id_rsa, id_ed25519, *_rsa, *_ed25519 patterns
+   - If no keys found → GitEnvironmentNeedsSetup → Enter ModeSetupWizard
+
+4. If all checks pass → GitEnvironmentReady → Proceed to git state detection
+```
+
+**ModeSetupWizard:** Guided SSH key generation and configuration
+- User prompted for email (key comment)
+- SSH key generated: `ssh-keygen -t ed25519 -C "<email>"`
+- SSH agent started and key added
+- Public key displayed for user to add to GitHub/GitLab/Gitea
+- Wizard exits on completion, TIT proceeds to normal startup
+
+### 13.2 Check Git Configuration
 ```bash
 git config user.name
 git config user.email
@@ -678,7 +707,7 @@ git config user.email
 
 If either empty → Setup wizard
 
-### 12.3 Check Repository
+### 13.3 Check Repository
 ```bash
 git rev-parse --git-dir
 ```
@@ -697,7 +726,7 @@ git checkout -b main
 - Detect default branch
 - Checkout default branch
 
-### 12.4 Branch Mismatch on Remote Add
+### 13.4 Branch Mismatch on Remote Add
 
 When adding first remote, if local branch ≠ remote default:
 
@@ -721,7 +750,7 @@ git checkout -b main origin/main
 - Remote added normally
 - User stays on current branch
 
-### 12.5 Fatal Errors
+### 13.5 Fatal Errors
 
 **Detached HEAD (not from time travel):**
 ```

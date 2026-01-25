@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"tit/internal"
 )
 
 // DefaultGitignoreContent contains common patterns to ignore
@@ -46,7 +47,7 @@ Desktop.ini
 // WORKER THREAD - called from git operations, must be in worker goroutine
 func InitializeRepository(dirPath string) error {
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
+	if err := os.MkdirAll(dirPath, internal.StashDirPerms); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -204,7 +205,7 @@ func CreateDefaultGitignore() error {
 	}
 
 	// Create .gitignore with default patterns
-	if err := os.WriteFile(".gitignore", []byte(DefaultGitignoreContent), 0644); err != nil {
+	if err := os.WriteFile(".gitignore", []byte(DefaultGitignoreContent), internal.GitignorePerms); err != nil {
 		return fmt.Errorf("failed to write .gitignore: %w", err)
 	}
 
