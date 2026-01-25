@@ -68,6 +68,10 @@ func HasParentRepo() (bool, string) {
 // CONTRACT: Never returns error - all system-level failures use graceful fallbacks.
 
 func DetectState() (*State, error) {
+	// DEBUG: Log when DetectState is called
+	debugLog := fmt.Sprintf("[DEBUG] DetectState: Called at %s", time.Now().Format("15:04:05.000"))
+	os.Stderr.WriteString(debugLog + "\n")
+
 	state := &State{}
 
 	// PRIORITY CHECK: DirtyOperation trumps everything except NotRepo
@@ -181,30 +185,44 @@ func detectWorkingTree() (WorkingTree, error) {
 	cmd := exec.Command("git", "status", "--porcelain=v2")
 	output, err := cmd.Output()
 	if err != nil {
+		// DEBUG: Log error when git status fails
+		debugLog := fmt.Sprintf("[DEBUG] detectWorkingTree: git status failed: %v", err)
+		os.Stderr.WriteString(debugLog + "\n")
 		return Clean, nil // Graceful fallback: assume Clean on system-level failure
 	}
 
 	outputStr := string(output)
+
+	// DEBUG: Log the raw output from git status
+	debugLog := fmt.Sprintf("[DEBUG] detectWorkingTree: git status output (len=%d): %q", len(outputStr), outputStr)
+	os.Stderr.WriteString(debugLog + "\n")
+
 	if outputStr == "" {
 		// Empty output = clean working tree
+		os.Stderr.WriteString("[DEBUG] detectWorkingTree: Empty output - returning Clean\n")
 		return Clean, nil
 	}
 
 	lines := strings.Split(outputStr, "\n")
-	for _, line := range lines {
+	os.Stderr.WriteString(fmt.Sprintf("[DEBUG] detectWorkingTree: Processing %d lines\n", len(lines)))
+
+	for i, line := range lines {
 		if len(line) == 0 {
 			continue
 		}
 		// Skip untracked ignored files (.DS_Store, etc)
 		if line[0] == '!' {
+			os.Stderr.WriteString(fmt.Sprintf("[DEBUG] detectWorkingTree: Line %d - Skipping ignored file: %q\n", i, line))
 			continue
 		}
 		// Lines starting with '1', '2' (changes) or '?' (untracked) indicate modifications
 		if line[0] == '1' || line[0] == '2' || line[0] == '?' {
+			os.Stderr.WriteString(fmt.Sprintf("[DEBUG] detectWorkingTree: Line %d - Found dirty indicator '%c': %q - returning Dirty\n", i, line[0], line))
 			return Dirty, nil
 		}
 	}
 
+	os.Stderr.WriteString("[DEBUG] detectWorkingTree: No dirty indicators found - returning Clean\n")
 	return Clean, nil
 }
 

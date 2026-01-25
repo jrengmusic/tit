@@ -236,7 +236,19 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpForcePush:
 		// Force push completed - reload state, stay in console
 		// User presses ESC to return to menu
+
+		// DEBUG: Log before DetectState call
+		buffer.Append("[DEBUG] OpForcePush handler: About to call git.DetectState() after force push", ui.TypeDebug)
+
 		state, err := git.DetectState()
+
+		// DEBUG: Log after DetectState call
+		if err != nil {
+			buffer.Append(fmt.Sprintf("[DEBUG] OpForcePush handler: git.DetectState() returned error: %v", err), ui.TypeDebug)
+		} else {
+			buffer.Append(fmt.Sprintf("[DEBUG] OpForcePush handler: git.DetectState() completed. WorkingTree=%v, Operation=%v", state.WorkingTree, state.Operation), ui.TypeDebug)
+		}
+
 		if err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false

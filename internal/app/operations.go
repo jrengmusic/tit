@@ -390,6 +390,14 @@ func (a *Application) cmdForcePush() tea.Cmd {
 		branchName := strings.TrimSpace(string(output))
 		buffer.Append(OutputMessages["force_push_in_progress"], ui.TypeInfo)
 
+		// Fetch first to ensure --force-with-lease has current info
+		buffer.Append("Fetching latest remote state...", ui.TypeInfo)
+		cmd = exec.Command("git", "fetch", "origin")
+		if err := cmd.Run(); err != nil {
+			// Log fetch failure but continue - force push might still work
+			buffer.Append("Warning: fetch failed, force push may fail with 'stale info'", ui.TypeWarning)
+		}
+
 		cmd = exec.Command("git", "push", "--force-with-lease", "origin", branchName)
 		stdout, _ := cmd.StdoutPipe()
 		stderr, _ := cmd.StderrPipe()
