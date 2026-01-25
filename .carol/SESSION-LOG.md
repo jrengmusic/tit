@@ -142,7 +142,7 @@ COUNSELOR: Copilot (claude-opus-41)
 ENGINEER: zai-coding-plan/glm-4.7  
 SURGEON: [Agent (Model)] or [Not Assigned]  
 AUDITOR: zai-coding-plan/glm-4.7
-MACHINIST: [Agent (Model)] or [Not Assigned]  
+MACHINIST: zai-coding-plan/glm-4.7  
 JOURNALIST: zai-coding-plan/glm-4.7
 
 ---
