@@ -51,8 +51,8 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 		// Always refresh git state after failure - the operation may have partially succeeded
 		// (e.g., commit with weird exit code but changes were actually committed)
-		if state, err := git.DetectState(); err == nil {
-			a.gitState = state
+		if err := a.reloadGitState(); err != nil {
+			// State reload failed, but proceed with cleanup
 		}
 
 		return a, nil
@@ -78,13 +78,11 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		}
 
 		// Detect new state after init/clone/checkout
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
-		a.gitState = state
 
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
@@ -99,26 +97,22 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpFetchRemote:
 		// Fetch complete: set upstream tracking
 		buffer.Append(OutputMessages["setting_upstream"], ui.TypeInfo)
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
-		a.gitState = state
 		return a, a.cmdSetUpstream(a.gitState.CurrentBranch)
 
 	case OpPull:
 		// Pull operation succeeded (no conflicts)
 		// Reload state and return to menu
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			a.isExitAllowed = true // Re-enable exit on error
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -128,15 +122,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpFinalizePullMerge, OpFinalizeTravelMerge, OpFinalizeTravelReturn:
 		// Merge finalization succeeded: reload state and stay in console
 		// User must press ESC to return to menu (ensures merge completed before menu reachable)
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			a.isExitAllowed = true // Re-enable exit on error
 			a.mode = ModeConsole
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
@@ -149,15 +141,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpAbortMerge:
 		// Merge abort succeeded: reload state and stay in console
 		// User must press ESC to return to menu (ensures abort completed before menu reachable)
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			a.isExitAllowed = true // Re-enable exit on error
 			a.mode = ModeConsole
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(OutputMessages["abort_successful"], ui.TypeStatus)
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
@@ -169,13 +159,11 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case OpCommit, OpPush, OpCommitPush:
 		// Simple operations: reload state
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
-		a.gitState = state
 
 		// CONTRACT: Rebuild cache before showing completion (commit changes history)
 		cacheCmd := a.invalidateHistoryCaches()
@@ -190,13 +178,11 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case "branch_switch":
 		// Branch switch completed successfully (no conflicts or conflicts resolved)
 		// Reload state and return to config menu
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
-		a.gitState = state
 
 		// Regenerate menu with new branch state
 		menu := a.GenerateMenu()
@@ -211,15 +197,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case "finalize_branch_switch":
 		// Branch switch conflicts resolved and finalized
 		// Reload state and return to config menu
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			a.isExitAllowed = true
 			a.mode = ModeConsole
 			return a, nil
 		}
-		a.gitState = state
 
 		// Regenerate menu with new branch state
 		menu := a.GenerateMenu()
@@ -238,24 +222,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Force push completed - reload state, stay in console
 		// User presses ESC to return to menu
 
-		// DEBUG: Log before DetectState call
-		buffer.Append("[DEBUG] OpForcePush handler: About to call git.DetectState() after force push", ui.TypeDebug)
-
-		state, err := git.DetectState()
-
-		// DEBUG: Log after DetectState call
-		if err != nil {
-			buffer.Append(fmt.Sprintf("[DEBUG] OpForcePush handler: git.DetectState() returned error: %v", err), ui.TypeDebug)
-		} else {
-			buffer.Append(fmt.Sprintf("[DEBUG] OpForcePush handler: git.DetectState() completed. WorkingTree=%v, Operation=%v", state.WorkingTree, state.Operation), ui.TypeDebug)
-		}
-
-		if err != nil {
+		// Simple operations: reload state
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -264,13 +236,11 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpHardReset:
 		// Hard reset completed - reload state, stay in console
 		// User presses ESC to return to menu
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -329,14 +299,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case OpDirtyPullFinalize:
 		// Operation complete: cleanup stash and snapshot file
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			a.dirtyOperationState = nil
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -345,15 +313,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case OpDirtyPullAbort:
 		// Abort complete: original state restored
-		state, err := git.DetectState()
-		if err != nil {
+		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 			a.asyncOperationActive = false
 			a.dirtyOperationState = nil
 			a.conflictResolveState = nil
 			return a, nil
 		}
-		a.gitState = state
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.asyncOperationActive = false
@@ -394,8 +360,7 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	}
 
 	// Time travel successful - reload git state
-	state, err := git.DetectState()
-	if err != nil {
+	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_travel"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
@@ -408,7 +373,6 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 		return a, nil
 	}
 
-	a.gitState = state
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
 
@@ -480,8 +444,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	}
 
 	// Time travel merge successful - reload git state
-	state, err := git.DetectState()
-	if err != nil {
+	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_merge"], err), ui.TypeStderr)
 		a.asyncOperationActive = false
 		a.isExitAllowed = true
@@ -491,14 +454,13 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 		return a, a.startAutoUpdate()
 	}
 
-	a.gitState = state
 	a.asyncOperationActive = false
 	a.isExitAllowed = true
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
 	var cacheCmd tea.Cmd
-	if state.Operation == git.Normal {
+	if a.gitState.Operation == git.Normal {
 		a.cacheLoadingStarted = true
 		cacheCmd = a.invalidateHistoryCaches()
 	}

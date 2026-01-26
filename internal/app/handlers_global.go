@@ -26,7 +26,7 @@ func (a *Application) validateAndProceed(
 	validator ui.InputValidator,
 	onSuccess func(*Application) (tea.Model, tea.Cmd),
 ) (tea.Model, tea.Cmd) {
-	if valid, msg := validator(a.inputValue); !valid {
+	if valid, msg := validator(a.inputState.Value); !valid {
 		a.footerHint = msg
 		return a, nil
 	}
@@ -121,22 +121,22 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 	// In input mode: handle based on input content
 	if a.isInputMode() {
 		// If input is empty: back to menu
-		if a.inputValue == "" {
+		if a.inputState.Value == "" {
 			return a.returnToMenu()
 		}
 
 		// If clear confirm active: clear input and stay
-		if a.clearConfirmActive {
-			a.inputValue = ""
-			a.inputCursorPosition = 0
-			a.inputValidationMsg = ""
-			a.clearConfirmActive = false
+		if a.inputState.ClearConfirming {
+			a.inputState.Value = ""
+			a.inputState.CursorPosition = 0
+			a.inputState.ValidationMsg = ""
+			a.inputState.ClearConfirming = false
 			a.footerHint = ""
 			return a, nil
 		}
 
 		// First ESC with non-empty input: start clear confirmation
-		a.clearConfirmActive = true
+		a.inputState.ClearConfirming = true
 		a.footerHint = GetFooterMessageText(MessageEscClearConfirm)
 		return a, tea.Tick(QuitConfirmationTimeout, func(t time.Time) tea.Msg {
 			return ClearTickMsg(t)
@@ -201,10 +201,10 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.consoleState.Reset()
 	a.outputBuffer.Clear()
 	a.footerHint = ""
-	a.inputValue = ""
-	a.inputCursorPosition = 0
-	a.inputValidationMsg = ""
-	a.clearConfirmActive = false
+	a.inputState.Value = ""
+	a.inputState.CursorPosition = 0
+	a.inputState.ValidationMsg = ""
+	a.inputState.ClearConfirming = false
 	a.isExitAllowed = true // ALWAYS allow exit when in menu
 
 	menu := a.GenerateMenu()
@@ -244,25 +244,25 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 		text = strings.TrimSpace(text)
 
 		// Clamp cursor position to valid range
-		if app.inputCursorPosition < 0 {
-			app.inputCursorPosition = 0
+		if app.inputState.CursorPosition < 0 {
+			app.inputState.CursorPosition = 0
 		}
-		if app.inputCursorPosition > len(app.inputValue) {
-			app.inputCursorPosition = len(app.inputValue)
+		if app.inputState.CursorPosition > len(app.inputState.Value) {
+			app.inputState.CursorPosition = len(app.inputState.Value)
 		}
 
 		// Insert pasted text at cursor position (atomically, not character by character)
-		app.inputValue = app.inputValue[:app.inputCursorPosition] + text + app.inputValue[app.inputCursorPosition:]
-		app.inputCursorPosition += len(text)
+		app.inputState.Value = app.inputState.Value[:app.inputState.CursorPosition] + text + app.inputState.Value[app.inputState.CursorPosition:]
+		app.inputState.CursorPosition += len(text)
 
 		// Update real-time validation if in clone URL mode
-		if app.inputAction == "clone_url" {
-			if app.inputValue == "" {
-				app.inputValidationMsg = ""
-			} else if ui.ValidateRemoteURL(app.inputValue) {
-				app.inputValidationMsg = "" // Valid - no error message
+		if app.inputState.Action == "clone_url" {
+			if app.inputState.Value == "" {
+				app.inputState.ValidationMsg = ""
+			} else if ui.ValidateRemoteURL(app.inputState.Value) {
+				app.inputState.ValidationMsg = "" // Valid - no error message
 			} else {
-				app.inputValidationMsg = "Invalid URL format"
+				app.inputState.ValidationMsg = "Invalid URL format"
 			}
 		}
 	}

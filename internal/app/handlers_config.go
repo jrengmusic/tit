@@ -82,7 +82,7 @@ func (a *Application) handleConfigMenuEnter(app *Application) (tea.Model, tea.Cm
 
 // handleConfigAddRemoteURLSubmit handles URL input from config add remote menu
 func (a *Application) handleConfigAddRemoteURLSubmit(app *Application) (tea.Model, tea.Cmd) {
-	url := app.inputValue
+	url := app.inputState.Value
 	if url == "" {
 		app.footerHint = "URL cannot be empty"
 		return app, nil
@@ -105,14 +105,14 @@ func (a *Application) handleConfigAddRemoteURLSubmit(app *Application) (tea.Mode
 	app.previousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole
 	app.consoleState.Reset()
-	app.inputValue = ""
+	app.inputState.Value = ""
 
 	return app, a.cmdConfigAddRemote(url)
 }
 
 // handleConfigSwitchRemoteURLSubmit handles URL input from config switch remote menu
 func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.Model, tea.Cmd) {
-	url := app.inputValue
+	url := app.inputState.Value
 	if url == "" {
 		app.footerHint = "URL cannot be empty"
 		return app, nil
@@ -135,7 +135,7 @@ func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.M
 	app.previousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole
 	app.consoleState.Reset()
-	app.inputValue = ""
+	app.inputState.Value = ""
 
 	return app, a.cmdConfigSwitchRemote(url)
 }

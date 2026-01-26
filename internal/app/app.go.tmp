@@ -787,32 +787,18 @@ func (a *Application) View() string {
 		}
 		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 	case ModeInput:
-		textInputState := ui.TextInputState{
-			Value:     a.inputState.Value,
-			CursorPos: a.inputState.CursorPosition,
-			Height:    a.inputState.Height,
-		}
-
-		footer := a.GetFooterContent()
-		return ui.RenderTextInputFullScreen(
-			a.sizing,
-			a.theme,
-			a.inputState.Prompt,
-			textInputState,
-			footer,
-		)
 	case ModeCloneURL:
 		textInputState := ui.TextInputState{
-			Value:     a.inputState.Value,
-			CursorPos: a.inputState.CursorPosition,
-			Height:    a.inputState.Height,
+			Value:     a.inputValue,
+			CursorPos: a.inputCursorPosition,
+			Height:    a.inputHeight,
 		}
 
 		footer := a.GetFooterContent()
 		return ui.RenderTextInputFullScreen(
 			a.sizing,
 			a.theme,
-			a.inputState.Prompt,
+			a.inputPrompt,
 			textInputState,
 			footer,
 		)
@@ -1184,9 +1170,9 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 
 	// Generic input cursor handlers for single-field inputs
 	genericInputNav := cursorNavMixin.CreateHandlers(
-		func(a *Application) string { return a.inputState.Value },
-		func(a *Application) int { return a.inputState.CursorPosition },
-		func(a *Application, pos int) { a.inputState.CursorPosition = pos },
+		func(a *Application) string { return a.inputValue },
+		func(a *Application) int { return a.inputCursorPosition },
+		func(a *Application, pos int) { a.inputCursorPosition = pos },
 	)
 
 	// Mode-specific handlers (global merged in after)
@@ -1456,51 +1442,51 @@ func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
 // insertTextAtCursor inserts text at current cursor position (UTF-8 safe)
 func (a *Application) insertTextAtCursor(text string) {
 	// Defensive bounds checking
-	valueLen := len(a.inputState.Value)
-	if a.inputState.CursorPosition < 0 {
-		a.inputState.CursorPosition = 0
+	valueLen := len(a.inputValue)
+	if a.inputCursorPosition < 0 {
+		a.inputCursorPosition = 0
 	}
-	if a.inputState.CursorPosition > valueLen {
-		a.inputState.CursorPosition = valueLen
+	if a.inputCursorPosition > valueLen {
+		a.inputCursorPosition = valueLen
 	}
 
 	// Safe slice operation
-	before := a.inputState.Value[:a.inputState.CursorPosition]
-	after := a.inputState.Value[a.inputState.CursorPosition:]
-	a.inputState.Value = before + text + after
-	a.inputState.CursorPosition += len(text)
+	before := a.inputValue[:a.inputCursorPosition]
+	after := a.inputValue[a.inputCursorPosition:]
+	a.inputValue = before + text + after
+	a.inputCursorPosition += len(text)
 }
 
 // deleteAtCursor deletes character before cursor (UTF-8 safe)
 func (a *Application) deleteAtCursor() {
-	valueLen := len(a.inputState.Value)
-	if a.inputState.CursorPosition <= 0 || valueLen == 0 {
+	valueLen := len(a.inputValue)
+	if a.inputCursorPosition <= 0 || valueLen == 0 {
 		return
 	}
-	if a.inputState.CursorPosition > valueLen {
-		a.inputState.CursorPosition = valueLen
+	if a.inputCursorPosition > valueLen {
+		a.inputCursorPosition = valueLen
 	}
 
 	// Safe slice operation
-	before := a.inputState.Value[:a.inputState.CursorPosition-1]
-	after := a.inputState.Value[a.inputState.CursorPosition:]
-	a.inputState.Value = before + after
-	a.inputState.CursorPosition--
+	before := a.inputValue[:a.inputCursorPosition-1]
+	after := a.inputValue[a.inputCursorPosition:]
+	a.inputValue = before + after
+	a.inputCursorPosition--
 }
 
 // updateInputValidation updates validation message for current input
 func (a *Application) updateInputValidation() {
-	if a.inputState.Action == "clone_url" {
-		currentValue := a.inputState.Value
+	if a.inputAction == "clone_url" {
+		currentValue := a.inputValue
 		if a.mode == ModeInitializeBranches {
 			return // No validation in branch mode
 		}
 		if currentValue == "" {
-			a.inputState.ValidationMsg = ""
+			a.inputValidationMsg = ""
 		} else if ui.ValidateRemoteURL(currentValue) {
-			a.inputState.ValidationMsg = ""
+			a.inputValidationMsg = ""
 		} else {
-			a.inputState.ValidationMsg = "Invalid URL format"
+			a.inputValidationMsg = "Invalid URL format"
 		}
 	}
 }
@@ -1510,7 +1496,7 @@ func (a *Application) updateInputValidation() {
 // handleInputSubmit handles enter in generic input mode
 func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Route input submission based on action type
-	switch app.inputState.Action {
+	switch app.inputAction {
 	case "init_branch_name":
 		return app.handleInitBranchNameSubmit()
 	case "init_subdir_name":

@@ -107,3 +107,47 @@ type TimeTravelInfo struct {
 	CurrentCommit   CommitInfo // Currently checked-out commit while time traveling
 	OriginalStashID string     // If user had dirty tree: stash ID (empty if clean entry)
 }
+
+// Logger interface for git package to emit messages without UI dependency.
+type Logger interface {
+	Log(message string)
+	Warn(message string)
+	Error(message string)
+}
+
+// Package-level logger (set by application at startup)
+var packageLogger Logger
+
+// SetLogger configures logger for git package.
+func SetLogger(l Logger) {
+	packageLogger = l
+}
+
+// warn emits a warning if logger is configured.
+func warn(message string) {
+	if packageLogger != nil {
+		packageLogger.Warn(message)
+	}
+}
+
+// Log emits an info message if logger is configured.
+func Log(message string) {
+	if packageLogger != nil {
+		packageLogger.Log(message)
+	}
+}
+
+// Error emits an error message if logger is configured.
+func Error(message string) {
+	if packageLogger != nil {
+		packageLogger.Error(message)
+	}
+}
+
+// ShortenHash returns a shortened git commit hash (first 7 characters).
+func ShortenHash(hash string) string {
+	if len(hash) > 7 {
+		return hash[:7]
+	}
+	return hash
+}

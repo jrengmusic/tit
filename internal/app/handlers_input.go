@@ -23,8 +23,8 @@ var initLocationConfig = LocationChoiceConfig{
 			InputAction: "init_branch_name",
 			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
 		})
-		a.inputValue = "main"
-		a.inputCursorPosition = len("main")
+		a.inputState.Value = "main"
+		a.inputState.CursorPosition = len("main")
 		return a, nil
 	},
 	SubdirPrompt: "Repository name:",
@@ -73,7 +73,7 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 			return app, nil
 		}
 
-		subdirPath := fmt.Sprintf("%s/%s", cwd, app.inputValue)
+		subdirPath := fmt.Sprintf("%s/%s", cwd, app.inputState.Value)
 
 		// Create subdirectory
 		if err := os.MkdirAll(subdirPath, 0755); err != nil {
@@ -94,7 +94,7 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 
 		app.mode = ModeConsole
 		app.asyncOperationActive = true
-		app.inputValue = ""
+		app.inputState.Value = ""
 
 		// Use cmdInit to create repo with .gitignore
 		return app, app.cmdInit("main")
@@ -103,7 +103,7 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 
 // handleInitBranchNameSubmit validates branch name and starts init operation
 func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
-	branchName := strings.TrimSpace(a.inputValue)
+	branchName := strings.TrimSpace(a.inputState.Value)
 	if branchName == "" {
 		a.footerHint = ErrorMessages["branch_name_empty"]
 		return a, nil
@@ -115,7 +115,7 @@ func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
 
 	a.mode = ModeConsole
 	a.asyncOperationActive = true
-	a.inputValue = ""
+	a.inputState.Value = ""
 
 	return a, a.cmdInit(branchName)
 }
@@ -137,10 +137,10 @@ func (a *Application) transitionToCloneURL(action string) (tea.Model, tea.Cmd) {
 // handleCloneURLSubmit validates URL and routes based on input action
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
-		app.cloneURL = app.inputValue
+		app.cloneURL = app.inputState.Value
 
 		// Route based on how we got here
-		if app.inputAction == "clone_url" {
+		if app.inputState.Action == "clone_url" {
 			// CWD not empty: start clone to subdir operation
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -216,7 +216,7 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 // handleCommitSubmit validates commit message and executes commit
 func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Validate commit message
-	message := app.inputValue
+	message := app.inputState.Value
 	if message == "" {
 		app.footerHint = ErrorMessages["commit_message_empty"]
 		return app, nil
@@ -229,7 +229,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState.Reset()
-	app.inputValue = ""
+	app.inputState.Value = ""
 
 	// Execute commit asynchronously using operations pattern
 	return app, app.cmdCommit(message)
@@ -238,7 +238,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 // handleCommitPushSubmit validates commit message and executes commit+push
 func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Validate commit message
-	message := app.inputValue
+	message := app.inputState.Value
 	if message == "" {
 		app.footerHint = ErrorMessages["commit_message_empty"]
 		return app, nil
@@ -251,7 +251,7 @@ func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.C
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState.Reset()
-	app.inputValue = ""
+	app.inputState.Value = ""
 
 	// Execute commit+push asynchronously
 	return app, app.cmdCommitPush(message)
@@ -260,7 +260,7 @@ func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.C
 // handleAddRemoteSubmit validates URL and executes add remote + fetch
 func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Validate remote URL
-	url := app.inputValue
+	url := app.inputState.Value
 	if url == "" {
 		app.footerHint = ErrorMessages["remote_url_empty_validation"]
 		return app, nil
@@ -286,7 +286,7 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState.Reset()
-	app.inputValue = ""
+	app.inputState.Value = ""
 
 	// Execute add remote + fetch asynchronously using operations pattern
 	return app, app.cmdAddRemote(url)

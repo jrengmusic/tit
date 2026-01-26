@@ -17,7 +17,7 @@ func (a *Application) GetFooterContent() string {
 	}
 
 	// Priority 2: Clear confirmation (ESC in input)
-	if a.clearConfirmActive {
+	if a.inputState.ClearConfirming {
 		return ui.RenderFooterOverride(GetFooterMessageText(MessageEscClearConfirm), width, &a.theme)
 	}
 
@@ -84,7 +84,7 @@ func (a *Application) getFooterHintKey() string {
 		return a.getConflictHintKey()
 
 	case ModeInput, ModeCloneURL, ModeSetupWizard:
-		if a.inputValue == "" {
+		if a.inputState.Value == "" {
 			return "input_empty"
 		}
 		return "input_filled"

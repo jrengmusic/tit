@@ -215,16 +215,11 @@ func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 		if !result.Success {
 			// Check if we're in a conflicted state after failed switch
 			// This can happen when switching would overwrite local changes
-			state, err := git.DetectState()
-			if err == nil && state.Operation == git.Conflicted {
+			if msg := a.checkForConflicts("branch_switch", false); msg != nil {
 				buffer.Append(fmt.Sprintf("Conflicts detected while switching to %s", targetBranch), ui.TypeWarning)
-				return GitOperationMsg{
-					Step:             "branch_switch",
-					Success:          false,
-					ConflictDetected: true,
-					BranchName:       targetBranch,
-					Error:            fmt.Sprintf("Conflicts switching to %s", targetBranch),
-				}
+				msg.BranchName = targetBranch
+				msg.Error = fmt.Sprintf("Conflicts switching to %s", targetBranch)
+				return *msg
 			}
 
 			// Other failure (permissions, invalid branch, etc)

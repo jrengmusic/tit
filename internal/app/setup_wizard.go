@@ -29,7 +29,7 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 		a.setupWizardStep = SetupStepEmail
 	case SetupStepEmail:
 		// Validate email input
-		email := strings.TrimSpace(a.inputValue)
+		email := strings.TrimSpace(a.inputState.Value)
 		if email == "" {
 			// Empty email, stay on this step
 			return a, nil
@@ -43,7 +43,7 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 
 		// Store email and advance to generate step
 		a.setupEmail = email
-		a.inputValue = ""
+		a.inputState.Value = ""
 		a.setupWizardStep = SetupStepGenerate
 		return a, a.cmdGenerateSSHKey()
 	case SetupStepGenerate:
@@ -74,9 +74,7 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 				a.gitState = &git.State{Operation: git.NotRepo}
 			} else {
 				// Successfully cded into repo, detect state
-				if state, err := git.DetectState(); err == nil {
-					a.gitState = state
-				} else {
+				if err := a.reloadGitState(); err != nil {
 					a.gitState = &git.State{Operation: git.NotRepo}
 				}
 			}
@@ -249,8 +247,8 @@ func (a *Application) renderSetupPrerequisites() string {
 // renderSetupEmail renders the email input step
 func (a *Application) renderSetupEmail() string {
 	textInputState := ui.TextInputState{
-		Value:     a.inputValue,
-		CursorPos: a.inputCursorPosition,
+		Value:     a.inputState.Value,
+		CursorPos: a.inputState.CursorPosition,
 		Height:    4,
 	}
 

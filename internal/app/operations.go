@@ -168,22 +168,7 @@ func (a *Application) cmdAddRemote(url string) tea.Cmd {
 
 // cmdFetchRemote fetches from origin (step 2 of 3-step chain)
 func (a *Application) cmdFetchRemote() tea.Cmd {
-	return func() tea.Msg {
-		result := git.ExecuteWithStreaming("fetch", "--all")
-		if !result.Success {
-			return GitOperationMsg{
-				Step:    OpFetchRemote,
-				Success: false,
-				Error:   "Failed to fetch from remote",
-			}
-		}
-
-		return GitOperationMsg{
-			Step:    OpFetchRemote,
-			Success: true,
-			Output:  "Fetch completed",
-		}
-	}
+	return a.executeGitOp(OpFetchRemote, "fetch", "--all")
 }
 
 // cmdSetUpstream sets upstream tracking (step 3 of 3-step chain)
@@ -298,26 +283,7 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 
 // cmdPush pushes current branch to remote
 func (a *Application) cmdPush() tea.Cmd {
-	return func() tea.Msg {
-		buffer := ui.GetBuffer()
-		buffer.Clear()
-
-		// Push to upstream
-		result := git.ExecuteWithStreaming("push")
-		if !result.Success {
-			return GitOperationMsg{
-				Step:    OpPush,
-				Success: false,
-				Error:   "Failed to push",
-			}
-		}
-
-		return GitOperationMsg{
-			Step:    OpPush,
-			Success: true,
-			Output:  "Pushed successfully",
-		}
-	}
+	return a.executeGitOp(OpPush, "push")
 }
 
 // cmdPull pulls from remote (merge)
@@ -332,19 +298,13 @@ func (a *Application) cmdPull() tea.Cmd {
 		if !result.Success {
 			// Check if we're in a conflicted state (more reliable than parsing stderr)
 			// This detects merge conflicts by checking git state (.git/MERGE_HEAD + unmerged files)
-			state, err := git.DetectState()
-			if err == nil && state.Operation == git.Conflicted {
-				return GitOperationMsg{
-					Step:             OpPull,
-					Success:          false,
-					ConflictDetected: true,
-					Error:            ErrorMessages["pull_conflicts"],
-				}
+			if msg := a.checkForConflicts(OpPull, false); msg != nil {
+				return *msg
 			}
 			return GitOperationMsg{
 				Step:    OpPull,
 				Success: false,
-				Error:   ErrorMessages["pull_failed"],
+				Error:   result.Stderr,
 			}
 		}
 
@@ -361,11 +321,11 @@ func (a *Application) cmdPull() tea.Cmd {
 func (a *Application) cmdInitSubdirectory() tea.Cmd {
 	return func() tea.Msg {
 		a.mode = ModeInput
-		a.inputPrompt = InputMessages["init_subdir_name"].Prompt
-		a.inputAction = "init_subdir_name"
+		a.inputState.Prompt = InputMessages["init_subdir_name"].Prompt
+		a.inputState.Action = "init_subdir_name"
 		a.footerHint = InputMessages["init_subdir_name"].Hint
-		a.inputValue = ""
-		a.inputCursorPosition = 0
+		a.inputState.Value = ""
+		a.inputState.CursorPosition = 0
 		return GitOperationMsg{Step: "input_mode_set", Success: true}
 	}
 }
@@ -658,15 +618,9 @@ func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 		if !result.Success {
 			// Check if we're in a conflicted state (more reliable than parsing stderr)
 			// This detects merge conflicts by checking git state (.git/MERGE_HEAD + unmerged files)
-			state, err := git.DetectState()
-			if err == nil && state.Operation == git.Conflicted {
+			if msg := a.checkForConflicts("dirty_pull_merge", true); msg != nil {
 				buffer.Append(OutputMessages["merge_conflicts_detected"], ui.TypeWarning)
-				return GitOperationMsg{
-					Step:             "dirty_pull_merge",
-					Success:          true, // Mark as success to trigger conflict resolver setup
-					ConflictDetected: true,
-					Error:            "Merge conflicts detected",
-				}
+				return *msg
 			}
 			return GitOperationMsg{
 				Step:    "dirty_pull_merge",
@@ -706,15 +660,9 @@ func (a *Application) cmdDirtyPullApplySnapshot() tea.Cmd {
 		if !result.Success {
 			// Check if we're in a conflicted state (more reliable than parsing stderr)
 			// This detects stash apply conflicts by checking git state (unmerged files)
-			state, err := git.DetectState()
-			if err == nil && state.Operation == git.Conflicted {
+			if msg := a.checkForConflicts("dirty_pull_apply_snapshot", true); msg != nil {
 				buffer.Append(OutputMessages["stash_apply_conflicts_detected"], ui.TypeWarning)
-				return GitOperationMsg{
-					Step:             "dirty_pull_apply_snapshot",
-					Success:          true, // Mark as success to trigger conflict resolver setup
-					ConflictDetected: true,
-					Error:            "Stash apply conflicts detected",
-				}
+				return *msg
 			}
 			return GitOperationMsg{
 				Step:    "dirty_pull_apply_snapshot",

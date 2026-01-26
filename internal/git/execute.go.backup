@@ -137,7 +137,7 @@ func cleanStaleLocks() {
 	// If present, it means a previous operation was interrupted
 	if _, err := os.Stat(lockPath); err == nil {
 		if err := os.Remove(lockPath); err != nil && !os.IsNotExist(err) {
-			Error(fmt.Sprintf("Warning: could not remove stale lock: %v", err))
+			warn(fmt.Sprintf("could not remove stale lock: %v", err))
 		}
 	}
 }
@@ -175,7 +175,7 @@ func ExecuteWithStreaming(args ...string) CommandResult {
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		Error(fmt.Sprintf("Error starting command: %v", err))
+		buffer.Append(fmt.Sprintf("Error starting command: %v", err), ui.TypeStderr)
 		return CommandResult{Success: false, ExitCode: 1, Stderr: err.Error()}
 	}
 
@@ -315,7 +315,6 @@ func SetUpstreamTracking() CommandResult {
 // SetUpstreamTrackingWithBranch sets upstream tracking using a provided branch name
 // If remote branch doesn't exist (empty remote), pushes with -u to create it
 func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
-
 	if branchName == "" {
 		Error("WARNING: No branch name provided for upstream tracking")
 		return CommandResult{Success: false, Stderr: "No branch name provided"}
@@ -341,14 +340,14 @@ func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 	}
 
 	// Remote branch doesn't exist - push with -u to create it and set upstream
-	Log(fmt.Sprintf("Remote branch '%s' doesn't exist, pushing to create...", branchName))
+	buffer.Append(fmt.Sprintf("Remote branch '%s' doesn't exist, pushing to create...", branchName), ui.TypeStatus)
 	result := ExecuteWithStreaming("push", "-u", "origin", branchName)
 	if result.Success {
-		Log(fmt.Sprintf("Created remote branch and set upstream tracking"))
+		buffer.Append(fmt.Sprintf("Created remote branch and set upstream tracking"), ui.TypeStatus)
 		return CommandResult{Success: true, Stdout: "pushed_and_upstream_set"}
 	}
 
-	Error(fmt.Sprintf("Failed to push: %s", result.Stderr))
+	buffer.Append(fmt.Sprintf("Failed to push: %s", result.Stderr), ui.TypeStderr)
 	return CommandResult{Success: false, Stderr: result.Stderr}
 }
 
@@ -580,7 +579,7 @@ func ExecuteTimeTravelCheckout(originalBranch, commitHash string) func() tea.Msg
 		// Get current branch (for verification)
 		currentBranchResult := Execute("rev-parse", "--abbrev-ref", "HEAD")
 		if !currentBranchResult.Success {
-			Error(fmt.Sprintf("Error getting current branch: %s", currentBranchResult.Stderr))
+			Error(fmt.Sprintf("Failed to get current branch: %s", currentBranchResult.Stderr))
 			return TimeTravelCheckoutMsg{
 				Success:        false,
 				OriginalBranch: originalBranch,
@@ -592,7 +591,7 @@ func ExecuteTimeTravelCheckout(originalBranch, commitHash string) func() tea.Msg
 		// Checkout the target commit
 		checkoutResult := Execute("checkout", commitHash)
 		if !checkoutResult.Success {
-			Error(fmt.Sprintf("Error checking out commit: %s", checkoutResult.Stderr))
+			Error(fmt.Sprintf("Failed to checkout commit: %s", checkoutResult.Stderr))
 			return TimeTravelCheckoutMsg{
 				Success:        false,
 				OriginalBranch: originalBranch,
@@ -629,7 +628,6 @@ func ExecuteTimeTravelCheckout(originalBranch, commitHash string) func() tea.Msg
 // Returns: TimeTravelMergeMsg
 func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Msg {
 	return func() tea.Msg {
-
 		// Get current working directory (repo path)
 		repoPath, err := os.Getwd()
 		if err != nil {
@@ -703,8 +701,74 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 				// Check for conflicts
 				conflictFiles, err := ListConflictedFiles()
 				if err != nil {
+					// Stash apply failed but not due to conflicts - don't drop stash
+					return TimeTravelMergeMsg{
+						Success:        false,
+						OriginalBranch: originalBranch,
+						TimeTravelHash: timeTravelHash,
+						Error:          fmt.Sprintf("Failed to restore stash: %s", applyResult.Stderr),
+					}
+				}
+				Error(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)))
+				Log("Resolve conflicts to complete stash restoration")
+
+				// Don't clear marker file yet - conflicts need to be resolved first
+				return TimeTravelMergeMsg{
+					Success:          false,
+					OriginalBranch:   originalBranch,
+					TimeTravelHash:   timeTravelHash,
+					Error:            "Stash apply conflicts detected",
+					ConflictDetected: true,
+					ConflictedFiles:  conflictFiles,
+				}
+			}
+			Log("Stash applied successfully")
+
+			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
+			stashRef := FindStashRefByHash(originalStashHash)
+
+			Log(fmt.Sprintf("Dropping stash %s...", stashRef))
+			dropResult := Execute("stash", "drop", stashRef)
+			if !dropResult.Success {
+				Error(fmt.Sprintf("Failed to drop stash %s: %s", stashRef, dropResult.Stderr))
+				Log("You may need to manually drop the stash later")
+			} else {
+			Log("Stash dropped successfully")
+		}
+
+		// Remove from config tracking system
+		config.RemoveStashEntry("time_travel", repoPath)
+			} else {
+				// Don't clear marker file yet - conflicts need to be resolved first
+				return TimeTravelMergeMsg{
+					Success:          false,
+					OriginalBranch:   originalBranch,
+					TimeTravelHash:   timeTravelHash,
+					Error:            "Merge conflicts detected",
+					ConflictDetected: true,
+					ConflictedFiles:  conflictFiles,
+				}
+			}
+		}
+		buffer.Append("Merge succeeded", ui.TypeStatus)
+
+		// =================================================================
+		// PHASE 2: Restore original stash (if any) AFTER merge succeeds
+		// =================================================================
+		if hasStash {
+			buffer.Append("Phase 2: Restoring original work-in-progress...", ui.TypeStatus)
+			buffer.Append(fmt.Sprintf("Applying stash %s...", originalStashHash), ui.TypeStatus)
+
+			// Apply stash using hash (git stash apply accepts hash)
+			applyResult := Execute("stash", "apply", originalStashHash)
+			if !applyResult.Success {
+				buffer.Append(fmt.Sprintf("Stash apply failed: %s", applyResult.Stderr), ui.TypeStderr)
+
+				// Check for conflicts
+				conflictFiles, err := ListConflictedFiles()
+				if err != nil {
 					// Stash apply failed but not due to conflicts - don't drop the stash
-					Error("Stash apply failed (not conflicts) - stash will not be dropped")
+					buffer.Append("Stash apply failed (not conflicts) - stash will not be dropped", ui.TypeStderr)
 					return TimeTravelMergeMsg{
 						Success:        false,
 						OriginalBranch: originalBranch,
@@ -713,8 +777,8 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 					}
 				} else {
 					// Stash apply had conflicts - enter conflict resolver
-					Error(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)))
-					Log("Resolve conflicts to complete stash restoration")
+					buffer.Append(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)), ui.TypeStderr)
+					buffer.Append("Resolve conflicts to complete stash restoration", ui.TypeInfo)
 					// Don't clear marker file yet - conflicts need to be resolved first
 					return TimeTravelMergeMsg{
 						Success:          false,
@@ -727,19 +791,19 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 				}
 			}
 
-			Log("Stash applied successfully")
+			buffer.Append("Stash applied successfully", ui.TypeStatus)
 
 			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
 			stashRef := FindStashRefByHash(originalStashHash)
 
-			Log(fmt.Sprintf("Dropping stash %s...", stashRef))
+			buffer.Append(fmt.Sprintf("Dropping stash %s...", stashRef), ui.TypeStatus)
 			dropResult := Execute("stash", "drop", stashRef)
 			if !dropResult.Success {
 				// Don't panic - just warn user
-				Error(fmt.Sprintf("Warning: Failed to drop stash %s: %s", stashRef, dropResult.Stderr))
-				Log("You may need to manually drop the stash later")
+				buffer.Append(fmt.Sprintf("Warning: Failed to drop stash %s: %s", stashRef, dropResult.Stderr), ui.TypeStderr)
+				buffer.Append("You may need to manually drop the stash later", ui.TypeInfo)
 			} else {
-				Log("Stash dropped successfully")
+				buffer.Append("Stash dropped successfully", ui.TypeStatus)
 			}
 
 			// Remove from config tracking system
@@ -749,9 +813,9 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 		// =================================================================
 		// PHASE 3: Clean up marker file (only after all operations succeed)
 		// =================================================================
-		Log("Cleaning up time travel marker...")
+		buffer.Append("Cleaning up time travel marker...", ui.TypeStatus)
 		if err := ClearTimeTravelInfo(); err != nil {
-			Error(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err))
+			buffer.Append(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err), ui.TypeStderr)
 		}
 
 		// Don't append "successful" message here - handler will append it
@@ -783,10 +847,10 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 		// User discarded changes, so tree is now clean
 
 		// Checkout original branch
-		Log(fmt.Sprintf("Checking out %s...", originalBranch))
+		buffer.Append(fmt.Sprintf("Checking out %s...", originalBranch), ui.TypeStatus)
 		checkoutResult := Execute("checkout", originalBranch)
 		if !checkoutResult.Success {
-			Error(fmt.Sprintf("Error checking out original branch: %s", checkoutResult.Stderr))
+			Error(fmt.Sprintf("Failed to checkout original branch: %s", checkoutResult.Stderr))
 			return TimeTravelReturnMsg{
 				Success:        false,
 				OriginalBranch: originalBranch,
@@ -794,110 +858,26 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 			}
 		}
 
-		Log(fmt.Sprintf("Checked out %s successfully", originalBranch))
-
 		// If we had an original stash from BEFORE time travel, restore it
 		if hasStash {
-			Log(fmt.Sprintf("Restoring original stash %s...", originalStashHash))
-
+			Error(fmt.Sprintf("Restoring original stash %s...", originalStashHash))
 			// Apply stash using hash (git stash apply accepts hash)
 			applyResult := Execute("stash", "apply", originalStashHash)
 			if !applyResult.Success {
-				Error(fmt.Sprintf("Stash apply failed: %s", applyResult.Stderr))
-
-				// Check for conflicts
-				conflictFiles, err := ListConflictedFiles()
-				if err != nil {
-					// Stash apply failed but not due to conflicts - don't drop the stash
-					Error("Stash apply failed (not conflicts) - stash will not be dropped")
-					return TimeTravelReturnMsg{
-						Success:        false,
-						OriginalBranch: originalBranch,
-						Error:          fmt.Sprintf("Failed to restore stash: %s", applyResult.Stderr),
-					}
-				} else {
-					// Stash apply had conflicts - enter conflict resolver
-					Error(fmt.Sprintf("Stash apply conflicts detected in %d files", len(conflictFiles)))
-					return TimeTravelReturnMsg{
-						Success:          false,
-						OriginalBranch:   originalBranch,
-						Error:            "Stash apply conflicts detected",
-						ConflictDetected: true,
-						ConflictedFiles:  conflictFiles,
-					}
+				Error(fmt.Sprintf("Failed to restore stash: %s", applyResult.Stderr))
+				return TimeTravelReturnMsg{
+					Success:        false,
+					OriginalBranch: originalBranch,
+					Error:          fmt.Sprintf("Failed to restore stash: %s", applyResult.Stderr),
 				}
 			}
-
-			Log("Stash applied successfully")
-
-			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
-			Log("[DEBUG] Finding stash reference by hash...")
-			stashRef := FindStashRefByHash(originalStashHash)
-			Log(fmt.Sprintf("[DEBUG] Found stash reference: %s", stashRef))
-
-			Log(fmt.Sprintf("Dropping stash %s...", stashRef))
-			dropResult := Execute("stash", "drop", stashRef)
-			if !dropResult.Success {
-				// Don't panic - just warn user
-				Error(fmt.Sprintf("Warning: Failed to drop stash %s: %s", stashRef, dropResult.Stderr))
-				Log("You may need to manually drop the stash later")
-			} else {
-				Log("Stash dropped successfully")
-			}
-
-			// Remove from config tracking system
-			Log("[DEBUG] Removing stash entry from config...")
-			config.RemoveStashEntry("time_travel", repoPath)
-			Log("[DEBUG] Stash entry removed from config")
 		}
 
-		// Clean up time travel marker file (needed for state detection)
-		if err := ClearTimeTravelInfo(); err != nil {
-			Error(fmt.Sprintf("Warning: Failed to clear time travel marker: %v", err))
-		}
-
-		// Don't append "successful" message here - handler will append it
 		return TimeTravelReturnMsg{
 			Success:        true,
 			OriginalBranch: originalBranch,
 			Error:          "",
 		}
-	}
-}
 
-// ResetHardAtCommit executes git reset --hard at specified commit
-// WORKER THREAD - Must be called from async operation
-// Streams output to buffer for real-time display
-// If resetting to HEAD, also runs git clean -fd to remove untracked files
-// Returns commit hash on success or error
-func ResetHardAtCommit(commitHash string) (string, error) {
-	if commitHash == "" {
-		// Use empty string as marker - caller will check via error
-		return "", fmt.Errorf("commit hash cannot be empty")
-	}
-
-	// Show short hash in console
-	Log(fmt.Sprintf("Resetting to %s...", ShortenHash(commitHash)))
-
-	// Execute git reset --hard <commit>
-	// Output streamed to buffer by ExecuteWithStreaming
-	result := ExecuteWithStreaming("reset", "--hard", commitHash)
-
-	if !result.Success {
-		return "", fmt.Errorf("reset failed: %s", result.Stderr)
-	}
-
-	// If resetting to HEAD, clean untracked files to ensure truly clean working tree
-	// (per TIT design: no distinction between tracked/untracked, all must be correct)
-	isHeadReset := Execute("rev-parse", commitHash)
-	currentHead := Execute("rev-parse", "HEAD")
-	if isHeadReset.Success && currentHead.Success && isHeadReset.Stdout == currentHead.Stdout {
-		Log("Cleaning untracked files...")
-		cleanResult := ExecuteWithStreaming("clean", "-fd")
-		if !cleanResult.Success {
-			Error(fmt.Sprintf("Warning: clean failed: %s", cleanResult.Stderr))
-		}
-	}
-
-	return commitHash, nil
-}
+// ExecuteTimeTravelReturn returns from time travel without merging changes
+// Returns: TimeTravelReturnMsg
