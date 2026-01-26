@@ -1,6 +1,6 @@
 # CAROL Framework - Git Ignore
 
-# Temp session files
+# Temp sprint files
 [0-9]*-*-*.md
 
 # Backup files
