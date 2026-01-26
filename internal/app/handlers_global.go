@@ -1,0 +1,288 @@
+package app
+
+import (
+	"strings"
+	"time"
+
+	"tit/internal/git"
+	"tit/internal/ui"
+
+	"github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+// errorOrEmpty returns error string if err != nil, else empty string
+// Used in message structures where Error field must not be nil
+func errorOrEmpty(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+// validateAndProceed is a generic input validation handler.
+// It uses a validator function and proceeds with onSuccess if validation passes.
+func (a *Application) validateAndProceed(
+	validator ui.InputValidator,
+	onSuccess func(*Application) (tea.Model, tea.Cmd),
+) (tea.Model, tea.Cmd) {
+	if valid, msg := validator(a.inputValue); !valid {
+		a.footerHint = msg
+		return a, nil
+	}
+	return onSuccess(a)
+}
+
+// convertGitFilesToUIFileInfo converts git.FileInfo to ui.FileInfo for state management
+// Used when populating file lists from git operations
+func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
+	converted := make([]ui.FileInfo, len(gitFiles))
+	for i, gitFile := range gitFiles {
+		converted[i] = ui.FileInfo{
+			Path:   gitFile.Path,
+			Status: gitFile.Status,
+		}
+	}
+	return converted
+}
+
+// handleKeyCtrlC handles Ctrl+C globally
+// During async operations: shows "operation in progress" message
+// During critical operations (!isExitAllowed): blocks exit to prevent broken git state
+// Otherwise: prompts for confirmation before quitting
+func (a *Application) handleKeyCtrlC(app *Application) (tea.Model, tea.Cmd) {
+	// Block exit during critical operations (e.g., pull merge with potential conflicts)
+	if !a.isExitAllowed {
+		a.footerHint = GetFooterMessageText(MessageExitBlocked)
+		return a, nil
+	}
+
+	// If async operation is running, show "in progress" message
+	if a.asyncOperationActive && !a.asyncOperationAborted {
+		a.footerHint = GetFooterMessageText(MessageOperationInProgress)
+		return a, nil
+	}
+
+	// Standard quit confirmation flow
+	if a.quitConfirmActive {
+		// Second Ctrl+C - quit immediately
+		return a, tea.Quit
+	}
+
+	// First Ctrl+C - start confirmation timer and set footer hint
+	a.quitConfirmActive = true
+	a.quitConfirmTime = time.Now()
+	a.footerHint = GetFooterMessageText(MessageCtrlCConfirm)
+	return a, tea.Tick(QuitConfirmationTimeout, func(t time.Time) tea.Msg {
+		return TickMsg(t)
+	})
+}
+
+// handleKeyESC handles ESC globally
+// SSOT: ESC returns to previousMode (Menu mode quits app)
+// Special cases: Conflict resolver (delegate), Console with async (block), Input (confirm clear)
+func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
+	// Conflict resolver mode: delegate to conflict-specific handler
+	if a.mode == ModeConflictResolve {
+		return a.handleConflictEsc(app)
+	}
+
+	// Block ESC in console mode while async operation is active
+	// ESC aborts the operation and sets abort flag
+	if (a.mode == ModeConsole || a.mode == ModeClone) && a.asyncOperationActive {
+		a.asyncOperationAborted = true
+		a.footerHint = "Aborting operation..."
+		return a, nil
+	}
+
+	// If async operation was aborted but completed: restore previous state
+	if a.asyncOperationAborted {
+		a.asyncOperationActive = false
+		a.asyncOperationAborted = false
+		a.mode = a.previousMode
+		a.selectedIndex = a.previousMenuIndex
+		a.consoleState.Reset()
+		a.outputBuffer.Clear()
+		a.footerHint = ""
+
+		// Regenerate menu if returning to menu mode
+		if a.mode == ModeMenu {
+			menu := app.GenerateMenu()
+			app.menuItems = menu
+			if a.previousMenuIndex < len(menu) && len(menu) > 0 {
+				app.footerHint = menu[a.previousMenuIndex].Hint
+			}
+			// Rebuild shortcuts for new menu
+			app.rebuildMenuShortcuts(ModeMenu)
+		}
+		return a, nil
+	}
+
+	// In input mode: handle based on input content
+	if a.isInputMode() {
+		// If input is empty: back to menu
+		if a.inputValue == "" {
+			return a.returnToMenu()
+		}
+
+		// If clear confirm active: clear input and stay
+		if a.clearConfirmActive {
+			a.inputValue = ""
+			a.inputCursorPosition = 0
+			a.inputValidationMsg = ""
+			a.clearConfirmActive = false
+			a.footerHint = ""
+			return a, nil
+		}
+
+		// First ESC with non-empty input: start clear confirmation
+		a.clearConfirmActive = true
+		a.footerHint = GetFooterMessageText(MessageEscClearConfirm)
+		return a, tea.Tick(QuitConfirmationTimeout, func(t time.Time) tea.Msg {
+			return ClearTickMsg(t)
+		})
+	}
+
+	// Menu mode: ESC does nothing (quit handled by Ctrl+C)
+	if a.mode == ModeMenu {
+		return a, nil
+	}
+
+	// Confirmation mode: ESC dismisses dialog (same as No)
+	if a.mode == ModeConfirmation {
+		return a.handleConfirmationNo(app)
+	}
+
+	// All other modes: return to previousMode and regenerate menu
+	app.mode = app.previousMode
+
+	// Regenerate menu based on new mode
+	switch app.mode {
+	case ModeMenu:
+		menu := app.GenerateMenu()
+		app.menuItems = menu
+		if a.previousMenuIndex >= 0 && a.previousMenuIndex < len(menu) {
+			app.selectedIndex = a.previousMenuIndex
+			app.footerHint = menu[a.previousMenuIndex].Hint
+		} else {
+			app.selectedIndex = 0
+			if len(menu) > 0 {
+				app.footerHint = menu[0].Hint
+			}
+		}
+		app.rebuildMenuShortcuts(ModeMenu)
+	case ModeConfig:
+		app.previousMode = ModeMenu // Config always returns to menu on next ESC
+		app.menuItems = app.GenerateConfigMenu()
+		app.selectedIndex = 0
+		if len(app.menuItems) > 0 {
+			app.footerHint = app.menuItems[0].Hint
+		}
+		app.rebuildMenuShortcuts(ModeConfig)
+	case ModePreferences:
+		app.menuItems = app.GeneratePreferencesMenu()
+		app.selectedIndex = 0
+		if len(app.menuItems) > 0 {
+			app.footerHint = app.menuItems[0].Hint
+		}
+		app.rebuildMenuShortcuts(ModePreferences)
+	default:
+		// History, FileHistory, BranchPicker: keep previousMenuIndex
+		app.rebuildMenuShortcuts(app.mode)
+	}
+
+	return app, nil
+}
+
+// returnToMenu resets state and returns to menu mode
+func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
+	a.mode = ModeMenu
+	a.selectedIndex = 0
+	a.consoleState.Reset()
+	a.outputBuffer.Clear()
+	a.footerHint = ""
+	a.inputValue = ""
+	a.inputCursorPosition = 0
+	a.inputValidationMsg = ""
+	a.clearConfirmActive = false
+	a.isExitAllowed = true // ALWAYS allow exit when in menu
+
+	menu := a.GenerateMenu()
+	a.menuItems = menu
+	if len(menu) > 0 {
+		if a.gitState != nil && a.gitState.Remote == git.HasRemote && a.gitState.Timeline == "" && a.gitState.CurrentHash == "" {
+
+		} else {
+			a.footerHint = menu[0].Hint
+		}
+	}
+
+	// Rebuild shortcuts for new menu
+	a.rebuildMenuShortcuts(ModeMenu)
+
+	// Restart auto-update when returning to menu
+	return a, a.startAutoUpdate()
+}
+
+// handleKeyPaste handles ctrl+v and cmd+v - fast paste from clipboard
+// Inserts entire pasted text at cursor position atomically
+// Does NOT validate - paste allows any text, validation happens on submit
+func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
+	// UI THREAD - Handle paste in input modes only
+	if a.isInputMode() {
+		text, err := clipboard.ReadAll()
+		if err != nil {
+			// Clipboard read failed - silently ignore and continue
+			// (user may have cancelled, or clipboard unavailable)
+			return app, nil
+		}
+		if len(text) == 0 {
+			return app, nil
+		}
+
+		// Trim whitespace from pasted text
+		text = strings.TrimSpace(text)
+
+		// Clamp cursor position to valid range
+		if app.inputCursorPosition < 0 {
+			app.inputCursorPosition = 0
+		}
+		if app.inputCursorPosition > len(app.inputValue) {
+			app.inputCursorPosition = len(app.inputValue)
+		}
+
+		// Insert pasted text at cursor position (atomically, not character by character)
+		app.inputValue = app.inputValue[:app.inputCursorPosition] + text + app.inputValue[app.inputCursorPosition:]
+		app.inputCursorPosition += len(text)
+
+		// Update real-time validation if in clone URL mode
+		if app.inputAction == "clone_url" {
+			if app.inputValue == "" {
+				app.inputValidationMsg = ""
+			} else if ui.ValidateRemoteURL(app.inputValue) {
+				app.inputValidationMsg = "" // Valid - no error message
+			} else {
+				app.inputValidationMsg = "Invalid URL format"
+			}
+		}
+	}
+
+	return app, nil
+}
+
+// handleKeySlash opens config menu when "/" is pressed in menu mode
+func (a *Application) handleKeySlash(app *Application) (tea.Model, tea.Cmd) {
+	if app.mode == ModeMenu {
+		app.previousMode = app.mode               // Track previous mode (Menu)
+		app.previousMenuIndex = app.selectedIndex // Track previous selection!
+		app.mode = ModeConfig
+		app.selectedIndex = 0
+		configMenu := app.GenerateConfigMenu()
+		app.menuItems = configMenu
+		if len(configMenu) > 0 {
+			app.footerHint = configMenu[0].Hint
+		}
+		app.rebuildMenuShortcuts(ModeConfig)
+	}
+	return app, nil
+}

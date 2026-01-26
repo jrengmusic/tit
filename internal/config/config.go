@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"tit/internal"
 
@@ -158,4 +159,28 @@ func (c *Config) SetAutoUpdateInterval(minutes int) error {
 func (c *Config) SetTheme(theme string) error {
 	c.Appearance.Theme = theme
 	return Save(c)
+}
+
+// GetAvailableThemes returns list of available theme names
+func GetAvailableThemes() []string {
+	themesDir := filepath.Join(os.Getenv("HOME"), ".config", "tit", "themes")
+
+	entries, err := os.ReadDir(themesDir)
+	if err != nil {
+		return []string{"default"}
+	}
+
+	var themes []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".toml") {
+			themeName := strings.TrimSuffix(entry.Name(), ".toml")
+			themes = append(themes, themeName)
+		}
+	}
+
+	if len(themes) == 0 {
+		return []string{"default"}
+	}
+
+	return themes
 }

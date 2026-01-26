@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"tit/internal/config"
 	"tit/internal/git"
 	"tit/internal/ui"
 
@@ -68,6 +69,10 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"config_toggle_auto_update": a.dispatchConfigToggleAutoUpdate,
 		"config_switch_branch":      a.dispatchConfigSwitchBranch,
 		"config_preferences":        a.dispatchConfigPreferences,
+		// Preferences menu actions
+		"preferences_auto_update": a.dispatchPreferencesToggleAutoUpdate,
+		"preferences_interval":    a.dispatchPreferencesInterval,
+		"preferences_theme":       a.dispatchPreferencesCycleTheme,
 	}
 
 	if handler, exists := actionDispatchers[actionID]; exists {
@@ -165,6 +170,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	if app.gitState.Timeline == git.Diverged {
 		confirmType = string(ConfirmPullMergeDiverged)
 	}
+	app.previousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
 	msg := ConfirmationMessages[confirmType]
 	app.confirmationDialog = ui.NewConfirmationDialog(
@@ -184,6 +190,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 
 // dispatchForcePush shows confirmation dialog for force push
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
+	app.previousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
 	app.confirmType = "force_push"
 	app.confirmContext = map[string]string{}
@@ -201,6 +208,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 
 // dispatchReplaceLocal shows confirmation dialog for destructive action
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
+	app.previousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
@@ -218,6 +226,7 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 
 // dispatchResetDiscardChanges shows confirmation dialog for discarding all changes
 func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
+	app.previousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
@@ -235,6 +244,8 @@ func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
+	app.previousMode = app.mode               // Track previous mode (Menu)
+	app.previousMenuIndex = app.selectedIndex // Track previous selection
 	app.mode = ModeHistory
 	app.historyCacheMutex.Lock()
 	defer app.historyCacheMutex.Unlock()
@@ -264,6 +275,8 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 
 // dispatchFileHistory shows file(s) history
 func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
+	app.previousMode = app.mode               // Track previous mode (Menu)
+	app.previousMenuIndex = app.selectedIndex // Track previous selection
 	app.mode = ModeFileHistory
 	app.fileHistoryCacheMutex.Lock()
 	defer app.fileHistoryCacheMutex.Unlock()
@@ -318,6 +331,7 @@ func parseCommitDate(dateStr string) (time.Time, error) {
 
 // dispatchDirtyPullMerge starts the dirty pull confirmation dialog
 func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
+	app.previousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmType = "dirty_pull"
 	app.confirmContext = map[string]string{}
@@ -374,6 +388,7 @@ func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
 		confirmType = ConfirmTimeTravelMerge
 	}
 
+	app.previousMode = app.mode
 	app.mode = ModeConfirmation
 	msg := ConfirmationMessages[string(confirmType)]
 	app.confirmationDialog = ui.NewConfirmationDialog(
@@ -397,6 +412,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
 
 	if hasDirtyTree {
+		app.previousMode = app.mode
 		app.mode = ModeConfirmation
 		app.confirmationDialog = ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
@@ -411,6 +427,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 		)
 		app.confirmationDialog.SelectNo()
 	} else {
+		app.previousMode = app.mode
 		app.mode = ModeConfirmation
 		msg := ConfirmationMessages[string(ConfirmTimeTravelReturn)]
 		app.confirmationDialog = ui.NewConfirmationDialog(
@@ -459,6 +476,7 @@ func (a *Application) dispatchConfigSwitchRemote(app *Application) tea.Cmd {
 
 // dispatchConfigRemoveRemote shows confirmation dialog to remove remote
 func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
+	app.previousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmType = "config_remove_remote"
 	app.confirmContext = map[string]string{}
@@ -515,6 +533,7 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 	}
 
 	// Switch to branch picker mode
+	app.previousMode = app.mode // Track previous mode (Config)
 	app.mode = ModeBranchPicker
 	app.footerHint = "↑/↓ Navigate • Tab: Switch panes • Enter: Switch branch • ESC: Cancel"
 	return nil
@@ -522,15 +541,59 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 
 // dispatchConfigPreferences enters preferences mode
 func (a *Application) dispatchConfigPreferences(app *Application) tea.Cmd {
-	// Initialize preferences state if needed
-	if app.preferencesState == nil {
-		app.preferencesState = &PreferencesState{
-			SelectedRow: 0,
+	app.previousMode = app.mode // Track previous mode (Config)
+	app.mode = ModePreferences
+	app.selectedIndex = 0
+	app.menuItems = app.GeneratePreferencesMenu()
+	app.rebuildMenuShortcuts(ModePreferences)
+	return nil
+}
+
+// ========================================
+// Preferences Menu Dispatchers
+// ========================================
+
+// dispatchPreferencesToggleAutoUpdate toggles auto-update ON/OFF
+func (a *Application) dispatchPreferencesToggleAutoUpdate(app *Application) tea.Cmd {
+	if app.appConfig != nil {
+		newValue := !app.appConfig.AutoUpdate.Enabled
+		app.appConfig.SetAutoUpdateEnabled(newValue)
+
+		if newValue {
+			return app.startAutoUpdate()
 		}
 	}
+	return nil
+}
 
-	// Switch to preferences mode
-	app.mode = ModePreferences
-	app.footerHint = "↑/↓ Navigate • Space: Toggle • +/-: Adjust • ESC: Cancel"
+// dispatchPreferencesInterval is a no-op (interval adjusted via +/- keys)
+func (a *Application) dispatchPreferencesInterval(app *Application) tea.Cmd {
+	// Interval is adjusted via +/- keys, not enter
+	// This dispatcher exists for SSOT completeness
+	return nil
+}
+
+// dispatchPreferencesCycleTheme cycles to next available theme
+func (a *Application) dispatchPreferencesCycleTheme(app *Application) tea.Cmd {
+	if app.appConfig != nil {
+		themes := config.GetAvailableThemes()
+		if len(themes) > 0 {
+			currentTheme := app.appConfig.Appearance.Theme
+			nextIndex := 0
+			for i, t := range themes {
+				if t == currentTheme {
+					nextIndex = (i + 1) % len(themes)
+					break
+				}
+			}
+
+			app.appConfig.SetTheme(themes[nextIndex])
+			if newTheme, err := ui.LoadThemeByName(themes[nextIndex]); err == nil {
+				app.theme = newTheme
+				// Rebuild state info with new theme colors
+				a.workingTreeInfo, a.timelineInfo, a.operationInfo = BuildStateInfo(newTheme)
+			}
+		}
+	}
 	return nil
 }

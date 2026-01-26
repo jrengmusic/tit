@@ -139,7 +139,7 @@ type Application struct {
 	branchPickerState *ui.BranchPickerState
 
 	// Preferences state (Session 86)
-	preferencesState *PreferencesState
+	preferencesMenuItems []MenuItem // Preferences menu items (SSOT: GeneratePreferencesMenu)
 
 	// Menu activity tracking (Session 2 - Lazy auto-update)
 	lastMenuActivity    time.Time     // Track last menu navigation
@@ -321,9 +321,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			DetailsLineCursor: 0,
 			DetailsScrollOff:  0,
 		},
-		preferencesState: &PreferencesState{
-			SelectedRow: 0,
-		},
+		preferencesMenuItems: make([]MenuItem, 0),
 		// Menu activity tracking (Session 2 - Lazy auto-update)
 		lastMenuActivity:    time.Now().Add(-10 * time.Second), // Start as inactive
 		menuActivityTimeout: 5 * time.Second,
@@ -855,14 +853,12 @@ func (a *Application) View() string {
 		contentText = ui.RenderBranchPickerSplitPane(a.branchPickerState, a.theme, a.sizing.TerminalWidth, a.sizing.TerminalHeight)
 
 	case ModePreferences:
-		if a.preferencesState == nil {
-			// Initialize preferences state if not yet created
-			a.preferencesState = &PreferencesState{
-				SelectedRow: 0,
-			}
+		// All menus work the same SSOT way - generate items when needed
+		if len(a.menuItems) == 0 {
+			a.menuItems = a.GeneratePreferencesMenu()
 		}
-		// Pass real config, theme, and sizing to render preferences
-		contentText = ui.RenderPreferencesPane(a.preferencesState.SelectedRow, a.appConfig, a.theme, a.sizing)
+		// Render preferences with banner (reads values directly from config)
+		contentText = ui.RenderPreferencesWithBanner(a.appConfig, a.selectedIndex, a.theme, a.sizing)
 
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
@@ -1255,13 +1251,11 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("enter", a.handleBranchPickerEnter).
 			Build(),
 		ModePreferences: NewModeHandlers().
-			On("up", a.handlePreferencesUp).
-			On("k", a.handlePreferencesUp).
-			On("down", a.handlePreferencesDown).
-			On("j", a.handlePreferencesDown).
-			On(" ", a.handlePreferencesSpace).
-			On("=", a.handlePreferencesIncrement1).
-			On("-", a.handlePreferencesDecrement1).
+			WithMenuNav(a).
+			On("enter", a.handlePreferencesEnter).
+			On(" ", a.handlePreferencesEnter).
+			On("=", a.handlePreferencesIncrement).
+			On("-", a.handlePreferencesDecrement).
 			On("+", a.handlePreferencesIncrement10).
 			On("_", a.handlePreferencesDecrement10).
 			Build(),
@@ -1285,18 +1279,38 @@ func (a *Application) rebuildMenuShortcuts(mode AppMode) {
 	}
 
 	// Remove old shortcut handlers (keep navigation and enter)
-	// We'll rebuild from scratch by first copying the base handlers
+	// We'll rebuild from scratch by first copying base handlers
 	var baseHandlers map[string]KeyHandler
-	if mode == ModeConfig {
-		baseHandlers = NewModeHandlers().
-			WithMenuNav(a).
-			On("enter", a.handleConfigMenuEnter).
-			Build()
-	} else {
+	if mode == ModeMenu {
 		baseHandlers = NewModeHandlers().
 			WithMenuNav(a).
 			On("enter", a.handleMenuEnter).
+			On(" ", a.handleMenuEnter). // Space as enter alias
 			Build()
+	} else if mode == ModeConfig {
+		baseHandlers = NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleConfigMenuEnter).
+			On(" ", a.handleConfigMenuEnter). // Space as enter alias
+			Build()
+	} else if mode == ModePreferences {
+		baseHandlers = NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handlePreferencesEnter).
+			On(" ", a.handlePreferencesEnter). // Space as enter alias
+			On("=", a.handlePreferencesIncrement).
+			On("-", a.handlePreferencesDecrement).
+			On("+", a.handlePreferencesIncrement10).
+			On("_", a.handlePreferencesDecrement10).
+			Build()
+	}
+
+	// Start fresh
+	newHandlers := make(map[string]KeyHandler)
+
+	// Copy base handlers
+	for key, handler := range baseHandlers {
+		newHandlers[key] = handler
 	}
 
 	// Merge global handlers
@@ -1311,17 +1325,11 @@ func (a *Application) rebuildMenuShortcuts(mode AppMode) {
 		"alt+v":  a.handleKeyPaste,
 	}
 
-	// Start fresh
-	newHandlers := make(map[string]KeyHandler)
-
-	// Copy base handlers
-	for key, handler := range baseHandlers {
-		newHandlers[key] = handler
-	}
-
-	// Add global handlers
+	// Add global handlers (base handlers take priority, no overrides)
 	for key, handler := range globalHandlers {
-		newHandlers[key] = handler
+		if _, exists := baseHandlers[key]; !exists {
+			newHandlers[key] = handler
+		}
 	}
 
 	// Dynamically register shortcuts for current menu items

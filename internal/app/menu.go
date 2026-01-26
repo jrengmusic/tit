@@ -327,3 +327,13 @@ func (a *Application) GenerateConfigMenu() []MenuItem {
 
 	return items
 }
+
+// GeneratePreferencesMenu generates preferences menu items
+// Only 3 items - no Back (ESC in footer is sufficient)
+func (a *Application) GeneratePreferencesMenu() []MenuItem {
+	return []MenuItem{
+		GetMenuItem("preferences_auto_update"),
+		GetMenuItem("preferences_interval"),
+		GetMenuItem("preferences_theme"),
+	}
+}

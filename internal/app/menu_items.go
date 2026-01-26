@@ -251,10 +251,37 @@ var MenuItems = map[string]MenuItem{
 	},
 	"config_back": {
 		ID:       "config_back",
-		Shortcut: "esc",
+		Shortcut: "", // ESC handled by global handler, not menu shortcut
 		Emoji:    "🔙",
 		Label:    "Back",
 		Hint:     "Return to main menu",
+		Enabled:  true,
+	},
+
+	// Preferences menu items (used in GeneratePreferencesMenu)
+	// NOTE: No shortcuts - preferences use navigation only (up/down/enter)
+	"preferences_auto_update": {
+		ID:       "preferences_auto_update",
+		Shortcut: "", // No shortcut - navigation only
+		Emoji:    "🔄",
+		Label:    "Auto-update",
+		Hint:     "Toggle background state refresh ON/OFF",
+		Enabled:  true,
+	},
+	"preferences_interval": {
+		ID:       "preferences_interval",
+		Shortcut: "", // No shortcut - use +/- keys to adjust
+		Emoji:    "⏱️",
+		Label:    "Update Interval",
+		Hint:     "Adjust with +/- keys (±1 min) or Shift+/- (±10 min)",
+		Enabled:  true,
+	},
+	"preferences_theme": {
+		ID:       "preferences_theme",
+		Shortcut: "", // No shortcut - navigation only
+		Emoji:    "🎨",
+		Label:    "Theme",
+		Hint:     "Cycle through available themes",
 		Enabled:  true,
 	},
 }

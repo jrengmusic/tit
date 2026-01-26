@@ -140,8 +140,8 @@
 
 COUNSELOR: Copilot (claude-opus-4.5)  
 ENGINEER: zai-coding-plan/glm-4.7  
-SURGEON: [Agent (Model)] or [Not Assigned]  
-AUDITOR: zai-coding-plan/glm-4.7
+SURGEON: Copilot (claude-sonnet-4.5)  
+AUDITOR: Amp (Claude) — LIFESTAR + LOVE compliance enforcer, validates architectural principles, identifies refactoring opportunities. Status: Active
 MACHINIST: zai-coding-plan/glm-4.7  
 JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
 
@@ -153,6 +153,136 @@ JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
 <!-- Keep last 5 sprints, rotate older to git history -->
 
 ## SPRINT HISTORY
+
+## Sprint 10: Preferences DRY Refactor ✅
+
+**Date:** 2026-01-26
+**Duration:** ~2.5 hours
+
+### Objectives
+- Refactor ModePreferences to row-by-row rendering with values inline (EMOJI | LABEL | VALUE)
+- Remove shortcuts display (navigation only)
+- Remove "Back" menu item (ESC in footer is sufficient)
+- Fix Enter/Space not working, ESC navigation issues
+
+### Agents Participated
+- COUNSELOR: Copilot (claude-opus-4.5) — Created comprehensive 8-phase refactor plan (REVISED to fix alignment, remove shortcuts, remove Back item)
+- ENGINEER: zai-coding-plan/glm-4.7 — Implemented row-by-row renderer, SSOT menu items, 50/50 split layout
+- MACHINIST: zai-coding-plan/glm-4.7 — FAILED to fix bugs after 9 attempts, escalated to SURGEON
+- SURGEON: Copilot (claude-sonnet-4.5) — Fixed all 6 navigation bugs (missing handlers, ESC logic, receiver variables)
+- Tested by: User
+
+### Files Modified (10 total)
+- `internal/app/menu_items.go` — Updated 3 preference items (removed shortcuts, removed back item), removed ESC shortcut from config_back
+- `internal/app/menu.go` — Updated `GeneratePreferencesMenu()` (3 items only, no back)
+- `internal/app/dispatchers.go` — Updated 4 dispatchers, added config import, removed `preferences_back` from map
+- `internal/ui/preferences.go` — **COMPLETELY REPLACED** with row-by-row renderer (`EMOJI | LABEL | VALUE`) + banner
+- `internal/app/app.go` — Updated View() to use `RenderPreferencesWithBanner`, added space alias to ModeMenu/ModeConfig
+- `internal/app/handlers.go` — Updated preference handlers (already correct)
+- `internal/app/preferences_state.go` — **DELETED** (already done)
+- `internal/app/app.go` — Fixed `rebuildMenuShortcuts` baseHandlers for all modes (added missing baseHandlers for ModeMenu)
+- `internal/app/handlers.go` — Fixed ESC handler logic (added handlePreferencesEnter, fixed receiver variables, fixed previousMode restoration)
+
+### Changes Made
+
+**Phase 1 - SSOT Menu Items:**
+- Updated 3 preference items: removed shortcuts, removed back item
+- All shortcuts empty: `Shortcut: ""` (navigation only, no hotkeys)
+
+**Phase 2 - Menu Generator:**
+- Updated `GeneratePreferencesMenu()` - only 3 items (no back, no separator)
+- Matches REVISED plan: auto-update, interval, theme
+
+**Phase 3 - Dispatchers:**
+- Added config import to dispatchers.go
+- Removed `preferences_back` from actionDispatchers map
+- Updated `dispatchPreferencesCycleTheme()` to use `config.GetAvailableThemes()`
+- Fixed theme loading to handle 2-value return from `ui.LoadTheme()`
+- 4 dispatchers: toggle auto-update, interval (no-op), cycle theme, back (ESC handler)
+
+**Phase 4 - Row-by-Row Renderer:**
+- **COMPLETELY REPLACED** preferences.go with new renderer
+- Added `PreferenceRow` struct: Emoji, Label, Value, Enabled
+- Added `BuildPreferenceRows()`: builds rows from config
+- Added `RenderPreferencesMenu()`: renders `EMOJI | LABEL | VALUE` (no shortcut column)
+- Added `RenderPreferencesWithBanner()`: 50/50 split, left=menu, right=banner
+- Column widths: emoji=3, label=18, value=10
+- Selection highlighting: label+value with bold + accent colors
+
+**Phase 5 - Application State:**
+- Updated `View()` ModePreferences case to use `RenderPreferencesWithBanner()`
+- Reads values directly from config (no separate value column needed)
+- Space alias added to ModeMenu and ModeConfig base handlers
+
+**Phase 6 - Key Handlers:**
+- Space alias added: ModeMenu → `On(" ", a.handleMenuEnter)`
+- Space alias added: ModeConfig → `On(" ", a.handleConfigMenuEnter)`
+- Preference handlers already correct (reuse WithMenuNav for navigation)
+- Interval handlers: Increment, Decrement, Increment10, Decrement10 (only on interval row)
+- ESC handler: `handlePreferencesEsc` wraps `dispatchPreferencesBack`
+
+**Phase 7 - Delete Obsolete Code:**
+- Deleted `internal/app/preferences_state.go`
+
+**Phase 8 - GetAvailableThemes:**
+- Added `GetAvailableThemes()` to config package
+
+### Problems Solved (ENGINEER)
+- ✅ Build passed successfully with no errors
+- ✅ All preference items in SSOT with empty shortcuts
+- ✅ Row-by-row rendering: `EMOJI | LABEL | VALUE` inline
+- ✅ No back menu item (ESC in footer is sufficient)
+- ✅ Space acts as Enter in ModeMenu and ModeConfig
+- ✅ 50/50 split layout: left=preferences, right=banner
+- ✅ Selection highlights label+value with bold + accent
+- ✅ Navigation: up/down/j/k reuse standard `WithMenuNav(a)`
+
+### Bugs Fixed (SURGEON ✅)
+
+**All 6 navigation bugs fixed by SURGEON:**
+
+1. ✅ Up/down/j/k navigation now works in all modes (Menu, Config, Preferences)
+2. ✅ Enter/Space keys now work in all modes
+3. ✅ ESC from config returns to menu immediately
+4. ✅ ESC from preferences returns to config immediately
+5. ✅ ESC from menu does nothing (correct behavior - quit is Ctrl+C only)
+6. ✅ Receiver variable inconsistency fixed (`a.previousMode` → `app.previousMode`)
+
+### Summary
+
+**COUNSELOR:** Created comprehensive 8-phase refactor plan with row-by-row rendering, no shortcuts, no back item, SSOT compliance
+
+**ENGINEER:** Successfully implemented all 8 phases:
+- ✅ Phase 1-3: SSOT menu items updated (3 items, no shortcuts)
+- ✅ Phase 4: Row-by-row renderer implemented with 50/50 split
+- ✅ Phase 5-6: Application state and key handlers updated
+- ✅ Phase 7-8: Obsolete code deleted, GetAvailableThemes added
+
+**MACHINIST:** Attempted to fix post-refactor bugs - 9 attempts all FAILED, escalated to SURGEON
+
+**SURGEON:** Fixed all 6 navigation bugs in single session:
+- ✅ Added missing `baseHandlers` for ModeMenu (previously nil, blocking nav)
+- ✅ Added missing `handlePreferencesEnter` function
+- ✅ Fixed ESC handler logic (removed `tea.Quit` from Menu mode, added ESC dismissal for Confirmation mode)
+- ✅ Fixed receiver variable inconsistency (`a.previousMode` → `app.previousMode`)
+- ✅ Fixed ESC previousMode restoration (added `app.previousMode = ModeMenu` in Config case)
+- ✅ Removed ESC shortcut conflict from `config_back` menu item
+
+Build status: ✅ ALL VERIFIED - Compiles successfully
+Test status: ✅ User confirmed all navigation works
+
+**Key Insight (SURGEON):**
+> "if you can't focus on simple things you will ALWAYS FAILED doing major overhaul"
+
+SURGEON succeeded by following AGENTS.md protocol:
+1. Check simple bugs FIRST (nil baseHandlers, missing functions, receiver variables)
+2. Fix immediately (no theorizing about architecture)
+3. Match existing code style exactly
+4. Verify against architecture docs AFTER fix works
+
+**Status:** ✅ FULLY IMPLEMENTED - ALL BUGS FIXED - VERIFIED BY USER
+
+---
 
 ## Sprint 9: Confirmation Dialog Background Color ✅
 
@@ -342,7 +472,7 @@ Placeholder substitution via SetContext() works correctly. All branch switches n
 ### Changes Made
 
 **Git Format String Fix (line 28-29):**
-- Old: `"--format=%(refname:short)%09%(if)%(if:equals=HEAD)%(refname)%(then)true%(else)false%(end)%(then)true%(else)false%(end)%09...`
+- Old: `"--format=%(refname:short)%09%(if)%(if:equals=HEAD)%(refname)%(then)true%(else)false%(end)%(then)true%(else)false%(end)%09..."`
 - New: `"--format=%(refname:short)%09%(HEAD)%09..."`
 - Replaced broken nested conditional with git's built-in `%(HEAD)` placeholder
 
@@ -371,72 +501,6 @@ Implementation matches kickoff plan specifications:
 - Expected output: main shows ●, feature-test-1/2 show no indicator
 
 **Status:** ✅ IMPLEMENTED - TESTED - FIXED
-
----
-
-## Sprint 5: Branch Picker UI Bug Fix ✅
-
-**Date:** 2026-01-26
-**Duration:** ~10 minutes
-
-### Objectives
-- Fix TWO bugs causing empty branch picker display
-- Bug 1: Remove early returns that bypass pane rendering (returning plain strings)
-- Bug 2: Fix git parsing to handle branches without remote tracking
-
-### Agents Participated
-- COUNSELOR: Copilot (claude-opus-41) — Created specification and kickoff identifying root causes (early returns, git parsing)
-- ENGINEER: zai-coding-plan/glm-4.7 — Fixed UI rendering and git field parsing
-- Tested by: User
-
-### Files Modified (2 total)
-- `internal/ui/branchpicker.go` — Removed 2 early returns (lines 46-53)
-- `internal/git/branch.go` — Fixed field count handling for branches without remote tracking (lines 47-73)
-
-### Changes Made
-
-**Bug 1: Early Returns in UI (branchpicker.go)**
-
-**Removed invalid state early return (lines 46-49):**
-- Old: `return "Error: invalid branch picker state"`
-- New: `return ""` (empty string, allows panes to render)
-
-**Removed empty branches early return (lines 51-53):**
-- Old: `return "No branches found"`
-- New: Deleted completely - no replacement
-
-**Bug 2: Git Parsing Bug (branch.go)**
-
-**Reduced minimum field requirement (line 47):**
-- Old: `if len(parts) < 9` (requires all 9 fields)
-- New: `if len(parts) < 7` (only requires core 7 fields)
-
-**Handle missing upstream fields safely (lines 56-73):**
-- Old: Direct access to `parts[7]` and `parts[8]` (panics when not present)
-- New: Safe access with length checks before reading optional fields
-- `trackingRemote`: Only set if `len(parts) > 7`
-- `parts[8]`: Only accessed if `len(parts) > 8`
-
-### Problems Solved
-- **Bug 1:** Early returns bypassed pane rendering, returning plain strings instead of proper UI
-- **Bug 1:** Footer appeared at top of screen when early returns triggered
-- **Bug 1:** Panes now always render regardless of branch count
-- **Bug 2:** Branches without remote tracking were skipped (requires 9 fields but only 8 present)
-- **Bug 2:** Git outputs 7-9 fields depending on remote tracking status
-- **Bug 2:** Fixed parsing now handles variable field counts correctly
-
-### Summary
-COUNSELOR identified two root causes: (1) early returns breaking UI rendering principle, (2) git parsing requiring 9 fields when branches without remotes only have 8. ENGINEER implemented fixes:
-
-✅ **Bug 1 Fix:** Removed 2 early returns from branchpicker.go
-✅ **Bug 2 Fix:** Reduced field requirement to 7, added safe access for optional fields 8 and 9
-✅ **Both bugs fixed** in single implementation session
-
-Build status: ✅ VERIFIED - No errors
-
-Principle learned: NEVER use early returns - always render properly. Branch picker now works for repos with only local branches.
-
-**Status:** ✅ IMPLEMENTED - Awaiting user testing
 
 ---
 
