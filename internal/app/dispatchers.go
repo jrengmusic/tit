@@ -54,6 +54,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"pull_merge_diverged":       a.dispatchPullMerge,
 		"dirty_pull_merge":          a.dispatchDirtyPullMerge,
 		"replace_local":             a.dispatchReplaceLocal,
+		"reset_discard_changes":     a.dispatchResetDiscardChanges,
 		"history":                   a.dispatchHistory,
 		"file_history":              a.dispatchFileHistory,
 		"time_travel_history":       a.dispatchTimeTravelHistory,
@@ -200,6 +201,23 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 
 // dispatchReplaceLocal shows confirmation dialog for destructive action
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
+	app.mode = ModeConfirmation
+	app.confirmType = "hard_reset"
+	app.confirmContext = map[string]string{}
+	msg := ConfirmationMessages["hard_reset"]
+	config := ui.ConfirmationConfig{
+		Title:       msg.Title,
+		Explanation: msg.Explanation,
+		YesLabel:    msg.YesLabel,
+		NoLabel:     msg.NoLabel,
+		ActionID:    "hard_reset",
+	}
+	app.confirmationDialog = ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
+	return nil
+}
+
+// dispatchResetDiscardChanges shows confirmation dialog for discarding all changes
+func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 	app.mode = ModeConfirmation
 	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}

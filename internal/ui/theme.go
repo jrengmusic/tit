@@ -286,6 +286,9 @@ footerTextColor = "#519299"            # lagoon (footer hints)
 # Borders - Conflict Resolver specific
 boxBorderColor = "#8CC9D9"                    # dolphin (borders for all boxes)
 separatorColor = "#1B2A31"                    # dark (separator lines)
+
+# Confirmation Dialog
+confirmationDialogBackground = "#112130"        # trappedDarkness (dialog box background)
 	conflictPaneUnfocusedBorder = "#2C4144"
 	conflictPaneFocusedBorder = "#8CC9D9"
 
@@ -357,6 +360,9 @@ type ThemeDefinition struct {
 		// Borders
 		BoxBorderColor string `toml:"boxBorderColor"`
 		SeparatorColor string `toml:"separatorColor"`
+
+		// Confirmation Dialog
+		ConfirmationDialogBackground string `toml:"confirmationDialogBackground"`
 
 		// Conflict Resolver - Borders
 		ConflictPaneUnfocusedBorder string `toml:"conflictPaneUnfocusedBorder"`
@@ -430,6 +436,9 @@ type Theme struct {
 	// Borders
 	BoxBorderColor string
 	SeparatorColor string
+
+	// Confirmation Dialog
+	ConfirmationDialogBackground string
 
 	// Conflict Resolver - Borders
 	ConflictPaneUnfocusedBorder string
@@ -513,6 +522,9 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		// Borders
 		BoxBorderColor: themeDef.Palette.BoxBorderColor,
 		SeparatorColor: themeDef.Palette.SeparatorColor,
+
+		// Confirmation Dialog
+		ConfirmationDialogBackground: themeDef.Palette.ConfirmationDialogBackground,
 
 		// Conflict Resolver - Borders
 		ConflictPaneUnfocusedBorder: themeDef.Palette.ConflictPaneUnfocusedBorder,

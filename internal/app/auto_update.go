@@ -1,8 +1,6 @@
 package app
 
 import (
-	"fmt"
-	"os"
 	"time"
 
 	"tit/internal/git"
@@ -71,26 +69,18 @@ func (a *Application) handleAutoUpdateTick() (tea.Model, tea.Cmd) {
 // cmdAutoUpdate performs full state detection and UI update
 func (a *Application) cmdAutoUpdate() tea.Cmd {
 	return func() tea.Msg {
-		// DEBUG: Log auto-update trigger
-		os.Stderr.WriteString("[DEBUG] Auto-update: Starting auto-update cycle\n")
-
 		// If has remote, fetch first (optional)
 		if a.gitState != nil && a.gitState.Remote == git.HasRemote {
-			os.Stderr.WriteString("[DEBUG] Auto-update: Fetching from origin\n")
 			git.Execute("fetch", "origin")
 			// Ignore errors - just detect state as-is
 		}
 
 		// Detect full state (all 5 axes)
-		os.Stderr.WriteString("[DEBUG] Auto-update: Calling git.DetectState()\n")
 		newState, err := git.DetectState()
 		if err != nil {
-			os.Stderr.WriteString(fmt.Sprintf("[DEBUG] Auto-update: git.DetectState() failed: %v\n", err))
 			// Silently ignore - don't interrupt user
 			return nil
 		}
-
-		os.Stderr.WriteString(fmt.Sprintf("[DEBUG] Auto-update: git.DetectState() completed. WorkingTree=%v\n", newState.WorkingTree))
 
 		return AutoUpdateCompleteMsg{State: newState}
 	}
@@ -115,7 +105,7 @@ func (a *Application) handleAutoUpdateComplete(state *git.State) (tea.Model, tea
 
 		// Full menu regeneration
 		a.menuItems = a.GenerateMenu()
-		a.rebuildMenuShortcuts()
+		a.rebuildMenuShortcuts(ModeMenu)
 
 		// Preserve selection if possible
 		if oldMenuLen == len(a.menuItems) {

@@ -26,7 +26,7 @@ type BranchDetails struct {
 // ListBranchesWithDetails returns all local branches with metadata
 func ListBranchesWithDetails() ([]BranchDetails, error) {
 	cmd := exec.Command("git", "for-each-ref", "--sort=-committerdate", "refs/heads",
-		"--format=%(refname:short)%09%(if)%(if:equals=HEAD)%(refname)%(then)true%(else)false%(end)%(then)true%(else)false%(end)%09%(committerdate:iso)%09%(objectname:short)%09%(subject)%09%(committerdate:short)%09%(authorname)%09%(upstream:short)%09%(upstream:track)")
+		"--format=%(refname:short)%09%(HEAD)%09%(committerdate:iso)%09%(objectname:short)%09%(subject)%09%(committerdate:short)%09%(authorname)%09%(upstream:short)%09%(upstream:track)")
 
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -44,20 +44,25 @@ func ListBranchesWithDetails() ([]BranchDetails, error) {
 		}
 
 		parts := strings.Split(line, "\t")
-		if len(parts) < 9 {
+		if len(parts) < 7 {
 			continue
 		}
 
-		isCurrent := parts[1] == "true"
+		isCurrent := parts[1] == "*"
 		commitTime, _ := time.Parse(internal.GitTimestampFormat, parts[2])
 		commitHash := parts[3]
 		commitSubj := parts[4]
 		author := parts[6]
-		trackingRemote := parts[7]
+
+		// Handle optional upstream fields (may not exist for local-only branches)
+		trackingRemote := ""
+		if len(parts) > 7 {
+			trackingRemote = parts[7]
+		}
 
 		// Parse ahead/behind from track string (format: "[ahead 5, behind 2]")
 		ahead, behind := 0, 0
-		if parts[8] != "" {
+		if len(parts) > 8 && parts[8] != "" {
 			trackStr := parts[8]
 			if strings.Contains(trackStr, "ahead") {
 				fields := strings.Fields(trackStr)

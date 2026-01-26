@@ -118,7 +118,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 				app.footerHint = menu[a.previousMenuIndex].Hint
 			}
 			// Rebuild shortcuts for new menu
-			app.rebuildMenuShortcuts()
+			app.rebuildMenuShortcuts(ModeMenu)
 		}
 		return a, nil
 	}
@@ -176,7 +176,7 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	}
 
 	// Rebuild shortcuts for new menu
-	a.rebuildMenuShortcuts()
+	a.rebuildMenuShortcuts(ModeMenu)
 
 	// Restart auto-update when returning to menu
 	return a, a.startAutoUpdate()
@@ -381,6 +381,60 @@ func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 			Success:    true,
 			Output:     fmt.Sprintf("Switched to branch %s", targetBranch),
 			BranchName: targetBranch,
+		}
+	}
+}
+
+// cmdBranchSwitchWithStash performs: stash → switch → stash apply
+func (a *Application) cmdBranchSwitchWithStash(targetBranch string) tea.Cmd {
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+
+		// Step1: Stash changes
+		buffer.Append("Stashing changes...", ui.TypeStatus)
+		stashResult := git.Execute("stash", "push", "-u")
+		if !stashResult.Success {
+			buffer.Append(fmt.Sprintf("Failed to stash: %s", stashResult.Stderr), ui.TypeStderr)
+			return GitOperationMsg{
+				Step:    "branch_switch",
+				Success: false,
+				Error:   "Failed to stash changes",
+			}
+		}
+		buffer.Append("Changes stashed", ui.TypeStatus)
+
+		// Step2: Switch branch
+		buffer.Append(fmt.Sprintf("Switching to %s...", targetBranch), ui.TypeStatus)
+		switchResult := git.ExecuteWithStreaming("switch", targetBranch)
+		if !switchResult.Success {
+			buffer.Append(fmt.Sprintf("Failed to switch: %s", switchResult.Stderr), ui.TypeStderr)
+
+			// Try to restore stash on failure
+			buffer.Append("Restoring stash...", ui.TypeStatus)
+			git.Execute("stash", "pop")
+
+			return GitOperationMsg{
+				Step:    "branch_switch",
+				Success: false,
+				Error:   fmt.Sprintf("Failed to switch to %s", targetBranch),
+			}
+		}
+		buffer.Append(fmt.Sprintf("Switched to %s", targetBranch), ui.TypeStatus)
+
+		// Step3: Restore stash
+		buffer.Append("Restoring changes...", ui.TypeStatus)
+		applyResult := git.Execute("stash", "pop")
+		if !applyResult.Success {
+			buffer.Append("Warning: Stash apply failed (conflicts or errors)", ui.TypeWarning)
+			buffer.Append("Your changes are still in stash (use 'git stash apply')", ui.TypeInfo)
+		} else {
+			buffer.Append("Changes restored", ui.TypeStatus)
+		}
+
+		return GitOperationMsg{
+			Step:    "branch_switch",
+			Success: true,
+			Output:  fmt.Sprintf("Switched to %s", targetBranch),
 		}
 	}
 }
@@ -1403,7 +1457,7 @@ func (a *Application) handleKeySlash(app *Application) (tea.Model, tea.Cmd) {
 		if len(configMenu) > 0 {
 			app.footerHint = configMenu[0].Hint
 		}
-		app.rebuildMenuShortcuts()
+		app.rebuildMenuShortcuts(ModeConfig)
 	}
 	return app, nil
 }
@@ -1433,7 +1487,7 @@ func (a *Application) handlePreferencesEnter(app *Application) (tea.Model, tea.C
 		if len(configMenu) > 0 {
 			app.footerHint = configMenu[0].Hint
 		}
-		app.rebuildMenuShortcuts()
+		app.rebuildMenuShortcuts(ModeConfig)
 		return app, nil
 	}
 
@@ -1486,7 +1540,7 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 		if len(configMenu) > 0 {
 			app.footerHint = configMenu[0].Hint
 		}
-		app.rebuildMenuShortcuts()
+		app.rebuildMenuShortcuts(ModeConfig)
 		return app, nil
 	}
 

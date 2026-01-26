@@ -373,7 +373,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	}
 
 	// Register menu shortcuts dynamically
-	app.rebuildMenuShortcuts()
+	app.rebuildMenuShortcuts(ModeMenu)
 
 	// Start pre-loading caches (CONTRACT: MANDATORY on startup)
 	// Cache building will be triggered in Init() via tea.Cmd
@@ -680,7 +680,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Only regenerate menu if we're in ModeMenu (don't interfere with other modes)
 				if a.mode == ModeMenu {
 					a.menuItems = a.GenerateMenu()
-					a.rebuildMenuShortcuts()
+					a.rebuildMenuShortcuts(ModeMenu)
 					a.updateFooterHintFromMenu()
 				}
 			}
@@ -939,7 +939,7 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 	if msg.Complete {
 		// Cache complete - rebuild menu shortcuts to enable items (only in ModeMenu)
 		if a.mode == ModeMenu {
-			a.rebuildMenuShortcuts()
+			a.rebuildMenuShortcuts(ModeMenu)
 		}
 
 		// Check if BOTH caches are now complete (for time travel success message)
@@ -1279,17 +1279,25 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 
 // rebuildMenuShortcuts dynamically registers keyboard handlers for all current menu item shortcuts
 // Called after GenerateMenu() to ensure shortcuts match current git state
-func (a *Application) rebuildMenuShortcuts() {
-	if a.keyHandlers[ModeMenu] == nil {
-		a.keyHandlers[ModeMenu] = make(map[string]KeyHandler)
+func (a *Application) rebuildMenuShortcuts(mode AppMode) {
+	if a.keyHandlers[mode] == nil {
+		a.keyHandlers[mode] = make(map[string]KeyHandler)
 	}
 
 	// Remove old shortcut handlers (keep navigation and enter)
 	// We'll rebuild from scratch by first copying the base handlers
-	baseHandlers := NewModeHandlers().
-		WithMenuNav(a).
-		On("enter", a.handleMenuEnter).
-		Build()
+	var baseHandlers map[string]KeyHandler
+	if mode == ModeConfig {
+		baseHandlers = NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleConfigMenuEnter).
+			Build()
+	} else {
+		baseHandlers = NewModeHandlers().
+			WithMenuNav(a).
+			On("enter", a.handleMenuEnter).
+			Build()
+	}
 
 	// Merge global handlers
 	globalHandlers := map[string]KeyHandler{
@@ -1333,8 +1341,8 @@ func (a *Application) rebuildMenuShortcuts() {
 		}
 	}
 
-	// Replace ModeMenu handlers
-	a.keyHandlers[ModeMenu] = newHandlers
+	// Replace handlers for specified mode
+	a.keyHandlers[mode] = newHandlers
 }
 
 // handleMenuUp moves selection up

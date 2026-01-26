@@ -45,11 +45,7 @@ func RenderBranchPickerSplitPane(state interface{}, theme Theme, width, height i
 	// Type assert to BranchPickerState
 	branchState, ok := state.(*BranchPickerState)
 	if !ok || branchState == nil {
-		return "Error: invalid branch picker state"
-	}
-
-	if len(branchState.Branches) == 0 {
-		return "No branches found"
+		return "" // Invalid state should never happen, but return empty instead of error string
 	}
 
 	// Calculate pane height from terminal height (footer + padding)

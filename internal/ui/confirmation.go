@@ -151,6 +151,7 @@ func (c *ConfirmationDialog) Render(height int) string {
 		Width(dialogWidth).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(c.Theme.BoxBorderColor)).
+		Background(lipgloss.Color(c.Theme.ConfirmationDialogBackground)).
 		Padding(1, 2).
 		Align(lipgloss.Center)
 

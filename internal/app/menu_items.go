@@ -25,7 +25,7 @@ var MenuItems = map[string]MenuItem{
 	// Working tree (Normal state, Dirty)
 	"commit": {
 		ID:       "commit",
-		Shortcut: "m",
+		Shortcut: "c",
 		Emoji:    "📝",
 		Label:    "Commit changes",
 		Hint:     "Create a new commit with staged changes",
@@ -33,7 +33,7 @@ var MenuItems = map[string]MenuItem{
 	},
 	"commit_push": {
 		ID:       "commit_push",
-		Shortcut: "t",
+		Shortcut: "p",
 		Emoji:    "🚀",
 		Label:    "Commit and push",
 		Hint:     "Stage, commit, and push changes in one action",
@@ -43,7 +43,7 @@ var MenuItems = map[string]MenuItem{
 	// Timeline: InSync
 	"reset_discard_changes": {
 		ID:       "reset_discard_changes",
-		Shortcut: "r",
+		Shortcut: "ctrl+r",
 		Emoji:    "💥",
 		Label:    "Discard all changes",
 		Hint:     "💥 DESTRUCTIVE: Discard uncommitted changes, reset to remote state",
@@ -53,7 +53,7 @@ var MenuItems = map[string]MenuItem{
 	// Timeline: Ahead
 	"push": {
 		ID:       "push",
-		Shortcut: "h",
+		Shortcut: "]",
 		Emoji:    "📤",
 		Label:    "Push to remote",
 		Hint:     "Send local commits to remote branch",
@@ -61,7 +61,7 @@ var MenuItems = map[string]MenuItem{
 	},
 	"force_push": {
 		ID:       "force_push",
-		Shortcut: "f",
+		Shortcut: "shift+]",
 		Emoji:    "💥",
 		Label:    "Force push",
 		Hint:     "💥 DESTRUCTIVE: Overwrite remote branch with local commits",
@@ -71,7 +71,7 @@ var MenuItems = map[string]MenuItem{
 	// Timeline: Behind
 	"dirty_pull_merge": {
 		ID:       "dirty_pull_merge",
-		Shortcut: "d",
+		Shortcut: "shift+[",
 		Emoji:    "🔺",
 		Label:    "Pull (save changes)",
 		Hint:     "Save WIP, pull remote, reapply changes (may conflict)",
@@ -79,7 +79,7 @@ var MenuItems = map[string]MenuItem{
 	},
 	"pull_merge": {
 		ID:       "pull_merge",
-		Shortcut: "p",
+		Shortcut: "[",
 		Emoji:    "📥",
 		Label:    "Pull (fetch + merge)",
 		Hint:     "Fetch latest from remote and merge into local branch",
@@ -97,7 +97,7 @@ var MenuItems = map[string]MenuItem{
 	// Timeline: Diverged
 	"pull_merge_diverged": {
 		ID:       "pull_merge_diverged",
-		Shortcut: "p",
+		Shortcut: "[",
 		Emoji:    "📥",
 		Label:    "Pull (merge)",
 		Hint:     "Fetch remote and merge diverged branches",
@@ -107,7 +107,7 @@ var MenuItems = map[string]MenuItem{
 	// History
 	"history": {
 		ID:       "history",
-		Shortcut: "l",
+		Shortcut: "h",
 		Emoji:    "📜",
 		Label:    "History",
 		Hint:     "View and navigate through commit history",
@@ -115,7 +115,7 @@ var MenuItems = map[string]MenuItem{
 	},
 	"file_history": {
 		ID:       "file_history",
-		Shortcut: "g",
+		Shortcut: "f",
 		Emoji:    "📄",
 		Label:    "File(s) history",
 		Hint:     "View history of specific files",
@@ -125,7 +125,7 @@ var MenuItems = map[string]MenuItem{
 	// Remote
 	"add_remote": {
 		ID:       "add_remote",
-		Shortcut: "e",
+		Shortcut: "r",
 		Emoji:    "🔗",
 		Label:    "Add remote",
 		Hint:     "Configure a remote repository URL",
@@ -203,7 +203,7 @@ var MenuItems = map[string]MenuItem{
 	// Config menu items (used in GenerateConfigMenu)
 	"config_add_remote": {
 		ID:       "config_add_remote",
-		Shortcut: "a",
+		Shortcut: "r",
 		Emoji:    "🔗",
 		Label:    "Add Remote",
 		Hint:     "Configure a remote repository URL",

@@ -373,6 +373,18 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 		YesLabel:    "Proceed",
 		NoLabel:     "Cancel",
 	},
+	"branch_switch_clean": {
+		Title:       "Switch to {targetBranch}?",
+		Explanation: "Current branch: {currentBranch}\nWorking tree: clean\n\nReady to switch?",
+		YesLabel:    "Switch",
+		NoLabel:     "Cancel",
+	},
+	"branch_switch_dirty": {
+		Title:       "Switch to {targetBranch} with uncommitted changes?",
+		Explanation: "Current branch: {currentBranch}\nWorking tree: dirty\n\nYour changes must be saved or discarded before switching.\n\nChoose action:",
+		YesLabel:    "Stash changes",
+		NoLabel:     "Discard changes",
+	},
 	"time_travel": {
 		Title:       "Time Travel Confirmation",
 		Explanation: "%s\n\n%s\n\nExplore in read-only mode?",
@@ -531,19 +543,24 @@ var DialogMessages = map[string][2]string{
 
 // StateDescriptions centralizes git state display descriptions
 var StateDescriptions = map[string]string{
-	"working_tree_clean":    "Your files match the remote.",
-	"working_tree_dirty":    "You have uncommitted changes.",
-	"timeline_in_sync":      "Local and remote are in sync.",
-	"timeline_ahead":        "You have %d unsynced commit(s).",
-	"timeline_behind":       "The remote has %d new commit(s).",
-	"timeline_diverged":     "Both have new commits. Ahead %d, Behind %d.",
-	"operation_normal":      "Repository ready for operations.",
-	"operation_not_repo":    "Not a git repository.",
-	"operation_conflicted":  "Conflicts must be resolved.",
-	"operation_merging":     "Merge in progress.",
-	"operation_rebasing":    "Rebase in progress.",
-	"operation_dirty_op":    "Operation interrupted by uncommitted changes.",
-	"operation_time_travel": "Exploring commit %s from %s.",
+	// Working Tree (2 descriptions)
+	"working_tree_clean": "No local changes",
+	"working_tree_dirty": "You have local changes",
+
+	// Timeline (4 descriptions)
+	"timeline_in_sync":  "Matches remote",
+	"timeline_ahead":    "Your branch is %d commit(s) ahead",
+	"timeline_behind":   "Remote branch is %d commit(s) ahead",
+	"timeline_diverged": "Both branches have changes: %d ahead, %d behind",
+
+	// Operation (7 descriptions)
+	"operation_normal":      "Ready",
+	"operation_not_repo":    "Not a repository",
+	"operation_conflicted":  "Conflicts detected",
+	"operation_merging":     "Merge in progress",
+	"operation_rebasing":    "Rebase in progress",
+	"operation_dirty_op":    "Operation started with local changes",
+	"operation_time_travel": "Viewing commit %s (%s)",
 }
 
 // TimelineSyncMessages centralizes timeline sync footer hint messages (SSOT)
