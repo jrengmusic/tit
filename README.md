@@ -30,7 +30,7 @@ First run? TIT detects missing SSH keys and walks you through setup. Generate ke
 ```
 ~/.config/tit/themes/
 
-add your own, select from config menu **/** 
+add your own, select from config menu. shortcut / 
 ```
 
 **🔍 3-Pane File History**  
