@@ -84,7 +84,7 @@ Your timeline should tell the story of what actually happened, not some sanitize
 | `Tab` | Switch panes |
 | `Esc` | Back/Cancel |
 | `Ctrl+C` | Exit (press twice) |
-| '\\' | Configs |
+| `\` | Configs |
 
 ## For Developers
 
