@@ -1,0 +1,57 @@
+# Autumn
+Created with ColorSlurp
+
+*Hibiscus*
+9E2666
+
+*Night Shadz*
+B53D61
+
+*Chestnut Rose*
+CD5861
+
+*Apricot*
+E78C79
+
+*Flesh*
+FDC69D
+
+*New Orleans*
+F2D2A2
+
+*Saffron Mango*
+F9C94D
+
+*Corn*
+F5BB09
+
+*Tulip Tree*
+F1AE37
+
+*California*
+F09D06
+
+*Tangerine*
+F48C06
+
+*Trinidad*
+E85C03
+
+*Grenadier*
+DC3003
+
+*Guardsman Red*
+D00000
+
+*Tamarillo*
+9C1927
+
+*Rose Bud Cherry*
+7D0E36
+
+*Mulberry Wood*
+5E063E
+
+*Jacaranda*
+3E0338
+
