@@ -27,6 +27,11 @@ First run? TIT detects missing SSH keys and walks you through setup. Generate ke
 
 **🎨 Seasonal Themes**  
 5 built-in themes including Spring, Summer, Autumn, Winter. Meticulously hand picked color palette that would be a sight for sore eyes.
+```
+~/.config/tit/themes/
+
+add your own, select from config menu **/** 
+```
 
 **🔍 3-Pane File History**  
 Not just "what changed"—see Commits + Files + Actual Diffs. Navigate changes instantly with cached history.
