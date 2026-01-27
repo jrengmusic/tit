@@ -2,7 +2,7 @@
   <img src="screenshot/tit-menu.png" alt="TIT Menu Screenshot">
 </div>
 
-# TIT — Terminal Interface for giT
+# TIT — Terminal Interface for git
 
 I have severe git skills issues.
 
@@ -27,6 +27,11 @@ First run? TIT detects missing SSH keys and walks you through setup. Generate ke
 
 **🎨 Seasonal Themes**  
 5 built-in themes including Spring, Summer, Autumn, Winter. Meticulously hand picked color palette that would be a sight for sore eyes.
+```
+~/.config/tit/themes/
+
+add your own, select from config menu. shortcut / 
+```
 
 **🔍 3-Pane File History**  
 Not just "what changed"—see Commits + Files + Actual Diffs. Navigate changes instantly with cached history.
@@ -117,5 +122,8 @@ MIT — Use it, break it, fix it, ship it.
 **TIT: lightning in a bottle. Because git is thunder.**
 
 ---
+Rock 'n Roll!
 
+**JRENG!** 🎸
+---
 conceived with [CAROL](https://github.com/jrengmusic/carol)
