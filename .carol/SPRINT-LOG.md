@@ -139,7 +139,7 @@
 ## ROLE ASSIGNMENT REGISTRATION
 
 COUNSELOR: Copilot (claude-opus-4.5)  
-ENGINEER: MiniMax-M2.1 (minimax-coding-plan)
+ENGINEER: zai-coding-plan/glm-4.7
 SURGEON: Copilot (claude-opus-4.5)  
 AUDITOR: Amp (Claude) — LIFESTAR + LOVE compliance enforcer, validates architectural principles, identifies refactoring opportunities. Status: Active
 MACHINIST: zai-coding-plan/glm-4.7  
