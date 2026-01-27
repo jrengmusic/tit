@@ -119,6 +119,6 @@ MIT — Use it, break it, fix it, ship it.
 ---
 Rock 'n Roll!
 
-**JRENG! 🎸**
+**JRENG!** 🎸
 ---
 conceived with [CAROL](https://github.com/jrengmusic/carol)
