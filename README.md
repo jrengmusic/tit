@@ -2,13 +2,16 @@
   <img src="internal/ui/assets/tit-logo.svg" alt="TIT Logo" width="128" height="128">
 </div>
 
-# TIT — Terminal Interface for Git
+# TIT — Terminal Interface for giT
 
-**Philosophy: If it's in the menu, it works. Period.**
+I have severe git skills issues.
 
-Stop wrestling with git commands that might fail. TIT shows you exactly what's possible right now, based on your actual git state. No surprises. No "command failed" messages. No confusion.
+I'm sick and tired wrestling with git commands that might fail. So i made TUI that always shows exactly what's possible operation based on actual git state. No surprises. No "command failed" messages. No confusion.
 
-## Why TIT Kicks Ass
+**If it's in the menu, it works. Period.**
+
+
+## TIT Kicks git's Ass 
 
 **✅ Zero-Surprise Guarantee**  
 TIT analyzes your git state first, then builds the menu. If an action appears, it will succeed. No more `error: cannot push` after you spend time crafting the perfect commit message.
@@ -20,22 +23,33 @@ While others show static menus, TIT tracks WorkingTree + Timeline + Operation + 
 Browse any commit, make changes, test them, then merge back to your branch. True exploration with zero consequences until you decide to keep changes.
 
 **🔧 SSH Setup Wizard**  
-First run? TIT detects missing SSH keys and walks you through setup. Generate keys, display public key for GitHub/GitLab—done in 30 seconds.
+First run? TIT detects missing SSH keys and walks you through setup. Generate keys, display public key for any remote service of your choice in 30 seconds.
 
 **🎨 Seasonal Themes**  
-5 built-in themes including Spring, Summer, Autumn, Winter. Auto-generated color variations that actually look good.
+5 built-in themes including Spring, Summer, Autumn, Winter. Meticulously hand picked color palette that would be a sight for sore eyes.
 
 **🔍 3-Pane File History**  
-Not just "what changed"—see Commits + Files + Actual Diffs. Navigate years of changes instantly with cached history.
+Not just "what changed"—see Commits + Files + Actual Diffs. Navigate changes instantly with cached history.
 
 **⚡ Auto-Update State**  
 Background git state detection keeps TIT current. Menu updates when you switch branches, no refresh needed.
 
 **💪 Conflict Resolution**  
-Built-in 3-way merge resolver. No external tools, no confusion—just mark sections and apply.
+Built-in 3-way merge resolver. TIT will explicitly asked you to resolve immediately for any operations where conflicts might occur before even running.
 
-## The Difference
+** 🧼 Operations**
+There's no manual stash management, if you choose to pull or time travel with dirty working tree TIT will stash uncommitted changes before continue running operation, and apply that that changes back on top whatever state you currently have after operation. When conflicts occur you must resolve before continue, otherwise it will bring back your dirty tree.
 
+** ✍🏻 No rebase**
+TIT doesn't write false history. TIT doesn't lie.
+
+Instead:
+- **Time travel** to explore old commits safely
+- **Merge back** to bring old ideas forward  
+- **Clean conflicts** with visual resolution
+- **Preserve truth** in your git history
+
+Your timeline should tell the story of what actually happened, not some sanitized fiction.
 
 ## Get Started
 
@@ -44,15 +58,14 @@ Built-in 3-way merge resolver. No external tools, no confusion—just mark secti
 ./tit_x64
 ```
 
-**Requirements:** Go 1.21+, Git, Terminal (80×30 minimum)
+**Requirements:** Go 1.21+, Git, Terminal (70×30 minimum)
 
-That's it. TIT detects your setup and guides you through anything missing.
 
-## The Rock 'n Roll Workflow
+## Rock 'n Roll Workflow
 
 **Start anywhere:** TIT works in any directory. Not a repo? Get init/clone options.
 
-**See what's possible:** Menu shows only actions that will succeed right now.
+**See what's possible:** Menu shows only actions that guaranteed to be successful.
 
 **Explore fearlessly:** Time travel lets you test ideas without commitment.
 
@@ -71,18 +84,8 @@ That's it. TIT detects your setup and guides you through anything missing.
 | `Tab` | Switch panes |
 | `Esc` | Back/Cancel |
 | `Ctrl+C` | Exit (press twice) |
+| '\' | Configs |
 
-## The "Fuck Rebase" Philosophy
-
-**TIT doesn't do interactive rebase.** Why? Because rebase is history vandalism.
-
-Instead:
-- **Time travel** to explore old commits safely
-- **Merge back** to bring old ideas forward  
-- **Clean conflicts** with visual resolution
-- **Preserve truth** in your git history
-
-Your timeline should tell the story of what actually happened, not some sanitized fiction.
 
 ## For Developers
 
@@ -108,7 +111,7 @@ MIT — Use it, break it, fix it, ship it.
 
 ---
 
-**TIT: Because git deserves a UI that doesn't suck.**
+**TIT: lightning in a bottle. Because git is thunder.**
 ---
 
 conceived with [CAROL](https://github.com/jrengmusic/carol)
