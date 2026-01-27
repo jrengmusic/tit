@@ -2,7 +2,7 @@
   <img src="screenshot/tit-menu.png" alt="TIT Menu Screenshot">
 </div>
 
-# TIT — Terminal Interface for giT
+# TIT — Terminal Interface for git
 
 I have severe git skills issues.
 
