@@ -38,7 +38,7 @@ Background git state detection keeps TIT current. Menu updates when you switch b
 Built-in 3-way merge resolver. TIT will explicitly asked you to resolve immediately for any operations where conflicts might occur before even running.
 
 **🧼 Dirty Operations**
-There's no manual stash management, if you choose to pull or time travel with dirty working tree TIT will stash uncommitted changes before continue running operation, and apply that that changes back on top whatever state you currently have after operation. When conflicts occur you must resolve before continue, otherwise it will bring back your dirty tree.
+There's no manual stash management. If you choose to pull or time travel with dirty working tree TIT will stash uncommitted changes before continue running operation, and apply that that changes back on top whatever state you currently have after operation. When conflicts occur you must resolve before continue, otherwise it will bring back your dirty tree.
 
 **✍🏻 No rebase**
 TIT doesn't write false history. TIT doesn't lie.
