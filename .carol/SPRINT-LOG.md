@@ -139,7 +139,7 @@
 ## ROLE ASSIGNMENT REGISTRATION
 
 COUNSELOR: Copilot (claude-opus-4.5)  
-ENGINEER: zai-coding-plan/glm-4.7
+ENGINEER: MiniMax-M2.1 (minimax-coding-plan)
 SURGEON: Copilot (claude-opus-4.5)  
 AUDITOR: Amp (Claude) — LIFESTAR + LOVE compliance enforcer, validates architectural principles, identifies refactoring opportunities. Status: Active
 MACHINIST: zai-coding-plan/glm-4.7  
@@ -153,6 +153,61 @@ JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
 <!-- Keep last 5 sprints, rotate older to git history -->
 
 ## SPRINT HISTORY
+
+## Sprint 14: Menu Shortcut Label Fix ✅
+
+**Date:** 2026-01-27
+**Duration:** ~15 minutes
+
+### Objectives
+- Fix shift+bracket shortcuts (`shift+]`, `shift+[`) not working
+- Separate actual key bindings from display labels
+- Widen shortcut column to accommodate longer labels
+
+### Agents Participated
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Added ShortcutLabel field to MenuItem, updated key bindings to actual characters
+- Tested by: User (TESTED)
+
+### Files Modified (4 total)
+- `internal/app/menu.go` — Added `ShortcutLabel` field to MenuItem struct (lines 13-21)
+- `internal/app/menu_items.go` — Updated force_push, dirty_pull_merge, reset_discard_changes items with actual key bindings and display labels (lines 44-52, 62-70, 73-81)
+- `internal/ui/menu.go` — Updated display logic to use ShortcutLabel, increased keyColWidth from 7 to 12 (lines 33, 54-62)
+- `internal/app/app.go` — Added ShortcutLabel to map conversion in menuItemsToMaps function (lines 1154-1167)
+
+### Changes Made
+
+**MenuItem Struct (menu.go, lines 13-21):**
+- Added `ShortcutLabel string` field for display-only shortcut label
+
+**Key Binding Fixes (menu_items.go):**
+- `force_push`: Changed `Shortcut: "shift+]"` → `Shortcut: "}"`, added `ShortcutLabel: "shift + ]"`
+- `dirty_pull_merge`: Changed `Shortcut: "shift+["` → `Shortcut: "{"`, added `ShortcutLabel: "shift + ["`
+- `reset_discard_changes`: Added `ShortcutLabel: "ctrl + r"` for consistent modifier display
+
+**Display Logic (menu.go, lines 54-62):**
+- Added logic to use `ShortcutLabel` when set, fallback to `Shortcut`
+- Increased `keyColWidth` from 7 to 12 to accommodate `"shift + ]"` (9 chars)
+
+**Map Conversion (app.go, lines 1154-1167):**
+- Added `ShortcutLabel` field to map output so UI can access it
+
+### Problems Solved
+- Shift+bracket shortcuts now work correctly (using actual characters `}` and `{`)
+- Display labels show human-readable format (`"shift + ]"`, `"shift + ["`, `"ctrl + r"`)
+- Backward compatible: Existing menu items without `ShortcutLabel` continue to use `Shortcut` for display
+
+### Summary
+ENGINEER separated key bindings from display labels by adding `ShortcutLabel` field to MenuItem struct. Key bindings now use actual characters that Bubble Tea sends, while display labels show human-readable format. Build verified with no errors.
+
+Build status: ✅ VERIFIED - No errors
+Test status: ✅ User tested
+
+**Key Insight:**
+> "Separate what the system receives (key binding) from what the user sees (display label)."
+
+**Status:** ✅ FULLY IMPLEMENTED - TESTED
+
+---
 
 ## Sprint 13: Confirmation Dialog Background Fix ✅
 
@@ -210,7 +265,7 @@ Build status: ✅ VERIFIED - No errors
 
 ### Agents Participated
 - AUDITOR: Amp (Claude) — Created kickoff plan for operations split and SPEC.md updates
-- ENGINEER: zai-coding-plan/glm-4.7 — Split operations.go into 9 modules, updated SPEC.md
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Split operations.go into 9 modules, updated SPEC.md
 - Tested by: User
 
 ### Files Modified (10 total)
@@ -304,7 +359,7 @@ Test status: ⏳ Manual testing pending (9 operations need verification)
 
 ### Agents Participated
 - AUDITOR: Amp (Claude) — Created comprehensive 9-phase refactor plan, validated all phases, tracked sprint progress
-- ENGINEER: zai-coding-plan/glm-4.7 — Implemented phases 1-7, extracted 3 structs, created SSOT helpers, fixed layer violation
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Implemented phases 1-7, extracted 3 structs, created SSOT helpers, fixed layer violation
 - SURGEON: Copilot (claude-sonnet-4.5) — Fixed init flow issues discovered during refactor
 - Tested by: User
 
@@ -480,7 +535,7 @@ Test status: ✅ User confirmed init workflow works
 
 ### Agents Participated
 - COUNSELOR: Copilot (claude-opus-41) — Created comprehensive specification for theme system integration
-- ENGINEER: zai-coding-plan/glm-4.7 — Implemented new theme field and applied background to confirmation dialogs
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Implemented new theme field and applied background to confirmation dialogs
 - Tested by: User
 
 ### Files Modified (2 total)
@@ -560,7 +615,7 @@ All 10 confirmation dialogs automatically styled with new background. Theme swit
 
 ### Agents Participated
 - COUNSELOR: Copilot (claude-opus-41) — Created specification for universal branch switch confirmation
-- ENGINEER: zai-coding-plan/glm-4.7 — Implemented confirmation dialogs and stash/discard workflows
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Implemented confirmation dialogs and stash/discard workflows
 - Tested by: User
 
 ### Files Modified (3 total)
@@ -647,7 +702,7 @@ Placeholder substitution via SetContext() works correctly. All branch switches n
 
 ### Agents Participated
 - COUNSELOR: Copilot (claude-opus-41) — Created kickoff plan identifying root cause (broken nested conditional)
-- ENGINEER: zai-coding-plan/glm-4.7 — Implemented fix using %(HEAD) placeholder
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Implemented fix using %(HEAD) placeholder
 - Tested by: User (TESTED - FIXED)
 
 ### Files Modified (1 total)
@@ -699,7 +754,7 @@ Implementation matches kickoff plan specifications:
 
 ### Agents Participated
 - COUNSELOR: Copilot (claude-opus-41) — Created kickoff plan identifying root cause (shortcuts registered to wrong mode)
-- ENGINEER: zai-coding-plan/glm-4.7 — Implemented mode parameter in rebuildMenuShortcuts function
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Implemented mode parameter in rebuildMenuShortcuts function
 - Tested by: User (TESTED - FIXED)
 
 ### Files Modified (3 total)
