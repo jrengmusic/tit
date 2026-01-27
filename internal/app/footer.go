@@ -75,7 +75,7 @@ func (a *Application) getFooterHintKey() string {
 		return a.getFileHistoryHintKey()
 
 	case ModeConsole, ModeClone:
-		if a.asyncOperationActive {
+		if a.isAsyncActive() {
 			return "console_running"
 		}
 		return "console_complete"

@@ -161,8 +161,7 @@ func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 
 // dispatchPush pushes to remote
 func (a *Application) dispatchPush(app *Application) tea.Cmd {
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
+	a.startAsyncOp()
 	a.previousMode = ModeMenu
 	a.previousMenuIndex = 0
 	a.mode = ModeConsole

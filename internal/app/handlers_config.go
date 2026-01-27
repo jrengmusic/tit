@@ -99,8 +99,7 @@ func (a *Application) handleConfigAddRemoteURLSubmit(app *Application) (tea.Mode
 		return app, nil
 	}
 
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
+	app.startAsyncOp()
 	app.previousMode = ModeConfig
 	app.previousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole
@@ -129,8 +128,7 @@ func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.M
 		return app, nil
 	}
 
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
+	app.startAsyncOp()
 	app.previousMode = ModeConfig
 	app.previousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole

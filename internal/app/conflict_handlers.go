@@ -169,7 +169,7 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	if app.conflictResolveState.Operation == "pull_merge" {
 		// Regular pull with merge conflicts: finalize merge
 		// Transition to console to show finalization operation
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.mode = ModeConsole
 		app.outputBuffer.Clear()
 		app.consoleState.Reset()
@@ -177,7 +177,7 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	} else if app.conflictResolveState.Operation == "branch_switch" {
 		// Branch switch with conflicts: finalize by committing resolved files
 		// Transition to console to show finalization operation
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.mode = ModeConsole
 		app.outputBuffer.Clear()
 		app.consoleState.Reset()
@@ -185,26 +185,26 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	} else if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
 		// Dirty pull merge conflicts resolved: commit merge before reapplying stash
 		// Must finalize the merge commit before proceeding to stash apply
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.mode = ModeConsole
 		app.dirtyOperationState.SetPhase("finalize_merge")
 		return app, app.cmdFinalizeDirtyPullMerge()
 	} else if app.conflictResolveState.Operation == "dirty_pull_snapshot_reapply" {
 		// Continue to finalize
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.mode = ModeConsole
 		app.dirtyOperationState.SetPhase("finalizing")
 		return app, app.cmdDirtyPullFinalize()
 	} else if app.conflictResolveState.Operation == "time_travel_merge" {
 		// Time travel merge conflicts resolved: commit and clean up marker file
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.mode = ModeConsole
 		app.outputBuffer.Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeTimeTravelMerge()
 	} else if app.conflictResolveState.Operation == "time_travel_return" {
 		// Time travel return conflicts resolved: commit and clean up marker file
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.mode = ModeConsole
 		app.outputBuffer.Clear()
 		app.consoleState.Reset()
@@ -229,7 +229,7 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 		if app.conflictResolveState.Operation == "pull_merge" {
 			// Abort pull merge: transition to Console, run git merge --abort
 			// User will see abort operation complete, then press ESC to return to menu
-			app.asyncOperationActive = true
+			app.startAsyncOp()
 			app.mode = ModeConsole
 			app.outputBuffer.Clear()
 			app.consoleState.Reset()
@@ -239,7 +239,7 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 			// Abort dirty pull: transition to Console, restore original state
 			// User will see abort operation complete, then press ESC to return to menu
 			if app.dirtyOperationState != nil {
-				app.asyncOperationActive = true
+				app.startAsyncOp()
 				app.mode = ModeConsole
 				app.outputBuffer.Clear()
 				app.consoleState.Reset()

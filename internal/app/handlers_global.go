@@ -52,13 +52,13 @@ func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
 // Otherwise: prompts for confirmation before quitting
 func (a *Application) handleKeyCtrlC(app *Application) (tea.Model, tea.Cmd) {
 	// Block exit during critical operations (e.g., pull merge with potential conflicts)
-	if !a.isExitAllowed {
+	if !a.canExit() {
 		a.footerHint = GetFooterMessageText(MessageExitBlocked)
 		return a, nil
 	}
 
 	// If async operation is running, show "in progress" message
-	if a.asyncOperationActive && !a.asyncOperationAborted {
+	if a.isAsyncActive() && !a.isAsyncAborted() {
 		a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 		return a, nil
 	}
@@ -89,16 +89,16 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 
 	// Block ESC in console mode while async operation is active
 	// ESC aborts the operation and sets abort flag
-	if (a.mode == ModeConsole || a.mode == ModeClone) && a.asyncOperationActive {
-		a.asyncOperationAborted = true
+	if (a.mode == ModeConsole || a.mode == ModeClone) && a.isAsyncActive() {
+		a.abortAsyncOp()
 		a.footerHint = "Aborting operation..."
 		return a, nil
 	}
 
 	// If async operation was aborted but completed: restore previous state
-	if a.asyncOperationAborted {
-		a.asyncOperationActive = false
-		a.asyncOperationAborted = false
+	if a.isAsyncAborted() {
+		a.endAsyncOp()
+		a.clearAsyncAborted()
 		a.mode = a.previousMode
 		a.selectedIndex = a.previousMenuIndex
 		a.consoleState.Reset()
@@ -205,7 +205,7 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.inputState.CursorPosition = 0
 	a.inputState.ValidationMsg = ""
 	a.inputState.ClearConfirming = false
-	a.isExitAllowed = true // ALWAYS allow exit when in menu
+	a.setExitAllowed(true) // ALWAYS allow exit when in menu
 
 	menu := a.GenerateMenu()
 	a.menuItems = menu

@@ -113,7 +113,7 @@ func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
 	buffer.Append(OutputMessages["initializing_repo"], ui.TypeStatus)
 
 	a.mode = ModeConsole
-	a.asyncOperationActive = true
+	a.startAsyncOp()
 	a.inputState.Value = ""
 
 	return a, a.cmdInit(branchName)
@@ -190,7 +190,7 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 	buffer.Append(fmt.Sprintf(OutputMessages["checking_out_branch"], selectedBranch), ui.TypeStatus)
 
 	app.mode = ModeConsole
-	app.asyncOperationActive = true
+	app.startAsyncOp()
 
 	return app, func() tea.Msg {
 		result := git.ExecuteWithStreaming("checkout", selectedBranch)
@@ -222,8 +222,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	}
 
 	// Set up async state for console display
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
+	app.startAsyncOp()
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
@@ -244,8 +243,7 @@ func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.C
 	}
 
 	// Set up async state for console display
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
+	app.startAsyncOp()
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole
@@ -279,8 +277,7 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	}
 
 	// Set up async state for console display
-	app.asyncOperationActive = true
-	app.asyncOperationAborted = false
+	app.startAsyncOp()
 	app.previousMode = ModeMenu
 	app.previousMenuIndex = 0
 	app.mode = ModeConsole

@@ -225,8 +225,7 @@ func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
 // prepareAsyncOperation consolidates the common async operation setup pattern
 // Reduces 10+ lines of duplicate code across confirmation handlers
 func (a *Application) prepareAsyncOperation(hint string) {
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
+	a.startAsyncOp()
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -409,9 +408,7 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
 
 	// Transition to console to show streaming output
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
-	a.isExitAllowed = false // Block Ctrl+C until operation completes or is aborted
+	a.setExitAllowed(false) // Block Ctrl+C until operation completes or is aborted
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -534,8 +531,6 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 	}
 
 	// Transition to console to show streaming output
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -555,8 +550,6 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 // executeTimeTravelWithDirtyTree handles time travel from dirty working tree
 func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
 	// Transition to console to show streaming output (MUST happen BEFORE buffer operations)
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -574,7 +567,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	if !stashResult.Success {
 		buffer.Append(fmt.Sprintf("Failed to stash changes: %s", stashResult.Stderr), ui.TypeStderr)
 		a.footerHint = ErrorMessages["failed_stash_changes"]
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		return a, nil
 	}
 
@@ -585,7 +578,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	if !stashListResult.Success {
 		buffer.Append(fmt.Sprintf("Failed to get stash list: %s", stashListResult.Stderr), ui.TypeStderr)
 		a.footerHint = ErrorMessages["failed_get_stash_list"]
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		return a, nil
 	}
 
@@ -676,8 +669,6 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
 
 	// Transition to console to show streaming output (consistent with other git operations)
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -720,8 +711,6 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output (consistent with other git operations)
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -794,8 +783,6 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	timeTravelHash := strings.TrimSpace(fullHashResult.Stdout)
 
 	// Transition to console to show streaming output
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -837,8 +824,6 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -873,8 +858,6 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 
 	// Tree is now clean - proceed directly with return (no second confirmation)
 	// Transition to console to show streaming output
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
 	a.consoleAutoScroll = true
 	a.mode = ModeConsole
 	a.outputBuffer.Clear()
@@ -910,7 +893,7 @@ func (a *Application) executeConfirmRewind() (tea.Model, tea.Cmd) {
 	a.pendingRewindCommit = "" // Clear after capturing
 
 	// Set up async operation
-	a.asyncOperationActive = true
+	a.startAsyncOp()
 	a.previousMode = ModeHistory
 	a.previousMenuIndex = a.historyState.SelectedIdx
 	a.mode = ModeConsole
@@ -946,12 +929,12 @@ func (a *Application) executeRewindOperation(commitHash string) tea.Cmd {
 // executeConfirmBranchSwitchClean handles YES response to clean tree branch switch
 func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
-	
+
 	targetBranch := a.confirmContext["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
-	
+
 	// Clean tree - perform branch switch directly
 	return a, a.cmdSwitchBranch(targetBranch)
 }
@@ -959,7 +942,7 @@ func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
 // executeRejectBranchSwitch handles NO/Cancel response (clean tree)
 func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
-	
+
 	// Return to branch picker (preserve state)
 	a.mode = ModeBranchPicker
 	return a, nil
@@ -968,15 +951,15 @@ func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 // executeConfirmBranchSwitchDirty handles YES response (Stash changes)
 func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
-	
+
 	targetBranch := a.confirmContext["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
-	
+
 	// Transition to console
 	a.prepareAsyncOperation("Switching branch with stash...")
-	
+
 	// Execute: stash → switch → stash apply
 	return a, a.cmdBranchSwitchWithStash(targetBranch)
 }
@@ -984,12 +967,12 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 // executeRejectBranchSwitchDirty handles NO response (Discard changes)
 func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
-	
+
 	targetBranch := a.confirmContext["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
-	
+
 	// Discard changes first
 	resetResult := git.Execute("reset", "--hard", "HEAD")
 	if !resetResult.Success {
@@ -997,15 +980,15 @@ func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
 		a.mode = ModeBranchPicker
 		return a, nil
 	}
-	
+
 	cleanResult := git.Execute("clean", "-fd")
 	if !cleanResult.Success {
 		a.footerHint = "Warning: Failed to clean untracked files"
 	}
-	
+
 	// Transition to console
 	a.prepareAsyncOperation("Switching branch...")
-	
+
 	// Clean tree now - perform switch
 	return a, a.cmdSwitchBranch(targetBranch)
 }

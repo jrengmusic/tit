@@ -25,13 +25,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	// Conflicts are "failures" but require special handling (conflict resolver UI)
 	if msg.ConflictDetected && msg.Step == OpPull {
 		// Pull operation with merge conflicts: setup conflict resolver
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		return a.setupConflictResolverForPull(msg)
 	}
 
 	if msg.ConflictDetected && msg.Step == "branch_switch" {
 		// Branch switch with conflicts: setup conflict resolver
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		return a.setupConflictResolverForBranchSwitch(msg)
 	}
 
@@ -40,7 +40,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		buffer.Append(msg.Error, ui.TypeStderr)
 		buffer.Append(GetFooterMessageText(MessageOperationFailed), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationFailed)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 
 		// Clean up dirty operation snapshot if this was a dirty operation phase
 		if a.dirtyOperationState != nil {
@@ -72,7 +72,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			// Change to the path if specified
 			if err := os.Chdir(msg.Path); err != nil {
 				buffer.Append(fmt.Sprintf(ErrorMessages["failed_cd_into"], msg.Path, err), ui.TypeStderr)
-				a.asyncOperationActive = false
+				a.endAsyncOp()
 				return a, nil
 			}
 		}
@@ -80,13 +80,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Detect new state after init/clone/checkout
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			return a, nil
 		}
 
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.mode = ModeConsole
 
 	case OpAddRemote:
@@ -99,7 +99,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		buffer.Append(OutputMessages["setting_upstream"], ui.TypeInfo)
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			return a, nil
 		}
 		return a, a.cmdSetUpstream(a.gitState.CurrentBranch)
@@ -109,14 +109,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Reload state and return to menu
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
-			a.isExitAllowed = true // Re-enable exit on error
+			a.endAsyncOp()
+			a.setExitAllowed(true) // Re-enable exit on error
 			return a, nil
 		}
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true // Re-enable exit after successful pull
+		a.endAsyncOp()
+		a.setExitAllowed(true) // Re-enable exit after successful pull
 		return a, nil
 
 	case OpFinalizePullMerge, OpFinalizeTravelMerge, OpFinalizeTravelReturn:
@@ -124,16 +124,16 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// User must press ESC to return to menu (ensures merge completed before menu reachable)
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
-			a.isExitAllowed = true // Re-enable exit on error
+			a.endAsyncOp()
+			a.setExitAllowed(true) // Re-enable exit on error
 			a.mode = ModeConsole
 			return a, nil
 		}
 		buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true // Re-enable exit after successful merge finalization
+		a.endAsyncOp()
+		a.setExitAllowed(true) // Re-enable exit after successful merge finalization
 		a.conflictResolveState = nil
 		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 		return a, nil
@@ -143,16 +143,16 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// User must press ESC to return to menu (ensures abort completed before menu reachable)
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
-			a.isExitAllowed = true // Re-enable exit on error
+			a.endAsyncOp()
+			a.setExitAllowed(true) // Re-enable exit on error
 			a.mode = ModeConsole
 			return a, nil
 		}
 		buffer.Append(OutputMessages["abort_successful"], ui.TypeStatus)
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true // Re-enable exit after successful abort
+		a.endAsyncOp()
+		a.setExitAllowed(true) // Re-enable exit after successful abort
 		a.conflictResolveState = nil
 		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 		return a, nil
@@ -161,14 +161,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Simple operations: reload state
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			return a, nil
 		}
 
 		// CONTRACT: Rebuild cache before showing completion (commit changes history)
 		cacheCmd := a.invalidateHistoryCaches()
 
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 
 		// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
 		// This ensures cache messages appear before "Press ESC to return to menu"
@@ -180,7 +180,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Reload state and return to config menu
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			return a, nil
 		}
 
@@ -191,7 +191,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.mode = ModeConsole // Stay in console so user sees the success message
 
 	case "finalize_branch_switch":
@@ -199,8 +199,8 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Reload state and return to config menu
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
-			a.isExitAllowed = true
+			a.endAsyncOp()
+			a.setExitAllowed(true)
 			a.mode = ModeConsole
 			return a, nil
 		}
@@ -213,8 +213,8 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 		a.conflictResolveState = nil
 		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 
@@ -225,12 +225,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Simple operations: reload state
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			return a, nil
 		}
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.mode = ModeConsole
 
 	case OpHardReset:
@@ -238,12 +238,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// User presses ESC to return to menu
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			return a, nil
 		}
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.mode = ModeConsole
 
 	case OpDirtyPullSnapshot:
@@ -301,13 +301,13 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Operation complete: cleanup stash and snapshot file
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			a.dirtyOperationState = nil
 			return a, nil
 		}
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.dirtyOperationState = nil
 		a.mode = ModeConsole
 
@@ -315,14 +315,14 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Abort complete: original state restored
 		if err := a.reloadGitState(); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.asyncOperationActive = false
+			a.endAsyncOp()
 			a.dirtyOperationState = nil
 			a.conflictResolveState = nil
 			return a, nil
 		}
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.dirtyOperationState = nil
 		a.conflictResolveState = nil
 		a.mode = ModeConsole
@@ -336,7 +336,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		// Default: just cleanup
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 	}
 
 	return a, nil
@@ -348,8 +348,8 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_failed"], msg.Error), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 
 		// Try to cleanup time travel info file
 		git.ClearTimeTravelInfo()
@@ -362,8 +362,8 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	// Time travel successful - reload git state
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_travel"], err), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 
 		// Try to cleanup time travel info file
 		git.ClearTimeTravelInfo()
@@ -373,8 +373,8 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 		return a, nil
 	}
 
-	a.asyncOperationActive = false
-	a.isExitAllowed = true
+	a.endAsyncOp()
+	a.setExitAllowed(true)
 
 	// CONTRACT: Rebuild cache for new detached HEAD state (history always ready)
 	// Don't show messages here - cache functions will show progress
@@ -395,8 +395,8 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_merge_failed"], msg.Error), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 
 		// If conflicts detected, set up conflict resolver
 		if msg.ConflictDetected {
@@ -446,16 +446,16 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	// Time travel merge successful - reload git state
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_merge"], err), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 
 		// Return to menu
 		a.mode = ModeMenu
 		return a, a.startAutoUpdate()
 	}
 
-	a.asyncOperationActive = false
-	a.isExitAllowed = true
+	a.endAsyncOp()
+	a.setExitAllowed(true)
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history
@@ -476,8 +476,8 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_return_failed"], msg.Error), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 
 		// If conflicts detected, set up conflict resolver
 		if msg.ConflictDetected {
@@ -520,8 +520,8 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	state, err := git.DetectState()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_return"], err), ui.TypeStderr)
-		a.asyncOperationActive = false
-		a.isExitAllowed = true
+		a.endAsyncOp()
+		a.setExitAllowed(true)
 
 		// Return to menu
 		a.mode = ModeMenu
@@ -554,7 +554,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	conflictFiles, err := git.ListConflictedFiles()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(OutputMessages["conflict_detection_error"], err), ui.TypeStderr)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.footerHint = ErrorMessages["operation_failed"]
 		a.mode = ModeConsole
 		return a, nil
@@ -565,7 +565,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	if len(conflictFiles) == 0 {
 		// No conflicts found - should not happen, but handle gracefully
 		buffer.Append(OutputMessages["conflict_detection_none"], ui.TypeInfo)
-		a.asyncOperationActive = false
+		a.endAsyncOp()
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -647,7 +647,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 
 	// Store conflict state and transition to resolver UI
 	a.conflictResolveState = resolveState
-	a.asyncOperationActive = false
+	a.endAsyncOp()
 	a.mode = ModeConflictResolve
 	a.footerHint = fmt.Sprintf(ConsoleMessages["resolve_conflicts_help"], len(conflictFiles))
 

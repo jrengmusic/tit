@@ -18,7 +18,7 @@ import (
 // handleConsoleUp scrolls console up one line
 func (a *Application) handleConsoleUp(app *Application) (tea.Model, tea.Cmd) {
 	// Block scrolling during async operations
-	if app.asyncOperationActive {
+	if app.isAsyncActive() {
 		return app, nil
 	}
 	app.consoleState.ScrollUp()
@@ -29,7 +29,7 @@ func (a *Application) handleConsoleUp(app *Application) (tea.Model, tea.Cmd) {
 // handleConsoleDown scrolls console down one line
 func (a *Application) handleConsoleDown(app *Application) (tea.Model, tea.Cmd) {
 	// Block scrolling during async operations
-	if app.asyncOperationActive {
+	if app.isAsyncActive() {
 		return app, nil
 	}
 	app.consoleState.ScrollDown()
@@ -40,7 +40,7 @@ func (a *Application) handleConsoleDown(app *Application) (tea.Model, tea.Cmd) {
 // handleConsolePageUp scrolls console up one page
 func (a *Application) handleConsolePageUp(app *Application) (tea.Model, tea.Cmd) {
 	// Block scrolling during async operations
-	if app.asyncOperationActive {
+	if app.isAsyncActive() {
 		return app, nil
 	}
 	// UI THREAD - Scroll console up by page (10 lines)
@@ -54,7 +54,7 @@ func (a *Application) handleConsolePageUp(app *Application) (tea.Model, tea.Cmd)
 // handleConsolePageDown scrolls console down one page
 func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cmd) {
 	// Block scrolling during async operations
-	if app.asyncOperationActive {
+	if app.isAsyncActive() {
 		return app, nil
 	}
 	// UI THREAD - Scroll console down by page (10 lines)
@@ -97,8 +97,7 @@ func cmdFetchRemote() tea.Cmd {
 
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
-	a.asyncOperationActive = true
-	a.asyncOperationAborted = false
+	a.startAsyncOp()
 	a.previousMode = ModeMenu
 	a.previousMenuIndex = 0
 	a.mode = ModeClone

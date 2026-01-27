@@ -43,7 +43,7 @@ type Application struct {
 	keyHandlers       map[AppMode]map[string]KeyHandler // Cached key handlers
 
 	// Input mode state
-	inputState InputState // All input fields consolidated (Phase 5)
+	inputState InputState // Text input field state
 
 	// Clone workflow state
 	cloneURL      string   // URL to clone from
@@ -54,11 +54,10 @@ type Application struct {
 	// Remote operation state
 
 	// Async operation state
-	asyncOperationActive  bool    // True while git operation (clone, init, etc) is running
-	asyncOperationAborted bool    // True if user pressed ESC to abort during operation
-	isExitAllowed         bool    // False during critical operations (pull merge) to prevent premature exit
-	previousMode          AppMode // Mode before async operation started (for restoration on ESC)
-	previousMenuIndex     int     // Menu selection before async (for restoration)
+	asyncState AsyncState
+
+	previousMode      AppMode // Mode before async operation started (for restoration on ESC)
+	previousMenuIndex int     // Menu selection before async (for restoration)
 
 	// Rewind operation state
 	pendingRewindCommit string // Commit hash for pending rewind operation
@@ -100,11 +99,11 @@ type Application struct {
 	setupEmail       string             // Email for SSH key generation
 	setupKeyCopied   bool               // True once public key copied to clipboard
 
-	// Cache fields (Phase 6 - extracted to CacheManager)
+	// History cache
 	cacheManager *CacheManager
 
 	// Config state (Session 86)
-	appConfig       *config.Config // Loaded from ~/.config/tit/config.toml
+	appConfig *config.Config // Loaded from ~/.config/tit/config.toml
 
 	// Branch picker state (Session 86)
 	branchPickerState *ui.BranchPickerState
@@ -221,6 +220,51 @@ func (a *Application) executeGitOp(step string, args ...string) tea.Cmd {
 	}
 }
 
+// ========================================
+// Async Operation State Helpers
+// ========================================
+// SSOT for async operation lifecycle.
+
+// startAsyncOp marks an async operation as active.
+func (a *Application) startAsyncOp() {
+	a.asyncState.Start()
+}
+
+// endAsyncOp marks an async operation as complete.
+func (a *Application) endAsyncOp() {
+	a.asyncState.End()
+}
+
+// abortAsyncOp marks an async operation as aborted by user.
+func (a *Application) abortAsyncOp() {
+	a.asyncState.Abort()
+}
+
+// isAsyncActive returns true if an async operation is running.
+func (a *Application) isAsyncActive() bool {
+	return a.asyncState.IsActive()
+}
+
+// isAsyncAborted returns true if current async operation was aborted.
+func (a *Application) isAsyncAborted() bool {
+	return a.asyncState.IsAborted()
+}
+
+// clearAsyncAborted resets the aborted flag.
+func (a *Application) clearAsyncAborted() {
+	a.asyncState.ClearAborted()
+}
+
+// setExitAllowed sets whether exit is allowed during operation.
+func (a *Application) setExitAllowed(allowed bool) {
+	a.asyncState.SetExitAllowed(allowed)
+}
+
+// canExit returns true if exit is allowed.
+func (a *Application) canExit() bool {
+	return a.asyncState.CanExit()
+}
+
 // newSetupWizardApp creates a minimal Application for the setup wizard
 // This bypasses all git state detection since git environment is not ready
 func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEnvironment) *Application {
@@ -230,7 +274,7 @@ func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEn
 		mode:            ModeSetupWizard,
 		gitEnvironment:  gitEnv,
 		setupWizardStep: SetupStepWelcome,
-		isExitAllowed:   true,
+		asyncState:      AsyncState{exitAllowed: true},
 		consoleState:    ui.NewConsoleOutState(),
 		outputBuffer:    ui.GetBuffer(),
 	}
@@ -286,20 +330,18 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	workingTreeInfo, timelineInfo, operationInfo := BuildStateInfo(theme)
 
 	app := &Application{
-		sizing:                sizing,
-		theme:                 theme,
-		mode:                  ModeMenu,
-		gitState:              gitState,
-		selectedIndex:         0,
-		asyncOperationActive:  false,
-		asyncOperationAborted: false,
-		isExitAllowed:         true, // Allow exit by default (disabled during critical operations)
-		consoleState:          ui.NewConsoleOutState(),
-		outputBuffer:          ui.GetBuffer(),
-		consoleAutoScroll:     true, // Start with auto-scroll enabled
-		workingTreeInfo:       workingTreeInfo,
-		timelineInfo:          timelineInfo,
-		operationInfo:         operationInfo,
+		sizing:            sizing,
+		theme:             theme,
+		mode:              ModeMenu,
+		gitState:          gitState,
+		selectedIndex:     0,
+		asyncState:        AsyncState{exitAllowed: true}, // Allow exit by default (disabled during critical operations)
+		consoleState:      ui.NewConsoleOutState(),
+		outputBuffer:      ui.GetBuffer(),
+		consoleAutoScroll: true, // Start with auto-scroll enabled
+		workingTreeInfo:   workingTreeInfo,
+		timelineInfo:      timelineInfo,
+		operationInfo:     operationInfo,
 		historyState: &ui.HistoryState{
 			Commits:           make([]ui.CommitInfo, 0),
 			SelectedIdx:       0,
@@ -320,11 +362,11 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			VisualModeActive:  false,
 			VisualModeStart:   0,
 		},
-		// Initialize cache fields (Phase 6 - extracted to CacheManager)
+		// Initialize cache manager
 		cacheManager: NewCacheManager(),
 
 		// Config state (Session 86) - passed from main.go (fail-fast on load errors)
-		appConfig:       cfg,
+		appConfig: cfg,
 		branchPickerState: &ui.BranchPickerState{
 			Branches:          make([]ui.BranchInfo, 0),
 			SelectedIdx:       0,
@@ -364,7 +406,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	if shouldRestore {
 		// Show console and perform restoration
 		app.mode = ModeConsole
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 		app.previousMode = ModeMenu
 		app.footerHint = "Restoring from incomplete time travel session..."
 	}
@@ -395,7 +437,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	// If restoration needed, set up the async operation
 	if shouldRestore {
 		// Will be executed via Update() on first render
-		app.asyncOperationActive = true
+		app.startAsyncOp()
 	}
 
 	return app
@@ -495,7 +537,7 @@ func (a *Application) RestoreFromTimeTravel() tea.Cmd {
 // handleRewind processes the result of a rewind (git reset --hard) operation
 // Stays in console until user presses ESC
 func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
-	a.asyncOperationActive = false
+	a.endAsyncOp()
 	buffer := ui.GetBuffer()
 
 	if !msg.Success {
@@ -517,7 +559,7 @@ func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
 
 // handleRestoreTimeTravel processes the result of time travel restoration (Phase 0)
 func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Model, tea.Cmd) {
-	a.asyncOperationActive = false
+	a.endAsyncOp()
 	a.restoreTimeTravelInitiated = false
 
 	if !msg.Success {
@@ -557,7 +599,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
 
 	// Double-check before calling RestoreFromTimeTravel
-	if a.asyncOperationActive && a.mode == ModeConsole && !a.restoreTimeTravelInitiated && hasMarker {
+	if a.isAsyncActive() && a.mode == ModeConsole && !a.restoreTimeTravelInitiated && hasMarker {
 		// Verify marker still exists right before restoration
 		a.restoreTimeTravelInitiated = true
 		return a, a.RestoreFromTimeTravel()
@@ -624,7 +666,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case OutputRefreshMsg:
 		// Force re-render to display updated console output
 		// If operation still active, schedule next refresh tick
-		if a.asyncOperationActive {
+		if a.isAsyncActive() {
 			return a, tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 				return OutputRefreshMsg{}
 			})
@@ -725,8 +767,8 @@ func (a *Application) View() string {
 			a.theme,
 			a.sizing.TerminalWidth,
 			a.sizing.TerminalHeight,
-			a.asyncOperationActive && !a.asyncOperationAborted,
-			a.asyncOperationAborted,
+			a.isAsyncActive() && !a.isAsyncAborted(),
+			a.isAsyncAborted(),
 			a.consoleAutoScroll,
 		)
 
@@ -950,7 +992,7 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 
 		// If both caches complete AND in console mode after async operation finished,
 		// show "Press ESC to return to menu" message
-		if metadataReady && diffsReady && a.mode == ModeConsole && !a.asyncOperationActive {
+		if metadataReady && diffsReady && a.mode == ModeConsole && !a.isAsyncActive() {
 			buffer := ui.GetBuffer()
 
 			// Check if this is time travel mode (handled separately)
