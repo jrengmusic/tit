@@ -32,14 +32,6 @@ Built-in 3-way merge resolver. No external tools, no confusion—just mark secti
 
 ## The Difference
 
-| Feature | lazygit | tig | **TIT** |
-|---------|---------|-----|---------|
-| Menu reflects git state | ❌ | ❌ | **✅ Always** |
-| Time travel + merge back | ❌ | ❌ | **✅ Full workflow** |
-| SSH wizard | ❌ | ❌ | **✅ Guided setup** |
-| Seasonal themes | ❌ | ❌ | **✅ 5 themes** |
-| State engine | Basic | None | **✅ 5-axis detection** |
-| Zero surprises | ❌ | ❌ | **✅ Guaranteed** |
 
 ## Get Started
 
@@ -113,3 +105,6 @@ MIT — Use it, break it, fix it, ship it.
 ---
 
 **TIT: Because git deserves a UI that doesn't suck.**
+---
+
+conceived with [CAROL](https://github.com/jrengmusic/carol)
