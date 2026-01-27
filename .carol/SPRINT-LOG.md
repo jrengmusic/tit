@@ -154,6 +154,50 @@ JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
 
 ## SPRINT HISTORY
 
+## Sprint 13: Confirmation Dialog Background Fix ✅
+
+**Date:** 2026-01-27
+**Duration:** ~15 minutes
+
+### Objectives
+- Fix confirmation dialog text background not filling content area
+- Fix ESC key to dismiss dialog directly without circular dependency
+
+### Agents Participated
+- ENGINEER: MiniMax-M2.1 (minimax-coding-plan) — Applied background color to dialog text elements, added dismissConfirmationDialog() helper
+- Tested by: User
+
+### Files Modified (2 total)
+- `internal/ui/confirmation.go` — Added Background() to explanationStyle, titleStyle, and styled button gap with dialog background (lines 158-162, 203-206, 224-228)
+- `internal/app/handlers_global.go` — Added dismissConfirmationDialog() helper and updated ESC handler to dismiss dialog directly (lines 153, 198-228)
+
+### Changes Made
+
+**Background Color Application:**
+- explanationStyle: Added `Background(lipgloss.Color(c.Theme.ConfirmationDialogBackground))` to fill text background
+- titleStyle: Added `Width(dialogWidth - 4)` and `Background()` for full-width title background
+- button gap: Replaced plain `"  "` with styled `buttonGap` using dialog background
+
+**ESC Handler Fix:**
+- Changed ESC handler from `handleConfirmationNo()` to `dismissConfirmationDialog()` to execute dismissal directly
+- New `dismissConfirmationDialog()` helper dismisses dialog and restores previous mode, avoiding circular dependency
+
+### Problems Solved
+- Terminal background no longer shows through confirmation dialog content area
+- ESC key now dismisses dialog directly without circular dependency
+
+### Summary
+ENGINEER applied background color to confirmation dialog text elements using existing theme field (SSOT), minimal fix with no new theme fields required. Build verified with no errors.
+
+Build status: ✅ VERIFIED - No errors
+
+**Key Insight:**
+> "Use existing theme fields to fill background gaps for seamless UI integration."
+
+**Status:** ✅ FULLY IMPLEMENTED
+
+---
+
 ## Sprint 12: Operations Modularization ✅
 
 **Date:** 2026-01-27

@@ -30,7 +30,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 	}
 
 	// Column widths for menu box
-	keyColWidth := 7
+	keyColWidth := 12
 	emojiColWidth := 3
 	labelColWidth := 21
 	menuBoxWidth := keyColWidth + emojiColWidth + labelColWidth
@@ -52,11 +52,18 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 		emoji, _ := itemMap["Emoji"].(string)
 		shortcut, _ := itemMap["Shortcut"].(string)
+		shortcutLabel, _ := itemMap["ShortcutLabel"].(string)
 		label, _ := itemMap["Label"].(string)
 		enabled, _ := itemMap["Enabled"].(bool)
 
+		// Use ShortcutLabel for display if set, otherwise use Shortcut
+		shortcutDisplay := shortcut
+		if shortcutLabel != "" {
+			shortcutDisplay = shortcutLabel
+		}
+
 		// Column 1: KEY (right-aligned)
-		keyCol := strings.Repeat(" ", keyColWidth-len(shortcut)) + shortcut + " "
+		keyCol := strings.Repeat(" ", keyColWidth-len(shortcutDisplay)) + shortcutDisplay + " "
 
 		// Column 2: EMOJI (center-aligned)
 		emojiCol := emoji

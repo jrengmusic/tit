@@ -60,22 +60,24 @@ var MenuItems = map[string]MenuItem{
 		Enabled:  true,
 	},
 	"force_push": {
-		ID:       "force_push",
-		Shortcut: "shift+]",
-		Emoji:    "💥",
-		Label:    "Force push",
-		Hint:     "💥 DESTRUCTIVE: Overwrite remote branch with local commits",
-		Enabled:  true,
+		ID:            "force_push",
+		Shortcut:      "}",         // Actual key (Shift+] produces })
+		ShortcutLabel: "shift + ]", // Display label
+		Emoji:         "💥",
+		Label:         "Force push",
+		Hint:          "💥 DESTRUCTIVE: Overwrite remote branch with local commits",
+		Enabled:       true,
 	},
 
 	// Timeline: Behind
 	"dirty_pull_merge": {
-		ID:       "dirty_pull_merge",
-		Shortcut: "shift+[",
-		Emoji:    "🔺",
-		Label:    "Pull (save changes)",
-		Hint:     "Save WIP, pull remote, reapply changes (may conflict)",
-		Enabled:  true,
+		ID:            "dirty_pull_merge",
+		Shortcut:      "{",         // Actual key (Shift+[ produces {)
+		ShortcutLabel: "shift + [", // Display label
+		Emoji:         "🔺",
+		Label:         "Pull (save changes)",
+		Hint:          "Save WIP, pull remote, reapply changes (may conflict)",
+		Enabled:       true,
 	},
 	"pull_merge": {
 		ID:       "pull_merge",
