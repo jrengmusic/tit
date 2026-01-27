@@ -148,9 +148,9 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 
-	// Confirmation mode: ESC dismisses dialog (same as No)
+	// Confirmation mode: ESC dismisses dialog directly (bypass handler routing)
 	if a.mode == ModeConfirmation {
-		return a.handleConfirmationNo(app)
+		return a.dismissConfirmationDialog()
 	}
 
 	// All other modes: return to previousMode and regenerate menu
@@ -192,6 +192,42 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 	}
 
 	return app, nil
+}
+
+// dismissConfirmationDialog dismisses confirmation dialog and returns to previous mode
+// Used by ESC key to avoid circular dependency with confirmationHandlers map
+func (a *Application) dismissConfirmationDialog() (tea.Model, tea.Cmd) {
+	// Reset confirmation state
+	a.confirmationDialog = nil
+	a.mode = a.previousMode
+
+	// Restore menu state based on previous mode
+	switch a.mode {
+	case ModeMenu:
+		menu := a.GenerateMenu()
+		a.menuItems = menu
+		if a.previousMenuIndex >= 0 && a.previousMenuIndex < len(menu) {
+			a.selectedIndex = a.previousMenuIndex
+			if len(menu) > 0 {
+				a.footerHint = menu[a.selectedIndex].Hint
+			}
+		} else {
+			a.selectedIndex = 0
+			if len(menu) > 0 {
+				a.footerHint = menu[0].Hint
+			}
+		}
+		a.rebuildMenuShortcuts(ModeMenu)
+	case ModeConfig:
+		a.menuItems = a.GenerateConfigMenu()
+		a.selectedIndex = 0
+		if len(a.menuItems) > 0 {
+			a.footerHint = a.menuItems[0].Hint
+		}
+		a.rebuildMenuShortcuts(ModeConfig)
+	}
+
+	return a, nil
 }
 
 // returnToMenu resets state and returns to menu mode

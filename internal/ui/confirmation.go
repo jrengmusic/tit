@@ -157,6 +157,7 @@ func (c *ConfirmationDialog) Render(height int) string {
 
 	explanationStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(c.Theme.ContentTextColor)).
+		Background(lipgloss.Color(c.Theme.ConfirmationDialogBackground)).
 		Width(dialogWidth - 4). // Account for dialog padding
 		Align(lipgloss.Left)
 
@@ -199,7 +200,10 @@ func (c *ConfirmationDialog) Render(height int) string {
 	// Render title with highlighted commit hashes and bold entire title
 	styledTitle := c.colorizeCommitHashes(config.Title)
 	// Apply bold to entire title
-	titleStyle := lipgloss.NewStyle().Bold(true)
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Width(dialogWidth - 4).
+		Background(lipgloss.Color(c.Theme.ConfirmationDialogBackground))
 	content.WriteString(titleStyle.Render(styledTitle) + "\n")
 	content.WriteString("\n")
 
@@ -217,7 +221,11 @@ func (c *ConfirmationDialog) Render(height int) string {
 	} else {
 		// Two buttons (confirmation dialog)
 		noButton := noButtonStyle.Render(strings.ToUpper(config.NoLabel))
-		buttonRow = lipgloss.JoinHorizontal(lipgloss.Center, yesButton, "  ", noButton)
+		// Style the gap with dialog background
+		buttonGap := lipgloss.NewStyle().
+			Background(lipgloss.Color(c.Theme.ConfirmationDialogBackground)).
+			Render("  ")
+		buttonRow = lipgloss.JoinHorizontal(lipgloss.Center, yesButton, buttonGap, noButton)
 	}
 
 	// Center the button row
