@@ -6,6 +6,12 @@ package internal
 
 import "time"
 
+// Version information (SSOT)
+const (
+	AppName    = "TIT"   // Application name
+	AppVersion = "1.0.0" // Application version (semantic versioning)
+)
+
 // Bit sizes for strconv parsing functions
 const (
 	FloatParseBitSize = 64 // ParseFloat bit size (float64)

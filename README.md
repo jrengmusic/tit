@@ -1,8 +1,4 @@
 <div align="center">
-  <img src="internal/ui/assets/tit-logo.svg" alt="TIT Logo" width="128" height="128">
-</div>
-
-<div align="center">
   <img src="screenshot/tit-menu.png" alt="TIT Menu Screenshot">
 </div>
 
@@ -62,7 +58,7 @@ Your timeline should tell the story of what actually happened, not some sanitize
 ./tit_x64
 ```
 
-**Requirements:** Go 1.21+, Git, Terminal (70×30 minimum)
+**Requirements:** Go 1.25+, Git, Terminal (70×30 minimum)
 
 
 ## Rock 'n Roll Workflow
@@ -114,7 +110,12 @@ MIT — Use it, break it, fix it, ship it.
 
 ---
 
+<div align="center">
+  <img src="internal/ui/assets/tit-logo.svg" alt="TIT Logo" width="128" height="128">
+</div>
+
 **TIT: lightning in a bottle. Because git is thunder.**
+
 ---
 
 conceived with [CAROL](https://github.com/jrengmusic/carol)
