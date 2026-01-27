@@ -117,5 +117,8 @@ MIT — Use it, break it, fix it, ship it.
 **TIT: lightning in a bottle. Because git is thunder.**
 
 ---
+Rock 'n Roll!
 
+**JRENG! 🎸**
+---
 conceived with [CAROL](https://github.com/jrengmusic/carol)
