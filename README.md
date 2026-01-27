@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="internal/ui/assets/tit-logo.svg" alt="TIT Logo" width="128" height="128">
+</div>
+
 # TIT — Terminal Interface for Git
 
 **Philosophy: If it's in the menu, it works. Period.**
