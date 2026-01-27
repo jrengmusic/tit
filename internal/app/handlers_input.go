@@ -87,17 +87,16 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 			return app, nil
 		}
 
-		// Set up console for streaming output
-		buffer := ui.GetBuffer()
-		buffer.Clear()
-		buffer.Append(OutputMessages["initializing_repo"], ui.TypeStatus)
-
-		app.mode = ModeConsole
-		app.asyncOperationActive = true
-		app.inputState.Value = ""
-
-		// Use cmdInit to create repo with .gitignore
-		return app, app.cmdInit("main")
+		// Ask for branch name before init
+		app.transitionTo(ModeTransition{
+			Mode:        ModeInput,
+			InputPrompt: "Initial branch name:",
+			InputAction: "init_branch_name",
+			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
+		})
+		app.inputState.Value = "main"
+		app.inputState.CursorPosition = len("main")
+		return app, nil
 	})
 }
 

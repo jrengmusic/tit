@@ -200,17 +200,13 @@ func (a *Application) menuTimeline() []MenuItem {
 // - Enabled state when cache ready
 func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID string) []MenuItem {
 	// Get cache status (thread-safe)
-	a.historyCacheMutex.Lock()
-	metadataReady := a.cacheMetadata
-	metadataProgress := a.cacheMetadataProgress
-	metadataTotal := a.cacheMetadataTotal
-	a.historyCacheMutex.Unlock()
+	metadataReady := a.cacheManager.IsMetadataReady()
+	metadataProgress, metadataTotal := a.cacheManager.GetMetadataProgress()
+	
 
-	a.diffCacheMutex.Lock()
-	diffsReady := a.cacheDiffs
-	diffsProgress := a.cacheDiffsProgress
-	diffsTotal := a.cacheDiffsTotal
-	a.diffCacheMutex.Unlock()
+	diffsReady := a.cacheManager.IsDiffsReady()
+	diffsProgress, diffsTotal := a.cacheManager.GetDiffsProgress()
+	
 
 	items := []MenuItem{}
 
@@ -218,7 +214,7 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 	historyItem := GetMenuItem(historyID)
 	if !metadataReady {
 		historyItem.Enabled = false
-		historyItem.Emoji = ui.GetSpinnerFrame(a.cacheAnimationFrame)
+		historyItem.Emoji = ui.GetSpinnerFrame(a.cacheManager.GetAnimationFrame())
 		if metadataTotal > 0 {
 			historyItem.Label = fmt.Sprintf("History %d/%d", metadataProgress, metadataTotal)
 		} else {
@@ -233,7 +229,7 @@ func (a *Application) getHistoryItemsWithCacheState(historyID, fileHistoryID str
 	fileHistoryItem := GetMenuItem(fileHistoryID)
 	if !diffsReady {
 		fileHistoryItem.Enabled = false
-		fileHistoryItem.Emoji = ui.GetSpinnerFrame(a.cacheAnimationFrame)
+		fileHistoryItem.Emoji = ui.GetSpinnerFrame(a.cacheManager.GetAnimationFrame())
 		if diffsTotal > 0 {
 			fileHistoryItem.Label = fmt.Sprintf("Files %d/%d", diffsProgress, diffsTotal)
 		} else {

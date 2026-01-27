@@ -379,7 +379,7 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	// CONTRACT: Rebuild cache for new detached HEAD state (history always ready)
 	// Don't show messages here - cache functions will show progress
 	// Final "Time travel successful" message shown after cache completes
-	a.cacheLoadingStarted = true
+	a.cacheManager.SetLoadingStarted(true)
 	cacheCmd := a.invalidateHistoryCaches()
 
 	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
@@ -461,7 +461,7 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	// Cache was built from detached HEAD during time travel, need full branch history
 	var cacheCmd tea.Cmd
 	if a.gitState.Operation == git.Normal {
-		a.cacheLoadingStarted = true
+		a.cacheManager.SetLoadingStarted(true)
 		cacheCmd = a.invalidateHistoryCaches()
 	}
 
@@ -532,7 +532,7 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	// Cache was built from detached HEAD during time travel, need full branch history
 	var cacheCmd tea.Cmd
 	if state.Operation == git.Normal {
-		a.cacheLoadingStarted = true
+		a.cacheManager.SetLoadingStarted(true)
 		cacheCmd = a.invalidateHistoryCaches()
 	}
 

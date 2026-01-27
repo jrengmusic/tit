@@ -85,12 +85,18 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
 	cwdEmpty := isCwdEmpty()
 	if !cwdEmpty {
+		// CWD not empty: ask for subdirectory name first
 		return a.cmdInitSubdirectory()
 	}
+	// CWD empty: ask for branch name directly, init here
 	app.transitionTo(ModeTransition{
-		Mode:        ModeInitializeLocation,
-		ResetFields: []string{"init"},
+		Mode:        ModeInput,
+		InputPrompt: "Initial branch name:",
+		InputAction: "init_branch_name",
+		FooterHint:  "Enter branch name (default: main), press Enter to initialize",
 	})
+	app.inputState.Value = "main"
+	app.inputState.CursorPosition = len("main")
 	return nil
 }
 
@@ -192,7 +198,6 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.previousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
-	app.confirmType = "force_push"
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["force_push"]
 	config := ui.ConfirmationConfig{
@@ -210,7 +215,6 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 	app.previousMode = app.mode
 	app.mode = ModeConfirmation
-	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
@@ -228,7 +232,6 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 	app.previousMode = app.mode
 	app.mode = ModeConfirmation
-	app.confirmType = "hard_reset"
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
@@ -247,11 +250,9 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 	app.previousMode = app.mode               // Track previous mode (Menu)
 	app.previousMenuIndex = app.selectedIndex // Track previous selection
 	app.mode = ModeHistory
-	app.historyCacheMutex.Lock()
-	defer app.historyCacheMutex.Unlock()
 
 	var commits []ui.CommitInfo
-	for hash, details := range app.historyMetadataCache {
+	for hash, details := range app.cacheManager.GetAllMetadata() {
 		commitTime, _ := parseCommitDate(details.Date)
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
@@ -278,11 +279,9 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 	app.previousMode = app.mode               // Track previous mode (Menu)
 	app.previousMenuIndex = app.selectedIndex // Track previous selection
 	app.mode = ModeFileHistory
-	app.fileHistoryCacheMutex.Lock()
-	defer app.fileHistoryCacheMutex.Unlock()
 
 	var commits []ui.CommitInfo
-	for hash, details := range app.historyMetadataCache {
+	for hash, details := range app.cacheManager.GetAllMetadata() {
 		commitTime, _ := parseCommitDate(details.Date)
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
@@ -297,7 +296,7 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 	var files []ui.FileInfo
 	if len(commits) > 0 {
 		firstCommitHash := commits[0].Hash
-		if gitFileList, exists := app.fileHistoryFilesCache[firstCommitHash]; exists {
+		if gitFileList, exists := app.cacheManager.GetFiles(firstCommitHash); exists {
 			for _, gitFile := range gitFileList {
 				files = append(files, ui.FileInfo{
 					Path:   gitFile.Path,
@@ -333,7 +332,6 @@ func parseCommitDate(dateStr string) (time.Time, error) {
 func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	app.previousMode = app.mode
 	app.mode = ModeConfirmation
-	app.confirmType = "dirty_pull"
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["dirty_pull"]
 	config := ui.ConfirmationConfig{
@@ -350,11 +348,9 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 // dispatchTimeTravelHistory handles the "Browse History" action during time travel
 func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
 	app.mode = ModeHistory
-	app.historyCacheMutex.Lock()
-	defer app.historyCacheMutex.Unlock()
 
 	var commits []ui.CommitInfo
-	for hash, details := range app.historyMetadataCache {
+	for hash, details := range app.cacheManager.GetAllMetadata() {
 		commitTime, _ := parseCommitDate(details.Date)
 		commits = append(commits, ui.CommitInfo{
 			Hash:    hash,
@@ -478,7 +474,6 @@ func (a *Application) dispatchConfigSwitchRemote(app *Application) tea.Cmd {
 func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
 	app.previousMode = app.mode
 	app.mode = ModeConfirmation
-	app.confirmType = "config_remove_remote"
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["remove_remote"]
 	config := ui.ConfirmationConfig{

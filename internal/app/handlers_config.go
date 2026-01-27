@@ -257,7 +257,6 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 	if hasDirtyTree {
 		// Show confirmation dialog for dirty tree
 		app.mode = ModeConfirmation
-		app.confirmType = "branch_switch_dirty"
 		app.confirmContext = map[string]string{
 			"targetBranch": selectedBranch.Name,
 		}

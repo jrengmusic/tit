@@ -326,6 +326,7 @@ func (a *Application) cmdInitSubdirectory() tea.Cmd {
 		a.footerHint = InputMessages["init_subdir_name"].Hint
 		a.inputState.Value = ""
 		a.inputState.CursorPosition = 0
+		a.inputState.Height = 4 // Single-line input box
 		return GitOperationMsg{Step: "input_mode_set", Success: true}
 	}
 }

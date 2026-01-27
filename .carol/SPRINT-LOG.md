@@ -140,7 +140,7 @@
 
 COUNSELOR: Copilot (claude-opus-4.5)  
 ENGINEER: zai-coding-plan/glm-4.7  
-SURGEON: Copilot (claude-sonnet-4.5)  
+SURGEON: Copilot (claude-opus-4.5)  
 AUDITOR: Amp (Claude) — LIFESTAR + LOVE compliance enforcer, validates architectural principles, identifies refactoring opportunities. Status: Active
 MACHINIST: zai-coding-plan/glm-4.7  
 JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
@@ -169,7 +169,7 @@ JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
 - COUNSELOR: Copilot (claude-opus-4.5) — Created comprehensive 8-phase refactor plan (REVISED to fix alignment, remove shortcuts, remove Back item)
 - ENGINEER: zai-coding-plan/glm-4.7 — Implemented row-by-row renderer, SSOT menu items, 50/50 split layout
 - MACHINIST: zai-coding-plan/glm-4.7 — FAILED to fix bugs after 9 attempts, escalated to SURGEON
-- SURGEON: Copilot (claude-sonnet-4.5) — Fixed all 6 navigation bugs (missing handlers, ESC logic, receiver variables)
+- SURGEON: Copilot (claude-opus-4.5) — Fixed all 6 navigation bugs (missing handlers, ESC logic, receiver variables)
 - Tested by: User
 
 ### Files Modified (10 total)

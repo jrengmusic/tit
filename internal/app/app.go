@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"os"
-	"sync"
 	"time"
 
 	"tit/internal/config"
@@ -53,7 +52,6 @@ type Application struct {
 	cloneBranches []string // Available branches after clone
 
 	// Remote operation state
-	remoteBranchName string // Current branch name during remote operations
 
 	// Async operation state
 	asyncOperationActive  bool    // True while git operation (clone, init, etc) is running
@@ -72,7 +70,6 @@ type Application struct {
 
 	// Confirmation dialog state
 	confirmationDialog *ui.ConfirmationDialog
-	confirmType        string
 	confirmContext     map[string]string
 
 	// Conflict resolution state
@@ -103,37 +100,16 @@ type Application struct {
 	setupEmail       string             // Email for SSH key generation
 	setupKeyCopied   bool               // True once public key copied to clipboard
 
-	// Cache fields (Phase 2)
-	historyMetadataCache  map[string]*git.CommitDetails // hash → commit metadata
-	fileHistoryDiffCache  map[string]string             // hash:path:version → diff content
-	fileHistoryFilesCache map[string][]git.FileInfo     // hash → file list
-
-	// Cache status flags (CONTRACT: MANDATORY precomputation, no on-the-fly)
-	cacheLoadingStarted bool // Guard against re-preloading
-	cacheMetadata       bool // true when history metadata cache populated
-	cacheDiffs          bool // true when file(s) history diffs cache populated
-
-	// Cache progress tracking (for UI feedback during build)
-	cacheMetadataProgress int // Current commit processed for metadata
-	cacheMetadataTotal    int // Total commits to process
-	cacheDiffsProgress    int // Current commit processed for diffs
-	cacheDiffsTotal       int // Total commits to process
-	cacheAnimationFrame   int // Animation frame for loading spinner
-
-	// Mutexes for thread-safe cache access
-	historyCacheMutex     sync.Mutex
-	fileHistoryCacheMutex sync.Mutex
-	diffCacheMutex        sync.Mutex
+	// Cache fields (Phase 6 - extracted to CacheManager)
+	cacheManager *CacheManager
 
 	// Config state (Session 86)
 	appConfig       *config.Config // Loaded from ~/.config/tit/config.toml
-	configMenuItems []MenuItem     // Uses menuItems + selectedIndex (no separate state needed)
 
 	// Branch picker state (Session 86)
 	branchPickerState *ui.BranchPickerState
 
 	// Preferences state (Session 86)
-	preferencesMenuItems []MenuItem // Preferences menu items (SSOT: GeneratePreferencesMenu)
 
 	// Menu activity tracking (Session 2 - Lazy auto-update)
 	lastMenuActivity    time.Time     // Track last menu navigation
@@ -344,17 +320,11 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			VisualModeActive:  false,
 			VisualModeStart:   0,
 		},
-		// Initialize cache fields (Phase 2)
-		historyMetadataCache:  make(map[string]*git.CommitDetails),
-		fileHistoryDiffCache:  make(map[string]string),
-		fileHistoryFilesCache: make(map[string][]git.FileInfo),
-		cacheLoadingStarted:   false,
-		cacheMetadata:         false,
-		cacheDiffs:            false,
+		// Initialize cache fields (Phase 6 - extracted to CacheManager)
+		cacheManager: NewCacheManager(),
 
 		// Config state (Session 86) - passed from main.go (fail-fast on load errors)
 		appConfig:       cfg,
-		configMenuItems: make([]MenuItem, 0),
 		branchPickerState: &ui.BranchPickerState{
 			Branches:          make([]ui.BranchInfo, 0),
 			SelectedIdx:       0,
@@ -363,7 +333,6 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			DetailsLineCursor: 0,
 			DetailsScrollOff:  0,
 		},
-		preferencesMenuItems: make([]MenuItem, 0),
 		// Menu activity tracking (Session 2 - Lazy auto-update)
 		lastMenuActivity:    time.Now().Add(-10 * time.Second), // Start as inactive
 		menuActivityTimeout: 5 * time.Second,
@@ -419,7 +388,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	// Cache building will be triggered in Init() via tea.Cmd
 	// Read-only operations, safe for any git state
 	if !shouldRestore {
-		app.cacheLoadingStarted = true
+		app.cacheManager.SetLoadingStarted(true)
 		// Cache build started in Init() method via tea.Batch
 	}
 
@@ -927,7 +896,7 @@ func (a *Application) Init() tea.Cmd {
 	// Cache MUST be ready before history menus can be used
 	commands := []tea.Cmd{tea.EnableBracketedPaste}
 
-	if a.cacheLoadingStarted {
+	if a.cacheManager.IsLoadingStarted() {
 		commands = append(commands,
 			a.cmdPreloadHistoryMetadata(),
 			a.cmdPreloadFileHistoryDiffs(),
@@ -976,13 +945,8 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 		}
 
 		// Check if BOTH caches are now complete (for time travel success message)
-		a.historyCacheMutex.Lock()
-		metadataReady := a.cacheMetadata
-		a.historyCacheMutex.Unlock()
-
-		a.diffCacheMutex.Lock()
-		diffsReady := a.cacheDiffs
-		a.diffCacheMutex.Unlock()
+		metadataReady := a.cacheManager.IsMetadataReady()
+		diffsReady := a.cacheManager.IsDiffsReady()
 
 		// If both caches complete AND in console mode after async operation finished,
 		// show "Press ESC to return to menu" message
@@ -1006,13 +970,8 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 // Regenerates menu to show updated progress and re-schedules if caches not complete
 func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
 	// Check if both caches are complete
-	a.historyCacheMutex.Lock()
-	metadataComplete := a.cacheMetadata
-	a.historyCacheMutex.Unlock()
-
-	a.diffCacheMutex.Lock()
-	diffsComplete := a.cacheDiffs
-	a.diffCacheMutex.Unlock()
+	metadataComplete := a.cacheManager.IsMetadataReady()
+	diffsComplete := a.cacheManager.IsDiffsReady()
 
 	// If both complete, stop ticking
 	if metadataComplete && diffsComplete {
@@ -1020,7 +979,7 @@ func (a *Application) handleCacheRefreshTick() (tea.Model, tea.Cmd) {
 	}
 
 	// Advance animation frame
-	a.cacheAnimationFrame++
+	a.cacheManager.IncrementAnimationFrame()
 
 	// Only regenerate menu if we're in ModeMenu (don't interfere with other modes)
 	if a.mode == ModeMenu {

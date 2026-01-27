@@ -91,7 +91,6 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 
 	// Show time travel confirmation dialog
 	app.mode = ModeConfirmation
-	app.confirmType = "time_travel"
 	app.confirmContext = map[string]string{
 		"commit_hash":    commit.Hash,
 		"commit_subject": commit.Subject,
@@ -157,9 +156,7 @@ func (a *Application) updateFileHistoryDiff() {
 	cacheKey := DiffCacheKey(commit.Hash, file.Path, version)
 
 	// Direct cache lookup (thread-safe)
-	a.diffCacheMutex.Lock()
-	diffContent, exists := a.fileHistoryDiffCache[cacheKey]
-	a.diffCacheMutex.Unlock()
+	diffContent, exists := a.cacheManager.GetDiff(cacheKey)
 
 	if exists && diffContent != "" {
 		a.fileHistoryState.DiffContent = diffContent
@@ -185,7 +182,7 @@ func (a *Application) handleFileHistoryUp(app *Application) (tea.Model, tea.Cmd)
 			// Update files for new commit
 			if app.fileHistoryState.SelectedCommitIdx >= 0 && app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits) {
 				commitHash := app.fileHistoryState.Commits[app.fileHistoryState.SelectedCommitIdx].Hash
-				if gitFileList, exists := app.fileHistoryFilesCache[commitHash]; exists {
+				if gitFileList, exists := app.cacheManager.GetFiles(commitHash); exists {
 					app.fileHistoryState.Files = convertGitFilesToUIFileInfo(gitFileList)
 				}
 			}
@@ -224,7 +221,7 @@ func (a *Application) handleFileHistoryDown(app *Application) (tea.Model, tea.Cm
 			// Update files for new commit
 			if app.fileHistoryState.SelectedCommitIdx >= 0 && app.fileHistoryState.SelectedCommitIdx < len(app.fileHistoryState.Commits) {
 				commitHash := app.fileHistoryState.Commits[app.fileHistoryState.SelectedCommitIdx].Hash
-				if gitFileList, exists := app.fileHistoryFilesCache[commitHash]; exists {
+				if gitFileList, exists := app.cacheManager.GetFiles(commitHash); exists {
 					app.fileHistoryState.Files = convertGitFilesToUIFileInfo(gitFileList)
 				}
 			}

@@ -63,11 +63,8 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 		commits, err := git.FetchRecentCommits(30, ref)
 		if err != nil {
 			// No commits available - cache will remain empty, mark as loaded
-			a.historyCacheMutex.Lock()
-			a.cacheMetadata = true
-			a.cacheMetadataProgress = 0
-			a.cacheMetadataTotal = 0
-			a.historyCacheMutex.Unlock()
+			a.cacheManager.SetMetadataReady(true)
+			a.cacheManager.SetMetadataProgress(0, 0)
 
 			buffer.Append("History cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
@@ -79,10 +76,7 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 		}
 
 		// Set total
-		a.historyCacheMutex.Lock()
-		a.cacheMetadataTotal = len(commits)
-		a.cacheMetadataProgress = 0
-		a.historyCacheMutex.Unlock()
+		a.cacheManager.SetMetadataProgress(0, len(commits))
 
 		// For each commit, fetch full metadata and cache it
 		for i, commit := range commits {
@@ -93,16 +87,12 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 			}
 
 			// Thread-safe: lock before writing to cache
-			a.historyCacheMutex.Lock()
-			a.historyMetadataCache[commit.Hash] = details
-			a.cacheMetadataProgress = i + 1
-			a.historyCacheMutex.Unlock()
+			a.cacheManager.SetMetadata(commit.Hash, details)
+			a.cacheManager.UpdateMetadataProgress(i + 1)
 		}
 
 		// Mark cache as complete
-		a.historyCacheMutex.Lock()
-		a.cacheMetadata = true
-		a.historyCacheMutex.Unlock()
+		a.cacheManager.SetMetadataReady(true)
 
 		buffer.Append(fmt.Sprintf("History metadata cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
@@ -142,11 +132,8 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 		commits, err := git.FetchRecentCommits(30, ref)
 		if err != nil {
 			// No commits available - cache will remain empty, mark as loaded
-			a.diffCacheMutex.Lock()
-			a.cacheDiffs = true
-			a.cacheDiffsProgress = 0
-			a.cacheDiffsTotal = 0
-			a.diffCacheMutex.Unlock()
+			a.cacheManager.SetDiffsReady(true)
+			a.cacheManager.SetDiffsProgress(0, 0)
 
 			buffer.Append("File history cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
@@ -158,10 +145,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 		}
 
 		// Set total
-		a.diffCacheMutex.Lock()
-		a.cacheDiffsTotal = len(commits)
-		a.cacheDiffsProgress = 0
-		a.diffCacheMutex.Unlock()
+		a.cacheManager.SetDiffsProgress(0, len(commits))
 
 		// For each commit, fetch file list and diffs
 		for i, commit := range commits {
@@ -173,9 +157,7 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 			}
 
 			// Thread-safe: cache the file list (always cache, lightweight)
-			a.diffCacheMutex.Lock()
-			a.fileHistoryFilesCache[commit.Hash] = files
-			a.diffCacheMutex.Unlock()
+			a.cacheManager.SetFiles(commit.Hash, files)
 
 			// Skip caching diffs for commits with >100 files (too expensive)
 			if len(files) > 100 {
@@ -188,33 +170,25 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 				parentDiff, err := git.GetCommitDiff(commit.Hash, file.Path, "parent")
 				if err == nil {
 					// Thread-safe: cache the diff
-					a.diffCacheMutex.Lock()
 					key := DiffCacheKey(commit.Hash, file.Path, "parent")
-					a.fileHistoryDiffCache[key] = parentDiff
-					a.diffCacheMutex.Unlock()
+					a.cacheManager.SetDiff(key, parentDiff)
 				}
 
 				// Version 2: Commit vs working tree (Modified state)
 				wipDiff, err := git.GetCommitDiff(commit.Hash, file.Path, "wip")
 				if err == nil {
 					// Thread-safe: cache the diff
-					a.diffCacheMutex.Lock()
 					key := DiffCacheKey(commit.Hash, file.Path, "wip")
-					a.fileHistoryDiffCache[key] = wipDiff
-					a.diffCacheMutex.Unlock()
+					a.cacheManager.SetDiff(key, wipDiff)
 				}
 			}
 
 			// Update progress after each commit
-			a.diffCacheMutex.Lock()
-			a.cacheDiffsProgress = i + 1
-			a.diffCacheMutex.Unlock()
+			a.cacheManager.UpdateDiffsProgress(i + 1)
 		}
 
 		// Mark cache as complete
-		a.diffCacheMutex.Lock()
-		a.cacheDiffs = true
-		a.diffCacheMutex.Unlock()
+		a.cacheManager.SetDiffsReady(true)
 
 		buffer.Append(fmt.Sprintf("File history cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
@@ -238,21 +212,17 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 // Thread-safe: acquires both mutexes
 func (a *Application) invalidateHistoryCaches() tea.Cmd {
 	// Clear history metadata cache
-	a.historyCacheMutex.Lock()
-	a.historyMetadataCache = make(map[string]*git.CommitDetails)
-	a.cacheMetadata = false
-	a.cacheMetadataProgress = 0
-	a.cacheMetadataTotal = 0
-	a.historyCacheMutex.Unlock()
+	a.cacheManager.InvalidateMetadata()
+	a.cacheManager.SetMetadataReady(false)
+	a.cacheManager.ResetMetadataProgress()
+	
 
 	// Clear file history caches
-	a.diffCacheMutex.Lock()
-	a.fileHistoryDiffCache = make(map[string]string)
-	a.fileHistoryFilesCache = make(map[string][]git.FileInfo)
-	a.cacheDiffs = false
-	a.cacheDiffsProgress = 0
-	a.cacheDiffsTotal = 0
-	a.diffCacheMutex.Unlock()
+	a.cacheManager.InvalidateDiffs()
+	
+	a.cacheManager.SetDiffsReady(false)
+	a.cacheManager.ResetDiffsProgress()
+	
 
 	// Reset state structures
 	a.historyState = &ui.HistoryState{
@@ -279,7 +249,7 @@ func (a *Application) invalidateHistoryCaches() tea.Cmd {
 
 	// CONTRACT: Restart loading for ALL states (Normal, TimeTraveling, etc.)
 	// Operation guard REMOVED - cache must rebuild regardless of git state
-	a.cacheLoadingStarted = true
+	a.cacheManager.SetLoadingStarted(true)
 
 	// Return batch command to run both caches in parallel
 	return tea.Batch(
