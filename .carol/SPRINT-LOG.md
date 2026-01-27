@@ -154,133 +154,273 @@ JOURNALIST: zai-coding-plan/glm-4.7 (ACTIVE)
 
 ## SPRINT HISTORY
 
-## Sprint 10: Preferences DRY Refactor ✅
+## Sprint 12: Operations Modularization ✅
 
-**Date:** 2026-01-26
-**Duration:** ~2.5 hours
+**Date:** 2026-01-27
+**Duration:** ~2 hours
 
 ### Objectives
-- Refactor ModePreferences to row-by-row rendering with values inline (EMOJI | LABEL | VALUE)
-- Remove shortcuts display (navigation only)
-- Remove "Back" menu item (ESC in footer is sufficient)
-- Fix Enter/Space not working, ESC navigation issues
+- Split monolithic operations.go (1072 lines) into 9 focused operation files
+- Update SPEC.md to document 5-axis state model (GitEnvironment as Axis 0)
+- Complete Sprint 11 deferred phases (Phase 8, Phase 9)
 
 ### Agents Participated
-- COUNSELOR: Copilot (claude-opus-4.5) — Created comprehensive 8-phase refactor plan (REVISED to fix alignment, remove shortcuts, remove Back item)
-- ENGINEER: zai-coding-plan/glm-4.7 — Implemented row-by-row renderer, SSOT menu items, 50/50 split layout
-- MACHINIST: zai-coding-plan/glm-4.7 — FAILED to fix bugs after 9 attempts, escalated to SURGEON
-- SURGEON: Copilot (claude-opus-4.5) — Fixed all 6 navigation bugs (missing handlers, ESC logic, receiver variables)
+- AUDITOR: Amp (Claude) — Created kickoff plan for operations split and SPEC.md updates
+- ENGINEER: zai-coding-plan/glm-4.7 — Split operations.go into 9 modules, updated SPEC.md
 - Tested by: User
 
 ### Files Modified (10 total)
-- `internal/app/menu_items.go` — Updated 3 preference items (removed shortcuts, removed back item), removed ESC shortcut from config_back
-- `internal/app/menu.go` — Updated `GeneratePreferencesMenu()` (3 items only, no back)
-- `internal/app/dispatchers.go` — Updated 4 dispatchers, added config import, removed `preferences_back` from map
-- `internal/ui/preferences.go` — **COMPLETELY REPLACED** with row-by-row renderer (`EMOJI | LABEL | VALUE`) + banner
-- `internal/app/app.go` — Updated View() to use `RenderPreferencesWithBanner`, added space alias to ModeMenu/ModeConfig
-- `internal/app/handlers.go` — Updated preference handlers (already correct)
-- `internal/app/preferences_state.go` — **DELETED** (already done)
-- `internal/app/app.go` — Fixed `rebuildMenuShortcuts` baseHandlers for all modes (added missing baseHandlers for ModeMenu)
-- `internal/app/handlers.go` — Fixed ESC handler logic (added handlePreferencesEnter, fixed receiver variables, fixed previousMode restoration)
+
+**New Files Created (9):**
+- `internal/app/op_init.go` — Init operations (cmdInit, cmdInitSubdirectory, ~90 lines)
+- `internal/app/op_clone.go` — Clone operation (cmdClone, ~50 lines)
+- `internal/app/op_remote.go` — Remote operations (cmdAddRemote, cmdFetchRemote, cmdSetUpstream, ~70 lines)
+- `internal/app/op_commit.go` — Commit operations (cmdCommit, cmdCommitPush, ~90 lines)
+- `internal/app/op_push.go` — Push operations (cmdPush, cmdForcePush, ~15 lines)
+- `internal/app/op_pull.go` — Pull operations (cmdPull, cmdHardReset, ~90 lines)
+- `internal/app/op_dirty_pull.go` — Dirty pull handling (6 functions, ~300 lines)
+- `internal/app/op_merge.go` — Merge operations (cmdFinalizePullMerge, cmdFinalizeBranchSwitch, cmdAbortMerge, ~100 lines)
+- `internal/app/op_time_travel.go` — Time travel operations (cmdFinalizeTimeTravelMerge, cmdFinalizeTimeTravelReturn, ~100 lines)
+
+**Files Modified:**
+- `internal/app/operations.go` — 1072 → 1 line (package declaration only)
+- `SPEC.md` — Updated to 5-axis state model (added GitEnvironment as Axis 0)
 
 ### Changes Made
 
-**Phase 1 - SSOT Menu Items:**
-- Updated 3 preference items: removed shortcuts, removed back item
-- All shortcuts empty: `Shortcut: ""` (navigation only, no hotkeys)
+**Phase 8: Split operations.go**
 
-**Phase 2 - Menu Generator:**
-- Updated `GeneratePreferencesMenu()` - only 3 items (no back, no separator)
-- Matches REVISED plan: auto-update, interval, theme
+**Before:**
+- Single monolithic file: `internal/app/operations.go` (1072 lines, mixed concerns)
 
-**Phase 3 - Dispatchers:**
-- Added config import to dispatchers.go
-- Removed `preferences_back` from actionDispatchers map
-- Updated `dispatchPreferencesCycleTheme()` to use `config.GetAvailableThemes()`
-- Fixed theme loading to handle 2-value return from `ui.LoadTheme()`
-- 4 dispatchers: toggle auto-update, interval (no-op), cycle theme, back (ESC handler)
+**After:**
+- 9 focused operation files, each < 200 lines (except op_dirty_pull.go at ~300)
+- Semantic file naming clearly indicates feature area
+- Each file contains only related operations
 
-**Phase 4 - Row-by-Row Renderer:**
-- **COMPLETELY REPLACED** preferences.go with new renderer
-- Added `PreferenceRow` struct: Emoji, Label, Value, Enabled
-- Added `BuildPreferenceRows()`: builds rows from config
-- Added `RenderPreferencesMenu()`: renders `EMOJI | LABEL | VALUE` (no shortcut column)
-- Added `RenderPreferencesWithBanner()`: 50/50 split, left=menu, right=banner
-- Column widths: emoji=3, label=18, value=10
-- Selection highlighting: label+value with bold + accent colors
+**Execution:**
+1. Created each new file with package declaration and imports
+2. Moved functions one file at a time
+3. `./build.sh` verified after each file
+4. Deleted original operations.go content (kept package declaration)
 
-**Phase 5 - Application State:**
-- Updated `View()` ModePreferences case to use `RenderPreferencesWithBanner()`
-- Reads values directly from config (no separate value column needed)
-- Space alias added to ModeMenu and ModeConfig base handlers
+**Phase 9: Update SPEC.md**
 
-**Phase 6 - Key Handlers:**
-- Space alias added: ModeMenu → `On(" ", a.handleMenuEnter)`
-- Space alias added: ModeConfig → `On(" ", a.handleConfigMenuEnter)`
-- Preference handlers already correct (reuse WithMenuNav for navigation)
-- Interval handlers: Increment, Decrement, Increment10, Decrement10 (only on interval row)
-- ESC handler: `handlePreferencesEsc` wraps `dispatchPreferencesBack`
+**Changes:**
+1. Updated "four axes" → "five axes" (line 39)
+2. Added GitEnvironment section before WorkingTree as Axis 0
+3. Updated State Tuple: `(GitEnvironment, WorkingTree, Timeline, Operation, Remote)`
+4. Added GitEnvironment states documentation:
+   - `Ready`: Git + SSH available
+   - `NeedsSetup`: Git OK, SSH needs configuration
+   - `MissingGit`: Git not installed
+   - `MissingSSH`: SSH not installed
 
-**Phase 7 - Delete Obsolete Code:**
-- Deleted `internal/app/preferences_state.go`
+### Metrics
 
-**Phase 8 - GetAvailableThemes:**
-- Added `GetAvailableThemes()` to config package
-
-### Problems Solved (ENGINEER)
-- ✅ Build passed successfully with no errors
-- ✅ All preference items in SSOT with empty shortcuts
-- ✅ Row-by-row rendering: `EMOJI | LABEL | VALUE` inline
-- ✅ No back menu item (ESC in footer is sufficient)
-- ✅ Space acts as Enter in ModeMenu and ModeConfig
-- ✅ 50/50 split layout: left=preferences, right=banner
-- ✅ Selection highlights label+value with bold + accent
-- ✅ Navigation: up/down/j/k reuse standard `WithMenuNav(a)`
-
-### Bugs Fixed (SURGEON ✅)
-
-**All 6 navigation bugs fixed by SURGEON:**
-
-1. ✅ Up/down/j/k navigation now works in all modes (Menu, Config, Preferences)
-2. ✅ Enter/Space keys now work in all modes
-3. ✅ ESC from config returns to menu immediately
-4. ✅ ESC from preferences returns to config immediately
-5. ✅ ESC from menu does nothing (correct behavior - quit is Ctrl+C only)
-6. ✅ Receiver variable inconsistency fixed (`a.previousMode` → `app.previousMode`)
+| Metric | Before Sprint 12 | After Sprint 12 | Change |
+|--------|------------------|-----------------|--------|
+| operations.go | 1072 lines (1 file) | 1 line (package only) | -1071 |
+| Operation modules | 0 | 9 focused files | +9 |
+| SPEC.md axes | 4 | 5 | +1 (GitEnvironment) |
 
 ### Summary
 
-**COUNSELOR:** Created comprehensive 8-phase refactor plan with row-by-row rendering, no shortcuts, no back item, SSOT compliance
+**AUDITOR:** Created comprehensive kickoff plan for operations split and SPEC.md updates:
+- ✅ Phase 8: operations.go → 9 focused operation files (detailed breakdown of each file)
+- ✅ Phase 9: SPEC.md → 5-axis model (GitEnvironment as Axis 0)
 
-**ENGINEER:** Successfully implemented all 8 phases:
-- ✅ Phase 1-3: SSOT menu items updated (3 items, no shortcuts)
-- ✅ Phase 4: Row-by-row renderer implemented with 50/50 split
-- ✅ Phase 5-6: Application state and key handlers updated
-- ✅ Phase 7-8: Obsolete code deleted, GetAvailableThemes added
+**ENGINEER:** Successfully implemented both phases:
+- ✅ Phase 8: Split operations.go into 9 modules (op_init, op_clone, op_remote, op_commit, op_push, op_pull, op_dirty_pull, op_merge, op_time_travel)
+- ✅ Phase 9: Updated SPEC.md to 5-axis state model
+- ✅ All files < 200 lines (except op_dirty_pull.go at ~300)
+- ✅ Build passes: `./build.sh` verified
 
-**MACHINIST:** Attempted to fix post-refactor bugs - 9 attempts all FAILED, escalated to SURGEON
+Build status: ✅ VERIFIED - No errors
+Test status: ⏳ Manual testing pending (9 operations need verification)
 
-**SURGEON:** Fixed all 6 navigation bugs in single session:
-- ✅ Added missing `baseHandlers` for ModeMenu (previously nil, blocking nav)
-- ✅ Added missing `handlePreferencesEnter` function
-- ✅ Fixed ESC handler logic (removed `tea.Quit` from Menu mode, added ESC dismissal for Confirmation mode)
-- ✅ Fixed receiver variable inconsistency (`a.previousMode` → `app.previousMode`)
-- ✅ Fixed ESC previousMode restoration (added `app.previousMode = ModeMenu` in Config case)
-- ✅ Removed ESC shortcut conflict from `config_back` menu item
+**Key Insight:**
+> "Modularization improves maintainability through semantic file naming and single-responsibility modules."
 
-Build status: ✅ ALL VERIFIED - Compiles successfully
-Test status: ✅ User confirmed all navigation works
+**Status:** ✅ FULLY IMPLEMENTED - PHASES 8-9 COMPLETE - MANUAL TESTING PENDING
 
-**Key Insight (SURGEON):**
-> "if you can't focus on simple things you will ALWAYS FAILED doing major overhaul"
+---
 
-SURGEON succeeded by following AGENTS.md protocol:
-1. Check simple bugs FIRST (nil baseHandlers, missing functions, receiver variables)
-2. Fix immediately (no theorizing about architecture)
-3. Match existing code style exactly
-4. Verify against architecture docs AFTER fix works
+## Sprint 11: God Object Reduction - Phase 1-7 ✅
 
-**Status:** ✅ FULLY IMPLEMENTED - ALL BUGS FIXED - VERIFIED BY USER
+**Date:** 2026-01-27
+**Duration:** ~2 days
+
+### Objectives
+- Reduce Application struct from 72 to 47 fields (35% reduction)
+- Extract 3 state structs: InputState, CacheManager, AsyncState
+- Establish 3 SSOT helpers for common patterns
+- Fix git→ui layer violation
+- Remove dead code
+
+### Agents Participated
+- AUDITOR: Amp (Claude) — Created comprehensive 9-phase refactor plan, validated all phases, tracked sprint progress
+- ENGINEER: zai-coding-plan/glm-4.7 — Implemented phases 1-7, extracted 3 structs, created SSOT helpers, fixed layer violation
+- SURGEON: Copilot (claude-sonnet-4.5) — Fixed init flow issues discovered during refactor
+- Tested by: User
+
+### Files Modified (18 total)
+
+**New Files Created (4):**
+- `internal/app/git_logger.go` — Logger interface implementation (26 lines)
+- `internal/app/input_state.go` — InputState struct + 148 lines of methods
+- `internal/app/cache_manager.go` — CacheManager struct + 307 lines of methods
+- `internal/app/async_state.go` — AsyncState struct + 59 lines of methods
+
+**Deleted Files (1):**
+- `internal/app/async.go` — Dead code removed (55 lines)
+
+**Core Application:**
+- `internal/app/app.go` — Major refactoring, -25 fields, +3 SSOT helpers, updated comments
+- `internal/app/operations.go` — cmdInit fixes (SURGEON), executeGitOp helper
+
+**Handler Modules (9 files):**
+- `internal/app/git_handlers.go` — ~50 replacements for new state helpers
+- `internal/app/confirmation_handlers.go` — ~15 replacements
+- `internal/app/conflict_handlers.go` — ~8 replacements
+- `internal/app/handlers_global.go` — ~6 replacements
+- `internal/app/handlers_console.go` — ~5 replacements
+- `internal/app/handlers_input.go` — ~6 replacements
+- `internal/app/handlers_config.go` — ~4 replacements
+- `internal/app/dispatchers.go` — ~2 replacements
+- `internal/app/footer.go` — ~1 replacement
+
+**Git Package:**
+- `internal/git/types.go` — Added Logger interface
+- `internal/git/execute.go` — Removed ui import (layer violation fix)
+
+### Changes Made
+
+**Phase 1: Extract reloadGitState() Helper**
+- Created SSOT helper to eliminate 19+ instances of duplicated pattern
+- Replaced manual state reload sequences across codebase
+- File: `internal/app/app.go`
+
+**Initial Codebase Audit (AUDITOR):**
+- Identified Application struct as God Object: 72 fields, 15+ responsibilities, 100+ methods
+- Found LIFESTAR violations: Lean (72 fields, 1072-line operations.go), SSOT (state reload 20x, conflict detection 6x, git errors 15x), Explicit (git→ui layer violation)
+- Recommended 3 extractions by priority: CacheSystem (14 fields), InputState (7 fields), AsyncState (3 fields)
+
+**Phase 2: Extract checkForConflicts() Helper**
+- Created SSOT helper for conflict detection
+- Eliminated 4 instances of duplicated logic
+- File: `internal/app/app.go`
+
+**Phase 3: Extract executeGitOp() Helper**
+- Created helper for simple git command execution
+- Note: Only 2 usages (plan estimated 15+)
+- Reason: Most operations have custom logic (error messages, conflicts, buffer output)
+- File: `internal/app/operations.go`
+
+**Phase 4: Fix Layer Violation (git → ui)**
+- Created `internal/app/git_logger.go` implementing git.Logger interface
+- Removed `tit/internal/ui` import from git package
+- Clean separation of concerns
+- Files: `internal/app/git_logger.go`, `internal/git/types.go`, `internal/git/execute.go`
+
+**Phase 5: Extract InputState Struct**
+- Moved 7 input-related fields from Application to InputState
+- New file: `internal/app/input_state.go` (148 lines)
+- Methods: Reset, SetValue, CursorPosition ops, Insert/Delete, Validation, ClearConfirming
+- Fields: Prompt, Value, CursorPosition, Height, Action, ValidationMsg, ClearConfirming
+
+**Phase 6: Extract CacheManager Struct**
+- Moved 14 cache-related fields from Application to CacheManager
+- New file: `internal/app/cache_manager.go` (307 lines)
+- Lock order documented: historyMutex → diffMutex
+- Methods: Status, Progress, Cache, Invalidation, Bulk Operations
+- Fields: metadataCache, diffCache, filesCache, loadingStarted, ready flags, progress, animationFrame, mutexes
+
+**Phase 7: Extract AsyncState Struct (KICKOFF → IMPLEMENTATION)**
+- KICKOFF: Detailed plan to extract 3 async fields with 87+24+23 usages across 11 files
+- Execution: File-by-file replacement strategy (git_handlers, confirmation_handlers, handlers_global, conflict_handlers, handlers_console, handlers_input, handlers_config, dispatchers, footer, app.go)
+- Completed: Moved 3 async-related fields from Application to AsyncState
+- New file: `internal/app/async_state.go` (59 lines)
+- Methods: Start, End, Abort, ClearAborted, IsActive, IsAborted, CanExit
+- Fields: active, aborted, exitAllowed
+- Helper methods added to Application: startAsyncOp, endAsyncOp, abortAsyncOp, etc.
+- Note: NOT extracted: previousMode, previousMenuIndex (mode snapshot, not async state)
+
+**Cleanup (KICKOFF → IMPLEMENTATION):**
+- KICKOFF: Identified dead code in async.go (55 lines of unused AsyncOperation builder), 5 stale comments referencing extraction phases
+- Execution:
+  - Deleted `internal/app/async.go` (55 lines)
+  - Updated 5 stale phase comments in app.go:
+    - Line ~227: "Prepares for AsyncState extraction (Phase 7)" → "SSOT for async operation lifecycle."
+    - Line ~46: "All input fields consolidated (Phase 5)" → "Text input field state"
+    - Line ~56: "Async operation state (Phase 7 extraction)" → "Async operation state"
+    - Line ~102: "Cache fields (Phase 6 - extracted to CacheManager)" → "History cache"
+    - Line ~366: "Initialize cache fields (Phase 6 - extracted to CacheManager)" → "Initialize cache manager"
+
+**Init Flow Fixes (SURGEON):**
+- Fixed init flow state management
+- Improved branch name handling
+- Added error handling for edge cases
+- File: `internal/app/operations.go`
+
+### Problems Solved
+- God Object severity reduced from HIGH to MEDIUM
+- Application struct reduced from 72 to 47 fields (35% reduction)
+- Layer violation fixed (git package no longer imports ui)
+- Dead code removed (async.go builder)
+- Init workflow issues corrected
+- SSOT helpers established for common patterns
+
+### Metrics
+| Metric | Before Sprint | After Sprint | Change |
+|--------|---------------|--------------|--------|
+| Application fields | 72 | **47** | -25 (35%) |
+| God Object severity | HIGH | MEDIUM | Improved |
+| SSOT helpers | 0 | 3 | +3 |
+| Extracted structs | 0 | 3 | +3 |
+| Dead code | 55 lines | 0 | -55 |
+
+### Summary
+
+**AUDITOR:** Created comprehensive 9-phase refactor plan with incremental, testable, reversible approach. Validated all phases against LIFESTAR principles. Provided sprint tracking and metrics. Initially cancelled Phase 7, then re-evaluated and approved it (scope ≠ difficulty).
+
+**Additional AUDITOR work:**
+- **Full Codebase Audit:** Identified Application as God Object (72 fields, 15+ responsibilities, 100+ methods), found LIFESTAR violations, recommended 3 priority extractions
+- **Cleanup KICKOFF:** Planned deletion of async.go (55 lines dead code) + 5 stale comment updates
+- **Phase 7 KICKOFF:** Created detailed file-by-file execution plan for extracting 3 async fields across 11 files
+
+**ENGINEER:** Successfully implemented phases 1-7:
+- ✅ Phase 1-3: 3 SSOT helpers created (reloadGitState, checkForConflicts, executeGitOp)
+- ✅ Phase 4: Layer violation fixed with Logger interface pattern
+- ✅ Phase 5: InputState extracted (7 fields, 148 lines of methods)
+- ✅ Phase 6: CacheManager extracted (14 fields, 307 lines, documented lock order)
+- ✅ Phase 7: AsyncState extracted (3 fields, 59 lines)
+- ✅ Cleanup: Removed dead code (async.go), updated stale comments
+
+**SURGEON:** Fixed init flow issues discovered during refactoring:
+- ✅ Init flow state management corrected
+- ✅ Branch name handling improved
+- ✅ Error handling for edge cases
+
+### Notes
+
+**Deferred to Sprint 12:**
+- Phase 8: Split operations.go (1072 lines → 9 focused files)
+- Phase 9: Update SPEC.md (4-axis → 5-axis state model)
+
+**AUD-001:** Dead code in async.go - ✅ DELETED in cleanup
+
+**AUD-002:** executeGitOp() underutilized (2 usages vs 15+ planned) - Accept as-is, only simple ops fit pattern
+
+**AUD-003:** Phase 7 initially cancelled, then completed - Re-evaluation showed it was mechanical/low-risk
+
+Build status: ✅ VERIFIED - All builds pass
+Test status: ✅ User confirmed init workflow works
+
+**Key Insight (AUDITOR):**
+> "Scope ≠ difficulty. Phase 7 was easy to implement systematically despite original assessment."
+
+**Status:** ✅ FULLY IMPLEMENTED - PHASES 1-7 COMPLETE - 8-9 DEFERRED
 
 ---
 

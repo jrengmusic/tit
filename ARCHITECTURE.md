@@ -8,18 +8,25 @@ TIT (Git Timeline Interface) is a state-driven terminal UI for git repository ma
 
 ---
 
-## Four-Axis State Model (Git Environment Pre-flight Check)
+## Five-Axis State Model
 
-Every moment in TIT is described by **4 git axes**, checked in priority order:
+Every moment in TIT is described by **5 axes**, checked in priority order:
+
+**Axis 0 (Pre-flight): GitEnvironment** - System prerequisites
+- Checks if git/SSH properly installed and configured BEFORE any git state detection
+- States: `Ready`, `NeedsSetup`, `MissingGit`, `MissingSSH`
+- If not `Ready` → Show setup wizard or fatal error
+
+**Axes 1-4: Repository State** - Git repository state (git.State tuple)
 
 ```go
 // Application struct has GitEnvironment as separate pre-flight field:
 type Application struct {
-    gitEnvironment   git.GitEnvironment  // Ready, NeedsSetup, MissingGit, MissingSSH (PRE-FLIGHT)
-    gitState       *git.State // Contains 4 axes below
+    gitEnvironment   git.GitEnvironment  // Axis 0: System prerequisites (PRE-FLIGHT)
+    gitState       *git.State          // Axes 1-4: Repository state tuple
 }
 
-// git.State struct contains repository state axes:
+// git.State struct contains 4 repository state axes:
 type State struct {
     WorkingTree      git.WorkingTree     // Axis 1: Local file changes
     Timeline         git.Timeline        // Axis 2: Local vs remote comparison
@@ -29,7 +36,7 @@ type State struct {
 ```
 
 **State Detection Order (Priority):**
-1. **GitEnvironment** (PRE-FLIGHT, Application level) - Check if git/SSH properly configured
+1. **GitEnvironment** (Axis 0, PRE-FLIGHT) - Check if git/SSH properly configured
    - If not `git.Ready` → Show setup wizard or fatal error
 2. **NotRepo** - Check if .git/ directory exists (Axis 3, FIRST in git state)
 3. **DirtyOperation** - Check for ongoing merge/rebase/stash
@@ -128,9 +135,9 @@ setupEmail      string              // Email entered by user
 setupKeyCopied  bool                // Whether user copied public key
 ```
 
-### Startup Flow (Detailed)
+### Startup Flow
 
-**Phase 1: Environment Check (Before UI Render)**
+**Environment Check:**
 ```go
 func (a *Application) Init() {
     // 1. Check git/SSH availability
@@ -155,7 +162,7 @@ func (a *Application) Init() {
 }
 ```
 
-**Phase 2: Git State Detection**
+**Git State Detection:**
 ```go
 func (a *Application) detectGitState() {
     // 1. Check if in git repository
@@ -179,10 +186,10 @@ func (a *Application) detectGitState() {
 }
 ```
 
-**Phase 3: Initialize Caches (Non-Blocking)**
+**Initialize Caches:**
 ```go
 func (a *Application) Init() {
-    // ... earlier phases ...
+    // ... earlier steps ...
     
     // Preload history caches in background (async, non-blocking)
     // Contract: History modes disabled until cache ready
@@ -283,11 +290,116 @@ type TimeTravelInfo struct {
 type Application struct {
     gitState       git.State
     timeTravelInfo *TimeTravelInfo  // Non-nil only when Operation = TimeTraveling
-    // ... other fields
+
+    // Extracted state structs:
+    inputState   InputState   // Input field management (7 fields)
+    cacheManager CacheManager // Cache lifecycle (14 fields)
+    asyncState   AsyncState   // Async operation state (3 fields)
+
+    // ... other fields (47 total)
 }
 ```
 
+**Application Struct Architecture:**
+- **Current state:** 47 fields  
+- **Extracted structs:**
+  - `InputState` (`internal/app/input_state.go`) - Input field management (7 fields, 148 lines)
+  - `CacheManager` (`internal/app/cache_manager.go`) - Cache lifecycle (14 fields, 307 lines)
+  - `AsyncState` (`internal/app/async_state.go`) - Async operation state (3 fields, 59 lines)
+
+**InputState Methods:**
+- Reset(), SetValue(), GetValue()
+- SetCursorPos(), GetCursorPos(), MoveCursorBy()
+- InsertAtCursor(), DeleteBeforeCursor(), DeleteAfterCursor()
+- SetPrompt(), GetPrompt(), GetAction()
+- SetValidationMessage(), ClearValidationMessage(), GetValidationMessage(), HasValidationError()
+- SetClearConfirming(), IsClearConfirming(), ToggleClearConfirming()
+
+**CacheManager Methods:**
+- Status: IsLoadingStarted(), SetLoadingStarted(), IsMetadataReady(), SetMetadataReady(), IsDiffsReady(), SetDiffsReady()
+- Progress: GetMetadataProgress(), SetMetadataProgress(), GetDiffsProgress(), SetDiffsProgress()
+- Animation: GetAnimationFrame(), IncrementAnimationFrame()
+- Cache: GetMetadata(), SetMetadata(), GetAllMetadata(), GetDiff(), SetDiff(), GetFiles(), SetFiles()
+- Invalidation: Invalidate(), InvalidateMetadata(), InvalidateDiffs()
+- Bulk: InitMetadataLoading(), InitDiffsLoading(), UpdateMetadataProgress(), UpdateDiffsProgress(), FinalizeMetadata(), FinalizeDiffs()
+
+**Lock Order:** historyMutex → diffMutex (documented, enforced)
+
+**AsyncState Methods:**
+- Start(), End(), Abort(), ClearAborted()
+- IsActive(), IsAborted(), CanExit(), SetExitAllowed()
+
+**Helper Methods (Application delegates to structs):**
+- Async: startAsyncOp(), endAsyncOp(), abortAsyncOp(), clearAsyncAborted(), isAsyncActive(), isAsyncAborted(), canExit(), setExitAllowed()
+- Cache: All cache operations now go through a.cacheManager
+
 **Safety invariant:** ESC at any point restores exact original state by restoring original branch and reapplying stash.
+
+---
+
+## Application Structure
+
+### State Struct Extraction
+
+The Application struct has been refactored from a God Object into focused components:
+
+**Current Architecture:**
+- **Application struct:** 47 fields (reduced from 72) 
+- **Extracted structs:**
+  - `InputState` (`internal/app/input_state.go`) - Input field management (7 fields, 148 lines)
+  - `CacheManager` (`internal/app/cache_manager.go`) - History cache lifecycle (14 fields, 307 lines)
+  - `AsyncState` (`internal/app/async_state.go`) - Async operation state (3 fields, 59 lines)
+
+**SSOT Helper Functions (app.go):**
+1. `reloadGitState()` - Centralizes state reload patterns
+   - Detects git state, updates application gitState field
+   - Used after any git operation
+2. `checkForConflicts()` - Centralizes conflict detection
+   - Checks for merge/rebase/cherry-pick conflicts
+   - Returns conflict file list if found
+3. `executeGitOp()` - Standardizes git command execution
+   - Runs git command, checks for errors
+
+**Layer Separation:**
+- Clean git→app→ui dependency chain
+- `internal/app/git_logger.go` implements `git.Logger` interface
+- Git package no longer imports UI
+- Implementation:
+  ```go
+  // git/types.go - Logger interface
+  type Logger interface {
+      Log(message string)
+      Warn(message string)
+      Error(message string)
+  }
+
+  // app/git_logger.go - Implements Logger using UI buffer
+  type GitLogger struct{}
+
+  func (l *GitLogger) Log(message string) {
+      ui.GetBuffer().Append(message, ui.TypeInfo)
+  }
+  ```
+
+### Operations Architecture
+
+**Focused Operation Files:**
+The operation logic is organized into 9 focused files:
+- `op_init.go` - Repository initialization
+- `op_clone.go` - Repository cloning
+- `op_remote.go` - Remote operations
+- `op_commit.go` - Commit operations
+- `op_push.go` - Push operations
+- `op_pull.go` - Pull operations
+- `op_dirty_pull.go` - Dirty pull handling
+- `op_merge.go` - Merge operations
+- `op_time_travel.go` - Time travel operations
+
+**Benefits:**
+- Semantic file naming clearly indicates feature area
+- Easy to locate operation logic via `grep -r "cmd" op_*.go`
+- No import tracing needed (single package)
+- Consistent with Go standard library patterns
 
 ---
 
@@ -306,25 +418,30 @@ Cache precomputation is **MANDATORY** at:
 
 ### Cache Architecture
 
-**Three Independent Caches (internally built, scope of work tracked separately):**
+**Three Independent Caches managed by CacheManager:**
 
-1. **History Metadata Cache** (`historyMetadataCache` map)
+1. **History Metadata Cache**
    - Key: commit hash
    - Value: `*git.CommitDetails` (subject, author, date, message)
+   - Access: `a.cacheManager.GetMetadata(hash)`
    - Built by: `preloadHistoryMetadata()` (async goroutine)
    - Used by: ModeHistory (commit list pane)
 
-2. **File History Files Cache** (`fileHistoryFilesCache` map)
+2. **File History Files Cache**
    - Key: commit hash
    - Value: `[]git.FileInfo` (list of files changed)
+   - Access: `a.cacheManager.GetFiles(hash)`
    - Built by: `preloadFileHistoryDiffs()` (async goroutine)
    - Used by: ModeFileHistory (files pane)
 
-3. **File History Diffs Cache** (`fileHistoryDiffCache` map)
+3. **File History Diffs Cache**
    - Key: `hash:path:version` (e.g., "abc123:main.go:parent")
    - Value: diff content string
+   - Access: `a.cacheManager.GetDiff(key)`
    - Built by: `preloadFileHistoryDiffs()` (async goroutine)
    - Used by: ModeFileHistory (diff pane)
+
+**Thread Safety:** All cache access protected by mutexes (historyMutex → diffMutex)
 
 ### Build Rules & Guards
 
@@ -332,7 +449,7 @@ Cache precomputation is **MANDATORY** at:
 ```go
 // Preload caches only once per app instance
 if !shouldRestore && a.gitEnvironment == GitEnvironmentReady {
-    a.cacheLoadingStarted = true
+    a.cacheManager.SetLoadingStarted(true)
     go a.preloadHistoryMetadata()
     go a.preloadFileHistoryDiffs()
 }
@@ -344,23 +461,24 @@ if !shouldRestore && a.gitEnvironment == GitEnvironmentReady {
 case OpCommit, OpPush, OpPull, OpMerge, ...:
     // Reload git state
     a.gitState, _ = git.DetectState()
-    
-    // Rebuild caches
-    a.cacheLoadingStarted = true
+
+    // Rebuild caches via CacheManager
+    a.cacheManager.SetLoadingStarted(true)
     go a.preloadHistoryMetadata()
     go a.preloadFileHistoryDiffs()
-    
+
     // Show completion message
     buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+}
 ```
 
-**Cache Status Flags (for UI feedback):**
+**Cache Status (via CacheManager methods):**
 ```go
-cacheLoadingStarted   bool // True when preload started
-cacheMetadata         bool // True when metadata cache populated
-cacheDiffs            bool // True when diffs cache populated
-cacheMetadataProgress int  // Current commit processed
-cacheMetadataTotal    int  // Total commits to process
+a.cacheManager.IsLoadingStarted()   // True when preload started
+a.cacheManager.IsMetadataReady()    // True when metadata cache populated
+a.cacheManager.IsDiffsReady()       // True when diffs cache populated
+a.cacheManager.GetMetadataProgress() // Current commit processed
+a.cacheManager.GetMetadataTotal()    // Total commits to process
 ```
 
 ### UI Feedback During Cache Load
@@ -689,7 +807,7 @@ BuildStateInfo(theme) returns:
 - Operation map: Normal/TimeTraveling/Conflicted/etc → StateInfo with description from StateDescriptions
 ```
 
-**Header Rendering (9-Line Layout - Implemented Session 80):**
+**Header Rendering (9-Line Layout):**
 
 Current header structure (RenderHeaderInfo in internal/ui/header.go):
 ```
@@ -754,7 +872,7 @@ Row 9: [Additional description line if needed]
 
 ---
 
-## Reactive Layout System (Session 80+)
+## Responsive Layout System
 
 ### DynamicSizing: Responsive Terminal Layout
 
@@ -890,9 +1008,9 @@ const (
 **Status:** These constants remain for backward compatibility but should NOT be used in new code. Always use `sizing.ContentInnerWidth` and `sizing.ContentHeight` instead.
 
 **Migration Path:**
-- Phase 1 ✅ (Session 80): DynamicSizing implemented
-- Phase 2 ✅ (Session 82+): All usages migrated to DynamicSizing
-- Phase 3 ⏳ (Future): Remove legacy constants completely
+- DynamicSizing implemented and active
+- All usages migrated to DynamicSizing  
+- Legacy constants remain for backward compatibility
 
 ---
 
@@ -989,7 +1107,7 @@ type ConflictFileGeneric struct {
   - Shared selection highlight across all columns
 
 **DiffPane** (`internal/ui/diffpane.go`)
-- Advanced diff viewer (ready for Phase 5)
+- Advanced diff viewer for future enhancement
 - Features: syntax highlighting, visual mode, copy mode
 - Currently not used by conflict resolver (uses simpler renderGenericContentPane)
 
@@ -1061,7 +1179,7 @@ for col := 0; col < numColumns; col++ {
 
 ### Theme Colors
 
-**Operation colors** (`internal/ui/theme.go`) - Added in Session 65:
+**Operation colors** (`internal/ui/theme.go`):
 ```toml
 operationReady = "#4ECB71"          # Emerald green (READY state)
 operationNotRepo = "#FC704C"        # preciousPersimmon (NOT REPO / errors)
@@ -1225,7 +1343,7 @@ A: Conflict resolution requires choosing ONE version per file. Radio button enfo
 A: User needs to compare the SAME file across all columns. Shared selection keeps all columns synchronized. Bottom row needs independent scrolling for long files.
 
 **Q: Why not use DiffPane for content rendering?**
-A: DiffPane is overkill for basic conflict resolution. renderGenericContentPane is simpler (line numbers + highlighting). DiffPane ready for advanced features (Phase 5).
+A: DiffPane is overkill for basic conflict resolution. renderGenericContentPane is simpler (line numbers + highlighting). DiffPane ready for advanced features.
 
 ---
 
@@ -1578,13 +1696,13 @@ style := lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
 result := style.Render(text)
 ```
 
-✅ **Or use helper utility (Implemented in Session 59):**
+✅ **Or use helper utility:**
 ```go
 // RIGHT - Reusable, testable
 result := ui.CenterAlignLine(text, width)
 ```
 
-**Status in codebase (Session 59 - Complete):**
+**Implementation status:**
 - ✅ statusbar.go - Unified BuildStatusBar() handles all centering
 - ✅ history.go - Uses lipgloss.Width().Align(lipgloss.Center)
 - ✅ filehistory.go - Uses BuildStatusBar() after refactor
@@ -1604,7 +1722,7 @@ for _, gitFile := range gitFileList {
 // ... same code appears again in different handler
 ```
 
-✅ **Extract to utility helper (Implemented in Session 59):**
+✅ **Extract to utility helper:**
 ```go
 // handlers.go - Implemented after line 26
 func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
@@ -1620,10 +1738,10 @@ state.Files = convertGitFilesToUIFileInfo(gitFileList)  // handleFileHistoryUp
 state.Files = convertGitFilesToUIFileInfo(gitFileList)  // handleFileHistoryDown
 ```
 
-**Status (Session 59 - Complete):**
+**Implementation status:**
 - ✅ `convertGitFilesToUIFileInfo()` implemented in handlers.go (line 27-39)
 - ✅ Both call sites updated (handleFileHistoryUp, handleFileHistoryDown)
-- ✅ ~20 lines of duplication eliminated
+- ✅ Duplication eliminated
 
 **Benefits realized:** 
 - Single source of truth for conversion logic
@@ -2245,7 +2363,7 @@ short := ui.TruncateText(longText, 20) // Ends with "..."
 
 Status bars across different modes follow a **consistent pattern** via unified builder.
 
-**Consolidated builder (Implemented in Session 59):**
+**Consolidated builder:**
 ```go
 // internal/ui/statusbar.go
 type StatusBarConfig struct {
@@ -2266,16 +2384,11 @@ func BuildStatusBar(config StatusBarConfig) string {
 3. Build parts array with styled shortcuts + descriptions
 4. Call `BuildStatusBar()` with parts, width, theme
 
-**Refactored implementations (Session 59 - Complete):**
+**Current implementations:**
 - ✅ `buildHistoryStatusBar()` (history.go:158) - Uses BuildStatusBar
 - ✅ `buildFileHistoryStatusBar()` (filehistory.go:218) - Uses BuildStatusBar
 - ✅ `buildDiffStatusBar()` (filehistory.go:259) - Uses BuildStatusBar (with visual mode special case)
 - ✅ `buildGenericConflictStatusBar()` (conflictresolver.go:182) - Uses BuildStatusBar
-
-**Benefits realized:**
-- ~50 lines of duplication eliminated
-- Consistent centering logic across all panes
-- Theme color changes propagate to all status bars
 
 ### Type Conversion Helpers
 
@@ -2626,7 +2739,18 @@ const (
 - `keyboard.go` - Key binding registry (cmd* → handler dispatch)
 - `dispatchers.go` - Menu item ID → mode transition
 - `handlers.go` - Input handlers (enter, ESC, text input)
-- `operations.go` - Long-running operation launchers (cmd*)
+
+**Git Operations**
+The operation logic is organized into 9 focused files:
+- `op_init.go` - Repository initialization
+- `op_clone.go` - Repository cloning
+- `op_remote.go` - Remote operations
+- `op_commit.go` - Commit operations
+- `op_push.go` - Push operations
+- `op_pull.go` - Pull operations
+- `op_dirty_pull.go` - Dirty pull handling
+- `op_merge.go` - Merge operations
+- `op_time_travel.go` - Time travel operations
 
 **Configuration & Storage**
 - `config.go` - Repo config load/save (`~/.config/tit/repo.toml`)
@@ -2638,10 +2762,17 @@ const (
 - `errors.go` - Error handling pattern + levels
 
 **Async & State**
-- `async.go` - Async operation management
+- `async_state.go` - Async operation state struct
+- `input_state.go` - Input field management struct  
+- `cache_manager.go` - History cache lifecycle struct
 - `cursor_movement.go` - Menu cursor navigation
-- `stateinfo.go` - State display helpers
-- `keybuilder.go` - Key name formatting
+
+**Layer Architecture**
+- `git_logger.go` - Implements git.Logger interface, removes git→ui layer violation
+- SSOT helper functions:
+  - `reloadGitState()` - Eliminates 19+ duplicated state reload patterns
+  - `checkForConflicts()` - Eliminates 6 duplicated conflict detection patterns
+  - `executeGitOp()` - Standardizes simple git command execution (2 usages)
 
 ### Why This Organization?
 

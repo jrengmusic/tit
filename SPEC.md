@@ -36,7 +36,17 @@ If Git would reject an action, it must not appear in the menu.
 
 ## 3. State Model
 
-Every decision in TIT derives from **four axes**:
+Every decision in TIT derives from **five axes**:
+
+### GitEnvironment — System prerequisites (Axis 0, checked first)
+| Code | Meaning |
+|------|---------|
+| `Ready` | Git + SSH available |
+| `NeedsSetup` | Git OK, SSH needs configuration |
+| `MissingGit` | Git not installed |
+| `MissingSSH` | SSH not installed |
+
+**Note:** GitEnvironment is checked BEFORE all other state detection. If not Ready, TIT cannot proceed.
 
 ### WorkingTree — Local file changes (Axis 1)
 | Code | Meaning |
@@ -77,7 +87,7 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 | `NoRemote` | No remote configured |
 | `HasRemote` | Remote exists |
 
-**State Tuple:** `(WorkingTree, Timeline, Operation, Remote)`
+**State Tuple:** `(GitEnvironment, WorkingTree, Timeline, Operation, Remote)`
 
 ---
 
