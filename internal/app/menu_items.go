@@ -42,12 +42,13 @@ var MenuItems = map[string]MenuItem{
 
 	// Timeline: InSync
 	"reset_discard_changes": {
-		ID:       "reset_discard_changes",
-		Shortcut: "ctrl+r",
-		Emoji:    "💥",
-		Label:    "Discard all changes",
-		Hint:     "💥 DESTRUCTIVE: Discard uncommitted changes, reset to remote state",
-		Enabled:  true,
+		ID:            "reset_discard_changes",
+		Shortcut:      "ctrl+r",   // Keep original binding
+		ShortcutLabel: "ctrl + r", // Standardized display label
+		Emoji:         "💥",
+		Label:         "Discard all changes",
+		Hint:          "💥 DESTRUCTIVE: Discard uncommitted changes, reset to remote state",
+		Enabled:       true,
 	},
 
 	// Timeline: Ahead
