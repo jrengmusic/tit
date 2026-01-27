@@ -2,6 +2,7 @@ package ui
 
 import (
 	"strings"
+	"tit/internal"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -111,14 +112,23 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 		Render(strings.Repeat("─", totalWidth))
 	fullWidthLines = append(fullWidthLines, separatorLine)
 
-	// WorkingTree label (with spinner when syncing)
+	// WorkingTree + Version (2-column layout like upper section)
 	wtLabel := TimelineSyncLabel(state.WorkingTreeEmoji, state.WorkingTreeLabel, state.SyncInProgress, state.SyncFrame)
-	wtLabelLine := lipgloss.NewStyle().
-		Width(totalWidth).
+	wtLabelStyled := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(state.WorkingTreeColor)).
+		Width(leftWidth).
 		Render(wtLabel)
-	fullWidthLines = append(fullWidthLines, wtLabelLine)
+
+	versionText := "v" + internal.AppVersion
+	versionStyled := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.DimmedTextColor)).
+		Align(lipgloss.Right).
+		Width(rightWidth).
+		Render(versionText)
+
+	wtVersionLine := lipgloss.JoinHorizontal(lipgloss.Top, wtLabelStyled, versionStyled)
+	fullWidthLines = append(fullWidthLines, wtVersionLine)
 
 	// WorkingTree descriptions (indented)
 	indent := strings.Repeat(" ", EmojiColumnWidth)

@@ -122,16 +122,16 @@ inlineBackgroundColor = "#0972BB"     # easternBlue (secondary areas)
 selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
 
 # Text - Content & Body - green colors for positive, red for negative
-contentTextColor = "#5BCF90"          # emerald (body text)
+contentTextColor = "#179CA8"          # easternBlue - neutral readable
 labelTextColor = "#90D88D"            # feijoa (labels)
 dimmedTextColor = "#C8E189"           # yellowGreen (dimmed)
-accentTextColor = "#37CB9F"           # shamrock (accents)
+accentTextColor = "#FEEA85"           # salomie - bright shortcuts
 highlightTextColor = "#D1D5DA"        # off-white (highlights)
 terminalTextColor = "#999999"         # neutral gray
 
 # Special Text
-cwdTextColor = "#6DD7C0"              # bermuda (cwd)
-footerTextColor = "#58C9BA"           # downy (footer)
+cwdTextColor = "#FEEA85"              # salomie - bright yellow accent
+footerTextColor = "#58C9BA"           # downy - muted descriptions
 
 # Borders
 boxBorderColor = "#90D88D"            # feijoa
@@ -152,7 +152,7 @@ conflictSelectionBackground = "#7EB8C5"  # brighter muted teal
 conflictPaneTitleColor = "#90D88D"       # feijoa
 
 # Status Colors - green for clean, red for dirty
-statusClean = "#4ECB71"               # emerald (clean = green)
+statusClean = "#5BCF90"               # emerald - vibrant positive
 statusDirty = "#FD5B68"               # wildWatermelon (dirty = red)
 
 # Timeline Colors
@@ -170,8 +170,8 @@ operationRebasing = "#5BCF90"         # emerald (rebasing)
 operationDirtyOp = "#FD5B68"          # wildWatermelon (dirty)
 
 # UI Elements
-menuSelectionBackground = "#7EB8C5"   # brighter muted teal
-buttonSelectedTextColor = "#090D12"   # bunker
+menuSelectionBackground = "#5BCF90"   # emerald - natural green
+buttonSelectedTextColor = "#3F2894"   # daisyBush - dark contrast
 
 # Animation
 spinnerColor = "#00FFFF"              # electric cyan
@@ -195,21 +195,21 @@ description = "Warm summer blues and bright sunshine"
 
 [palette]
 # Backgrounds - blueMarguerite → havelockBlue → violetBlue
-mainBackgroundColor = "#3CA7E0"       # pictonBlue (main background)
+mainBackgroundColor = "#000000"       # black (main background)
 inlineBackgroundColor = "#4D88D1"     # havelockBlue (secondary areas)
 selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
 
 # Text - Content & Body - electric cyan/bright for positives, hot reds for negatives
-contentTextColor = "#22D6F8"          # brightTurquoise (body text)
+contentTextColor = "#3CA7E0"          # violetBlue - readable neutral
 labelTextColor = "#19E5FF"            # cyan (labels)
 dimmedTextColor = "#5E68C1"           # indigo (dimmed)
-accentTextColor = "#2BC6F0"           # pictonBlue (accents)
+accentTextColor = "#FFBF16"           # lightningYellow - electric shortcuts
 highlightTextColor = "#D1D5DA"        # off-white (highlights)
 terminalTextColor = "#999999"         # neutral gray
 
 # Special Text
-cwdTextColor = "#19E5FF"              # cyan (cwd)
-footerTextColor = "#3CA7E0"           # pictonBlue (footer)
+cwdTextColor = "#FFBF16"              # lightningYellow - electric accent
+footerTextColor = "#8667BF"           # blueMarguerite - muted descriptions
 
 # Borders
 boxBorderColor = "#19E5FF"            # cyan
@@ -230,7 +230,7 @@ conflictSelectionBackground = "#7EB8C5"   # brighter muted teal
 conflictPaneTitleColor = "#19E5FF"        # cyan
 
 # Status Colors - electric cyan for clean, hot red for dirty
-statusClean = "#00FFFF"               # electric cyan (clean)
+statusClean = "#19E5FF"               # cyan - electric positive
 statusDirty = "#FF3469"               # radicalRed (dirty)
 
 # Timeline Colors
@@ -248,8 +248,8 @@ operationRebasing = "#19E5FF"         # cyan (rebasing)
 operationDirtyOp = "#FF3469"          # radicalRed (dirty)
 
 # UI Elements
-menuSelectionBackground = "#7EB8C5"   # brighter muted teal
-buttonSelectedTextColor = "#090D12"   # bunker
+menuSelectionBackground = "#FE62B9"   # hotPink - electric highlight
+buttonSelectedTextColor = "#8667BF"   # blueMarguerite - dark contrast
 
 # Animation
 spinnerColor = "#00FFFF"              # electric cyan
@@ -278,16 +278,16 @@ inlineBackgroundColor = "#5E063E"     # mulberryWood (secondary areas)
 selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
 
 # Text - Content & Body - gold colors for positive, deep reds for negative
-contentTextColor = "#F5BB09"          # corn (body text)
+contentTextColor = "#E78C79"          # apricot - warm readable
 labelTextColor = "#F9C94D"            # saffronMango (labels)
 dimmedTextColor = "#F09D06"           # tulipTree (dimmed)
-accentTextColor = "#F48C06"           # tangerine (accents)
+accentTextColor = "#F5BB09"           # corn - bright shortcuts
 highlightTextColor = "#D1D5DA"        # off-white (highlights)
 terminalTextColor = "#999999"         # neutral gray
 
 # Special Text
-cwdTextColor = "#F5BB09"              # corn (cwd)
-footerTextColor = "#F2AB53"           # safflower (footer)
+cwdTextColor = "#F5BB09"              # corn - golden bright
+footerTextColor = "#CD5861"           # chestnutRose - muted descriptions
 
 # Borders
 boxBorderColor = "#F9C94D"            # saffronMango
@@ -326,8 +326,8 @@ operationRebasing = "#F5BB09"         # corn (rebasing)
 operationDirtyOp = "#DC3003"          # grenadier (dirty)
 
 # UI Elements
-menuSelectionBackground = "#7EB8C5"   # brighter muted teal
-buttonSelectedTextColor = "#090D12"   # bunker
+menuSelectionBackground = "#F1AE37"   # tulipTree - golden harvest highlight
+buttonSelectedTextColor = "#3E0338"   # jacaranda - darkest contrast
 
 # Animation
 spinnerColor = "#00FFFF"              # electric cyan
@@ -356,16 +356,16 @@ inlineBackgroundColor = "#334676"     # sanJuan (secondary areas)
 selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
 
 # Text - Content & Body - professional blues for positive, soft pinks for negative
-contentTextColor = "#6281DC"          # havelockBlue (body text)
+contentTextColor = "#CAD0E6"          # cyanGray - cool readable
 labelTextColor = "#7F95D6"            # chetwodeBlue (labels)
 dimmedTextColor = "#9BA9D0"           # rockBlue (dimmed)
-accentTextColor = "#435A98"           # sanMarino (accents)
+accentTextColor = "#F6F5FA"           # whisper - bright shortcuts
 highlightTextColor = "#D1D5DA"        # off-white (highlights)
 terminalTextColor = "#999999"         # neutral gray
 
 # Special Text
-cwdTextColor = "#67DFEF"              # cyan (cwd)
-footerTextColor = "#519299"           # lagoon (footer)
+cwdTextColor = "#F6F5FA"              # whisper - bright white
+footerTextColor = "#9BA9D0"           # rockBlue - muted descriptions
 
 # Borders
 boxBorderColor = "#7F95D6"            # chetwodeBlue
@@ -386,7 +386,7 @@ conflictSelectionBackground = "#7EB8C5"   # brighter muted teal
 conflictPaneTitleColor = "#7F95D6"        # chetwodeBlue
 
 # Status Colors - professional blue for clean, soft pink for dirty
-statusClean = "#435A98"               # sanMarino (clean = professional blue)
+statusClean = "#6281DC"               # havelockBlue - professional positive
 statusDirty = "#E0BACF"               # melanie (dirty = soft pink)
 
 # Timeline Colors
@@ -404,8 +404,8 @@ operationRebasing = "#6281DC"         # havelockBlue (rebasing)
 operationDirtyOp = "#E0BACF"          # melanie (dirty)
 
 # UI Elements
-menuSelectionBackground = "#7EB8C5"   # brighter muted teal
-buttonSelectedTextColor = "#090D12"   # bunker
+menuSelectionBackground = "#7F95D6"   # chetwodeBlue - professional blue accent
+buttonSelectedTextColor = "#F6F5FA"   # whisper - light contrast
 
 # Animation
 spinnerColor = "#00FFFF"              # electric cyan
