@@ -1155,12 +1155,13 @@ func (a *Application) menuItemsToMaps(items []MenuItem) []map[string]interface{}
 	maps := make([]map[string]interface{}, len(items))
 	for i, item := range items {
 		maps[i] = map[string]interface{}{
-			"ID":        item.ID,
-			"Shortcut":  item.Shortcut,
-			"Emoji":     item.Emoji,
-			"Label":     item.Label,
-			"Enabled":   item.Enabled,
-			"Separator": item.Separator,
+			"ID":            item.ID,
+			"Shortcut":      item.Shortcut,
+			"ShortcutLabel": item.ShortcutLabel,
+			"Emoji":         item.Emoji,
+			"Label":         item.Label,
+			"Enabled":       item.Enabled,
+			"Separator":     item.Separator,
 		}
 	}
 	return maps
