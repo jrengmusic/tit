@@ -6,7 +6,7 @@
 
 I have severe git skills issues.
 
-I'm sick and tired wrestling with git commands that might fail. So i made TUI that always shows exactly what's possible operation based on actual git state. No surprises. No "command failed" messages. No confusion.
+I'm sick and tired wrestling with git commands that might failed. So i made TUI that always shows exactly what's possible operation based on actual git state. No surprises. No "command failed" messages. No confusion.
 
 **If it's in the menu, it works. Period.**
 
