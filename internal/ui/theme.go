@@ -2,240 +2,11 @@ package ui
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
-
-// HSLColor represents a color in HSL space
-type HSLColor struct {
-	H, S, L float64
-}
-
-// hslToHex converts HSL to hex color string
-func hslToHex(h, s, l float64) string {
-	// Normalize hue to 0-360
-	h = math.Mod(h, 360)
-	if h < 0 {
-		h += 360
-	}
-
-	// Convert HSL to RGB
-	c := (1 - math.Abs(2*l-1)) * s
-	x := c * (1 - math.Abs(math.Mod(h/60, 2)-1))
-	m := l - c/2
-
-	var r, g, b float64
-
-	switch {
-	case h < 60:
-		r, g, b = c, x, 0
-	case h < 120:
-		r, g, b = x, c, 0
-	case h < 180:
-		r, g, b = 0, c, x
-	case h < 240:
-		r, g, b = 0, x, c
-	case h < 300:
-		r, g, b = x, 0, c
-	default:
-		r, g, b = c, 0, x
-	}
-
-	// Add m and convert to 0-255 range
-	r = (r + m) * 255
-	g = (g + m) * 255
-	b = (b + m) * 255
-
-	// Clamp values
-	if r < 0 {
-		r = 0
-	}
-	if r > 255 {
-		r = 255
-	}
-	if g < 0 {
-		g = 0
-	}
-	if g > 255 {
-		g = 255
-	}
-	if b < 0 {
-		b = 0
-	}
-	if b > 255 {
-		b = 255
-	}
-
-	return fmt.Sprintf("#%02X%02X%02X", int(r), int(g), int(b))
-}
-
-// hexToHSL converts hex color to HSL
-func hexToHSL(hex string) (float64, float64, float64) {
-	// Remove # if present
-	hex = strings.TrimPrefix(hex, "#")
-
-	// Parse RGB
-	r, _ := strconv.ParseInt(hex[0:2], 16, 0)
-	g, _ := strconv.ParseInt(hex[2:4], 16, 0)
-	b, _ := strconv.ParseInt(hex[4:6], 16, 0)
-
-	// Normalize to 0-1
-	rf := float64(r) / 255.0
-	gf := float64(g) / 255.0
-	bf := float64(b) / 255.0
-
-	max := math.Max(rf, math.Max(gf, bf))
-	min := math.Min(rf, math.Min(gf, bf))
-
-	h, s, l := 0.0, 0.0, (max+min)/2.0
-
-	if max == min {
-		h, s = 0.0, 0.0 // achromatic
-	} else {
-		d := max - min
-		if l > 0.5 {
-			s = d / (2.0 - max - min)
-		} else {
-			s = d / (max + min)
-		}
-
-		switch max {
-		case rf:
-			h = (gf - bf) / d
-			if gf < bf {
-				h += 6
-			}
-		case gf:
-			h = (bf-rf)/d + 2
-		case bf:
-			h = (rf-gf)/d + 4
-		}
-		h /= 6
-	}
-
-	return h * 360, s, l
-}
-
-// adjustColorHue shifts a hex color by the given hue degrees and adjusts lightness
-func adjustColorHue(hex string, hueShift float64, lightnessMultiplier float64) string {
-	h, s, l := hexToHSL(hex)
-	h += hueShift
-	l *= lightnessMultiplier
-	if l > 1.0 {
-		l = 1.0
-	}
-	if l < 0.0 {
-		l = 0.0
-	}
-	return hslToHex(h, s, l)
-}
-
-// SeasonalTheme defines a seasonal color variation
-type SeasonalTheme struct {
-	Name        string
-	Description string
-	HueShift    float64 // degrees to shift hue
-	Lightness   float64 // lightness multiplier (0.8-1.0)
-	Saturation  float64 // saturation multiplier (0.8-1.2)
-}
-
-// GetSeasonalThemes returns the 4 seasonal theme definitions
-func GetSeasonalThemes() []SeasonalTheme {
-	return []SeasonalTheme{
-		{
-			Name:        "spring",
-			Description: "Fresh spring greens with vibrant energy",
-			HueShift:    60,   // Green hues
-			Lightness:   0.95, // Bright and fresh
-			Saturation:  1.1,  // More vibrant
-		},
-		{
-			Name:        "summer",
-			Description: "Warm summer blues and bright sunshine",
-			HueShift:    30,  // Blue-cyan hues
-			Lightness:   1.0, // Full brightness
-			Saturation:  1.2, // Most saturated
-		},
-		{
-			Name:        "autumn",
-			Description: "Rich autumn oranges and warm earth tones",
-			HueShift:    -60,  // Orange-red hues
-			Lightness:   0.85, // Warmer, less bright
-			Saturation:  1.0,  // Natural saturation
-		},
-		{
-			Name:        "winter",
-			Description: "Cool winter purples with subtle elegance",
-			HueShift:    120, // Purple-magenta hues
-			Lightness:   0.8, // Dimmer for winter mood
-			Saturation:  0.9, // Slightly muted
-		},
-	}
-}
-
-// generateSeasonalTheme creates a theme variant from the base GFX theme
-func generateSeasonalTheme(baseTheme string, seasonal SeasonalTheme) string {
-	lines := strings.Split(baseTheme, "\n")
-	result := make([]string, 0, len(lines))
-
-	// Update name and description
-	for i, line := range lines {
-		if strings.HasPrefix(line, "name = ") {
-			result = append(result, fmt.Sprintf(`name = "%s"`, strings.Title(seasonal.Name)))
-		} else if strings.HasPrefix(line, "description = ") {
-			result = append(result, fmt.Sprintf(`description = "%s"`, seasonal.Description))
-		} else if strings.Contains(line, " = \"#") && strings.Contains(line, "\"") {
-			// This is a color line - extract and transform the hex color
-			parts := strings.Split(line, " = \"")
-			if len(parts) == 2 {
-				colorPart := strings.Split(parts[1], "\"")[0]
-				if strings.HasPrefix(colorPart, "#") && len(colorPart) == 7 {
-					// Transform the color
-					h, s, l := hexToHSL(colorPart)
-					h += seasonal.HueShift
-					s *= seasonal.Saturation
-					l *= seasonal.Lightness
-
-					// Clamp values
-					if s > 1.0 {
-						s = 1.0
-					}
-					if s < 0.0 {
-						s = 0.0
-					}
-					if l > 1.0 {
-						l = 1.0
-					}
-					if l < 0.0 {
-						l = 0.0
-					}
-
-					newColor := hslToHex(h, s, l)
-					newLine := strings.Replace(line, colorPart, newColor, 1)
-					result = append(result, newLine)
-				} else {
-					result = append(result, line)
-				}
-			} else {
-				result = append(result, line)
-			}
-		} else {
-			result = append(result, line)
-		}
-
-		// Skip the rest if we're at the end
-		if i >= len(lines)-1 {
-			break
-		}
-	}
-
-	return strings.Join(result, "\n")
-}
 
 // EnsureFiveThemesExist creates/regenerates all 5 themes at startup
 func EnsureFiveThemesExist() error {
@@ -244,95 +15,412 @@ func EnsureFiveThemesExist() error {
 		return fmt.Errorf("failed to create themes directory: %w", err)
 	}
 
-	// Always regenerate gfx.toml from SSOT
-	gfxPath := filepath.Join(configThemeDir, "gfx.toml")
-	if err := os.WriteFile(gfxPath, []byte(DefaultThemeTOML), 0644); err != nil {
-		return fmt.Errorf("failed to write gfx theme: %w", err)
+	themes := map[string]string{
+		"gfx":    GfxTheme,
+		"spring": SpringTheme,
+		"summer": SummerTheme,
+		"autumn": AutumnTheme,
+		"winter": WinterTheme,
 	}
 
-	// Generate seasonal themes
-	seasonalThemes := GetSeasonalThemes()
-	for _, seasonal := range seasonalThemes {
-		themeContent := generateSeasonalTheme(DefaultThemeTOML, seasonal)
-		themePath := filepath.Join(configThemeDir, seasonal.Name+".toml")
-		if err := os.WriteFile(themePath, []byte(themeContent), 0644); err != nil {
-			return fmt.Errorf("failed to write %s theme: %w", seasonal.Name, err)
+	for name, content := range themes {
+		themePath := filepath.Join(configThemeDir, name+".toml")
+		if err := os.WriteFile(themePath, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to write %s theme: %w", name, err)
 		}
 	}
 
 	return nil
 }
 
-const DefaultThemeTOML = `name = "Default (TIT)"
-description = "TIT color scheme"
+// GfxTheme is the default TIT theme - all other themes derive from this reference
+const GfxTheme = `name = "GFX"
+description = "TIT default theme - reference for all other themes"
 
 [palette]
-mainBackgroundColor = "#090D12"       # bunker (main app background)
-inlineBackgroundColor = "#1B2A31"     # dark (secondary areas)
-selectionBackgroundColor = "#0D141C"  # corbeau (highlight areas)
+# Backgrounds
+mainBackgroundColor = "#090D12"       # bunker
+inlineBackgroundColor = "#1B2A31"     # dark
+selectionBackgroundColor = "#0D141C"  # corbeau
 
 # Text - Content & Body
-contentTextColor = "#4E8C93"           # paradiso (body text in boxes)
-labelTextColor = "#8CC9D9"             # dolphin (labels, headers, borders)
-dimmedTextColor = "#33535B"            # mediterranea (disabled/muted)
-accentTextColor = "#01C2D2"            # caribbeanBlue (keyboard shortcuts)
-highlightTextColor = "#D1D5DA"         # off-white (bright contrast text)
-terminalTextColor = "#999999"          # neutral gray (command output)
+contentTextColor = "#4E8C93"          # paradiso
+labelTextColor = "#8CC9D9"            # dolphin
+dimmedTextColor = "#33535B"           # mediterranea
+accentTextColor = "#01C2D2"           # caribbeanBlue
+highlightTextColor = "#D1D5DA"        # off-white
+terminalTextColor = "#999999"         # neutral gray
 
 # Special Text
-cwdTextColor = "#67DFEF"               # poseidonJr (current working directory)
-footerTextColor = "#519299"            # lagoon (footer hints)
+cwdTextColor = "#67DFEF"              # poseidonJr
+footerTextColor = "#519299"           # lagoon
 
-# Borders - Conflict Resolver specific
-boxBorderColor = "#8CC9D9"                    # dolphin (borders for all boxes)
-separatorColor = "#1B2A31"                    # dark (separator lines)
+# Borders
+boxBorderColor = "#8CC9D9"            # dolphin
+separatorColor = "#1B2A31"            # dark
 
 # Confirmation Dialog
-confirmationDialogBackground = "#112130"        # trappedDarkness (dialog box background)
-	conflictPaneUnfocusedBorder = "#2C4144"
-	conflictPaneFocusedBorder = "#8CC9D9"
+confirmationDialogBackground = "#112130"  # trappedDarkness
 
-# Selection - Conflict Resolver specific
-conflictSelectionForeground = "#090D12"       # bunker (selection text color)
-conflictSelectionBackground = "#7EB8C5"       # brighter muted teal (selection background)
+# Conflict Resolver - Borders
+conflictPaneUnfocusedBorder = "#2C4144"
+conflictPaneFocusedBorder = "#8CC9D9"
 
-# Pane Headers
-conflictPaneTitleColor = "#8CC9D9"            # dolphin (pane title text)
+# Conflict Resolver - Selection
+conflictSelectionForeground = "#090D12"  # bunker
+conflictSelectionBackground = "#7EB8C5"  # brighter muted teal
 
-# Status & State
+# Conflict Resolver - Pane Headers
+conflictPaneTitleColor = "#8CC9D9"       # dolphin
+
+# Status Colors
 statusClean = "#01C2D2"               # caribbeanBlue
-statusDirty = "#FC704C"            # preciousPersimmon
+statusDirty = "#FC704C"               # preciousPersimmon
+
+# Timeline Colors
 timelineSynchronized = "#01C2D2"      # caribbeanBlue
 timelineLocalAhead = "#00C8D8"        # blueBikini
 timelineLocalBehind = "#F2AB53"       # safflower
 
 # Operation Colors
-operationReady = "#4ECB71"            # emerald green (ready state)
-operationNotRepo = "#FC704C"          # preciousPersimmon (error/not repo)
-operationTimeTravel = "#F2AB53"       # safflower (time travel - warm orange)
-operationConflicted = "#FC704C"       # preciousPersimmon (conflicts)
-operationMerging = "#00C8D8"          # blueBikini (merge in progress)
-operationRebasing = "#00C8D8"         # blueBikini (rebase in progress)
-operationDirtyOp = "#FC704C"          # preciousPersimmon (dirty operation)
+operationReady = "#4ECB71"            # emerald green
+operationNotRepo = "#FC704C"          # preciousPersimmon
+operationTimeTravel = "#F2AB53"       # safflower
+operationConflicted = "#FC704C"       # preciousPersimmon
+operationMerging = "#00C8D8"          # blueBikini
+operationRebasing = "#00C8D8"         # blueBikini
+operationDirtyOp = "#FC704C"          # preciousPersimmon
 
-# Menu / Buttons
-menuSelectionBackground = "#7EB8C5"    # brighter muted teal (background when highlighted)
-buttonSelectedTextColor = "#0D1418"    # dark text on bright button background
+# UI Elements / Buttons
+menuSelectionBackground = "#7EB8C5"   # brighter muted teal
+buttonSelectedTextColor = "#0D1418"   # dark text
 
 # Animation
-spinnerColor = "#00FFFF"               # electric cyan (vivid loading spinner)
+spinnerColor = "#00FFFF"              # electric cyan
 
-	# Diff Colors (muted/desaturated for readability)
-	diffAddedLineColor = "#5A9C7A"          # muted green (added lines in diff)
-diffRemovedLineColor = "#B07070"        # muted red/burgundy (removed lines in diff)
+# Diff Colors
+diffAddedLineColor = "#5A9C7A"        # muted green
+diffRemovedLineColor = "#B07070"      # muted red
 
-# Console Output (semantic colors for different output types)
-outputStdoutColor = "#999999"           # TerminalTextColor - regular command output
-outputStderrColor = "#FC704C"           # ErrorTextColor - stderr/error messages
-outputStatusColor = "#01C2D2"           # SuccessTextColor - status/success messages
-outputWarningColor = "#F2AB53"          # WarningTextColor - warning messages
-outputDebugColor = "#33535B"            # DimmedTextColor - debug/info messages
-outputInfoColor = "#01C2D2"             # InfoTextColor - TIT-generated info
+# Console Output Colors
+outputStdoutColor = "#999999"         # neutral gray
+outputStderrColor = "#FC704C"         # preciousPersimmon
+outputStatusColor = "#01C2D2"         # caribbeanBlue
+outputWarningColor = "#F2AB53"        # safflower
+outputDebugColor = "#33535B"          # mediterranea
+outputInfoColor = "#01C2D2"           # caribbeanBlue
+`
+
+// SpringTheme is a spring-themed color palette with greens and vibrant energy
+const SpringTheme = `name = "Spring"
+description = "Fresh spring greens with vibrant energy"
+
+[palette]
+# Backgrounds - sapphire → ceruleanBlue → sapphire gradient
+mainBackgroundColor = "#323B9E"       # sapphire (main background)
+inlineBackgroundColor = "#0972BB"     # easternBlue (secondary areas)
+selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
+
+# Text - Content & Body - green colors for positive, red for negative
+contentTextColor = "#5BCF90"          # emerald (body text)
+labelTextColor = "#90D88D"            # feijoa (labels)
+dimmedTextColor = "#C8E189"           # yellowGreen (dimmed)
+accentTextColor = "#37CB9F"           # shamrock (accents)
+highlightTextColor = "#D1D5DA"        # off-white (highlights)
+terminalTextColor = "#999999"         # neutral gray
+
+# Special Text
+cwdTextColor = "#6DD7C0"              # bermuda (cwd)
+footerTextColor = "#58C9BA"           # downy (footer)
+
+# Borders
+boxBorderColor = "#90D88D"            # feijoa
+separatorColor = "#0972BB"            # easternBlue
+
+# Confirmation Dialog
+confirmationDialogBackground = "#244DA8"  # ceruleanBlue
+
+# Conflict Resolver - Borders
+conflictPaneUnfocusedBorder = "#2C4144"
+conflictPaneFocusedBorder = "#90D88D"
+
+# Conflict Resolver - Selection
+conflictSelectionForeground = "#323B9E"  # sapphire
+conflictSelectionBackground = "#7EB8C5"  # brighter muted teal
+
+# Conflict Resolver - Pane Headers
+conflictPaneTitleColor = "#90D88D"       # feijoa
+
+# Status Colors - green for clean, red for dirty
+statusClean = "#4ECB71"               # emerald (clean = green)
+statusDirty = "#FD5B68"               # wildWatermelon (dirty = red)
+
+# Timeline Colors
+timelineSynchronized = "#4ECB71"      # emerald (synced)
+timelineLocalAhead = "#5BCF90"        # emerald (ahead)
+timelineLocalBehind = "#F67F78"       # froly (behind)
+
+# Operation Colors - green for positive operations
+operationReady = "#4ECB71"            # emerald (ready)
+operationNotRepo = "#FD5B68"          # wildWatermelon (not repo)
+operationTimeTravel = "#F19A84"       # apricot (time travel)
+operationConflicted = "#FD5B68"       # wildWatermelon (conflicted)
+operationMerging = "#5BCF90"          # emerald (merging)
+operationRebasing = "#5BCF90"         # emerald (rebasing)
+operationDirtyOp = "#FD5B68"          # wildWatermelon (dirty)
+
+# UI Elements
+menuSelectionBackground = "#7EB8C5"   # brighter muted teal
+buttonSelectedTextColor = "#090D12"   # bunker
+
+# Animation
+spinnerColor = "#00FFFF"              # electric cyan
+
+# Diff Colors
+diffAddedLineColor = "#5BCF90"        # emerald (added)
+diffRemovedLineColor = "#FD5B68"      # wildWatermelon (removed)
+
+# Console Output Colors
+outputStdoutColor = "#999999"         # neutral gray
+outputStderrColor = "#FD5B68"         # wildWatermelon
+outputStatusColor = "#4ECB71"         # emerald
+outputWarningColor = "#F67F78"        # froly
+outputDebugColor = "#C8E189"          # yellowGreen
+outputInfoColor = "#37CB9F"           # shamrock
+`
+
+// SummerTheme is a summer-themed color palette with electric blues and bright sunshine
+const SummerTheme = `name = "Summer"
+description = "Warm summer blues and bright sunshine"
+
+[palette]
+# Backgrounds - blueMarguerite → havelockBlue → violetBlue
+mainBackgroundColor = "#3CA7E0"       # pictonBlue (main background)
+inlineBackgroundColor = "#4D88D1"     # havelockBlue (secondary areas)
+selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
+
+# Text - Content & Body - electric cyan/bright for positives, hot reds for negatives
+contentTextColor = "#22D6F8"          # brightTurquoise (body text)
+labelTextColor = "#19E5FF"            # cyan (labels)
+dimmedTextColor = "#5E68C1"           # indigo (dimmed)
+accentTextColor = "#2BC6F0"           # pictonBlue (accents)
+highlightTextColor = "#D1D5DA"        # off-white (highlights)
+terminalTextColor = "#999999"         # neutral gray
+
+# Special Text
+cwdTextColor = "#19E5FF"              # cyan (cwd)
+footerTextColor = "#3CA7E0"           # pictonBlue (footer)
+
+# Borders
+boxBorderColor = "#19E5FF"            # cyan
+separatorColor = "#4D88D1"            # havelockBlue
+
+# Confirmation Dialog
+confirmationDialogBackground = "#2BC6F0"  # pictonBlue
+
+# Conflict Resolver - Borders
+conflictPaneUnfocusedBorder = "#2C4144"
+conflictPaneFocusedBorder = "#19E5FF"
+
+# Conflict Resolver - Selection
+conflictSelectionForeground = "#3CA7E0"   # pictonBlue
+conflictSelectionBackground = "#7EB8C5"   # brighter muted teal
+
+# Conflict Resolver - Pane Headers
+conflictPaneTitleColor = "#19E5FF"        # cyan
+
+# Status Colors - electric cyan for clean, hot red for dirty
+statusClean = "#00FFFF"               # electric cyan (clean)
+statusDirty = "#FF3469"               # radicalRed (dirty)
+
+# Timeline Colors
+timelineSynchronized = "#00FFFF"      # electric cyan (synced)
+timelineLocalAhead = "#19E5FF"        # cyan (ahead)
+timelineLocalBehind = "#FF9700"       # pizazz (behind)
+
+# Operation Colors - electric colors for positive ops
+operationReady = "#00FFFF"            # electric cyan (ready)
+operationNotRepo = "#FF3469"          # radicalRed (not repo)
+operationTimeTravel = "#FFBF16"       # lightningYellow (time travel)
+operationConflicted = "#FF3469"       # radicalRed (conflicted)
+operationMerging = "#19E5FF"          # cyan (merging)
+operationRebasing = "#19E5FF"         # cyan (rebasing)
+operationDirtyOp = "#FF3469"          # radicalRed (dirty)
+
+# UI Elements
+menuSelectionBackground = "#7EB8C5"   # brighter muted teal
+buttonSelectedTextColor = "#090D12"   # bunker
+
+# Animation
+spinnerColor = "#00FFFF"              # electric cyan
+
+# Diff Colors
+diffAddedLineColor = "#19E5FF"        # cyan (added)
+diffRemovedLineColor = "#FF3469"      # radicalRed (removed)
+
+# Console Output Colors
+outputStdoutColor = "#999999"         # neutral gray
+outputStderrColor = "#FF3469"         # radicalRed
+outputStatusColor = "#00FFFF"         # electric cyan
+outputWarningColor = "#FF9700"        # pizazz
+outputDebugColor = "#5E68C1"          # indigo
+outputInfoColor = "#2BC6F0"           # pictonBlue
+`
+
+// AutumnTheme is an autumn-themed color palette with rich golds and warm earth tones
+const AutumnTheme = `name = "Autumn"
+description = "Rich autumn oranges and warm earth tones"
+
+[palette]
+# Backgrounds - jacaranda → mulberryWood → roseBudCherry
+mainBackgroundColor = "#3E0338"       # jacaranda (main background)
+inlineBackgroundColor = "#5E063E"     # mulberryWood (secondary areas)
+selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
+
+# Text - Content & Body - gold colors for positive, deep reds for negative
+contentTextColor = "#F5BB09"          # corn (body text)
+labelTextColor = "#F9C94D"            # saffronMango (labels)
+dimmedTextColor = "#F09D06"           # tulipTree (dimmed)
+accentTextColor = "#F48C06"           # tangerine (accents)
+highlightTextColor = "#D1D5DA"        # off-white (highlights)
+terminalTextColor = "#999999"         # neutral gray
+
+# Special Text
+cwdTextColor = "#F5BB09"              # corn (cwd)
+footerTextColor = "#F2AB53"           # safflower (footer)
+
+# Borders
+boxBorderColor = "#F9C94D"            # saffronMango
+separatorColor = "#5E063E"            # mulberryWood
+
+# Confirmation Dialog
+confirmationDialogBackground = "#7D0E36"  # roseBudCherry
+
+# Conflict Resolver - Borders
+conflictPaneUnfocusedBorder = "#2C4144"
+conflictPaneFocusedBorder = "#F9C94D"
+
+# Conflict Resolver - Selection
+conflictSelectionForeground = "#3E0338"   # jacaranda
+conflictSelectionBackground = "#7EB8C5"   # brighter muted teal
+
+# Conflict Resolver - Pane Headers
+conflictPaneTitleColor = "#F9C94D"        # saffronMango
+
+# Status Colors - gold for clean, deep red for dirty
+statusClean = "#F5BB09"               # corn (clean = gold)
+statusDirty = "#DC3003"               # grenadier (dirty = deep red)
+
+# Timeline Colors
+timelineSynchronized = "#F5BB09"      # corn (synced)
+timelineLocalAhead = "#F9C94D"        # saffronMango (ahead)
+timelineLocalBehind = "#E85C03"       # trinidad (behind)
+
+# Operation Colors - gold colors for positive ops
+operationReady = "#F5BB09"            # corn (ready)
+operationNotRepo = "#DC3003"          # grenadier (not repo)
+operationTimeTravel = "#F2AB53"       # safflower (time travel)
+operationConflicted = "#DC3003"       # grenadier (conflicted)
+operationMerging = "#F5BB09"          # corn (merging)
+operationRebasing = "#F5BB09"         # corn (rebasing)
+operationDirtyOp = "#DC3003"          # grenadier (dirty)
+
+# UI Elements
+menuSelectionBackground = "#7EB8C5"   # brighter muted teal
+buttonSelectedTextColor = "#090D12"   # bunker
+
+# Animation
+spinnerColor = "#00FFFF"              # electric cyan
+
+# Diff Colors
+diffAddedLineColor = "#F5BB09"        # corn (added)
+diffRemovedLineColor = "#DC3003"      # grenadier (removed)
+
+# Console Output Colors
+outputStdoutColor = "#999999"         # neutral gray
+outputStderrColor = "#DC3003"         # grenadier
+outputStatusColor = "#F5BB09"         # corn
+outputWarningColor = "#E85C03"        # trinidad
+outputDebugColor = "#F09D06"          # tulipTree
+outputInfoColor = "#F48C06"           # tangerine
+`
+
+// WinterTheme is a winter-themed color palette with professional blues and subtle elegance
+const WinterTheme = `name = "Winter"
+description = "Cool winter purples with subtle elegance"
+
+[palette]
+# Backgrounds - cloudBurst → sanJuan → sanMarino
+mainBackgroundColor = "#233253"       # cloudBurst (main background)
+inlineBackgroundColor = "#334676"     # sanJuan (secondary areas)
+selectionBackgroundColor = "#090D12"  # bunker (highlight areas)
+
+# Text - Content & Body - professional blues for positive, soft pinks for negative
+contentTextColor = "#6281DC"          # havelockBlue (body text)
+labelTextColor = "#7F95D6"            # chetwodeBlue (labels)
+dimmedTextColor = "#9BA9D0"           # rockBlue (dimmed)
+accentTextColor = "#435A98"           # sanMarino (accents)
+highlightTextColor = "#D1D5DA"        # off-white (highlights)
+terminalTextColor = "#999999"         # neutral gray
+
+# Special Text
+cwdTextColor = "#67DFEF"              # cyan (cwd)
+footerTextColor = "#519299"           # lagoon (footer)
+
+# Borders
+boxBorderColor = "#7F95D6"            # chetwodeBlue
+separatorColor = "#334676"            # sanJuan
+
+# Confirmation Dialog
+confirmationDialogBackground = "#233253"  # cloudBurst
+
+# Conflict Resolver - Borders
+conflictPaneUnfocusedBorder = "#2C4144"
+conflictPaneFocusedBorder = "#7F95D6"
+
+# Conflict Resolver - Selection
+conflictSelectionForeground = "#233253"   # cloudBurst
+conflictSelectionBackground = "#7EB8C5"   # brighter muted teal
+
+# Conflict Resolver - Pane Headers
+conflictPaneTitleColor = "#7F95D6"        # chetwodeBlue
+
+# Status Colors - professional blue for clean, soft pink for dirty
+statusClean = "#435A98"               # sanMarino (clean = professional blue)
+statusDirty = "#E0BACF"               # melanie (dirty = soft pink)
+
+# Timeline Colors
+timelineSynchronized = "#435A98"      # sanMarino (synced)
+timelineLocalAhead = "#6281DC"        # havelockBlue (ahead)
+timelineLocalBehind = "#CEBAC5"       # lily (behind)
+
+# Operation Colors - professional blue colors for positive ops
+operationReady = "#435A98"            # sanMarino (ready)
+operationNotRepo = "#E0BACF"          # melanie (not repo)
+operationTimeTravel = "#CEBAC5"       # lily (time travel)
+operationConflicted = "#E0BACF"       # melanie (conflicted)
+operationMerging = "#6281DC"          # havelockBlue (merging)
+operationRebasing = "#6281DC"         # havelockBlue (rebasing)
+operationDirtyOp = "#E0BACF"          # melanie (dirty)
+
+# UI Elements
+menuSelectionBackground = "#7EB8C5"   # brighter muted teal
+buttonSelectedTextColor = "#090D12"   # bunker
+
+# Animation
+spinnerColor = "#00FFFF"              # electric cyan
+
+# Diff Colors
+diffAddedLineColor = "#6281DC"        # havelockBlue (added)
+diffRemovedLineColor = "#E0BACF"      # melanie (removed)
+
+# Console Output Colors
+outputStdoutColor = "#999999"         # neutral gray
+outputStderrColor = "#E0BACF"         # melanie
+outputStatusColor = "#435A98"         # sanMarino
+outputWarningColor = "#CEBAC5"        # lily
+outputDebugColor = "#9BA9D0"          # rockBlue
+outputInfoColor = "#435A98"           # sanMarino
 `
 
 // ThemeDefinition represents a theme file structure
@@ -579,7 +667,7 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 }
 
 // CreateDefaultThemeIfMissing creates or regenerates all 5 themes (gfx + 4 seasons)
-// SSOT: Always regenerates from DefaultThemeTOML to ensure all colors are current
+// SSOT: Always regenerates from GfxTheme to ensure all colors are current
 func CreateDefaultThemeIfMissing() (string, error) {
 	return "", EnsureFiveThemesExist()
 }

@@ -2,6 +2,10 @@
   <img src="internal/ui/assets/tit-logo.svg" alt="TIT Logo" width="128" height="128">
 </div>
 
+<div align="center">
+  <img src="screenshot/tit-menu.png" alt="TIT Menu Screenshot">
+</div>
+
 # TIT — Terminal Interface for giT
 
 I have severe git skills issues.
