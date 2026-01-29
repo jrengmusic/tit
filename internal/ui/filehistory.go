@@ -2,14 +2,11 @@ package ui
 
 import (
 	"github.com/charmbracelet/lipgloss"
+	"tit/internal/git"
 )
 
 // FileInfo is an alias for git.FileInfo to avoid import cycles in UI
-// This is the same type as git.FileInfo but defined in UI package
-type FileInfo struct {
-	Path   string // File path
-	Status string // M, A, D, R, etc.
-}
+type FileInfo = git.FileInfo
 
 // FileHistoryPane represents which pane is focused in file(s) history mode
 type FileHistoryPane int

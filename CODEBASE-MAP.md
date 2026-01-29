@@ -29,6 +29,18 @@ tit/
 │   │   ├── dirtystate.go          ← Dirty operation state tracking
 │   │   ├── conflictstate.go       ← Conflict resolver state
 │   │   └── async.go               ← AsyncOperation builder
+│   │   ├── 
+│   │   ├── // State struct files (extracted from Application God Object)
+│   │   ├── input_state.go          ← Input field management state (7 fields)
+│   │   ├── cache_manager.go        ← Cache lifecycle state (14 fields)
+│   │   ├── async_state.go          ← Async operation state (3 fields)
+│   │   ├── workflow_state.go       ← Workflow and clone state (7 fields)
+│   │   ├── environment_state.go    ← Git environment and setup state (5 fields)
+│   │   ├── picker_state.go         ← Picker UI state (3 fields)
+│   │   ├── console_state.go        ← Console output state (3 fields)
+│   │   ├── activity_state.go       ← Activity tracking state (4 fields)
+│   │   ├── dialog_state.go         ← Dialog UI state (2 fields)
+│   │   └── time_travel_state.go    ← Time travel operation state (2 fields)
 │   │
 │   ├── git/                       ← Git operations & state detection
 │   │   ├── state.go               ← State detection (WorkingTree, Timeline, etc.)
@@ -182,23 +194,27 @@ type Application struct {
     gitState        git.State
     mode            AppMode
     
-    // Cache (always precomputed, never lazy-loaded)
-    historyMetadataCache  map[string]*git.CommitDetails
-    fileHistoryDiffCache  map[string]string
-    fileHistoryFilesCache map[string][]git.FileInfo
+    // Time travel state
+    timeTravelState TimeTravelState
     
-    // UI state
+    // Extracted state structs (21 fields total in Application)
+    inputState      InputState      // Input field management (7 fields)
+    cacheManager    CacheManager    // Cache lifecycle (14 fields)
+    asyncState      AsyncState      // Async operation state (3 fields)
+    workflowState   WorkflowState   // Workflow and clone state (7 fields)
+    environmentState EnvironmentState // Git environment and setup state (5 fields)
+    pickerState     PickerState     // Picker UI state (3 fields)
+    consoleState    ConsoleState    // Console output state (3 fields)
+    activityState   ActivityState   // Activity tracking state (4 fields)
+    dialogState     DialogState     // Dialog UI state (2 fields)
+    
+    // Remaining direct fields (21 total after extraction)
     selectedMenuIndex int
     menuItems         []MenuItem
     footerHint        string
-    
-    // Async operation state
-    asyncOperationActive bool
-    previousMode        AppMode
-    
-    // Time travel state
-    timeTravelInfo            *git.TimeTravelInfo
-    restoreTimeTravelInitiated bool
+    width             int
+    height            int
+    // ... other UI state fields
 }
 ```
 
