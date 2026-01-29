@@ -171,7 +171,7 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		// Transition to console to show finalization operation
 		app.startAsyncOp()
 		app.mode = ModeConsole
-		app.outputBuffer.Clear()
+		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizePullMerge()
 	} else if app.conflictResolveState.Operation == "branch_switch" {
@@ -179,7 +179,7 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		// Transition to console to show finalization operation
 		app.startAsyncOp()
 		app.mode = ModeConsole
-		app.outputBuffer.Clear()
+		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeBranchSwitch()
 	} else if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
@@ -199,14 +199,14 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		// Time travel merge conflicts resolved: commit and clean up marker file
 		app.startAsyncOp()
 		app.mode = ModeConsole
-		app.outputBuffer.Clear()
+		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeTimeTravelMerge()
 	} else if app.conflictResolveState.Operation == "time_travel_return" {
 		// Time travel return conflicts resolved: commit and clean up marker file
 		app.startAsyncOp()
 		app.mode = ModeConsole
-		app.outputBuffer.Clear()
+		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeTimeTravelReturn()
 	}
@@ -231,7 +231,7 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 			// User will see abort operation complete, then press ESC to return to menu
 			app.startAsyncOp()
 			app.mode = ModeConsole
-			app.outputBuffer.Clear()
+			app.consoleState.GetBuffer().Clear()
 			app.consoleState.Reset()
 			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
 			return app, app.cmdAbortMerge()
@@ -241,7 +241,7 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 			if app.dirtyOperationState != nil {
 				app.startAsyncOp()
 				app.mode = ModeConsole
-				app.outputBuffer.Clear()
+				app.consoleState.GetBuffer().Clear()
 				app.consoleState.Reset()
 				ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
 				return app, app.cmdAbortDirtyPull()

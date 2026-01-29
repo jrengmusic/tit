@@ -96,9 +96,9 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		}
 		a.abortAsyncOp()
 		// Print abort message to console using stderr color from theme
-		a.outputBuffer.Append("", ui.TypeStdout)
-		a.outputBuffer.Append("Operation aborted by user", ui.TypeStderr)
-		a.outputBuffer.Append("Press ESC to return to menu", ui.TypeInfo)
+		a.consoleState.GetBuffer().Append("", ui.TypeStdout)
+		a.consoleState.GetBuffer().Append("Operation aborted by user", ui.TypeStderr)
+		a.consoleState.GetBuffer().Append("Press ESC to return to menu", ui.TypeInfo)
 		return a, nil
 	}
 
@@ -109,7 +109,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		a.mode = a.workflowState.PreviousMode
 		a.selectedIndex = a.workflowState.PreviousMenuIndex
 		a.consoleState.Reset()
-		a.outputBuffer.Clear()
+		a.consoleState.Clear()
 		a.footerHint = ""
 
 		// Regenerate menu if returning to menu mode
@@ -242,7 +242,7 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.mode = ModeMenu
 	a.selectedIndex = 0
 	a.consoleState.Reset()
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.footerHint = ""
 	a.inputState.Value = ""
 	a.inputState.CursorPosition = 0

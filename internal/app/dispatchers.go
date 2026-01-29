@@ -263,7 +263,7 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 		return commits[i].Time.After(commits[j].Time)
 	})
 
-	app.historyState = &ui.HistoryState{
+	app.pickerState.History = &ui.HistoryState{
 		Commits:           commits,
 		SelectedIdx:       0,
 		PaneFocused:       true,
@@ -305,7 +305,7 @@ func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
 		}
 	}
 
-	app.fileHistoryState = &ui.FileHistoryState{
+	app.pickerState.FileHistory = &ui.FileHistoryState{
 		Commits:           commits,
 		Files:             files,
 		SelectedCommitIdx: 0,
@@ -361,7 +361,7 @@ func (a *Application) dispatchTimeTravelHistory(app *Application) tea.Cmd {
 		return commits[i].Time.After(commits[j].Time)
 	})
 
-	app.historyState = &ui.HistoryState{
+	app.pickerState.History = &ui.HistoryState{
 		Commits:           commits,
 		SelectedIdx:       0,
 		PaneFocused:       true,
@@ -517,7 +517,7 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 	}
 
 	// Initialize branch picker state (mirrors history state pattern: list + details pane)
-	app.branchPickerState = &ui.BranchPickerState{
+	app.pickerState.BranchPicker = &ui.BranchPickerState{
 		Branches:          uiBranches,
 		SelectedIdx:       0,
 		PaneFocused:       true, // Start with list pane focused

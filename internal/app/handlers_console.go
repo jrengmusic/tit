@@ -23,7 +23,7 @@ func (a *Application) handleConsoleUp(app *Application) (tea.Model, tea.Cmd) {
 		return app, nil
 	}
 	app.consoleState.ScrollUp()
-	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
+	app.consoleState.SetAutoScroll(false) // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
@@ -34,7 +34,7 @@ func (a *Application) handleConsoleDown(app *Application) (tea.Model, tea.Cmd) {
 		return app, nil
 	}
 	app.consoleState.ScrollDown()
-	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
+	app.consoleState.SetAutoScroll(false) // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
@@ -48,7 +48,7 @@ func (a *Application) handleConsolePageUp(app *Application) (tea.Model, tea.Cmd)
 	for i := 0; i < 10; i++ {
 		app.consoleState.ScrollUp()
 	}
-	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
+	app.consoleState.SetAutoScroll(false) // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
@@ -62,7 +62,7 @@ func (a *Application) handleConsolePageDown(app *Application) (tea.Model, tea.Cm
 	for i := 0; i < 10; i++ {
 		app.consoleState.ScrollDown()
 	}
-	app.consoleAutoScroll = false // Disable auto-scroll on manual scroll
+	app.consoleState.SetAutoScroll(false) // Disable auto-scroll on manual scroll
 	return app, nil
 }
 
@@ -103,7 +103,7 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeClone
 	a.consoleState.Reset()
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.footerHint = GetFooterMessageText(MessageClone)
 
 	// Return BOTH the clone worker AND periodic refresh ticker

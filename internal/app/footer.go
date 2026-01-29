@@ -46,7 +46,7 @@ func (a *Application) GetFooterContent() string {
 
 // computeConsoleScrollStatus returns the right-side scroll status for console mode
 func (a *Application) computeConsoleScrollStatus() string {
-	state := &a.consoleState
+	state := a.consoleState.GetState()
 	atBottom := state.ScrollOffset >= state.MaxScroll
 	remainingLines := state.MaxScroll - state.ScrollOffset
 
@@ -66,7 +66,7 @@ func (a *Application) getFooterHintKey() string {
 		return "menu"
 
 	case ModeHistory:
-		if a.historyState.PaneFocused {
+		if a.pickerState.History.PaneFocused {
 			return "history_list"
 		}
 		return "history_details"
@@ -108,17 +108,17 @@ func (a *Application) getFooterHintKey() string {
 
 // getFileHistoryHintKey returns the footer hint key for file history mode
 func (a *Application) getFileHistoryHintKey() string {
-	if a.fileHistoryState == nil {
+	if a.pickerState.FileHistory == nil {
 		return "filehistory_commits"
 	}
 
-	switch a.fileHistoryState.FocusedPane {
+	switch a.pickerState.FileHistory.FocusedPane {
 	case ui.PaneCommits:
 		return "filehistory_commits"
 	case ui.PaneFiles:
 		return "filehistory_files"
 	case ui.PaneDiff:
-		if a.fileHistoryState.VisualModeActive {
+		if a.pickerState.FileHistory.VisualModeActive {
 			return "filehistory_visual"
 		}
 		return "filehistory_diff"

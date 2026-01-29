@@ -225,7 +225,7 @@ func (a *Application) invalidateHistoryCaches() tea.Cmd {
 	
 
 	// Reset state structures
-	a.historyState = &ui.HistoryState{
+	a.pickerState.History = &ui.HistoryState{
 		Commits:           make([]ui.CommitInfo, 0),
 		SelectedIdx:       0,
 		PaneFocused:       true,
@@ -233,7 +233,7 @@ func (a *Application) invalidateHistoryCaches() tea.Cmd {
 		DetailsScrollOff:  0,
 	}
 
-	a.fileHistoryState = &ui.FileHistoryState{
+	a.pickerState.FileHistory = &ui.FileHistoryState{
 		Commits:           make([]ui.CommitInfo, 0),
 		Files:             make([]ui.FileInfo, 0),
 		SelectedCommitIdx: 0,

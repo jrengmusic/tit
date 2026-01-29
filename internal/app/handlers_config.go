@@ -211,35 +211,35 @@ func (a *Application) cmdConfigRemoveRemote() tea.Cmd {
 
 // handleBranchPickerUp handles UP/K navigation in branch picker (list pane)
 func (a *Application) handleBranchPickerUp(app *Application) (tea.Model, tea.Cmd) {
-	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+	if app.pickerState.BranchPicker == nil || len(app.pickerState.BranchPicker.Branches) == 0 {
 		return app, nil
 	}
 
-	if app.branchPickerState.SelectedIdx > 0 {
-		app.branchPickerState.SelectedIdx--
+	if app.pickerState.BranchPicker.SelectedIdx > 0 {
+		app.pickerState.BranchPicker.SelectedIdx--
 	}
 	return app, nil
 }
 
 // handleBranchPickerDown handles DOWN/J navigation in branch picker (list pane)
 func (a *Application) handleBranchPickerDown(app *Application) (tea.Model, tea.Cmd) {
-	if app.branchPickerState == nil || len(app.branchPickerState.Branches) == 0 {
+	if app.pickerState.BranchPicker == nil || len(app.pickerState.BranchPicker.Branches) == 0 {
 		return app, nil
 	}
 
-	if app.branchPickerState.SelectedIdx < len(app.branchPickerState.Branches)-1 {
-		app.branchPickerState.SelectedIdx++
+	if app.pickerState.BranchPicker.SelectedIdx < len(app.pickerState.BranchPicker.Branches)-1 {
+		app.pickerState.BranchPicker.SelectedIdx++
 	}
 	return app, nil
 }
 
 // handleBranchPickerEnter handles ENTER key to switch to selected branch (with dirty tree handling)
 func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.Cmd) {
-	if app.branchPickerState == nil || app.branchPickerState.SelectedIdx < 0 || app.branchPickerState.SelectedIdx >= len(app.branchPickerState.Branches) {
+	if app.pickerState.BranchPicker == nil || app.pickerState.BranchPicker.SelectedIdx < 0 || app.pickerState.BranchPicker.SelectedIdx >= len(app.pickerState.BranchPicker.Branches) {
 		return app, nil
 	}
 
-	selectedBranch := app.branchPickerState.Branches[app.branchPickerState.SelectedIdx]
+	selectedBranch := app.pickerState.BranchPicker.Branches[app.pickerState.BranchPicker.SelectedIdx]
 
 	// If already on this branch, just go back to config menu
 	if selectedBranch.IsCurrent {
