@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -140,8 +141,10 @@ func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.M
 
 // cmdConfigAddRemote adds a new remote from config menu
 func (a *Application) cmdConfigAddRemote(url string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.ExecuteWithStreaming("remote", "add", "origin", url)
+		result := git.ExecuteWithStreaming(ctx, "remote", "add", "origin", url)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "config_add_remote",
@@ -160,8 +163,10 @@ func (a *Application) cmdConfigAddRemote(url string) tea.Cmd {
 
 // cmdConfigSwitchRemote updates an existing remote URL
 func (a *Application) cmdConfigSwitchRemote(url string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.ExecuteWithStreaming("remote", "set-url", "origin", url)
+		result := git.ExecuteWithStreaming(ctx, "remote", "set-url", "origin", url)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "config_switch_remote",
@@ -180,8 +185,10 @@ func (a *Application) cmdConfigSwitchRemote(url string) tea.Cmd {
 
 // cmdConfigRemoveRemote removes the origin remote
 func (a *Application) cmdConfigRemoveRemote() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.ExecuteWithStreaming("remote", "remove", "origin")
+		result := git.ExecuteWithStreaming(ctx, "remote", "remove", "origin")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "config_remove_remote",

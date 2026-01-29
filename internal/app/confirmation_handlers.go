@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -915,8 +916,10 @@ func (a *Application) executeRejectRewind() (tea.Model, tea.Cmd) {
 
 // executeRewindOperation performs the actual git reset --hard in a worker goroutine
 func (a *Application) executeRewindOperation(commitHash string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		_, err := git.ResetHardAtCommit(commitHash)
+		_, err := git.ResetHardAtCommit(ctx, commitHash)
 
 		return RewindMsg{
 			Commit:  commitHash,

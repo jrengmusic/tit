@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,12 +16,14 @@ import (
 func (a *Application) cmdClone(url, targetPath string) tea.Cmd {
 	u := url // Capture in closure
 	path := targetPath
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
 		// Run git clone with streaming output
-		result := git.ExecuteWithStreaming("clone", u, path)
+		result := git.ExecuteWithStreaming(ctx, "clone", u, path)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpClone,

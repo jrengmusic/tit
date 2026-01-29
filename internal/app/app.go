@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -66,6 +67,9 @@ type Application struct {
 	consoleState      ui.ConsoleOutState
 	outputBuffer      *ui.OutputBuffer
 	consoleAutoScroll bool
+
+	// Process cancellation
+	cancelContext context.CancelFunc
 
 	// Confirmation dialog state
 	confirmationDialog *ui.ConfirmationDialog
@@ -204,8 +208,10 @@ func (a *Application) checkForConflicts(step string, successFlag bool) *GitOpera
 // executeGitOp executes a git command and returns appropriate message.
 // This is SSOT for git command execution with standard error handling.
 func (a *Application) executeGitOp(step string, args ...string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.ExecuteWithStreaming(args...)
+		result := git.ExecuteWithStreaming(ctx, args...)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    step,

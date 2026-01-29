@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 
 	"tit/internal/git"
@@ -12,12 +13,14 @@ import (
 // cmdFinalizeTimeTravelMerge finalizes time travel merge after conflict resolution
 // Commits resolved conflicts and clears time travel marker file
 func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 
 		// Stage all resolved files (should already be staged, but be safe)
 		buffer.Append("Staging resolved files...", ui.TypeStatus)
-		result := git.ExecuteWithStreaming("add", "-A")
+		result := git.ExecuteWithStreaming(ctx, "add", "-A")
 		if !result.Success {
 			buffer.Append("Failed to stage resolved files", ui.TypeStderr)
 			return GitOperationMsg{
@@ -35,7 +38,7 @@ func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
 		if hasStagedChanges {
 			// Commit the merge
 			buffer.Append("Committing resolved conflicts...", ui.TypeStatus)
-			result = git.ExecuteWithStreaming("commit", "-m", "Merge time travel changes (conflicts resolved)")
+			result = git.ExecuteWithStreaming(ctx, "commit", "-m", "Merge time travel changes (conflicts resolved)")
 			if !result.Success {
 				buffer.Append("Failed to commit merge", ui.TypeStderr)
 				return GitOperationMsg{
@@ -78,12 +81,14 @@ func (a *Application) cmdFinalizeTimeTravelMerge() tea.Cmd {
 // cmdFinalizeTimeTravelReturn finalizes time travel return after conflict resolution
 // Commits resolved stash conflicts and clears time travel marker file
 func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 
 		// Stage all resolved files (should already be staged, but be safe)
 		buffer.Append("Staging resolved files...", ui.TypeStatus)
-		result := git.ExecuteWithStreaming("add", "-A")
+		result := git.ExecuteWithStreaming(ctx, "add", "-A")
 		if !result.Success {
 			buffer.Append("Failed to stage resolved files", ui.TypeStderr)
 			return GitOperationMsg{
@@ -100,7 +105,7 @@ func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
 		if hasStagedChanges {
 			// Commit the resolved stash
 			buffer.Append("Committing resolved work-in-progress...", ui.TypeStatus)
-			result = git.ExecuteWithStreaming("commit", "-m", "Restore work-in-progress (conflicts resolved)")
+			result = git.ExecuteWithStreaming(ctx, "commit", "-m", "Restore work-in-progress (conflicts resolved)")
 			if !result.Success {
 				buffer.Append("Failed to commit", ui.TypeStderr)
 				return GitOperationMsg{
@@ -115,7 +120,7 @@ func (a *Application) cmdFinalizeTimeTravelReturn() tea.Cmd {
 
 		// Drop the time travel stash
 		buffer.Append("Dropping time travel stash...", ui.TypeStatus)
-		git.ExecuteWithStreaming("stash", "drop")
+		git.ExecuteWithStreaming(ctx, "stash", "drop")
 
 		// Clear time travel marker file
 		buffer.Append("Cleaning up time travel marker...", ui.TypeStatus)
