@@ -329,7 +329,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	case "cancel":
 		// User cancelled any confirmation dialog
-		a.confirmationDialog = nil
+		a.hideDialog()
 		return a.returnToMenu()
 
 	default:

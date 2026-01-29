@@ -121,16 +121,16 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 
 // handleConfirmationResponse routes confirmation YES/NO responses to appropriate handlers
 func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea.Cmd) {
-	if a.confirmationDialog == nil {
+	if a.getDialog() == nil {
 		// No active confirmation dialog
 		return a.returnToMenu()
 	}
 
-	confirmType := a.confirmationDialog.Config.ActionID
+	confirmType := a.getDialog().Config.ActionID
 	actions, ok := confirmationHandlers[confirmType]
 	if !ok {
 		// No handler registered for this type - return to menu
-		a.confirmationDialog = nil
+		a.hideDialog()
 		return a.returnToMenu()
 	}
 
@@ -143,7 +143,7 @@ func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea
 
 	if handler == nil {
 		// Paired handler is nil - return to menu (shouldn't happen with paired structure)
-		a.confirmationDialog = nil
+		a.hideDialog()
 		return a.returnToMenu()
 	}
 
@@ -158,7 +158,7 @@ func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea
 func (a *Application) executeConfirmNestedRepoInit() (tea.Model, tea.Cmd) {
 	// User confirmed they want to init in a nested repo
 	// Return to previous mode (ModeInitializeLocation)
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.mode = ModeInitializeLocation
 	return a, nil
 }
@@ -166,7 +166,7 @@ func (a *Application) executeConfirmNestedRepoInit() (tea.Model, tea.Cmd) {
 // executeRejectNestedRepoInit handles NO response to nested repo warning
 func (a *Application) executeRejectNestedRepoInit() (tea.Model, tea.Cmd) {
 	// User cancelled - abort init, return to menu
-	a.confirmationDialog = nil
+	a.hideDialog()
 	return a.returnToMenu()
 }
 
@@ -174,7 +174,7 @@ func (a *Application) executeRejectNestedRepoInit() (tea.Model, tea.Cmd) {
 func (a *Application) executeConfirmForcePush() (tea.Model, tea.Cmd) {
 	// User confirmed force push
 	// Initiate async push --force operation
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
 	return a, a.cmdForcePush()
 }
@@ -182,14 +182,14 @@ func (a *Application) executeConfirmForcePush() (tea.Model, tea.Cmd) {
 // executeRejectForcePush handles NO response to force push confirmation
 func (a *Application) executeRejectForcePush() (tea.Model, tea.Cmd) {
 	// User cancelled force push
-	a.confirmationDialog = nil
+	a.hideDialog()
 	return a.returnToMenu()
 }
 
 // executeConfirmHardReset handles YES response to hard reset confirmation
 func (a *Application) executeConfirmHardReset() (tea.Model, tea.Cmd) {
 	// User confirmed hard reset
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
 	return a, a.cmdHardReset()
 }
@@ -197,14 +197,14 @@ func (a *Application) executeConfirmHardReset() (tea.Model, tea.Cmd) {
 // executeRejectHardReset handles NO response to hard reset confirmation
 func (a *Application) executeRejectHardReset() (tea.Model, tea.Cmd) {
 	// User cancelled hard reset
-	a.confirmationDialog = nil
+	a.hideDialog()
 	return a.returnToMenu()
 }
 
 // executeAlert handles alert dialog dismissal (any response)
 func (a *Application) executeAlert() (tea.Model, tea.Cmd) {
 	// Alert dialogs are dismissed with any key press
-	a.confirmationDialog = nil
+	a.hideDialog()
 	return a.returnToMenu()
 }
 
@@ -215,11 +215,12 @@ func (a *Application) executeAlert() (tea.Model, tea.Cmd) {
 // showConfirmation displays a confirmation dialog with the given config
 // Sets confirmation mode and dialog state
 func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
-	a.confirmationDialog = ui.NewConfirmationDialog(
+	dialog := ui.NewConfirmationDialog(
 		config,
 		a.sizing.ContentInnerWidth,
 		&a.theme,
 	)
+	a.setDialog(dialog)
 	a.mode = ModeConfirmation
 }
 
@@ -370,7 +371,7 @@ func (a *Application) showAlert(title, explanation string) {
 // executeConfirmDirtyPull handles YES response to dirty pull confirmation (Save changes)
 func (a *Application) executeConfirmDirtyPull() (tea.Model, tea.Cmd) {
 	// User confirmed to save changes and proceed with dirty pull
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Create operation state - merge strategy only
 	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", true) // true = preserve changes
@@ -386,7 +387,7 @@ func (a *Application) executeConfirmDirtyPull() (tea.Model, tea.Cmd) {
 // executeRejectDirtyPull handles NO response to dirty pull confirmation (Discard changes)
 func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
 	// User chose to discard changes and pull
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Create operation state - merge strategy only
 	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", false) // false = discard changes
@@ -406,7 +407,7 @@ func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
 // executeConfirmPullMerge handles YES response to pull merge confirmation
 func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 	// User confirmed to proceed with pull merge
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Transition to console to show streaming output
 	a.setExitAllowed(false) // Block Ctrl+C until operation completes or is aborted
@@ -425,7 +426,7 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 // executeRejectPullMerge handles NO response to pull merge confirmation
 func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 	// User cancelled pull merge
-	a.confirmationDialog = nil
+	a.hideDialog()
 	return a.returnToMenu()
 }
 
@@ -436,10 +437,10 @@ func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravel handles YES response to time travel confirmation
 func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
 	// User confirmed time travel
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Get commit hash from context
-	commitHash := a.confirmContext["commit_hash"]
+	commitHash := a.getDialogContext()["commit_hash"]
 
 	// Get original branch - CHECK BEFORE modifying Operation state
 	// Case 1: Already time traveling (Operation == TimeTraveling) → read from TIT_TIME_TRAVEL file
@@ -657,7 +658,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 // executeRejectTimeTravel handles NO response to time travel confirmation
 func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 	// User cancelled time travel
-	a.confirmationDialog = nil
+	a.hideDialog()
 	return a.returnToMenu()
 }
 
@@ -667,7 +668,7 @@ func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 
 // executeConfirmTimeTravelReturn handles YES response to return-to-main confirmation
 func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Transition to console to show streaming output (consistent with other git operations)
 	a.consoleState.SetAutoScroll(true)
@@ -689,7 +690,7 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 // executeRejectTimeTravelReturn handles NO response to return-to-main confirmation
 func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 	// User cancelled return
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.mode = ModeMenu
 	return a, a.startAutoUpdate()
 }
@@ -700,7 +701,7 @@ func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 
 // executeConfirmTimeTravelMerge handles YES response to merge-and-return confirmation
 func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Get current commit hash
 	result := git.Execute("rev-parse", "HEAD")
@@ -731,7 +732,7 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 // executeRejectTimeTravelMerge handles NO response to merge-and-return confirmation
 func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
 	// User cancelled merge
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.mode = ModeMenu
 	return a, a.startAutoUpdate()
 }
@@ -743,7 +744,7 @@ func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravelMergeDirtyCommit handles "Commit & merge" choice
 // Auto-commits with generated message and immediately starts merge
 func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Get current commit hash for auto-generated message
 	result := git.Execute("rev-parse", "--short", "HEAD")
@@ -804,7 +805,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 // executeConfirmTimeTravelMergeDirtyDiscard handles "Discard" choice
 // Discards uncommitted changes immediately, then proceeds with merge
 func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Discard working tree changes
 	if err := a.discardWorkingTreeChanges(); err != nil {
@@ -848,7 +849,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 // executeConfirmTimeTravelReturnDirtyDiscard handles "Discard & return" choice
 // Discards uncommitted changes immediately, then proceeds with return
 func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Discard working tree changes
 	if err := a.discardWorkingTreeChanges(); err != nil {
@@ -878,7 +879,7 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 // executeRejectTimeTravelReturnDirty handles "Cancel" choice
 func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) {
 	// User cancelled return
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.mode = ModeMenu
 	return a, a.startAutoUpdate()
 }
@@ -931,9 +932,9 @@ func (a *Application) executeRewindOperation(commitHash string) tea.Cmd {
 
 // executeConfirmBranchSwitchClean handles YES response to clean tree branch switch
 func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
-	targetBranch := a.confirmContext["targetBranch"]
+	targetBranch := a.getDialogContext()["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
@@ -944,7 +945,7 @@ func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
 
 // executeRejectBranchSwitch handles NO/Cancel response (clean tree)
 func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
 	// Return to branch picker (preserve state)
 	a.mode = ModeBranchPicker
@@ -953,9 +954,9 @@ func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 
 // executeConfirmBranchSwitchDirty handles YES response (Stash changes)
 func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
-	targetBranch := a.confirmContext["targetBranch"]
+	targetBranch := a.getDialogContext()["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
@@ -969,9 +970,9 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 
 // executeRejectBranchSwitchDirty handles NO response (Discard changes)
 func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	a.confirmationDialog = nil
+	a.hideDialog()
 
-	targetBranch := a.confirmContext["targetBranch"]
+	targetBranch := a.getDialogContext()["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}

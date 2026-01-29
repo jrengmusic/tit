@@ -61,8 +61,7 @@ type Application struct {
 	cancelContext context.CancelFunc
 
 	// Confirmation dialog state
-	confirmationDialog *ui.ConfirmationDialog
-	confirmContext     map[string]string
+	dialogState DialogState
 
 	// Conflict resolution state
 	conflictResolveState *ConflictResolveState
@@ -253,6 +252,7 @@ func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEn
 		environmentState: envState,
 		asyncState:       AsyncState{exitAllowed: true},
 		consoleState:     NewConsoleState(),
+		dialogState:      NewDialogState(),
 	}
 	app.keyHandlers = app.buildKeyHandlers()
 	return app
@@ -353,6 +353,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		// Config state (Session 86) - passed from main.go (fail-fast on load errors)
 		appConfig:     cfg,
 		activityState: NewActivityState(),
+		dialogState:   NewDialogState(),
 	}
 
 	// Build and cache key handler registry once
@@ -749,8 +750,8 @@ func (a *Application) View() string {
 
 	case ModeConfirmation:
 		// Confirmation dialog (centered in content area)
-		if a.confirmationDialog != nil {
-			contentText = a.confirmationDialog.Render(a.sizing.ContentHeight)
+		if a.dialogState.GetDialog() != nil {
+			contentText = a.dialogState.GetDialog().Render(a.sizing.ContentHeight)
 		} else {
 			// Fallback if no dialog - return to menu
 			a.mode = ModeMenu
@@ -1705,4 +1706,37 @@ func (a *Application) stopAutoUpdate() {
 
 func (a *Application) incrementAutoUpdateFrame() {
 	a.activityState.IncrementFrame()
+}
+
+// Dialog state delegation
+func (a *Application) getDialog() *ui.ConfirmationDialog {
+	return a.dialogState.GetDialog()
+}
+
+func (a *Application) setDialog(dialog *ui.ConfirmationDialog) {
+	a.dialogState.Show(dialog, nil)
+}
+
+func (a *Application) hideDialog() {
+	a.dialogState.Hide()
+}
+
+func (a *Application) isDialogVisible() bool {
+	return a.dialogState.IsVisible()
+}
+
+func (a *Application) getDialogContext() map[string]string {
+	return a.dialogState.GetContext()
+}
+
+func (a *Application) setDialogContext(ctx map[string]string) {
+	a.dialogState.context = ctx
+}
+
+func (a *Application) getDialogContextValue(key string) string {
+	return a.dialogState.GetContextValue(key)
+}
+
+func (a *Application) setDialogContextValue(key, value string) {
+	a.dialogState.SetContextValue(key, value)
 }
