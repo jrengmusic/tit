@@ -522,7 +522,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 		LogErrorFatal("Failed to parse commit time", err)
 	}
 
-	a.timeTravelInfo = &git.TimeTravelInfo{
+	a.setTimeTravelInfo(&git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
 		OriginalStashID: "",
 		CurrentCommit: git.CommitInfo{
@@ -530,7 +530,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 			Subject: commitSubject,
 			Time:    commitTime,
 		},
-	}
+	})
 
 	// Transition to console to show streaming output
 	a.consoleState.SetAutoScroll(true)
@@ -543,7 +543,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 
 	// CRITICAL: Set restoreTimeTravelInitiated = true to prevent restoration check
 	// from triggering during this intentional time travel session
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	// Start time travel checkout operation
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
@@ -559,7 +559,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 
 	a.workflowState.PreviousMode = ModeHistory
 	a.workflowState.PreviousMenuIndex = 0
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	buffer := ui.GetBuffer()
 
@@ -641,7 +641,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 		panic(fmt.Sprintf("FATAL: Failed to parse commit time: %v", err))
 	}
 
-	a.timeTravelInfo = &git.TimeTravelInfo{
+	a.setTimeTravelInfo(&git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
 		OriginalStashID: stashHash,
 		CurrentCommit: git.CommitInfo{
@@ -649,7 +649,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 			Subject: commitSubject,
 			Time:    commitTime,
 		},
-	}
+	})
 
 	// Start time travel checkout operation (console already set up at function start)
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
@@ -680,7 +680,7 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel return!
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	// Get original branch and execute time travel return operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -722,7 +722,7 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	// Get original branch and execute time travel merge operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -795,7 +795,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
 	// Marker file still exists during merge, but this is NOT an incomplete session
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	// Get original branch and execute time travel merge operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -835,7 +835,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	// Get original branch and execute time travel merge operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -869,7 +869,7 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel return!
-	a.restoreTimeTravelInitiated = true
+	a.markTimeTravelRestoreInitiated()
 
 	// Get original branch and execute time travel return operation
 	originalBranch := a.getOriginalBranchForTimeTravel()

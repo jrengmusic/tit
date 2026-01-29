@@ -289,23 +289,36 @@ type TimeTravelInfo struct {
 ```go
 type Application struct {
     gitState       git.State
-    timeTravelInfo *TimeTravelInfo  // Non-nil only when Operation = TimeTraveling
+    timeTravelState TimeTravelState  // Time travel operation state
 
     // Extracted state structs:
-    inputState   InputState   // Input field management (7 fields)
-    cacheManager CacheManager // Cache lifecycle (14 fields)
-    asyncState   AsyncState   // Async operation state (3 fields)
+    inputState      InputState      // Input field management (7 fields)
+    cacheManager    CacheManager    // Cache lifecycle (14 fields)
+    asyncState      AsyncState      // Async operation state (3 fields)
+    workflowState   WorkflowState   // Workflow and clone state (7 fields)
+    environmentState EnvironmentState // Git environment and setup state (5 fields)
+    pickerState     PickerState     // Picker UI state (3 fields)
+    consoleState    ConsoleState    // Console output state (3 fields)
+    activityState   ActivityState   // Activity tracking state (4 fields)
+    dialogState     DialogState     // Dialog UI state (2 fields)
 
-    // ... other fields (47 total)
+    // ... other fields (21 total)
 }
 ```
 
 **Application Struct Architecture:**
-- **Current state:** 47 fields  
+- **Current state:** 21 fields (reduced from 47)
 - **Extracted structs:**
   - `InputState` (`internal/app/input_state.go`) - Input field management (7 fields, 148 lines)
   - `CacheManager` (`internal/app/cache_manager.go`) - Cache lifecycle (14 fields, 307 lines)
   - `AsyncState` (`internal/app/async_state.go`) - Async operation state (3 fields, 59 lines)
+  - `WorkflowState` (`internal/app/workflow_state.go`) - Workflow and clone state (7 fields)
+  - `EnvironmentState` (`internal/app/environment_state.go`) - Git environment and setup state (5 fields)
+  - `PickerState` (`internal/app/picker_state.go`) - Picker UI state (3 fields)
+  - `ConsoleState` (`internal/app/console_state.go`) - Console output state (3 fields)
+  - `ActivityState` (`internal/app/activity_state.go`) - Activity tracking state (4 fields)
+  - `DialogState` (`internal/app/dialog_state.go`) - Dialog UI state (2 fields)
+  - `TimeTravelState` (`internal/app/time_travel_state.go`) - Time travel operation state (2 fields)
 
 **InputState Methods:**
 - Reset(), SetValue(), GetValue()
@@ -332,6 +345,13 @@ type Application struct {
 **Helper Methods (Application delegates to structs):**
 - Async: startAsyncOp(), endAsyncOp(), abortAsyncOp(), clearAsyncAborted(), isAsyncActive(), isAsyncAborted(), canExit(), setExitAllowed()
 - Cache: All cache operations now go through a.cacheManager
+- Workflow: resetCloneWorkflow(), saveCurrentMode(), restorePreviousMode(), etc.
+- Environment: isEnvironmentReady(), needsEnvironmentSetup(), etc.
+- Picker: getHistoryState(), setHistoryState(), resetHistoryState(), etc.
+- Console: getConsoleBuffer(), clearConsoleBuffer(), toggleConsoleAutoScroll(), etc.
+- Activity: markMenuActivity(), isMenuInactive(), setMenuActivityTimeout(), etc.
+- Dialog: getDialog(), setDialog(), isConfirmationDialog(), etc.
+- TimeTravel: isTimeTravelActive(), getTimeTravelInfo(), clearTimeTravelState(), etc.
 
 **Safety invariant:** ESC at any point restores exact original state by restoring original branch and reapplying stash.
 
@@ -344,11 +364,18 @@ type Application struct {
 The Application struct has been refactored from a God Object into focused components:
 
 **Current Architecture:**
-- **Application struct:** 47 fields (reduced from 72) 
+- **Application struct:** 21 fields (reduced from 47) 
 - **Extracted structs:**
   - `InputState` (`internal/app/input_state.go`) - Input field management (7 fields, 148 lines)
   - `CacheManager` (`internal/app/cache_manager.go`) - History cache lifecycle (14 fields, 307 lines)
   - `AsyncState` (`internal/app/async_state.go`) - Async operation state (3 fields, 59 lines)
+  - `WorkflowState` (`internal/app/workflow_state.go`) - Workflow and clone state (7 fields)
+  - `EnvironmentState` (`internal/app/environment_state.go`) - Git environment and setup state (5 fields)
+  - `PickerState` (`internal/app/picker_state.go`) - Picker UI state (3 fields)
+  - `ConsoleState` (`internal/app/console_state.go`) - Console output state (3 fields)
+  - `ActivityState` (`internal/app/activity_state.go`) - Activity tracking state (4 fields)
+  - `DialogState` (`internal/app/dialog_state.go`) - Dialog UI state (2 fields)
+  - `TimeTravelState` (`internal/app/time_travel_state.go`) - Time travel operation state (2 fields)
 
 **SSOT Helper Functions (app.go):**
 1. `reloadGitState()` - Centralizes state reload patterns

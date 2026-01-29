@@ -78,8 +78,7 @@ type Application struct {
 	pickerState PickerState
 
 	// Time Travel state
-	timeTravelInfo             *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
-	restoreTimeTravelInitiated bool                // True once restoration has been started
+	timeTravelState TimeTravelState
 
 	// Environment state (git detection + setup wizard)
 	environmentState EnvironmentState // Git environment and setup wizard state
@@ -375,7 +374,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			// Force restoration to recover
 			shouldRestore = true
 		} else {
-			app.timeTravelInfo = ttInfo
+			app.setTimeTravelInfo(ttInfo)
 		}
 	}
 
@@ -536,7 +535,7 @@ func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
 // handleRestoreTimeTravel processes the result of time travel restoration (Phase 0)
 func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Model, tea.Cmd) {
 	a.endAsyncOp()
-	a.restoreTimeTravelInitiated = false
+	a.clearTimeTravelRestore()
 
 	if !msg.Success {
 		buffer := ui.GetBuffer()
@@ -575,9 +574,9 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
 
 	// Double-check before calling RestoreFromTimeTravel
-	if a.isAsyncActive() && a.mode == ModeConsole && !a.restoreTimeTravelInitiated && hasMarker {
+	if a.isAsyncActive() && a.mode == ModeConsole && !a.isTimeTravelRestoreInitiated() && hasMarker {
 		// Verify marker still exists right before restoration
-		a.restoreTimeTravelInitiated = true
+		a.markTimeTravelRestoreInitiated()
 		return a, a.RestoreFromTimeTravel()
 	}
 
@@ -1064,15 +1063,15 @@ func (a *Application) RenderStateHeader() string {
 	timelineDesc := []string{"No remote configured."}
 
 	if state.Operation == git.TimeTraveling {
-		if a.timeTravelInfo != nil {
-			shortHash := a.timeTravelInfo.CurrentCommit.Hash
+		if a.getTimeTravelInfo() != nil {
+			shortHash := a.getTimeTravelInfo().CurrentCommit.Hash
 			if len(shortHash) >= 7 {
 				shortHash = shortHash[:7]
 			}
 			timelineEmoji = "📌"
 			timelineLabel = "DETACHED @ " + shortHash
 			timelineColor = a.theme.OutputWarningColor
-			timelineDesc = []string{"Viewing commit from " + a.timeTravelInfo.CurrentCommit.Time.Format("Jan 2, 2006")}
+			timelineDesc = []string{"Viewing commit from " + a.getTimeTravelInfo().CurrentCommit.Time.Format("Jan 2, 2006")}
 		}
 	} else if state.Timeline != "" {
 		tlInfo := a.timelineInfo[state.Timeline]
@@ -1739,4 +1738,33 @@ func (a *Application) getDialogContextValue(key string) string {
 
 func (a *Application) setDialogContextValue(key, value string) {
 	a.dialogState.SetContextValue(key, value)
+}
+
+// TimeTravel state delegation
+func (a *Application) isTimeTravelActive() bool {
+	return a.timeTravelState.IsActive()
+}
+
+func (a *Application) getTimeTravelInfo() *git.TimeTravelInfo {
+	return a.timeTravelState.GetInfo()
+}
+
+func (a *Application) setTimeTravelInfo(info *git.TimeTravelInfo) {
+	a.timeTravelState.SetInfo(info)
+}
+
+func (a *Application) clearTimeTravelState() {
+	a.timeTravelState.Clear()
+}
+
+func (a *Application) isTimeTravelRestoreInitiated() bool {
+	return a.timeTravelState.IsRestoreInitiated()
+}
+
+func (a *Application) markTimeTravelRestoreInitiated() {
+	a.timeTravelState.MarkRestoreInitiated()
+}
+
+func (a *Application) clearTimeTravelRestore() {
+	a.timeTravelState.ClearRestore()
 }

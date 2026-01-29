@@ -3,18 +3,13 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"tit/internal/git"
 )
 
-// CommitInfo contains basic information about a commit (for list display)
-// This mirrors git.CommitInfo but is defined here to avoid import cycles
-type CommitInfo struct {
-	Hash    string    // Full commit hash (40 chars)
-	Subject string    // Commit message first line
-	Time    time.Time // Commit author date
-}
+// CommitInfo is an alias for git.CommitInfo to avoid import cycles in UI
+type CommitInfo = git.CommitInfo
 
 // HistoryState represents the state of the history browser
 type HistoryState struct {
