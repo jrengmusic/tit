@@ -52,7 +52,7 @@ func (a *Application) handleAutoUpdateTick() (tea.Model, tea.Cmd) {
 	}
 
 	// Skip if auto-update already in progress
-	if a.isAutoUpdateInProgress() {
+	if a.activityState.IsAutoUpdateInProgress() {
 		return a, nil
 	}
 
@@ -88,7 +88,7 @@ func (a *Application) cmdAutoUpdate() tea.Cmd {
 // handleAutoUpdateComplete updates UI with new state
 func (a *Application) handleAutoUpdateComplete(state *git.State) (tea.Model, tea.Cmd) {
 	// Clear in-progress flag
-	a.stopAutoUpdate()
+	a.activityState.StopAutoUpdate()
 
 	if state == nil {
 		return a, nil
@@ -130,15 +130,15 @@ func (a *Application) scheduleAutoUpdateAnimation() tea.Cmd {
 // handleAutoUpdateAnimation advances spinner animation frame
 func (a *Application) handleAutoUpdateAnimation() (tea.Model, tea.Cmd) {
 	// Only update frame if still in progress
-	if !a.isAutoUpdateInProgress() {
+	if !a.activityState.IsAutoUpdateInProgress() {
 		return a, nil
 	}
 
 	// Advance animation frame
-	a.incrementAutoUpdateFrame()
+	a.activityState.IncrementFrame()
 
 	// Schedule next animation frame while in progress
-	if a.isAutoUpdateInProgress() {
+	if a.activityState.IsAutoUpdateInProgress() {
 		return a, a.scheduleAutoUpdateAnimation()
 	}
 

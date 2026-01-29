@@ -189,7 +189,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 		a.sizing.ContentInnerWidth,
 		&a.theme,
 	)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	dialog.SelectNo()
 	return nil
 }
@@ -198,7 +198,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
-	app.setDialogContext(map[string]string{})
+	app.dialogState.SetContext(map[string]string{})
 	msg := ConfirmationMessages["force_push"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -208,7 +208,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 		ActionID:    "force_push",
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	return nil
 }
 
@@ -216,7 +216,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.setDialogContext(map[string]string{})
+	app.dialogState.SetContext(map[string]string{})
 	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -226,7 +226,7 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 		ActionID:    "hard_reset",
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	dialog.SelectNo()
 	return nil
 }
@@ -235,7 +235,7 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.setDialogContext(map[string]string{})
+	app.dialogState.SetContext(map[string]string{})
 	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -245,7 +245,7 @@ func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 		ActionID:    "hard_reset",
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	dialog.SelectNo()
 	return nil
 }
@@ -337,7 +337,7 @@ func parseCommitDate(dateStr string) (time.Time, error) {
 func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.setDialogContext(map[string]string{})
+	app.dialogState.SetContext(map[string]string{})
 	msg := ConfirmationMessages["dirty_pull"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -347,7 +347,7 @@ func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 		ActionID:    "dirty_pull",
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	return nil
 }
 
@@ -404,7 +404,7 @@ func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
 		a.sizing.ContentInnerWidth,
 		&a.theme,
 	)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	dialog.SelectNo()
 	return nil
 }
@@ -428,7 +428,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
-		app.setDialog(dialog)
+		app.dialogState.Show(dialog, nil)
 		dialog.SelectNo()
 	} else {
 		app.workflowState.PreviousMode = app.mode
@@ -445,7 +445,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
-		app.setDialog(dialog)
+		app.dialogState.Show(dialog, nil)
 		dialog.SelectNo()
 	}
 	return nil
@@ -483,7 +483,7 @@ func (a *Application) dispatchConfigSwitchRemote(app *Application) tea.Cmd {
 func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.setDialogContext(map[string]string{})
+	app.dialogState.SetContext(map[string]string{})
 	msg := ConfirmationMessages["remove_remote"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -493,7 +493,7 @@ func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
 		ActionID:    "config_remove_remote",
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 	return nil
 }
 

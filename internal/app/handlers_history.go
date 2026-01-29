@@ -91,7 +91,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 
 	// Show time travel confirmation dialog
 	app.mode = ModeConfirmation
-	app.setDialogContext(map[string]string{
+	app.dialogState.SetContext(map[string]string{
 		"commit_hash":    commit.Hash,
 		"commit_subject": commit.Subject,
 	})
@@ -115,7 +115,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 		ActionID:    "time_travel",
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.setDialog(dialog)
+	app.dialogState.Show(dialog, nil)
 
 	return app, nil
 }

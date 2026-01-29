@@ -55,3 +55,8 @@ func (d *DialogState) SetContextValue(key, value string) {
 func (d *DialogState) GetContextValue(key string) string {
 	return d.context[key]
 }
+
+// SetContext sets the entire context map.
+func (d *DialogState) SetContext(ctx map[string]string) {
+	d.context = ctx
+}
