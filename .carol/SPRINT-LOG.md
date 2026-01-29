@@ -142,7 +142,7 @@
 COUNSELOR: [Not Assigned]  
 ENGINEER: glm-4.7 (zai-coding-plan/glm-4.7)  
 SURGEON: [Not Assigned]  
-AUDITOR: [Not Assigned]  
+AUDITOR: Amp (Claude Sonnet 4) — Sprint 3  
 MACHINIST: [Not Assigned]  
 JOURNALIST: [Not Assigned]
 
