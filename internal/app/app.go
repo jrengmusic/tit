@@ -87,12 +87,8 @@ type Application struct {
 	timeTravelInfo             *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
 	restoreTimeTravelInitiated bool                // True once restoration has been started
 
-	// Git Environment state (5th axis - checked before all other state)
-	gitEnvironment   git.GitEnvironment // Ready, NeedsSetup, MissingGit, MissingSSH
-	setupWizardStep  SetupWizardStep    // Current step in setup wizard
-	setupWizardError string             // Error message to display in SetupStepError
-	setupEmail       string             // Email for SSH key generation
-	setupKeyCopied   bool               // True once public key copied to clipboard
+	// Environment state (git detection + setup wizard)
+	environmentState EnvironmentState // Git environment and setup wizard state
 
 	// History cache
 	cacheManager *CacheManager
@@ -159,8 +155,9 @@ func (a *Application) transitionTo(config ModeTransition) {
 			// Reset all workflow states
 			a.workflowState.ResetClone()
 		}
+	}
 }
-}
+
 // reloadGitState refreshes git state from repository.
 // This is SSOT for all git state reloads in the application.
 func (a *Application) reloadGitState() error {
@@ -260,15 +257,16 @@ func (a *Application) canExit() bool {
 // newSetupWizardApp creates a minimal Application for the setup wizard
 // This bypasses all git state detection since git environment is not ready
 func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEnvironment) *Application {
+	envState := NewEnvironmentState()
+	envState.SetEnvironment(gitEnv)
 	app := &Application{
-		sizing:          sizing,
-		theme:           theme,
-		mode:            ModeSetupWizard,
-		gitEnvironment:  gitEnv,
-		setupWizardStep: SetupStepWelcome,
-		asyncState:      AsyncState{exitAllowed: true},
-		consoleState:    ui.NewConsoleOutState(),
-		outputBuffer:    ui.GetBuffer(),
+		sizing:           sizing,
+		theme:            theme,
+		mode:             ModeSetupWizard,
+		environmentState: envState,
+		asyncState:       AsyncState{exitAllowed: true},
+		consoleState:     ui.NewConsoleOutState(),
+		outputBuffer:     ui.GetBuffer(),
 	}
 	app.keyHandlers = app.buildKeyHandlers()
 	return app
@@ -697,14 +695,14 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SetupCompleteMsg:
 		// SSH key generation completed successfully
 		if msg.Step == "generate" {
-			a.setupWizardStep = SetupStepDisplayKey
+			a.environmentState.SetWizardStep(SetupStepDisplayKey)
 		}
 		return a, nil
 
 	case SetupErrorMsg:
 		// Error occurred during setup - show error to user
-		a.setupWizardError = msg.Error
-		a.setupWizardStep = SetupStepError
+		a.environmentState.SetWizardError(msg.Error)
+		a.environmentState.SetWizardStep(SetupStepError)
 		return a, nil
 
 	case RewindMsg:
@@ -869,7 +867,7 @@ func (a *Application) View() string {
 		}
 	case ModeSetupWizard:
 		// Email step uses same full-screen input as ModeInput
-		if a.setupWizardStep == SetupStepEmail {
+		if a.environmentState.SetupWizardStep == SetupStepEmail {
 			return a.renderSetupEmail()
 		}
 		// Other setup wizard steps
@@ -1139,7 +1137,7 @@ func (a *Application) RenderStateHeader() string {
 func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
 		a.mode == ModeCloneURL ||
-		(a.mode == ModeSetupWizard && a.setupWizardStep == SetupStepEmail)
+		(a.mode == ModeSetupWizard && a.environmentState.SetupWizardStep == SetupStepEmail)
 }
 
 // menuItemsToMaps converts MenuItem slice to map slice for rendering
@@ -1560,4 +1558,49 @@ func (a *Application) getPendingRewind() string {
 
 func (a *Application) clearPendingRewind() {
 	a.workflowState.ClearPendingRewind()
+}
+
+// Environment state delegation
+func (a *Application) isEnvironmentReady() bool {
+	return a.environmentState.IsReady()
+}
+
+func (a *Application) needsEnvironmentSetup() bool {
+	return a.environmentState.NeedsSetup()
+}
+
+func (a *Application) setEnvironment(env git.GitEnvironment) {
+	a.environmentState.SetEnvironment(env)
+}
+
+func (a *Application) getSetupWizardStep() SetupWizardStep {
+	return a.environmentState.SetupWizardStep
+}
+
+func (a *Application) setSetupWizardStep(step SetupWizardStep) {
+	a.environmentState.SetWizardStep(step)
+}
+
+func (a *Application) getSetupWizardError() string {
+	return a.environmentState.SetupWizardError
+}
+
+func (a *Application) setSetupWizardError(err string) {
+	a.environmentState.SetWizardError(err)
+}
+
+func (a *Application) getSetupEmail() string {
+	return a.environmentState.GetEmail()
+}
+
+func (a *Application) setSetupEmail(email string) {
+	a.environmentState.SetEmail(email)
+}
+
+func (a *Application) markSetupKeyCopied() {
+	a.environmentState.MarkKeyCopied()
+}
+
+func (a *Application) isSetupKeyCopied() bool {
+	return a.environmentState.IsKeyCopied()
 }
