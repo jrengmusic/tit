@@ -35,7 +35,7 @@ func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
 
 func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Model, tea.Cmd) {
 	a.endAsyncOp()
-	a.clearTimeTravelRestore()
+	a.timeTravelState.ClearRestore()
 
 	if !msg.Success {
 		buffer := ui.GetBuffer()
@@ -75,9 +75,9 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
 
 	// Double-check before calling RestoreFromTimeTravel
-	if a.isAsyncActive() && a.mode == ModeConsole && !a.isTimeTravelRestoreInitiated() && hasMarker {
+	if a.isAsyncActive() && a.mode == ModeConsole && !a.timeTravelState.IsRestoreInitiated() && hasMarker {
 		// Verify marker still exists right before restoration
-		a.markTimeTravelRestoreInitiated()
+		a.timeTravelState.MarkRestoreInitiated()
 		return a, a.RestoreFromTimeTravel()
 	}
 

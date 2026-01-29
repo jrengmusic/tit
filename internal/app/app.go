@@ -374,7 +374,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			// Force restoration to recover
 			shouldRestore = true
 		} else {
-			app.setTimeTravelInfo(ttInfo)
+			app.timeTravelState.SetInfo(ttInfo)
 		}
 	}
 
@@ -972,81 +972,3 @@ func (a *Application) getActivityTimeout() time.Duration {
 }
 
 // Activity state delegation (getters for auto_update.go)
-func (a *Application) isAutoUpdateInProgress() bool {
-	return a.activityState.IsAutoUpdateInProgress()
-}
-
-func (a *Application) getAutoUpdateFrame() int {
-	return a.activityState.GetFrame()
-}
-
-// Activity state delegation (setters for auto_update.go)
-func (a *Application) stopAutoUpdate() {
-	a.activityState.StopAutoUpdate()
-}
-
-func (a *Application) incrementAutoUpdateFrame() {
-	a.activityState.IncrementFrame()
-}
-
-// Dialog state delegation
-func (a *Application) getDialog() *ui.ConfirmationDialog {
-	return a.dialogState.GetDialog()
-}
-
-func (a *Application) setDialog(dialog *ui.ConfirmationDialog) {
-	a.dialogState.Show(dialog, nil)
-}
-
-func (a *Application) hideDialog() {
-	a.dialogState.Hide()
-}
-
-func (a *Application) isDialogVisible() bool {
-	return a.dialogState.IsVisible()
-}
-
-func (a *Application) getDialogContext() map[string]string {
-	return a.dialogState.GetContext()
-}
-
-func (a *Application) setDialogContext(ctx map[string]string) {
-	a.dialogState.context = ctx
-}
-
-func (a *Application) getDialogContextValue(key string) string {
-	return a.dialogState.GetContextValue(key)
-}
-
-func (a *Application) setDialogContextValue(key, value string) {
-	a.dialogState.SetContextValue(key, value)
-}
-
-// TimeTravel state delegation
-func (a *Application) isTimeTravelActive() bool {
-	return a.timeTravelState.IsActive()
-}
-
-func (a *Application) getTimeTravelInfo() *git.TimeTravelInfo {
-	return a.timeTravelState.GetInfo()
-}
-
-func (a *Application) setTimeTravelInfo(info *git.TimeTravelInfo) {
-	a.timeTravelState.SetInfo(info)
-}
-
-func (a *Application) clearTimeTravelState() {
-	a.timeTravelState.Clear()
-}
-
-func (a *Application) isTimeTravelRestoreInitiated() bool {
-	return a.timeTravelState.IsRestoreInitiated()
-}
-
-func (a *Application) markTimeTravelRestoreInitiated() {
-	a.timeTravelState.MarkRestoreInitiated()
-}
-
-func (a *Application) clearTimeTravelRestore() {
-	a.timeTravelState.ClearRestore()
-}

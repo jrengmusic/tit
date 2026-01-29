@@ -215,15 +215,15 @@ func (a *Application) RenderStateHeader() string {
 	timelineDesc := []string{"No remote configured."}
 
 	if state.Operation == git.TimeTraveling {
-		if a.getTimeTravelInfo() != nil {
-			shortHash := a.getTimeTravelInfo().CurrentCommit.Hash
+		if a.timeTravelState.GetInfo() != nil {
+			shortHash := a.timeTravelState.GetInfo().CurrentCommit.Hash
 			if len(shortHash) >= 7 {
 				shortHash = shortHash[:7]
 			}
 			timelineEmoji = "📌"
 			timelineLabel = "DETACHED @ " + shortHash
 			timelineColor = a.theme.OutputWarningColor
-			timelineDesc = []string{"Viewing commit from " + a.getTimeTravelInfo().CurrentCommit.Time.Format("Jan 2, 2006")}
+			timelineDesc = []string{"Viewing commit from " + a.timeTravelState.GetInfo().CurrentCommit.Time.Format("Jan 2, 2006")}
 		}
 	} else if state.Timeline != "" {
 		tlInfo := a.timelineInfo[state.Timeline]
@@ -260,8 +260,8 @@ func (a *Application) RenderStateHeader() string {
 		TimelineLabel:    timelineLabel,
 		TimelineDesc:     timelineDesc,
 		TimelineColor:    timelineColor,
-		SyncInProgress:   a.isAutoUpdateInProgress(),
-		SyncFrame:        a.getAutoUpdateFrame(),
+		SyncInProgress:   a.activityState.IsAutoUpdateInProgress(),
+		SyncFrame:        a.activityState.GetFrame(),
 	}
 
 	info := ui.RenderHeaderInfo(a.sizing, a.theme, headerState)

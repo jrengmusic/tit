@@ -14,355 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// ConfirmationType represents different kinds of confirmation dialogs
-type ConfirmationType string
-
-const (
-	ConfirmNestedRepoInit        ConfirmationType = "nested_repo_init"
-	ConfirmForcePush             ConfirmationType = "force_push"
-	ConfirmHardReset             ConfirmationType = "hard_reset"
-	ConfirmDestructiveOp         ConfirmationType = "destructive_op"
-	ConfirmAlert                 ConfirmationType = "alert"
-	ConfirmPullMerge             ConfirmationType = "pull_merge"
-	ConfirmPullMergeDiverged     ConfirmationType = "pull_merge_diverged"
-	ConfirmDirtyPull             ConfirmationType = "dirty_pull"
-	ConfirmTimeTravel            ConfirmationType = "time_travel"
-	ConfirmTimeTravelReturn      ConfirmationType = "time_travel_return"
-	ConfirmTimeTravelMerge       ConfirmationType = "time_travel_merge"
-	ConfirmTimeTravelMergeDirty  ConfirmationType = "time_travel_merge_dirty"
-	ConfirmTimeTravelReturnDirty ConfirmationType = "time_travel_return_dirty"
-	ConfirmRewind                ConfirmationType = "rewind"
-	ConfirmBranchSwitchClean     ConfirmationType = "branch_switch_clean"
-	ConfirmBranchSwitchDirty     ConfirmationType = "branch_switch_dirty"
-)
-
-// ConfirmationAction is a function that handles a confirmed action
-type ConfirmationAction func(*Application) (tea.Model, tea.Cmd)
-
-// ConfirmationActionPair pairs a YES handler with its NO handler
-// This guarantees that every confirmation type has both handlers registered
-type ConfirmationActionPair struct {
-	Confirm ConfirmationAction
-	Reject  ConfirmationAction
-}
-
-// confirmationHandlers maps confirmation types to paired YES/NO handlers
-// Using a single paired structure ensures no accidental missing confirm/reject pairs
-var confirmationHandlers = map[string]ConfirmationActionPair{
-	string(ConfirmNestedRepoInit): {
-		Confirm: (*Application).executeConfirmNestedRepoInit,
-		Reject:  (*Application).executeRejectNestedRepoInit,
-	},
-	string(ConfirmForcePush): {
-		Confirm: (*Application).executeConfirmForcePush,
-		Reject:  (*Application).executeRejectForcePush,
-	},
-	string(ConfirmHardReset): {
-		Confirm: (*Application).executeConfirmHardReset,
-		Reject:  (*Application).executeRejectHardReset,
-	},
-	string(ConfirmAlert): {
-		Confirm: (*Application).executeAlert,
-		Reject:  (*Application).executeAlert, // Any key dismisses alert
-	},
-	string(ConfirmDirtyPull): {
-		Confirm: (*Application).executeConfirmDirtyPull,
-		Reject:  (*Application).executeRejectDirtyPull,
-	},
-	string(ConfirmPullMerge): {
-		Confirm: (*Application).executeConfirmPullMerge,
-		Reject:  (*Application).executeRejectPullMerge,
-	},
-	string(ConfirmPullMergeDiverged): {
-		Confirm: (*Application).executeConfirmPullMerge,
-		Reject:  (*Application).executeRejectPullMerge,
-	},
-	string(ConfirmTimeTravel): {
-		Confirm: (*Application).executeConfirmTimeTravel,
-		Reject:  (*Application).executeRejectTimeTravel,
-	},
-	string(ConfirmTimeTravelReturn): {
-		Confirm: (*Application).executeConfirmTimeTravelReturn,
-		Reject:  (*Application).executeRejectTimeTravelReturn,
-	},
-	string(ConfirmTimeTravelMerge): {
-		Confirm: (*Application).executeConfirmTimeTravelMerge,
-		Reject:  (*Application).executeRejectTimeTravelMerge,
-	},
-	string(ConfirmTimeTravelMergeDirty): {
-		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit,
-		Reject:  (*Application).executeConfirmTimeTravelMergeDirtyDiscard,
-	},
-	string(ConfirmTimeTravelReturnDirty): {
-		Confirm: (*Application).executeConfirmTimeTravelReturnDirtyDiscard,
-		Reject:  (*Application).executeRejectTimeTravelReturnDirty,
-	},
-	"time_travel_return_dirty_choice": {
-		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit,   // YES = Merge
-		Reject:  (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
-	},
-	string(ConfirmRewind): {
-		Confirm: (*Application).executeConfirmRewind,
-		Reject:  (*Application).executeRejectRewind,
-	},
-	string(ConfirmBranchSwitchClean): {
-		Confirm: (*Application).executeConfirmBranchSwitchClean,
-		Reject:  (*Application).executeRejectBranchSwitch,
-	},
-	string(ConfirmBranchSwitchDirty): {
-		Confirm: (*Application).executeConfirmBranchSwitchDirty,
-		Reject:  (*Application).executeRejectBranchSwitchDirty,
-	},
-}
-
-// ========================================
-// Confirmation Result Handler
-// ========================================
-
-// handleConfirmationResponse routes confirmation YES/NO responses to appropriate handlers
-func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea.Cmd) {
-	if a.getDialog() == nil {
-		// No active confirmation dialog
-		return a.returnToMenu()
-	}
-
-	confirmType := a.getDialog().Config.ActionID
-	actions, ok := confirmationHandlers[confirmType]
-	if !ok {
-		// No handler registered for this type - return to menu
-		a.hideDialog()
-		return a.returnToMenu()
-	}
-
-	var handler ConfirmationAction
-	if confirmed {
-		handler = actions.Confirm
-	} else {
-		handler = actions.Reject
-	}
-
-	if handler == nil {
-		// Paired handler is nil - return to menu (shouldn't happen with paired structure)
-		a.hideDialog()
-		return a.returnToMenu()
-	}
-
-	return handler(a)
-}
-
-// ========================================
-// Confirmation Action Methods
-// ========================================
-
-// executeConfirmNestedRepoInit handles YES response to nested repo warning
-func (a *Application) executeConfirmNestedRepoInit() (tea.Model, tea.Cmd) {
-	// User confirmed they want to init in a nested repo
-	// Return to previous mode (ModeInitializeLocation)
-	a.hideDialog()
-	a.mode = ModeInitializeLocation
-	return a, nil
-}
-
-// executeRejectNestedRepoInit handles NO response to nested repo warning
-func (a *Application) executeRejectNestedRepoInit() (tea.Model, tea.Cmd) {
-	// User cancelled - abort init, return to menu
-	a.hideDialog()
-	return a.returnToMenu()
-}
-
-// executeConfirmForcePush handles YES response to force push confirmation
-func (a *Application) executeConfirmForcePush() (tea.Model, tea.Cmd) {
-	// User confirmed force push
-	// Initiate async push --force operation
-	a.hideDialog()
-	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
-	return a, a.cmdForcePush()
-}
-
-// executeRejectForcePush handles NO response to force push confirmation
-func (a *Application) executeRejectForcePush() (tea.Model, tea.Cmd) {
-	// User cancelled force push
-	a.hideDialog()
-	return a.returnToMenu()
-}
-
-// executeConfirmHardReset handles YES response to hard reset confirmation
-func (a *Application) executeConfirmHardReset() (tea.Model, tea.Cmd) {
-	// User confirmed hard reset
-	a.hideDialog()
-	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
-	return a, a.cmdHardReset()
-}
-
-// executeRejectHardReset handles NO response to hard reset confirmation
-func (a *Application) executeRejectHardReset() (tea.Model, tea.Cmd) {
-	// User cancelled hard reset
-	a.hideDialog()
-	return a.returnToMenu()
-}
-
-// executeAlert handles alert dialog dismissal (any response)
-func (a *Application) executeAlert() (tea.Model, tea.Cmd) {
-	// Alert dialogs are dismissed with any key press
-	a.hideDialog()
-	return a.returnToMenu()
-}
-
-// ========================================
-// Confirmation Dialog Creation
-// ========================================
-
-// showConfirmation displays a confirmation dialog with the given config
-// Sets confirmation mode and dialog state
-func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
-	dialog := ui.NewConfirmationDialog(
-		config,
-		a.sizing.ContentInnerWidth,
-		&a.theme,
-	)
-	a.setDialog(dialog)
-	a.mode = ModeConfirmation
-}
-
-// prepareAsyncOperation consolidates the common async operation setup pattern
-// Reduces 10+ lines of duplicate code across confirmation handlers
-func (a *Application) prepareAsyncOperation(hint string) {
-	a.startAsyncOp()
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
-	a.consoleState.Reset()
-	a.footerHint = hint
-	a.workflowState.PreviousMode = ModeMenu
-	a.workflowState.PreviousMenuIndex = 0
-}
-
-// getOriginalBranchForTimeTravel retrieves the original branch for time travel operations
-// Checks config stash entry first, then falls back to time travel marker file
-func (a *Application) getOriginalBranchForTimeTravel() string {
-	repoPath, err := os.Getwd()
-	if err != nil {
-		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
-	}
-
-	entry, found := config.GetStashEntry("time_travel", repoPath)
-	if found {
-		return entry.OriginalBranch
-	}
-
-	originalBranch, _, err := git.GetTimeTravelInfo()
-	if err != nil || originalBranch == "" {
-		panic("FATAL: cannot determine original branch")
-	}
-	return originalBranch
-}
-
-// discardWorkingTreeChanges resets working tree to HEAD and cleans untracked files
-// Returns error if reset fails; clean failures are non-fatal (warning set in footer)
-func (a *Application) discardWorkingTreeChanges() error {
-	resetResult := git.Execute("reset", "--hard", "HEAD")
-	if !resetResult.Success {
-		return fmt.Errorf("failed to discard changes: %s", resetResult.Stderr)
-	}
-
-	cleanResult := git.Execute("clean", "-fd")
-	if !cleanResult.Success {
-		a.footerHint = "Warning: Failed to clean untracked files"
-	}
-	return nil
-}
-
-// showConfirmationFromMessage displays a confirmation dialog by looking up SSOT messages
-// Consolidates the common pattern: lookup title/explanation/labels → build config → show dialog
-// Usage: a.showConfirmationFromMessage(ConfirmForcePush, "")
-// Or with custom args: a.showConfirmationFromMessage(ConfirmTimeTravel, fmt.Sprintf("...%s", arg))
-func (a *Application) showConfirmationFromMessage(confirmType ConfirmationType, customExplanation string) {
-	actionID := string(confirmType)
-
-	// Build config using SSOT messages
-	msg := ConfirmationMessages[actionID]
-	config := ui.ConfirmationConfig{
-		Title:    msg.Title,
-		ActionID: actionID,
-	}
-
-	// Use custom explanation if provided, otherwise use SSOT
-	if customExplanation != "" {
-		config.Explanation = customExplanation
-	} else {
-		config.Explanation = msg.Explanation
-	}
-
-	// Load labels (YES/NO button text)
-	config.YesLabel = msg.YesLabel
-	config.NoLabel = msg.NoLabel
-
-	a.showConfirmation(config)
-}
-
-// showRewindConfirmation displays rewind confirmation dialog
-// showRewindConfirmation displays destructive rewind confirmation
-// Uses ConfirmationMessages map for centralized message management
-func (a *Application) showRewindConfirmation(commitHash string) tea.Cmd {
-	msg := ConfirmationMessages["rewind"]
-	config := ui.ConfirmationConfig{
-		Title:       msg.Title,
-		Explanation: fmt.Sprintf(msg.Explanation, ui.ShortenHash(commitHash)),
-		YesLabel:    msg.YesLabel,
-		NoLabel:     msg.NoLabel,
-		ActionID:    string(ConfirmRewind),
-	}
-	a.showConfirmation(config)
-	return nil
-}
-
-// showNestedRepoWarning displays warning when initializing in a nested repo
-func (a *Application) showNestedRepoWarning(path string) {
-	config := ui.ConfirmationConfig{
-		Title:       "Nested Repository Detected",
-		Explanation: fmt.Sprintf("The directory '%s' is inside an existing git repository. Initialize anyway?", path),
-		YesLabel:    "Yes, continue",
-		NoLabel:     "No, cancel",
-		ActionID:    string(ConfirmNestedRepoInit),
-	}
-	a.showConfirmation(config)
-}
-
-// showForcePushWarning displays warning when attempting force push
-func (a *Application) showForcePushWarning(branchName string) {
-	config := ui.ConfirmationConfig{
-		Title:       "Force Push Confirmation",
-		Explanation: fmt.Sprintf("This will force push '%s' to remote. Any remote changes will be overwritten. Continue?", branchName),
-		YesLabel:    "Force push",
-		NoLabel:     "Cancel",
-		ActionID:    string(ConfirmForcePush),
-	}
-	a.showConfirmation(config)
-}
-
-// showHardResetWarning displays warning when attempting hard reset
-func (a *Application) showHardResetWarning() {
-	config := ui.ConfirmationConfig{
-		Title:       "Hard Reset Confirmation",
-		Explanation: "This will discard all uncommitted changes. This cannot be undone. Continue?",
-		YesLabel:    "Reset",
-		NoLabel:     "Cancel",
-		ActionID:    string(ConfirmHardReset),
-	}
-	a.showConfirmation(config)
-}
-
-// showAlert displays a simple alert dialog (informational, dismisses with any key)
-func (a *Application) showAlert(title, explanation string) {
-	config := ui.ConfirmationConfig{
-		Title:       title,
-		Explanation: explanation,
-		YesLabel:    "OK",
-		NoLabel:     "", // Single button alert
-		ActionID:    string(ConfirmAlert),
-	}
-	a.showConfirmation(config)
-}
 
 // ========================================
 // Dirty Pull Confirmation Handlers
@@ -371,7 +22,7 @@ func (a *Application) showAlert(title, explanation string) {
 // executeConfirmDirtyPull handles YES response to dirty pull confirmation (Save changes)
 func (a *Application) executeConfirmDirtyPull() (tea.Model, tea.Cmd) {
 	// User confirmed to save changes and proceed with dirty pull
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Create operation state - merge strategy only
 	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", true) // true = preserve changes
@@ -387,7 +38,7 @@ func (a *Application) executeConfirmDirtyPull() (tea.Model, tea.Cmd) {
 // executeRejectDirtyPull handles NO response to dirty pull confirmation (Discard changes)
 func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
 	// User chose to discard changes and pull
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Create operation state - merge strategy only
 	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", false) // false = discard changes
@@ -407,7 +58,7 @@ func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
 // executeConfirmPullMerge handles YES response to pull merge confirmation
 func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 	// User confirmed to proceed with pull merge
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Transition to console to show streaming output
 	a.setExitAllowed(false) // Block Ctrl+C until operation completes or is aborted
@@ -426,7 +77,7 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 // executeRejectPullMerge handles NO response to pull merge confirmation
 func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 	// User cancelled pull merge
-	a.hideDialog()
+	a.dialogState.Hide()
 	return a.returnToMenu()
 }
 
@@ -437,10 +88,10 @@ func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravel handles YES response to time travel confirmation
 func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
 	// User confirmed time travel
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Get commit hash from context
-	commitHash := a.getDialogContext()["commit_hash"]
+	commitHash := a.dialogState.GetContext()["commit_hash"]
 
 	// Get original branch - CHECK BEFORE modifying Operation state
 	// Case 1: Already time traveling (Operation == TimeTraveling) → read from TIT_TIME_TRAVEL file
@@ -522,7 +173,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 		LogErrorFatal("Failed to parse commit time", err)
 	}
 
-	a.setTimeTravelInfo(&git.TimeTravelInfo{
+	a.timeTravelState.SetInfo(&git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
 		OriginalStashID: "",
 		CurrentCommit: git.CommitInfo{
@@ -543,7 +194,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 
 	// CRITICAL: Set restoreTimeTravelInitiated = true to prevent restoration check
 	// from triggering during this intentional time travel session
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	// Start time travel checkout operation
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)
@@ -559,7 +210,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 
 	a.workflowState.PreviousMode = ModeHistory
 	a.workflowState.PreviousMenuIndex = 0
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	buffer := ui.GetBuffer()
 
@@ -641,7 +292,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 		panic(fmt.Sprintf("FATAL: Failed to parse commit time: %v", err))
 	}
 
-	a.setTimeTravelInfo(&git.TimeTravelInfo{
+	a.timeTravelState.SetInfo(&git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
 		OriginalStashID: stashHash,
 		CurrentCommit: git.CommitInfo{
@@ -658,7 +309,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 // executeRejectTimeTravel handles NO response to time travel confirmation
 func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 	// User cancelled time travel
-	a.hideDialog()
+	a.dialogState.Hide()
 	return a.returnToMenu()
 }
 
@@ -668,7 +319,7 @@ func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 
 // executeConfirmTimeTravelReturn handles YES response to return-to-main confirmation
 func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Transition to console to show streaming output (consistent with other git operations)
 	a.consoleState.SetAutoScroll(true)
@@ -680,7 +331,7 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel return!
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	// Get original branch and execute time travel return operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -690,7 +341,7 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 // executeRejectTimeTravelReturn handles NO response to return-to-main confirmation
 func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 	// User cancelled return
-	a.hideDialog()
+	a.dialogState.Hide()
 	a.mode = ModeMenu
 	return a, a.startAutoUpdate()
 }
@@ -701,7 +352,7 @@ func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 
 // executeConfirmTimeTravelMerge handles YES response to merge-and-return confirmation
 func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Get current commit hash
 	result := git.Execute("rev-parse", "HEAD")
@@ -722,7 +373,7 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	// Get original branch and execute time travel merge operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -732,7 +383,7 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 // executeRejectTimeTravelMerge handles NO response to merge-and-return confirmation
 func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
 	// User cancelled merge
-	a.hideDialog()
+	a.dialogState.Hide()
 	a.mode = ModeMenu
 	return a, a.startAutoUpdate()
 }
@@ -744,7 +395,7 @@ func (a *Application) executeRejectTimeTravelMerge() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravelMergeDirtyCommit handles "Commit & merge" choice
 // Auto-commits with generated message and immediately starts merge
 func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Get current commit hash for auto-generated message
 	result := git.Execute("rev-parse", "--short", "HEAD")
@@ -795,7 +446,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
 	// Marker file still exists during merge, but this is NOT an incomplete session
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	// Get original branch and execute time travel merge operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -805,7 +456,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 // executeConfirmTimeTravelMergeDirtyDiscard handles "Discard" choice
 // Discards uncommitted changes immediately, then proceeds with merge
 func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Discard working tree changes
 	if err := a.discardWorkingTreeChanges(); err != nil {
@@ -835,7 +486,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	// Get original branch and execute time travel merge operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -849,7 +500,7 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 // executeConfirmTimeTravelReturnDirtyDiscard handles "Discard & return" choice
 // Discards uncommitted changes immediately, then proceeds with return
 func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Discard working tree changes
 	if err := a.discardWorkingTreeChanges(); err != nil {
@@ -869,7 +520,7 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel return!
-	a.markTimeTravelRestoreInitiated()
+	a.timeTravelState.MarkRestoreInitiated()
 
 	// Get original branch and execute time travel return operation
 	originalBranch := a.getOriginalBranchForTimeTravel()
@@ -879,7 +530,7 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 // executeRejectTimeTravelReturnDirty handles "Cancel" choice
 func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) {
 	// User cancelled return
-	a.hideDialog()
+	a.dialogState.Hide()
 	a.mode = ModeMenu
 	return a, a.startAutoUpdate()
 }
@@ -932,9 +583,9 @@ func (a *Application) executeRewindOperation(commitHash string) tea.Cmd {
 
 // executeConfirmBranchSwitchClean handles YES response to clean tree branch switch
 func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
-	targetBranch := a.getDialogContext()["targetBranch"]
+	targetBranch := a.dialogState.GetContext()["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
@@ -945,7 +596,7 @@ func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
 
 // executeRejectBranchSwitch handles NO/Cancel response (clean tree)
 func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
 	// Return to branch picker (preserve state)
 	a.mode = ModeBranchPicker
@@ -954,9 +605,9 @@ func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 
 // executeConfirmBranchSwitchDirty handles YES response (Stash changes)
 func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
-	targetBranch := a.getDialogContext()["targetBranch"]
+	targetBranch := a.dialogState.GetContext()["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
@@ -970,9 +621,9 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 
 // executeRejectBranchSwitchDirty handles NO response (Discard changes)
 func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	a.hideDialog()
+	a.dialogState.Hide()
 
-	targetBranch := a.getDialogContext()["targetBranch"]
+	targetBranch := a.dialogState.GetContext()["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}

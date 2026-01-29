@@ -17,40 +17,40 @@ import (
 
 // handleConfirmationLeft moves selection to Yes button
 func (a *Application) handleConfirmationLeft(app *Application) (tea.Model, tea.Cmd) {
-	if a.getDialog() != nil {
-		a.getDialog().SelectYes()
+	if a.dialogState.GetDialog() != nil {
+		a.dialogState.GetDialog().SelectYes()
 	}
 	return a, nil
 }
 
 // handleConfirmationRight moves selection to No button
 func (a *Application) handleConfirmationRight(app *Application) (tea.Model, tea.Cmd) {
-	if a.getDialog() != nil {
-		a.getDialog().SelectNo()
+	if a.dialogState.GetDialog() != nil {
+		a.dialogState.GetDialog().SelectNo()
 	}
 	return a, nil
 }
 
 // handleConfirmationYes selects Yes button
 func (a *Application) handleConfirmationYes(app *Application) (tea.Model, tea.Cmd) {
-	if a.getDialog() != nil {
-		a.getDialog().SelectYes()
+	if a.dialogState.GetDialog() != nil {
+		a.dialogState.GetDialog().SelectYes()
 	}
 	return a, nil
 }
 
 // handleConfirmationNo selects No button
 func (a *Application) handleConfirmationNo(app *Application) (tea.Model, tea.Cmd) {
-	if a.getDialog() != nil {
-		a.getDialog().SelectNo()
+	if a.dialogState.GetDialog() != nil {
+		a.dialogState.GetDialog().SelectNo()
 	}
 	return a, nil
 }
 
 // handleConfirmationEnter confirms the current selection
 func (a *Application) handleConfirmationEnter(app *Application) (tea.Model, tea.Cmd) {
-	if a.getDialog() != nil {
-		confirmed := a.getDialog().GetSelectedButton() == ui.ButtonYes
+	if a.dialogState.GetDialog() != nil {
+		confirmed := a.dialogState.GetDialog().GetSelectedButton() == ui.ButtonYes
 		return a.handleConfirmationResponse(confirmed)
 	}
 	return a, nil
@@ -262,7 +262,7 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 	if hasDirtyTree {
 		// Show confirmation dialog for dirty tree
 		app.mode = ModeConfirmation
-		app.setDialogContext(map[string]string{
+		app.dialogState.SetContext(map[string]string{
 			"targetBranch": selectedBranch.Name,
 		})
 		dialog := ui.NewConfirmationDialog(
@@ -276,7 +276,7 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
-		app.setDialog(dialog)
+		app.dialogState.Show(dialog, nil)
 		dialog.SelectNo()
 		return app, nil
 	}
