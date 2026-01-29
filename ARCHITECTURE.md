@@ -288,23 +288,47 @@ type TimeTravelInfo struct {
 **Storage in Application:**
 ```go
 type Application struct {
-    gitState       git.State
-    timeTravelState TimeTravelState  // Time travel operation state
+    // Core UI state
+    width             int
+    height            int
+    sizing            ui.DynamicSizing
+    theme             ui.Theme
+    mode              AppMode
+    quitConfirmActive bool
+    quitConfirmTime   time.Time
+    footerHint        string
+    selectedIndex     int
+    menuItems         []MenuItem
+    keyHandlers       map[AppMode]map[string]KeyHandler
+
+    // Git state
+    gitState          *git.State
 
     // Extracted state structs:
-    inputState      InputState      // Input field management (7 fields)
-    cacheManager    CacheManager    // Cache lifecycle (14 fields)
-    asyncState      AsyncState      // Async operation state (3 fields)
-    workflowState   WorkflowState   // Workflow and clone state (7 fields)
-    environmentState EnvironmentState // Git environment and setup state (5 fields)
-    pickerState     PickerState     // Picker UI state (3 fields)
-    consoleState    ConsoleState    // Console output state (3 fields)
-    activityState   ActivityState   // Activity tracking state (4 fields)
-    dialogState     DialogState     // Dialog UI state (2 fields)
+    inputState        InputState              // Input field management (7 fields)
+    cacheManager      *CacheManager           // Cache lifecycle (14 fields)
+    asyncState        AsyncState              // Async operation state (3 fields)
+    workflowState     WorkflowState           // Workflow and clone state (7 fields)
+    environmentState  EnvironmentState        // Git environment and setup state (5 fields)
+    pickerState       PickerState             // Picker UI state (3 fields)
+    consoleState      ConsoleState            // Console output state (3 fields)
+    activityState     ActivityState           // Activity tracking state (4 fields)
+    dialogState       DialogState             // Dialog UI state (2 fields)
+    timeTravelState   TimeTravelState         // Time travel operation state (2 fields)
 
-    // ... other fields (21 total)
+    // Other state
+    cancelContext    context.CancelFunc
+    conflictResolveState *ConflictResolveState
+    dirtyOperationState *DirtyOperationState
+    workingTreeInfo  map[git.WorkingTree]StateInfo
+    timelineInfo     map[git.Timeline]StateInfo
+    operationInfo    map[git.Operation]StateInfo
+    appConfig        *config.Config
 }
 ```
+
+**Application Struct Architecture:**
+- **Current state:** 31 fields (reduced from 47 originally)
 
 **Application Struct Architecture:**
 - **Current state:** 21 fields (reduced from 47)
@@ -342,16 +366,18 @@ type Application struct {
 - Start(), End(), Abort(), ClearAborted()
 - IsActive(), IsAborted(), CanExit(), SetExitAllowed()
 
-**Helper Methods (Application delegates to structs):**
-- Async: startAsyncOp(), endAsyncOp(), abortAsyncOp(), clearAsyncAborted(), isAsyncActive(), isAsyncAborted(), canExit(), setExitAllowed()
-- Cache: All cache operations now go through a.cacheManager
-- Workflow: resetCloneWorkflow(), saveCurrentMode(), restorePreviousMode(), etc.
-- Environment: isEnvironmentReady(), needsEnvironmentSetup(), etc.
-- Picker: getHistoryState(), setHistoryState(), resetHistoryState(), etc.
-- Console: getConsoleBuffer(), clearConsoleBuffer(), toggleConsoleAutoScroll(), etc.
-- Activity: markMenuActivity(), isMenuInactive(), setMenuActivityTimeout(), etc.
-- Dialog: getDialog(), setDialog(), isConfirmationDialog(), etc.
-- TimeTravel: isTimeTravelActive(), getTimeTravelInfo(), clearTimeTravelState(), etc.
+**Direct State Access (No Delegation Methods):**
+All delegation methods have been removed. The codebase now uses direct state access:
+
+- Async: `a.asyncState.Start()`, `a.asyncState.End()`, etc.
+- Cache: `a.cacheManager.IsLoadingStarted()`, `a.cacheManager.GetMetadata()`, etc.
+- Workflow: `a.workflowState.ResetClone()`, `a.workflowState.SaveCurrentMode()`, etc.
+- Environment: `a.environmentState.IsReady()`, `a.environmentState.NeedsSetup()`, etc.
+- Picker: `a.pickerState.GetHistoryState()`, `a.pickerState.SetHistoryState()`, etc.
+- Console: `a.consoleState.GetBuffer()`, `a.consoleState.ClearBuffer()`, etc.
+- Activity: `a.activityState.MarkActivity()`, `a.activityState.IsMenuInactive()`, etc.
+- Dialog: `a.dialogState.GetDialog()`, `a.dialogState.SetDialog()`, etc.
+- TimeTravel: `a.timeTravelState.IsActive()`, `a.timeTravelState.GetInfo()`, etc.
 
 **Safety invariant:** ESC at any point restores exact original state by restoring original branch and reapplying stash.
 
@@ -407,6 +433,42 @@ The Application struct has been refactored from a God Object into focused compon
       ui.GetBuffer().Append(message, ui.TypeInfo)
   }
   ```
+
+### File Organization After Refactoring
+
+The `internal/app/` directory has been restructured from monolithic files to focused modules:
+
+```
+internal/app/
+├── app.go                    (393 lines) - Core Application struct + essential handlers
+├── app_constructor.go        (180 lines) - Constructor logic (NewApplication, newSetupWizardApp)
+├── app_keys.go               (234 lines) - Key handler registration (buildKeyHandlers)
+├── app_update.go             (326 lines) - Update() method + message handlers
+├── app_view.go               (301 lines) - View() method + rendering helpers
+├── app_init.go               (135 lines) - Init() method + RestoreFromTimeTravel
+├── confirm_dialog.go         (362 lines) - Dialog infrastructure + confirmation types
+├── confirm_handlers.go       (649 lines) - Confirmation action handlers
+├── *_state.go                (11 files) - State management structs:
+│   ├── activity_state.go
+│   ├── async_state.go
+│   ├── conflict_state.go
+│   ├── console_state.go
+│   ├── dirty_state.go
+│   ├── dialog_state.go
+│   ├── environment_state.go
+│   ├── input_state.go
+│   ├── picker_state.go
+│   ├── time_travel_state.go
+│   └── workflow_state.go
+└── op_*.go                   (9 files) - Operation handlers
+```
+
+**Key Improvements:**
+- `app.go` reduced from 1,771 to 393 lines (78% reduction)
+- Core Bubble Tea methods (Update/View/Init) extracted to separate files
+- Constructor logic extracted to improve readability
+- Key handler registry isolated for easier maintenance
+- Confirmation handlers split by domain (dialog vs handlers)
 
 ### Operations Architecture
 
@@ -605,7 +667,7 @@ On("space", handler)     // Bubble Tea sends " " not "space"
 On("return", handler)    // Bubble Tea sends "enter" not "return"
 ```
 
-**Registration pattern** (`internal/app/app.go`):
+**Registration pattern** (`internal/app/app_keys.go`):
 ```go
 ModeMenu: NewModeHandlers().
     On("j", a.handleMenuDown).
