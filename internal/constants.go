@@ -8,8 +8,8 @@ import "time"
 
 // Version information (SSOT)
 const (
-	AppName    = "TIT"   // Application name
-	AppVersion = "1.1.0" // Application version (semantic versioning)
+	AppName    = "TIT"    // Application name
+	AppVersion = "v1.1.1" // Application version (semantic versioning)
 )
 
 // Bit sizes for strconv parsing functions

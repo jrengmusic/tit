@@ -120,7 +120,7 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 		Width(leftWidth).
 		Render(wtLabel)
 
-	versionText := "v" + internal.AppVersion
+	versionText := internal.AppVersion
 	versionStyled := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.DimmedTextColor)).
 		Align(lipgloss.Right).
