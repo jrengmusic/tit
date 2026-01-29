@@ -205,7 +205,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 // Used by ESC key to avoid circular dependency with confirmationHandlers map
 func (a *Application) dismissConfirmationDialog() (tea.Model, tea.Cmd) {
 	// Reset confirmation state
-	a.confirmationDialog = nil
+	a.hideDialog()
 	a.mode = a.workflowState.PreviousMode
 
 	// Restore menu state based on previous mode

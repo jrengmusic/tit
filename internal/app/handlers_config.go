@@ -17,40 +17,40 @@ import (
 
 // handleConfirmationLeft moves selection to Yes button
 func (a *Application) handleConfirmationLeft(app *Application) (tea.Model, tea.Cmd) {
-	if a.confirmationDialog != nil {
-		a.confirmationDialog.SelectYes()
+	if a.getDialog() != nil {
+		a.getDialog().SelectYes()
 	}
 	return a, nil
 }
 
 // handleConfirmationRight moves selection to No button
 func (a *Application) handleConfirmationRight(app *Application) (tea.Model, tea.Cmd) {
-	if a.confirmationDialog != nil {
-		a.confirmationDialog.SelectNo()
+	if a.getDialog() != nil {
+		a.getDialog().SelectNo()
 	}
 	return a, nil
 }
 
 // handleConfirmationYes selects Yes button
 func (a *Application) handleConfirmationYes(app *Application) (tea.Model, tea.Cmd) {
-	if a.confirmationDialog != nil {
-		a.confirmationDialog.SelectYes()
+	if a.getDialog() != nil {
+		a.getDialog().SelectYes()
 	}
 	return a, nil
 }
 
 // handleConfirmationNo selects No button
 func (a *Application) handleConfirmationNo(app *Application) (tea.Model, tea.Cmd) {
-	if a.confirmationDialog != nil {
-		a.confirmationDialog.SelectNo()
+	if a.getDialog() != nil {
+		a.getDialog().SelectNo()
 	}
 	return a, nil
 }
 
 // handleConfirmationEnter confirms the current selection
 func (a *Application) handleConfirmationEnter(app *Application) (tea.Model, tea.Cmd) {
-	if a.confirmationDialog != nil {
-		confirmed := a.confirmationDialog.GetSelectedButton() == ui.ButtonYes
+	if a.getDialog() != nil {
+		confirmed := a.getDialog().GetSelectedButton() == ui.ButtonYes
 		return a.handleConfirmationResponse(confirmed)
 	}
 	return a, nil
@@ -262,10 +262,10 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 	if hasDirtyTree {
 		// Show confirmation dialog for dirty tree
 		app.mode = ModeConfirmation
-		app.confirmContext = map[string]string{
+		app.setDialogContext(map[string]string{
 			"targetBranch": selectedBranch.Name,
-		}
-		app.confirmationDialog = ui.NewConfirmationDialog(
+		})
+		dialog := ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
 				Title:       fmt.Sprintf("Switch to %s with uncommitted changes?", selectedBranch.Name),
 				Explanation: "You have uncommitted changes. Choose action:\n(ESC to cancel)",
@@ -276,7 +276,8 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 			a.sizing.ContentInnerWidth,
 			&app.theme,
 		)
-		app.confirmationDialog.SelectNo()
+		app.setDialog(dialog)
+		dialog.SelectNo()
 		return app, nil
 	}
 
