@@ -90,8 +90,15 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 	// Block ESC in console mode while async operation is active
 	// ESC aborts the operation and sets abort flag
 	if (a.mode == ModeConsole || a.mode == ModeClone) && a.isAsyncActive() {
+		// Kill running process (like Ctrl+C)
+		if a.cancelContext != nil {
+			a.cancelContext()
+		}
 		a.abortAsyncOp()
-		a.footerHint = "Aborting operation..."
+		// Print abort message to console using stderr color from theme
+		a.outputBuffer.Append("", ui.TypeStdout)
+		a.outputBuffer.Append("Operation aborted by user", ui.TypeStderr)
+		a.outputBuffer.Append("Press ESC to return to menu", ui.TypeInfo)
 		return a, nil
 	}
 

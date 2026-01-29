@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os/exec"
 	"strings"
 
@@ -12,12 +13,14 @@ import (
 
 // cmdPull pulls from remote (merge)
 func (a *Application) cmdPull() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
 		// Pull with explicit --no-rebase to merge (required for diverged branches)
-		result := git.ExecuteWithStreaming("pull", "--no-rebase")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase")
 
 		if !result.Success {
 			// Check if we're in a conflicted state (more reliable than parsing stderr)
@@ -42,6 +45,8 @@ func (a *Application) cmdPull() tea.Cmd {
 
 // cmdHardReset executes git fetch + reset --hard origin/<branch> (ALWAYS get remote state)
 func (a *Application) cmdHardReset() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
@@ -62,13 +67,13 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		buffer.Append("Fetching and resetting to remote state...", ui.TypeInfo)
 
 		// Fetch first to ensure we have latest remote state
-		fetchResult := git.ExecuteWithStreaming("fetch", "origin")
+		fetchResult := git.ExecuteWithStreaming(ctx, "fetch", "origin")
 		if !fetchResult.Success {
 			buffer.Append("Warning: fetch failed, using local remote refs", ui.TypeWarning)
 		}
 
 		// Reset to remote branch
-		resetResult := git.ExecuteWithStreaming("reset", "--hard", "origin/"+branchName)
+		resetResult := git.ExecuteWithStreaming(ctx, "reset", "--hard", "origin/"+branchName)
 		if !resetResult.Success {
 			return GitOperationMsg{
 				Step:    OpHardReset,

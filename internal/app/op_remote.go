@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"strings"
 
 	"tit/internal/git"
@@ -12,6 +13,8 @@ import (
 // cmdAddRemote adds a remote repository (step 1 of 3-step chain)
 func (a *Application) cmdAddRemote(url string) tea.Cmd {
 	u := url // Capture in closure
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
@@ -25,7 +28,7 @@ func (a *Application) cmdAddRemote(url string) tea.Cmd {
 		}
 
 		// Add remote
-		result := git.ExecuteWithStreaming("remote", "add", "origin", u)
+		result := git.ExecuteWithStreaming(ctx, "remote", "add", "origin", u)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpAddRemote,
@@ -53,8 +56,10 @@ func (a *Application) cmdFetchRemote() tea.Cmd {
 // If remote branch doesn't exist, this will push -u to create it
 func (a *Application) cmdSetUpstream(branchName string) tea.Cmd {
 	branch := branchName // Capture in closure
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.SetUpstreamTrackingWithBranch(branch)
+		result := git.SetUpstreamTrackingWithBranch(ctx, branch)
 		if !result.Success {
 			// FAIL-FAST: upstream setup failed
 			return GitOperationMsg{

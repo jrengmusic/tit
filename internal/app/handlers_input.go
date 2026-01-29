@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -192,8 +193,11 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 	app.mode = ModeConsole
 	app.startAsyncOp()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	app.cancelContext = cancel
+
 	return app, func() tea.Msg {
-		result := git.ExecuteWithStreaming("checkout", selectedBranch)
+		result := git.ExecuteWithStreaming(ctx, "checkout", selectedBranch)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "checkout",

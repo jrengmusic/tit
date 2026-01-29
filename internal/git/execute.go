@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -145,7 +146,7 @@ func cleanStaleLocks() {
 // ExecuteWithStreaming runs a git command and streams output to the buffer
 // Use this for user-initiated actions that should display console output
 // WORKER THREAD - Must be called from async operation
-func ExecuteWithStreaming(args ...string) CommandResult {
+func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 	// Clean any stale git locks from interrupted operations
 	cleanStaleLocks()
 
@@ -153,7 +154,7 @@ func ExecuteWithStreaming(args ...string) CommandResult {
 	cmdString := "git " + strings.Join(args, " ")
 	Log(cmdString)
 
-	cmd := exec.Command("git", args...)
+	cmd := exec.CommandContext(ctx, "git", args...)
 
 	// CRITICAL: Disable interactive prompts - fail fast instead of hanging
 	// This prevents git from waiting for SSH passphrase, HTTP auth, etc.
@@ -235,6 +236,16 @@ func ExecuteWithStreaming(args ...string) CommandResult {
 	// Wait for all output to be read from pipes
 	wg.Wait()
 
+	// Check if context was cancelled
+	if ctx.Err() == context.Canceled {
+		return CommandResult{
+			Stdout:   "",
+			Stderr:   "aborted",
+			ExitCode: 1,
+			Success:  false,
+		}
+	}
+
 	// Determine exit code
 	exitCode := 0
 	if err != nil {
@@ -314,7 +325,7 @@ func SetUpstreamTracking() CommandResult {
 
 // SetUpstreamTrackingWithBranch sets upstream tracking using a provided branch name
 // If remote branch doesn't exist (empty remote), pushes with -u to create it
-func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
+func SetUpstreamTrackingWithBranch(ctx context.Context, branchName string) CommandResult {
 
 	if branchName == "" {
 		Error("WARNING: No branch name provided for upstream tracking")
@@ -342,7 +353,7 @@ func SetUpstreamTrackingWithBranch(branchName string) CommandResult {
 
 	// Remote branch doesn't exist - push with -u to create it and set upstream
 	Log(fmt.Sprintf("Remote branch '%s' doesn't exist, pushing to create...", branchName))
-	result := ExecuteWithStreaming("push", "-u", "origin", branchName)
+	result := ExecuteWithStreaming(ctx, "push", "-u", "origin", branchName)
 	if result.Success {
 		Log(fmt.Sprintf("Created remote branch and set upstream tracking"))
 		return CommandResult{Success: true, Stdout: "pushed_and_upstream_set"}
@@ -870,7 +881,7 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 // Streams output to buffer for real-time display
 // If resetting to HEAD, also runs git clean -fd to remove untracked files
 // Returns commit hash on success or error
-func ResetHardAtCommit(commitHash string) (string, error) {
+func ResetHardAtCommit(ctx context.Context, commitHash string) (string, error) {
 	if commitHash == "" {
 		// Use empty string as marker - caller will check via error
 		return "", fmt.Errorf("commit hash cannot be empty")
@@ -881,7 +892,7 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 
 	// Execute git reset --hard <commit>
 	// Output streamed to buffer by ExecuteWithStreaming
-	result := ExecuteWithStreaming("reset", "--hard", commitHash)
+	result := ExecuteWithStreaming(ctx, "reset", "--hard", commitHash)
 
 	if !result.Success {
 		return "", fmt.Errorf("reset failed: %s", result.Stderr)
@@ -893,7 +904,7 @@ func ResetHardAtCommit(commitHash string) (string, error) {
 	currentHead := Execute("rev-parse", "HEAD")
 	if isHeadReset.Success && currentHead.Success && isHeadReset.Stdout == currentHead.Stdout {
 		Log("Cleaning untracked files...")
-		cleanResult := ExecuteWithStreaming("clean", "-fd")
+		cleanResult := ExecuteWithStreaming(ctx, "clean", "-fd")
 		if !cleanResult.Success {
 			Error(fmt.Sprintf("Warning: clean failed: %s", cleanResult.Stderr))
 		}

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -119,6 +120,8 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 
 	cwd, _ := os.Getwd()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		effectivePath := cwd // Default to current working directory
 
@@ -127,13 +130,13 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 			buffer := ui.GetBuffer()
 
 			// Step 1: git init
-			result := git.ExecuteWithStreaming("init")
+			result := git.ExecuteWithStreaming(ctx, "init")
 			if !result.Success {
 				return GitOperationMsg{Step: OpClone, Success: false, Error: "git init failed", Path: effectivePath}
 			}
 
 			// Step 2: git remote add origin <url>
-			result = git.ExecuteWithStreaming("remote", "add", "origin", cloneURL)
+			result = git.ExecuteWithStreaming(ctx, "remote", "add", "origin", cloneURL)
 			if !result.Success {
 				return GitOperationMsg{Step: OpClone, Success: false, Error: "git remote add failed", Path: effectivePath}
 			}
@@ -152,14 +155,14 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 			buffer.Append(fmt.Sprintf("Remote default branch: %s", defaultBranch), ui.TypeStatus)
 
 			// Step 4: Fetch all refs
-			result = git.ExecuteWithStreaming("fetch", "--all", "--progress")
+			result = git.ExecuteWithStreaming(ctx, "fetch", "--all", "--progress")
 			if !result.Success {
 				return GitOperationMsg{Step: OpClone, Success: false, Error: "git fetch failed", Path: effectivePath}
 			}
 
 			// Step 5: Create and checkout local branch tracking remote
 			// This sets up upstream automatically: -t = --track (sets upstream to origin/<branch>)
-			result = git.ExecuteWithStreaming("checkout", "-t", "origin/"+defaultBranch)
+			result = git.ExecuteWithStreaming(ctx, "checkout", "-t", "origin/"+defaultBranch)
 			if !result.Success {
 				return GitOperationMsg{
 					Step:    OpClone,
@@ -171,7 +174,7 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 		} else {
 			// Clone to subdir: git clone creates subdir with repo name automatically
 			// Don't specify a path - git will create it from the repo name
-			result := git.ExecuteWithStreaming("clone", "--progress", cloneURL)
+			result := git.ExecuteWithStreaming(ctx, "clone", "--progress", cloneURL)
 			if !result.Success {
 				return GitOperationMsg{
 					Step:    OpClone,
@@ -206,11 +209,13 @@ func (a *Application) cmdCloneWorkflow() tea.Cmd {
 // cmdSwitchBranch performs git switch to the target branch
 // Handles conflicts if they occur during the switch (files that would be overwritten)
 func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 
 		// Execute git switch
-		result := git.ExecuteWithStreaming("switch", targetBranch)
+		result := git.ExecuteWithStreaming(ctx, "switch", targetBranch)
 		if !result.Success {
 			// Check if we're in a conflicted state after failed switch
 			// This can happen when switching would overwrite local changes
@@ -242,6 +247,8 @@ func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 
 // cmdBranchSwitchWithStash performs: stash → switch → stash apply
 func (a *Application) cmdBranchSwitchWithStash(targetBranch string) tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 
@@ -260,7 +267,7 @@ func (a *Application) cmdBranchSwitchWithStash(targetBranch string) tea.Cmd {
 
 		// Step2: Switch branch
 		buffer.Append(fmt.Sprintf("Switching to %s...", targetBranch), ui.TypeStatus)
-		switchResult := git.ExecuteWithStreaming("switch", targetBranch)
+		switchResult := git.ExecuteWithStreaming(ctx, "switch", targetBranch)
 		if !switchResult.Success {
 			buffer.Append(fmt.Sprintf("Failed to switch: %s", switchResult.Stderr), ui.TypeStderr)
 
@@ -299,10 +306,12 @@ func (a *Application) cmdCommitWorkflow(message string) tea.Cmd {
 	// UI THREAD - Capturing state before spawning worker
 	commitMessage := message
 
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
 		// Stage all changes first
-		result := git.ExecuteWithStreaming("add", "-A")
+		result := git.ExecuteWithStreaming(ctx, "add", "-A")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "commit",
@@ -312,7 +321,7 @@ func (a *Application) cmdCommitWorkflow(message string) tea.Cmd {
 		}
 
 		// Create commit
-		result = git.ExecuteWithStreaming("commit", "-m", commitMessage)
+		result = git.ExecuteWithStreaming(ctx, "commit", "-m", commitMessage)
 		if !result.Success {
 			// Could be nothing to commit, or actual error
 			// Check if working tree is clean
@@ -342,9 +351,11 @@ func (a *Application) cmdCommitWorkflow(message string) tea.Cmd {
 
 // cmdPushWorkflow launches git push in a worker and returns a command
 func (a *Application) cmdPushWorkflow() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
-		result := git.ExecuteWithStreaming("push")
+		result := git.ExecuteWithStreaming(ctx, "push")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "push",
@@ -363,9 +374,11 @@ func (a *Application) cmdPushWorkflow() tea.Cmd {
 
 // cmdPullMergeWorkflow launches git pull (merge) in a worker and returns a command
 func (a *Application) cmdPullMergeWorkflow() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
-		result := git.ExecuteWithStreaming("pull")
+		result := git.ExecuteWithStreaming(ctx, "pull")
 		if !result.Success {
 			// Check if conflict occurred
 			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stdout, "CONFLICT") {
@@ -392,9 +405,11 @@ func (a *Application) cmdPullMergeWorkflow() tea.Cmd {
 
 // cmdPullRebaseWorkflow launches git pull --rebase in a worker and returns a command
 func (a *Application) cmdPullRebaseWorkflow() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
-		result := git.ExecuteWithStreaming("pull", "--rebase")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--rebase")
 		if !result.Success {
 			// Check if conflict occurred
 			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stdout, "CONFLICT") {
@@ -423,8 +438,10 @@ func (a *Application) cmdPullRebaseWorkflow() tea.Cmd {
 // Rest handled by three-step chain in githandlers.go (add_remote → fetch_remote → complete)
 func (a *Application) cmdAddRemoteWorkflow(remoteURL string) tea.Cmd {
 	url := remoteURL
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.ExecuteWithStreaming("remote", "add", "origin", url)
+		result := git.ExecuteWithStreaming(ctx, "remote", "add", "origin", url)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "add_remote",

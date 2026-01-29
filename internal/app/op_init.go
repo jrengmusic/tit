@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 
 	"tit/internal/git"
@@ -12,12 +13,14 @@ import (
 // cmdInit executes `git init`, creates initial branch, and commits .gitignore
 func (a *Application) cmdInit(branchName string) tea.Cmd {
 	name := branchName // Capture in closure
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
 		// Run git init
-		result := git.ExecuteWithStreaming("init")
+		result := git.ExecuteWithStreaming(ctx, "init")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,
@@ -27,7 +30,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 		}
 
 		// Create initial branch
-		result = git.ExecuteWithStreaming("checkout", "-b", name)
+		result = git.ExecuteWithStreaming(ctx, "checkout", "-b", name)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,
@@ -45,7 +48,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 			}
 		}
 
-		result = git.ExecuteWithStreaming("add", ".gitignore")
+		result = git.ExecuteWithStreaming(ctx, "add", ".gitignore")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,
@@ -54,7 +57,7 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 			}
 		}
 
-		result = git.ExecuteWithStreaming("commit", "-m", "Initialize repository with .gitignore")
+		result = git.ExecuteWithStreaming(ctx, "commit", "-m", "Initialize repository with .gitignore")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,
@@ -73,12 +76,14 @@ func (a *Application) cmdInit(branchName string) tea.Cmd {
 
 // cmdInitSubdirectory initializes a git repository in a subdirectory
 func (a *Application) cmdInitSubdirectory() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
 		// Run git init in subdirectory
-		result := git.ExecuteWithStreaming("init")
+		result := git.ExecuteWithStreaming(ctx, "init")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,
@@ -96,7 +101,7 @@ func (a *Application) cmdInitSubdirectory() tea.Cmd {
 			}
 		}
 
-		result = git.ExecuteWithStreaming("add", "-A")
+		result = git.ExecuteWithStreaming(ctx, "add", "-A")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,
@@ -105,7 +110,7 @@ func (a *Application) cmdInitSubdirectory() tea.Cmd {
 			}
 		}
 
-		result = git.ExecuteWithStreaming("commit", "-m", "Initialize subdirectory repository")
+		result = git.ExecuteWithStreaming(ctx, "commit", "-m", "Initialize subdirectory repository")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpInit,

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+
 	"tit/internal/git"
 	"tit/internal/ui"
 
@@ -10,12 +12,14 @@ import (
 // cmdCommit stages all changes and creates a commit
 func (a *Application) cmdCommit(message string) tea.Cmd {
 	msg := message // Capture in closure
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
 		// Stage all changes
-		result := git.ExecuteWithStreaming("add", "-A")
+		result := git.ExecuteWithStreaming(ctx, "add", "-A")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpCommit,
@@ -25,7 +29,7 @@ func (a *Application) cmdCommit(message string) tea.Cmd {
 		}
 
 		// Commit
-		result = git.ExecuteWithStreaming("commit", "-m", msg)
+		result = git.ExecuteWithStreaming(ctx, "commit", "-m", msg)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpCommit,
@@ -45,12 +49,14 @@ func (a *Application) cmdCommit(message string) tea.Cmd {
 // cmdCommitPush stages, commits, and pushes in one operation
 func (a *Application) cmdCommitPush(message string) tea.Cmd {
 	msg := message // Capture in closure
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Clear()
 
 		// Stage all changes
-		result := git.ExecuteWithStreaming("add", "-A")
+		result := git.ExecuteWithStreaming(ctx, "add", "-A")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpCommitPush,
@@ -60,7 +66,7 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 		}
 
 		// Commit
-		result = git.ExecuteWithStreaming("commit", "-m", msg)
+		result = git.ExecuteWithStreaming(ctx, "commit", "-m", msg)
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpCommitPush,
@@ -70,7 +76,7 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 		}
 
 		// Push
-		result = git.ExecuteWithStreaming("push")
+		result = git.ExecuteWithStreaming(ctx, "push")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpCommitPush,
