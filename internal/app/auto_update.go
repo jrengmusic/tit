@@ -47,18 +47,17 @@ func (a *Application) handleAutoUpdateTick() (tea.Model, tea.Cmd) {
 	}
 
 	// Skip if user recently navigated menu (lazy update)
-	if time.Since(a.lastMenuActivity) < a.menuActivityTimeout {
+	if time.Since(a.activityState.GetLastActivity()) < a.activityState.activityTimeout {
 		return a, a.scheduleAutoUpdateTick()
 	}
 
 	// Skip if auto-update already in progress
-	if a.autoUpdateInProgress {
+	if a.isAutoUpdateInProgress() {
 		return a, nil
 	}
 
 	// Start auto-update: set in progress and run
-	a.autoUpdateInProgress = true
-	a.autoUpdateFrame = 0
+	a.startAutoUpdate()
 	return a, tea.Batch(
 		a.cmdAutoUpdate(),
 		a.scheduleAutoUpdateAnimation(), // Start spinner animation
@@ -89,7 +88,7 @@ func (a *Application) cmdAutoUpdate() tea.Cmd {
 // handleAutoUpdateComplete updates UI with new state
 func (a *Application) handleAutoUpdateComplete(state *git.State) (tea.Model, tea.Cmd) {
 	// Clear in-progress flag
-	a.autoUpdateInProgress = false
+	a.stopAutoUpdate()
 
 	if state == nil {
 		return a, nil
@@ -131,15 +130,15 @@ func (a *Application) scheduleAutoUpdateAnimation() tea.Cmd {
 // handleAutoUpdateAnimation advances spinner animation frame
 func (a *Application) handleAutoUpdateAnimation() (tea.Model, tea.Cmd) {
 	// Only update frame if still in progress
-	if !a.autoUpdateInProgress {
+	if !a.isAutoUpdateInProgress() {
 		return a, nil
 	}
 
 	// Advance animation frame
-	a.autoUpdateFrame++
+	a.incrementAutoUpdateFrame()
 
 	// Schedule next animation frame while in progress
-	if a.autoUpdateInProgress {
+	if a.isAutoUpdateInProgress() {
 		return a, a.scheduleAutoUpdateAnimation()
 	}
 

@@ -93,13 +93,8 @@ type Application struct {
 
 	// Preferences state (Session 86)
 
-	// Menu activity tracking (Session 2 - Lazy auto-update)
-	lastMenuActivity    time.Time     // Track last menu navigation
-	menuActivityTimeout time.Duration // Default: 5 seconds
-
-	// Auto-update spinner state (Session 2)
-	autoUpdateInProgress bool // True when auto-update is running
-	autoUpdateFrame      int  // Animation frame for spinner
+	// Activity tracking (Session 2 - Lazy auto-update)
+	activityState ActivityState
 }
 
 // ModeTransition configuration for streamlined mode changes
@@ -356,10 +351,8 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		cacheManager: NewCacheManager(),
 
 		// Config state (Session 86) - passed from main.go (fail-fast on load errors)
-		appConfig: cfg,
-		// Menu activity tracking (Session 2 - Lazy auto-update)
-		lastMenuActivity:    time.Now().Add(-10 * time.Second), // Start as inactive
-		menuActivityTimeout: 5 * time.Second,
+		appConfig:     cfg,
+		activityState: NewActivityState(),
 	}
 
 	// Build and cache key handler registry once
@@ -1115,8 +1108,8 @@ func (a *Application) RenderStateHeader() string {
 		TimelineLabel:    timelineLabel,
 		TimelineDesc:     timelineDesc,
 		TimelineColor:    timelineColor,
-		SyncInProgress:   a.autoUpdateInProgress,
-		SyncFrame:        a.autoUpdateFrame,
+		SyncInProgress:   a.isAutoUpdateInProgress(),
+		SyncFrame:        a.getAutoUpdateFrame(),
 	}
 
 	info := ui.RenderHeaderInfo(a.sizing, a.theme, headerState)
@@ -1376,7 +1369,7 @@ func (a *Application) rebuildMenuShortcuts(mode AppMode) {
 
 // handleMenuUp moves selection up
 func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
-	app.lastMenuActivity = time.Now() // Track menu activity
+	app.activityState.MarkActivity() // Track menu activity
 	if len(app.menuItems) > 0 {
 		startIdx := app.selectedIndex
 		app.selectedIndex = (app.selectedIndex - 1 + len(app.menuItems)) % len(app.menuItems)
@@ -1398,7 +1391,7 @@ func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
 
 // handleMenuDown moves selection down
 func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
-	app.lastMenuActivity = time.Now() // Track menu activity
+	app.activityState.MarkActivity() // Track menu activity
 	if len(app.menuItems) > 0 {
 		startIdx := app.selectedIndex
 		app.selectedIndex = (app.selectedIndex + 1) % len(app.menuItems)
@@ -1420,7 +1413,7 @@ func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
 
 // handleMenuEnter selects current menu item and dispatches action
 func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
-	app.lastMenuActivity = time.Now() // Track menu activity
+	app.activityState.MarkActivity() // Track menu activity
 	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
 		return app, nil
 	}
@@ -1676,4 +1669,40 @@ func (a *Application) getConsoleState() ui.ConsoleOutState {
 
 func (a *Application) setConsoleScrollOffset(offset int) {
 	a.consoleState.SetScrollOffset(offset)
+}
+
+// Activity state delegation
+func (a *Application) markMenuActivity() {
+	a.activityState.MarkActivity()
+}
+
+func (a *Application) isMenuInactive() bool {
+	return a.activityState.IsInactive()
+}
+
+func (a *Application) setMenuActivityTimeout(timeout time.Duration) {
+	a.activityState.SetActivityTimeout(timeout)
+}
+
+// Activity state delegation (getters)
+func (a *Application) getActivityTimeout() time.Duration {
+	return a.activityState.GetActivityTimeout()
+}
+
+// Activity state delegation (getters for auto_update.go)
+func (a *Application) isAutoUpdateInProgress() bool {
+	return a.activityState.IsAutoUpdateInProgress()
+}
+
+func (a *Application) getAutoUpdateFrame() int {
+	return a.activityState.GetFrame()
+}
+
+// Activity state delegation (setters for auto_update.go)
+func (a *Application) stopAutoUpdate() {
+	a.activityState.StopAutoUpdate()
+}
+
+func (a *Application) incrementAutoUpdateFrame() {
+	a.activityState.IncrementFrame()
 }
