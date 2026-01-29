@@ -82,6 +82,12 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			}
 		}
 
+		// Clean untracked files (missing from hard reset)
+		cleanResult := git.ExecuteWithStreaming(ctx, "clean", "-fd")
+		if !cleanResult.Success {
+			buffer.Append("Warning: Failed to clean untracked files", ui.TypeWarning)
+		}
+
 		return GitOperationMsg{
 			Step:    OpHardReset,
 			Success: true,
