@@ -227,9 +227,9 @@ func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
 // Reduces 10+ lines of duplicate code across confirmation handlers
 func (a *Application) prepareAsyncOperation(hint string) {
 	a.startAsyncOp()
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = hint
 	a.workflowState.PreviousMode = ModeMenu
@@ -410,9 +410,9 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 
 	// Transition to console to show streaming output
 	a.setExitAllowed(false) // Block Ctrl+C until operation completes or is aborted
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 	a.workflowState.PreviousMode = ModeMenu
@@ -532,9 +532,9 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 	}
 
 	// Transition to console to show streaming output
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 
 	a.workflowState.PreviousMode = ModeHistory
@@ -551,9 +551,9 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 // executeTimeTravelWithDirtyTree handles time travel from dirty working tree
 func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
 	// Transition to console to show streaming output (MUST happen BEFORE buffer operations)
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 
 	a.workflowState.PreviousMode = ModeHistory
@@ -670,9 +670,9 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.confirmationDialog = nil
 
 	// Transition to console to show streaming output (consistent with other git operations)
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Returning to main..."
 	a.workflowState.PreviousMode = ModeMenu
@@ -712,9 +712,9 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output (consistent with other git operations)
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
@@ -784,9 +784,9 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	timeTravelHash := strings.TrimSpace(fullHashResult.Stdout)
 
 	// Transition to console to show streaming output
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
@@ -825,9 +825,9 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
@@ -859,9 +859,9 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 
 	// Tree is now clean - proceed directly with return (no second confirmation)
 	// Transition to console to show streaming output
-	a.consoleAutoScroll = true
+	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
-	a.outputBuffer.Clear()
+	a.consoleState.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Returning to main..."
 	a.workflowState.PreviousMode = ModeMenu
@@ -896,7 +896,7 @@ func (a *Application) executeConfirmRewind() (tea.Model, tea.Cmd) {
 	// Set up async operation
 	a.startAsyncOp()
 	a.workflowState.PreviousMode = ModeHistory
-	a.workflowState.PreviousMenuIndex = a.historyState.SelectedIdx
+	a.workflowState.PreviousMenuIndex = a.pickerState.History.SelectedIdx
 	a.mode = ModeConsole
 	a.consoleState.Reset()
 	ui.GetBuffer().Clear()

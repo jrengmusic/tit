@@ -55,9 +55,7 @@ type Application struct {
 	asyncState AsyncState
 
 	// Console output state (for clone, init, etc)
-	consoleState      ui.ConsoleOutState
-	outputBuffer      *ui.OutputBuffer
-	consoleAutoScroll bool
+	consoleState ConsoleState
 
 	// Process cancellation
 	cancelContext context.CancelFunc
@@ -77,11 +75,8 @@ type Application struct {
 	timelineInfo    map[git.Timeline]StateInfo
 	operationInfo   map[git.Operation]StateInfo
 
-	// History mode state
-	historyState *ui.HistoryState
-
-	// File(s) History mode state
-	fileHistoryState *ui.FileHistoryState
+	// Picker state (history, file history, branch picker)
+	pickerState PickerState
 
 	// Time Travel state
 	timeTravelInfo             *git.TimeTravelInfo // Non-nil only when Operation = TimeTraveling
@@ -95,9 +90,6 @@ type Application struct {
 
 	// Config state (Session 86)
 	appConfig *config.Config // Loaded from ~/.config/tit/config.toml
-
-	// Branch picker state (Session 86)
-	branchPickerState *ui.BranchPickerState
 
 	// Preferences state (Session 86)
 
@@ -265,8 +257,7 @@ func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEn
 		mode:             ModeSetupWizard,
 		environmentState: envState,
 		asyncState:       AsyncState{exitAllowed: true},
-		consoleState:     ui.NewConsoleOutState(),
-		outputBuffer:     ui.GetBuffer(),
+		consoleState:     NewConsoleState(),
 	}
 	app.keyHandlers = app.buildKeyHandlers()
 	return app
@@ -320,52 +311,52 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	workingTreeInfo, timelineInfo, operationInfo := BuildStateInfo(theme)
 
 	app := &Application{
-		sizing:            sizing,
-		theme:             theme,
-		mode:              ModeMenu,
-		gitState:          gitState,
-		selectedIndex:     0,
-		asyncState:        AsyncState{exitAllowed: true}, // Allow exit by default (disabled during critical operations)
-		workflowState:     NewWorkflowState(),
-		consoleState:      ui.NewConsoleOutState(),
-		outputBuffer:      ui.GetBuffer(),
-		consoleAutoScroll: true, // Start with auto-scroll enabled
-		workingTreeInfo:   workingTreeInfo,
-		timelineInfo:      timelineInfo,
-		operationInfo:     operationInfo,
-		historyState: &ui.HistoryState{
-			Commits:           make([]ui.CommitInfo, 0),
-			SelectedIdx:       0,
-			PaneFocused:       true, // Start with list pane focused
-			DetailsLineCursor: 0,
-			DetailsScrollOff:  0,
-		},
-		fileHistoryState: &ui.FileHistoryState{
-			Commits:           make([]ui.CommitInfo, 0),
-			Files:             make([]ui.FileInfo, 0),
-			SelectedCommitIdx: 0,
-			SelectedFileIdx:   0,
-			FocusedPane:       ui.PaneCommits, // Start with commits pane focused
-			CommitsScrollOff:  0,
-			FilesScrollOff:    0,
-			DiffScrollOff:     0,
-			DiffLineCursor:    0,
-			VisualModeActive:  false,
-			VisualModeStart:   0,
+		sizing:          sizing,
+		theme:           theme,
+		mode:            ModeMenu,
+		gitState:        gitState,
+		selectedIndex:   0,
+		asyncState:      AsyncState{exitAllowed: true}, // Allow exit by default (disabled during critical operations)
+		workflowState:   NewWorkflowState(),
+		consoleState:    NewConsoleState(),
+		workingTreeInfo: workingTreeInfo,
+		timelineInfo:    timelineInfo,
+		operationInfo:   operationInfo,
+		pickerState: PickerState{
+			History: &ui.HistoryState{
+				Commits:           make([]ui.CommitInfo, 0),
+				SelectedIdx:       0,
+				PaneFocused:       true, // Start with list pane focused
+				DetailsLineCursor: 0,
+				DetailsScrollOff:  0,
+			},
+			FileHistory: &ui.FileHistoryState{
+				Commits:           make([]ui.CommitInfo, 0),
+				Files:             make([]ui.FileInfo, 0),
+				SelectedCommitIdx: 0,
+				SelectedFileIdx:   0,
+				FocusedPane:       ui.PaneCommits, // Start with commits pane focused
+				CommitsScrollOff:  0,
+				FilesScrollOff:    0,
+				DiffScrollOff:     0,
+				DiffLineCursor:    0,
+				VisualModeActive:  false,
+				VisualModeStart:   0,
+			},
+			BranchPicker: &ui.BranchPickerState{
+				Branches:          make([]ui.BranchInfo, 0),
+				SelectedIdx:       0,
+				PaneFocused:       true, // Start with list pane focused
+				ListScrollOffset:  0,
+				DetailsLineCursor: 0,
+				DetailsScrollOff:  0,
+			},
 		},
 		// Initialize cache manager
 		cacheManager: NewCacheManager(),
 
 		// Config state (Session 86) - passed from main.go (fail-fast on load errors)
 		appConfig: cfg,
-		branchPickerState: &ui.BranchPickerState{
-			Branches:          make([]ui.BranchInfo, 0),
-			SelectedIdx:       0,
-			PaneFocused:       true, // Start with list pane focused
-			ListScrollOffset:  0,
-			DetailsLineCursor: 0,
-			DetailsScrollOff:  0,
-		},
 		// Menu activity tracking (Session 2 - Lazy auto-update)
 		lastMenuActivity:    time.Now().Add(-10 * time.Second), // Start as inactive
 		menuActivityTimeout: 5 * time.Second,
@@ -753,14 +744,14 @@ func (a *Application) View() string {
 	case ModeConsole, ModeClone:
 		// Console output (full-screen mode, footer handled by GetFooterContent)
 		contentText = ui.RenderConsoleOutputFullScreen(
-			&a.consoleState,
-			a.outputBuffer,
+			a.consoleState.GetStateRef(),
+			a.consoleState.GetBuffer(),
 			a.theme,
 			a.sizing.TerminalWidth,
 			a.sizing.TerminalHeight,
 			a.isAsyncActive() && !a.isAsyncAborted(),
 			a.isAsyncAborted(),
-			a.consoleAutoScroll,
+			a.consoleState.IsAutoScroll(),
 		)
 
 	case ModeConfirmation:
@@ -825,11 +816,11 @@ func (a *Application) View() string {
 
 	case ModeHistory:
 		// Render history split-pane view (footer handled by GetFooterContent)
-		if a.historyState == nil {
+		if a.pickerState.History == nil {
 			contentText = "History state not initialized"
 		} else {
 			contentText = ui.RenderHistorySplitPane(
-				a.historyState,
+				a.pickerState.History,
 				a.theme,
 				a.sizing.TerminalWidth,
 				a.sizing.TerminalHeight,
@@ -837,11 +828,11 @@ func (a *Application) View() string {
 		}
 	case ModeFileHistory:
 		// Render file(s) history split-pane view (footer handled by GetFooterContent)
-		if a.fileHistoryState == nil {
+		if a.pickerState.FileHistory == nil {
 			contentText = "File history state not initialized"
 		} else {
 			contentText = ui.RenderFileHistorySplitPane(
-				a.fileHistoryState,
+				a.pickerState.FileHistory,
 				a.theme,
 				a.sizing.TerminalWidth,
 				a.sizing.TerminalHeight,
@@ -877,9 +868,9 @@ func (a *Application) View() string {
 		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
 
 	case ModeBranchPicker:
-		if a.branchPickerState == nil {
+		if a.pickerState.BranchPicker == nil {
 			// Initialize branch picker state if not yet created
-			a.branchPickerState = &ui.BranchPickerState{
+			a.pickerState.BranchPicker = &ui.BranchPickerState{
 				Branches:          []ui.BranchInfo{},
 				SelectedIdx:       0,
 				PaneFocused:       true,
@@ -889,7 +880,7 @@ func (a *Application) View() string {
 			}
 		}
 		// Render using SSOT (ListPane + TextPane) matching history pattern
-		contentText = ui.RenderBranchPickerSplitPane(a.branchPickerState, a.theme, a.sizing.TerminalWidth, a.sizing.TerminalHeight)
+		contentText = ui.RenderBranchPickerSplitPane(a.pickerState.BranchPicker, a.theme, a.sizing.TerminalWidth, a.sizing.TerminalHeight)
 
 	case ModePreferences:
 		// All menus work the same SSOT way - generate items when needed
@@ -1521,15 +1512,15 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 
 // handleHistoryRewind handles Ctrl+ENTER in history browser to initiate rewind
 func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd) {
-	if app.historyState == nil || len(app.historyState.Commits) == 0 {
+	if app.pickerState.History == nil || len(app.pickerState.History.Commits) == 0 {
 		return app, nil
 	}
 
-	if app.historyState.SelectedIdx < 0 || app.historyState.SelectedIdx >= len(app.historyState.Commits) {
+	if app.pickerState.History.SelectedIdx < 0 || app.pickerState.History.SelectedIdx >= len(app.pickerState.History.Commits) {
 		return app, nil
 	}
 
-	selectedCommit := app.historyState.Commits[app.historyState.SelectedIdx]
+	selectedCommit := app.pickerState.History.Commits[app.pickerState.History.SelectedIdx]
 	app.workflowState.PendingRewindCommit = selectedCommit.Hash
 
 	return app, app.showRewindConfirmation(selectedCommit.Hash)
@@ -1603,4 +1594,86 @@ func (a *Application) markSetupKeyCopied() {
 
 func (a *Application) isSetupKeyCopied() bool {
 	return a.environmentState.IsKeyCopied()
+}
+
+// Picker state delegation
+func (a *Application) getHistoryState() *ui.HistoryState {
+	return a.pickerState.GetHistory()
+}
+
+func (a *Application) setHistoryState(state *ui.HistoryState) {
+	a.pickerState.SetHistory(state)
+}
+
+func (a *Application) resetHistoryState() {
+	a.pickerState.ResetHistory()
+}
+
+func (a *Application) getFileHistoryState() *ui.FileHistoryState {
+	return a.pickerState.GetFileHistory()
+}
+
+func (a *Application) setFileHistoryState(state *ui.FileHistoryState) {
+	a.pickerState.SetFileHistory(state)
+}
+
+func (a *Application) resetFileHistoryState() {
+	a.pickerState.ResetFileHistory()
+}
+
+func (a *Application) getBranchPickerState() *ui.BranchPickerState {
+	return a.pickerState.GetBranchPicker()
+}
+
+func (a *Application) setBranchPickerState(state *ui.BranchPickerState) {
+	a.pickerState.SetBranchPicker(state)
+}
+
+func (a *Application) resetBranchPickerState() {
+	a.pickerState.ResetBranchPicker()
+}
+
+func (a *Application) resetAllPickerStates() {
+	a.pickerState.ResetAll()
+}
+
+// Console state delegation
+func (a *Application) getConsoleBuffer() *ui.OutputBuffer {
+	return a.consoleState.GetBuffer()
+}
+
+func (a *Application) clearConsoleBuffer() {
+	a.consoleState.Clear()
+}
+
+func (a *Application) scrollConsoleUp() {
+	a.consoleState.ScrollUp()
+}
+
+func (a *Application) scrollConsoleDown() {
+	a.consoleState.ScrollDown()
+}
+
+func (a *Application) pageConsoleUp() {
+	a.consoleState.PageUp()
+}
+
+func (a *Application) pageConsoleDown() {
+	a.consoleState.PageDown()
+}
+
+func (a *Application) toggleConsoleAutoScroll() {
+	a.consoleState.ToggleAutoScroll()
+}
+
+func (a *Application) isConsoleAutoScroll() bool {
+	return a.consoleState.IsAutoScroll()
+}
+
+func (a *Application) getConsoleState() ui.ConsoleOutState {
+	return a.consoleState.GetState()
+}
+
+func (a *Application) setConsoleScrollOffset(offset int) {
+	a.consoleState.SetScrollOffset(offset)
 }
