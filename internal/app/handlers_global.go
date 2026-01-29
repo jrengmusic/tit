@@ -106,8 +106,8 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 	if a.isAsyncAborted() {
 		a.endAsyncOp()
 		a.clearAsyncAborted()
-		a.mode = a.previousMode
-		a.selectedIndex = a.previousMenuIndex
+		a.mode = a.workflowState.PreviousMode
+		a.selectedIndex = a.workflowState.PreviousMenuIndex
 		a.consoleState.Reset()
 		a.outputBuffer.Clear()
 		a.footerHint = ""
@@ -116,8 +116,8 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		if a.mode == ModeMenu {
 			menu := app.GenerateMenu()
 			app.menuItems = menu
-			if a.previousMenuIndex < len(menu) && len(menu) > 0 {
-				app.footerHint = menu[a.previousMenuIndex].Hint
+			if a.workflowState.PreviousMenuIndex < len(menu) && len(menu) > 0 {
+				app.footerHint = menu[a.workflowState.PreviousMenuIndex].Hint
 			}
 			// Rebuild shortcuts for new menu
 			app.rebuildMenuShortcuts(ModeMenu)
@@ -161,16 +161,16 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 	}
 
 	// All other modes: return to previousMode and regenerate menu
-	app.mode = app.previousMode
+	app.mode = app.workflowState.PreviousMode
 
 	// Regenerate menu based on new mode
 	switch app.mode {
 	case ModeMenu:
 		menu := app.GenerateMenu()
 		app.menuItems = menu
-		if a.previousMenuIndex >= 0 && a.previousMenuIndex < len(menu) {
-			app.selectedIndex = a.previousMenuIndex
-			app.footerHint = menu[a.previousMenuIndex].Hint
+		if a.workflowState.PreviousMenuIndex >= 0 && a.workflowState.PreviousMenuIndex < len(menu) {
+			app.selectedIndex = a.workflowState.PreviousMenuIndex
+			app.footerHint = menu[a.workflowState.PreviousMenuIndex].Hint
 		} else {
 			app.selectedIndex = 0
 			if len(menu) > 0 {
@@ -179,7 +179,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		}
 		app.rebuildMenuShortcuts(ModeMenu)
 	case ModeConfig:
-		app.previousMode = ModeMenu // Config always returns to menu on next ESC
+		app.workflowState.PreviousMode = ModeMenu // Config always returns to menu on next ESC
 		app.menuItems = app.GenerateConfigMenu()
 		app.selectedIndex = 0
 		if len(app.menuItems) > 0 {
@@ -206,15 +206,15 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 func (a *Application) dismissConfirmationDialog() (tea.Model, tea.Cmd) {
 	// Reset confirmation state
 	a.confirmationDialog = nil
-	a.mode = a.previousMode
+	a.mode = a.workflowState.PreviousMode
 
 	// Restore menu state based on previous mode
 	switch a.mode {
 	case ModeMenu:
 		menu := a.GenerateMenu()
 		a.menuItems = menu
-		if a.previousMenuIndex >= 0 && a.previousMenuIndex < len(menu) {
-			a.selectedIndex = a.previousMenuIndex
+		if a.workflowState.PreviousMenuIndex >= 0 && a.workflowState.PreviousMenuIndex < len(menu) {
+			a.selectedIndex = a.workflowState.PreviousMenuIndex
 			if len(menu) > 0 {
 				a.footerHint = menu[a.selectedIndex].Hint
 			}
@@ -316,8 +316,8 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 // handleKeySlash opens config menu when "/" is pressed in menu mode
 func (a *Application) handleKeySlash(app *Application) (tea.Model, tea.Cmd) {
 	if app.mode == ModeMenu {
-		app.previousMode = app.mode               // Track previous mode (Menu)
-		app.previousMenuIndex = app.selectedIndex // Track previous selection!
+		app.workflowState.PreviousMode = app.mode               // Track previous mode (Menu)
+		app.workflowState.PreviousMenuIndex = app.selectedIndex // Track previous selection!
 		app.mode = ModeConfig
 		app.selectedIndex = 0
 		configMenu := app.GenerateConfigMenu()

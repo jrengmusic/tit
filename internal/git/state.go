@@ -440,7 +440,7 @@ func WriteTimeTravelInfo(originalBranch, stashID string) error {
 
 // ClearTimeTravelInfo removes the .git/TIT_TIME_TRAVEL file
 func ClearTimeTravelInfo() error {
-	gitDir := ".git"
+	gitDir := internal.GitDirectoryName
 	filePath := filepath.Join(gitDir, "TIT_TIME_TRAVEL")
 
 	err := os.Remove(filePath)

@@ -139,12 +139,12 @@
 
 ## ROLE ASSIGNMENT REGISTRATION
 
-COUNSELOR: [Agent (Model)] or [Not Assigned]  
-ENGINEER: [Agent (Model)] or [Not Assigned]  
-SURGEON: [Agent (Model)] or [Not Assigned]  
-AUDITOR: [Agent (Model)] or [Not Assigned]  
-MACHINIST: [Agent (Model)] or [Not Assigned]  
-JOURNALIST: [Agent (Model)] or [Not Assigned]
+COUNSELOR: [Not Assigned]  
+ENGINEER: glm-4.7 (zai-coding-plan/glm-4.7)  
+SURGEON: [Not Assigned]  
+AUDITOR: [Not Assigned]  
+MACHINIST: [Not Assigned]  
+JOURNALIST: [Not Assigned]
 
 ---
 

@@ -46,22 +46,13 @@ type Application struct {
 	// Input mode state
 	inputState InputState // Text input field state
 
-	// Clone workflow state
-	cloneURL      string   // URL to clone from
-	clonePath     string   // Path to clone into (cwd or subdir)
-	cloneMode     string   // "here" (init+remote+fetch) or "subdir" (git clone)
-	cloneBranches []string // Available branches after clone
+	// Workflow state (clone, init, mode restoration)
+	workflowState WorkflowState // Transient multi-step workflow state
 
 	// Remote operation state
 
 	// Async operation state
 	asyncState AsyncState
-
-	previousMode      AppMode // Mode before async operation started (for restoration on ESC)
-	previousMenuIndex int     // Menu selection before async (for restoration)
-
-	// Rewind operation state
-	pendingRewindCommit string // Commit hash for pending rewind operation
 
 	// Console output state (for clone, init, etc)
 	consoleState      ui.ConsoleOutState
@@ -163,18 +154,13 @@ func (a *Application) transitionTo(config ModeTransition) {
 	for _, field := range config.ResetFields {
 		switch field {
 		case "clone":
-			a.cloneURL = ""
-			a.clonePath = ""
-			a.cloneBranches = nil
+			a.workflowState.ResetClone()
 		case "all":
 			// Reset all workflow states
-			a.cloneURL = ""
-			a.clonePath = ""
-			a.cloneBranches = nil
+			a.workflowState.ResetClone()
 		}
-	}
 }
-
+}
 // reloadGitState refreshes git state from repository.
 // This is SSOT for all git state reloads in the application.
 func (a *Application) reloadGitState() error {
@@ -342,6 +328,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		gitState:          gitState,
 		selectedIndex:     0,
 		asyncState:        AsyncState{exitAllowed: true}, // Allow exit by default (disabled during critical operations)
+		workflowState:     NewWorkflowState(),
 		consoleState:      ui.NewConsoleOutState(),
 		outputBuffer:      ui.GetBuffer(),
 		consoleAutoScroll: true, // Start with auto-scroll enabled
@@ -413,7 +400,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		// Show console and perform restoration
 		app.mode = ModeConsole
 		app.startAsyncOp()
-		app.previousMode = ModeMenu
+		app.workflowState.PreviousMode = ModeMenu
 		app.footerHint = "Restoring from incomplete time travel session..."
 	}
 
@@ -790,8 +777,8 @@ func (a *Application) View() string {
 
 	case ModeSelectBranch:
 		// Dynamic menu from cloneBranches
-		items := make([]map[string]interface{}, len(a.cloneBranches))
-		for i, branch := range a.cloneBranches {
+		items := make([]map[string]interface{}, len(a.workflowState.CloneBranches))
+		for i, branch := range a.workflowState.CloneBranches {
 			items[i] = map[string]interface{}{
 				"ID":        branch,
 				"Shortcut":  "",
@@ -1545,7 +1532,32 @@ func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	selectedCommit := app.historyState.Commits[app.historyState.SelectedIdx]
-	app.pendingRewindCommit = selectedCommit.Hash
+	app.workflowState.PendingRewindCommit = selectedCommit.Hash
 
 	return app, app.showRewindConfirmation(selectedCommit.Hash)
+}
+
+// Workflow state delegation
+func (a *Application) resetCloneWorkflow() {
+	a.workflowState.ResetClone()
+}
+
+func (a *Application) saveCurrentMode() {
+	a.workflowState.SaveMode(a.mode, a.selectedIndex)
+}
+
+func (a *Application) restorePreviousMode() (AppMode, int) {
+	return a.workflowState.RestoreMode()
+}
+
+func (a *Application) setPendingRewind(commit string) {
+	a.workflowState.SetPendingRewind(commit)
+}
+
+func (a *Application) getPendingRewind() string {
+	return a.workflowState.GetPendingRewind()
+}
+
+func (a *Application) clearPendingRewind() {
+	a.workflowState.ClearPendingRewind()
 }
