@@ -33,11 +33,11 @@ var initLocationConfig = LocationChoiceConfig{
 }
 
 var cloneLocationConfig = LocationChoiceConfig{
-	PathSetter: func(a *Application, path string) { a.clonePath = path },
+	PathSetter: func(a *Application, path string) { a.workflowState.ClonePath = path },
 	OnCurrentDir: func(a *Application) (tea.Model, tea.Cmd) {
 		// Clone here: clonePath is already set by PathSetter to cwd
 		// Ask for URL, then init + remote add + fetch + checkout
-		a.cloneMode = "here"
+		a.workflowState.CloneMode = "here"
 		return a.transitionToCloneURL("clone_here")
 	},
 	SubdirPrompt: "",
@@ -137,7 +137,7 @@ func (a *Application) transitionToCloneURL(action string) (tea.Model, tea.Cmd) {
 // handleCloneURLSubmit validates URL and routes based on input action
 func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd) {
 	return app.validateAndProceed(ui.Validators["url"], func(app *Application) (tea.Model, tea.Cmd) {
-		app.cloneURL = app.inputState.Value
+		app.workflowState.CloneURL = app.inputState.Value
 
 		// Route based on how we got here
 		if app.inputState.Action == "clone_url" {
@@ -148,7 +148,7 @@ func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd
 				return app, nil
 			}
 
-			app.clonePath = cwd // git clone will create subdir automatically
+			app.workflowState.ClonePath = cwd // git clone will create subdir automatically
 			return app.startCloneOperation()
 		}
 
@@ -179,11 +179,11 @@ func (a *Application) handleCloneLocationChoice2(app *Application) (tea.Model, t
 
 // handleSelectBranchEnter handles selecting canon branch from list
 func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.Cmd) {
-	if app.selectedIndex < 0 || app.selectedIndex >= len(app.cloneBranches) {
+	if app.selectedIndex < 0 || app.selectedIndex >= len(app.workflowState.CloneBranches) {
 		return app, nil
 	}
 
-	selectedBranch := app.cloneBranches[app.selectedIndex]
+	selectedBranch := app.workflowState.CloneBranches[app.selectedIndex]
 
 	// Checkout selected branch
 	buffer := ui.GetBuffer()
@@ -227,8 +227,8 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 
 	// Set up async state for console display
 	app.startAsyncOp()
-	app.previousMode = ModeMenu
-	app.previousMenuIndex = 0
+	app.workflowState.PreviousMode = ModeMenu
+	app.workflowState.PreviousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState.Reset()
 	app.inputState.Value = ""
@@ -248,8 +248,8 @@ func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.C
 
 	// Set up async state for console display
 	app.startAsyncOp()
-	app.previousMode = ModeMenu
-	app.previousMenuIndex = 0
+	app.workflowState.PreviousMode = ModeMenu
+	app.workflowState.PreviousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState.Reset()
 	app.inputState.Value = ""
@@ -282,8 +282,8 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 
 	// Set up async state for console display
 	app.startAsyncOp()
-	app.previousMode = ModeMenu
-	app.previousMenuIndex = 0
+	app.workflowState.PreviousMode = ModeMenu
+	app.workflowState.PreviousMenuIndex = 0
 	app.mode = ModeConsole
 	app.consoleState.Reset()
 	app.inputState.Value = ""

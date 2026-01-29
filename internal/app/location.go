@@ -37,7 +37,7 @@ func (a *Application) handleLocationChoice(choice int, config LocationChoiceConf
 			return a, nil
 		}
 		config.PathSetter(a, cwd)
-		a.cloneMode = "subdir"
+		a.workflowState.CloneMode = "subdir"
 		return a.transitionToCloneURL("clone_to_subdir")
 	}
 

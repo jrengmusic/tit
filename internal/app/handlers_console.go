@@ -99,8 +99,8 @@ func cmdFetchRemote() tea.Cmd {
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 	a.startAsyncOp()
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeClone
 	a.consoleState.Reset()
 	a.outputBuffer.Clear()
@@ -115,8 +115,8 @@ func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
 
 // cmdCloneWorkflow launches git clone in a worker and returns a command
 func (a *Application) cmdCloneWorkflow() tea.Cmd {
-	cloneURL := a.cloneURL
-	cloneMode := a.cloneMode
+	cloneURL := a.workflowState.CloneURL
+	cloneMode := a.workflowState.CloneMode
 
 	cwd, _ := os.Getwd()
 

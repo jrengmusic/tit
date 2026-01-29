@@ -232,8 +232,8 @@ func (a *Application) prepareAsyncOperation(hint string) {
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = hint
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 }
 
 // getOriginalBranchForTimeTravel retrieves the original branch for time travel operations
@@ -415,8 +415,8 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 
 	// Start pull operation with merge strategy (--no-rebase)
 	return a, a.cmdPull()
@@ -537,8 +537,8 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 
-	a.previousMode = ModeHistory
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeHistory
+	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Set restoreTimeTravelInitiated = true to prevent restoration check
 	// from triggering during this intentional time travel session
@@ -556,8 +556,8 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 
-	a.previousMode = ModeHistory
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeHistory
+	a.workflowState.PreviousMenuIndex = 0
 	a.restoreTimeTravelInitiated = true
 
 	buffer := ui.GetBuffer()
@@ -675,8 +675,8 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Returning to main..."
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel return!
 	a.restoreTimeTravelInitiated = true
@@ -717,8 +717,8 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Merging back to main..."
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
 	a.restoreTimeTravelInitiated = true
@@ -789,8 +789,8 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Merging back to main..."
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
 	// Marker file still exists during merge, but this is NOT an incomplete session
@@ -830,8 +830,8 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Merging back to main..."
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel merge!
 	a.restoreTimeTravelInitiated = true
@@ -864,8 +864,8 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 	a.outputBuffer.Clear()
 	a.consoleState.Reset()
 	a.footerHint = "Returning to main..."
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 
 	// CRITICAL: Prevent restoration check from triggering during time travel return!
 	a.restoreTimeTravelInitiated = true
@@ -886,17 +886,17 @@ func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) 
 // executeConfirmRewind handles "Rewind" choice
 // executeConfirmRewind executes git reset --hard at pending commit
 func (a *Application) executeConfirmRewind() (tea.Model, tea.Cmd) {
-	if a.pendingRewindCommit == "" {
+	if a.workflowState.PendingRewindCommit == "" {
 		return a.returnToMenu()
 	}
 
-	commitHash := a.pendingRewindCommit
-	a.pendingRewindCommit = "" // Clear after capturing
+	commitHash := a.workflowState.PendingRewindCommit
+	a.workflowState.PendingRewindCommit = "" // Clear after capturing
 
 	// Set up async operation
 	a.startAsyncOp()
-	a.previousMode = ModeHistory
-	a.previousMenuIndex = a.historyState.SelectedIdx
+	a.workflowState.PreviousMode = ModeHistory
+	a.workflowState.PreviousMenuIndex = a.historyState.SelectedIdx
 	a.mode = ModeConsole
 	a.consoleState.Reset()
 	ui.GetBuffer().Clear()
@@ -910,7 +910,7 @@ func (a *Application) executeConfirmRewind() (tea.Model, tea.Cmd) {
 
 // executeRejectRewind handles "Cancel" choice on rewind confirmation
 func (a *Application) executeRejectRewind() (tea.Model, tea.Cmd) {
-	a.pendingRewindCommit = "" // Clear pending commit
+	a.workflowState.PendingRewindCommit = "" // Clear pending commit
 	return a.returnToMenu()
 }
 

@@ -101,8 +101,8 @@ func (a *Application) handleConfigAddRemoteURLSubmit(app *Application) (tea.Mode
 	}
 
 	app.startAsyncOp()
-	app.previousMode = ModeConfig
-	app.previousMenuIndex = app.selectedIndex
+	app.workflowState.PreviousMode = ModeConfig
+	app.workflowState.PreviousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole
 	app.consoleState.Reset()
 	app.inputState.Value = ""
@@ -130,8 +130,8 @@ func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.M
 	}
 
 	app.startAsyncOp()
-	app.previousMode = ModeConfig
-	app.previousMenuIndex = app.selectedIndex
+	app.workflowState.PreviousMode = ModeConfig
+	app.workflowState.PreviousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole
 	app.consoleState.Reset()
 	app.inputState.Value = ""
@@ -243,7 +243,7 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 
 	// If already on this branch, just go back to config menu
 	if selectedBranch.IsCurrent {
-		app.previousMode = ModeMenu // Config always returns to menu
+		app.workflowState.PreviousMode = ModeMenu // Config always returns to menu
 		app.mode = ModeConfig
 		app.selectedIndex = 0
 		configMenu := app.GenerateConfigMenu()

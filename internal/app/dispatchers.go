@@ -109,7 +109,7 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 			ResetFields: []string{"clone"},
 		})
 	} else {
-		app.cloneMode = "subdir"
+		app.workflowState.CloneMode = "subdir"
 		app.transitionTo(ModeTransition{
 			Mode:        ModeCloneURL,
 			InputPrompt: InputMessages["clone_url"].Prompt,
@@ -162,8 +162,8 @@ func (a *Application) dispatchCommitPush(app *Application) tea.Cmd {
 // dispatchPush pushes to remote
 func (a *Application) dispatchPush(app *Application) tea.Cmd {
 	a.startAsyncOp()
-	a.previousMode = ModeMenu
-	a.previousMenuIndex = 0
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeConsole
 	a.consoleState.Reset()
 	return app.cmdPush()
@@ -175,7 +175,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	if app.gitState.Timeline == git.Diverged {
 		confirmType = string(ConfirmPullMergeDiverged)
 	}
-	app.previousMode = app.mode // Track previous mode (Menu)
+	app.workflowState.PreviousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
 	msg := ConfirmationMessages[confirmType]
 	app.confirmationDialog = ui.NewConfirmationDialog(
@@ -195,7 +195,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 
 // dispatchForcePush shows confirmation dialog for force push
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
-	app.previousMode = app.mode // Track previous mode (Menu)
+	app.workflowState.PreviousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["force_push"]
@@ -212,7 +212,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 
 // dispatchReplaceLocal shows confirmation dialog for destructive action
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
-	app.previousMode = app.mode
+	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["hard_reset"]
@@ -229,7 +229,7 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 
 // dispatchResetDiscardChanges shows confirmation dialog for discarding all changes
 func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
-	app.previousMode = app.mode
+	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["hard_reset"]
@@ -246,8 +246,8 @@ func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 
 // dispatchHistory shows commit history
 func (a *Application) dispatchHistory(app *Application) tea.Cmd {
-	app.previousMode = app.mode               // Track previous mode (Menu)
-	app.previousMenuIndex = app.selectedIndex // Track previous selection
+	app.workflowState.PreviousMode = app.mode               // Track previous mode (Menu)
+	app.workflowState.PreviousMenuIndex = app.selectedIndex // Track previous selection
 	app.mode = ModeHistory
 
 	var commits []ui.CommitInfo
@@ -275,8 +275,8 @@ func (a *Application) dispatchHistory(app *Application) tea.Cmd {
 
 // dispatchFileHistory shows file(s) history
 func (a *Application) dispatchFileHistory(app *Application) tea.Cmd {
-	app.previousMode = app.mode               // Track previous mode (Menu)
-	app.previousMenuIndex = app.selectedIndex // Track previous selection
+	app.workflowState.PreviousMode = app.mode               // Track previous mode (Menu)
+	app.workflowState.PreviousMenuIndex = app.selectedIndex // Track previous selection
 	app.mode = ModeFileHistory
 
 	var commits []ui.CommitInfo
@@ -329,7 +329,7 @@ func parseCommitDate(dateStr string) (time.Time, error) {
 
 // dispatchDirtyPullMerge starts the dirty pull confirmation dialog
 func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
-	app.previousMode = app.mode
+	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["dirty_pull"]
@@ -383,7 +383,7 @@ func (a *Application) dispatchTimeTravelMerge(app *Application) tea.Cmd {
 		confirmType = ConfirmTimeTravelMerge
 	}
 
-	app.previousMode = app.mode
+	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
 	msg := ConfirmationMessages[string(confirmType)]
 	app.confirmationDialog = ui.NewConfirmationDialog(
@@ -407,7 +407,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
 
 	if hasDirtyTree {
-		app.previousMode = app.mode
+		app.workflowState.PreviousMode = app.mode
 		app.mode = ModeConfirmation
 		app.confirmationDialog = ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
@@ -422,7 +422,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 		)
 		app.confirmationDialog.SelectNo()
 	} else {
-		app.previousMode = app.mode
+		app.workflowState.PreviousMode = app.mode
 		app.mode = ModeConfirmation
 		msg := ConfirmationMessages[string(ConfirmTimeTravelReturn)]
 		app.confirmationDialog = ui.NewConfirmationDialog(
@@ -471,7 +471,7 @@ func (a *Application) dispatchConfigSwitchRemote(app *Application) tea.Cmd {
 
 // dispatchConfigRemoveRemote shows confirmation dialog to remove remote
 func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
-	app.previousMode = app.mode
+	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
 	app.confirmContext = map[string]string{}
 	msg := ConfirmationMessages["remove_remote"]
@@ -527,7 +527,7 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 	}
 
 	// Switch to branch picker mode
-	app.previousMode = app.mode // Track previous mode (Config)
+	app.workflowState.PreviousMode = app.mode // Track previous mode (Config)
 	app.mode = ModeBranchPicker
 	app.footerHint = "↑/↓ Navigate • Tab: Switch panes • Enter: Switch branch • ESC: Cancel"
 	return nil
@@ -535,7 +535,7 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 
 // dispatchConfigPreferences enters preferences mode
 func (a *Application) dispatchConfigPreferences(app *Application) tea.Cmd {
-	app.previousMode = app.mode // Track previous mode (Config)
+	app.workflowState.PreviousMode = app.mode // Track previous mode (Config)
 	app.mode = ModePreferences
 	app.selectedIndex = 0
 	app.menuItems = app.GeneratePreferencesMenu()
