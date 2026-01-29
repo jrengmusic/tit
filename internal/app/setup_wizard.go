@@ -15,9 +15,9 @@ import (
 
 // handleSetupWizardEnter handles ENTER key in setup wizard
 func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.Cmd) {
-	switch a.setupWizardStep {
+	switch a.environmentState.SetupWizardStep {
 	case SetupStepWelcome:
-		a.setupWizardStep = SetupStepPrerequisites
+		a.environmentState.SetupWizardStep = SetupStepPrerequisites
 	case SetupStepPrerequisites:
 		// Re-check prerequisites
 		env := git.DetectGitEnvironment()
@@ -26,7 +26,7 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 			return a, nil
 		}
 		// Prerequisites OK, advance to email
-		a.setupWizardStep = SetupStepEmail
+		a.environmentState.SetupWizardStep = SetupStepEmail
 	case SetupStepEmail:
 		// Validate email input
 		email := strings.TrimSpace(a.inputState.Value)
@@ -42,23 +42,23 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 		}
 
 		// Store email and advance to generate step
-		a.setupEmail = email
+		a.environmentState.SetupEmail = email
 		a.inputState.Value = ""
-		a.setupWizardStep = SetupStepGenerate
+		a.environmentState.SetupWizardStep = SetupStepGenerate
 		return a, a.cmdGenerateSSHKey()
 	case SetupStepGenerate:
 		// Will be handled in Phase 7
-		a.setupWizardStep = SetupStepDisplayKey
+		a.environmentState.SetupWizardStep = SetupStepDisplayKey
 	case SetupStepDisplayKey:
-		a.setupWizardStep = SetupStepComplete
+		a.environmentState.SetupWizardStep = SetupStepComplete
 	case SetupStepError:
 		// Go back to previous step (Generate step)
-		a.setupWizardError = ""
-		a.setupWizardStep = SetupStepGenerate
+		a.environmentState.SetupWizardError = ""
+		a.environmentState.SetupWizardStep = SetupStepGenerate
 		return a, nil
 	case SetupStepComplete:
 		// Setup complete - transition to normal TIT operation
-		a.gitEnvironment = git.Ready
+		a.environmentState.GitEnvironment = git.Ready
 
 		// Try to find and cd into git repository (same as normal NewApplication)
 		isRepo, repoPath := git.IsInitializedRepo()
@@ -92,7 +92,7 @@ func (a *Application) handleSetupWizardEnter(app *Application) (tea.Model, tea.C
 
 // cmdGenerateSSHKey generates SSH key and configures SSH
 func (a *Application) cmdGenerateSSHKey() tea.Cmd {
-	email := a.setupEmail
+	email := a.environmentState.SetupEmail
 
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
@@ -142,7 +142,7 @@ func (a *Application) renderSetupWizard() string {
 	// Build content based on current step
 	var content string
 
-	switch a.setupWizardStep {
+	switch a.environmentState.SetupWizardStep {
 	case SetupStepWelcome:
 		content = a.renderSetupWelcome()
 	case SetupStepPrerequisites:
@@ -158,7 +158,7 @@ func (a *Application) renderSetupWizard() string {
 	case SetupStepError:
 		content = a.renderSetupError()
 	default:
-		content = fmt.Sprintf("Unknown setup step: %d", a.setupWizardStep)
+		content = fmt.Sprintf("Unknown setup step: %d", a.environmentState.SetupWizardStep)
 	}
 
 	// Center content in the content area
@@ -338,9 +338,9 @@ func (a *Application) renderSetupDisplayKey() string {
 	}
 
 	// Copy to clipboard if not already done
-	if !a.setupKeyCopied {
+	if !a.environmentState.SetupKeyCopied {
 		clipboard.WriteAll(pubKey)
-		a.setupKeyCopied = true
+		a.environmentState.SetupKeyCopied = true
 	}
 
 	// Render key in a box (shorter to make room for button)
@@ -387,7 +387,7 @@ func (a *Application) renderSetupError() string {
 	errorMsg := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(a.theme.ContentTextColor)).
 		Width(a.sizing.ContentInnerWidth - 4).
-		Render(a.setupWizardError)
+		Render(a.environmentState.SetupWizardError)
 
 	body := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(a.theme.DimmedTextColor)).
