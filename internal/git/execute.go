@@ -100,8 +100,9 @@ func Execute(args ...string) CommandResult {
 }
 
 // FindStashRefByHash finds the stash reference (stash@{N}) for a given hash
-// Returns the stash reference if found, panics if not found (fail fast)
-func FindStashRefByHash(targetHash string) string {
+// Returns (stashRef, true) if found, ("", false) if not found
+// Caller should handle not-found case gracefully (don't panic)
+func FindStashRefByHash(targetHash string) (string, bool) {
 	// Iterate through stash@{0}..{9} looking for matching hash
 	// Limit to 10 stashes (reasonable - if user has more, they have bigger problems)
 	for i := 0; i < 10; i++ {
@@ -115,12 +116,19 @@ func FindStashRefByHash(targetHash string) string {
 
 		hash := strings.TrimSpace(result.Stdout)
 		if hash == targetHash {
-			return stashRef
+			return stashRef, true
 		}
 	}
 
-	// Stash not found - this should NEVER happen (indicates bug or user manually dropped stash)
-	panic(fmt.Sprintf("FATAL: Stash with hash %s not found in stash list. This indicates the stash was manually dropped or a bug in stash tracking.", targetHash))
+	// Stash not found
+	return "", false
+}
+
+// StashExists checks if a stash hash still exists in git
+// Returns true if stash with given hash exists, false otherwise
+func StashExists(stashHash string) bool {
+	_, exists := FindStashRefByHash(stashHash)
+	return exists
 }
 
 // cleanStaleLocks removes stale git lock files that can occur when git operations
@@ -396,7 +404,8 @@ func ListConflictedFiles() ([]string, error) {
 	}
 
 	if len(conflictedFiles) == 0 {
-		return nil, fmt.Errorf("no conflicted files found")
+		// Return empty slice instead of error - caller can check len to determine if conflicts exist
+		return []string{}, nil
 	}
 
 	return conflictedFiles, nil
@@ -676,7 +685,7 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 			// Check for conflicts
 			conflictFiles, err := ListConflictedFiles()
 
-			if err != nil {
+			if err != nil || len(conflictFiles) == 0 {
 				// No conflicts detected - this is a merge error (not conflicts)
 				// Don't clear marker file - operation failed
 				return TimeTravelMergeMsg{
@@ -713,7 +722,7 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 
 				// Check for conflicts
 				conflictFiles, err := ListConflictedFiles()
-				if err != nil {
+				if err != nil || len(conflictFiles) == 0 {
 					// Stash apply failed but not due to conflicts - don't drop the stash
 					Error("Stash apply failed (not conflicts) - stash will not be dropped")
 					return TimeTravelMergeMsg{
@@ -741,7 +750,19 @@ func ExecuteTimeTravelMerge(originalBranch, timeTravelHash string) func() tea.Ms
 			Log("Stash applied successfully")
 
 			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
-			stashRef := FindStashRefByHash(originalStashHash)
+			stashRef, found := FindStashRefByHash(originalStashHash)
+			if !found {
+				// Stash was manually dropped - log and continue
+				Log("Stash was manually dropped, skipping drop")
+				// Remove from config tracking system
+				config.RemoveStashEntry("time_travel", repoPath)
+				return TimeTravelMergeMsg{
+					Success:        true,
+					OriginalBranch: originalBranch,
+					TimeTravelHash: timeTravelHash,
+					Error:          "",
+				}
+			}
 
 			Log(fmt.Sprintf("Dropping stash %s...", stashRef))
 			dropResult := Execute("stash", "drop", stashRef)
@@ -818,7 +839,7 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 
 				// Check for conflicts
 				conflictFiles, err := ListConflictedFiles()
-				if err != nil {
+				if err != nil || len(conflictFiles) == 0 {
 					// Stash apply failed but not due to conflicts - don't drop the stash
 					Error("Stash apply failed (not conflicts) - stash will not be dropped")
 					return TimeTravelReturnMsg{
@@ -843,7 +864,20 @@ func ExecuteTimeTravelReturn(originalBranch string) func() tea.Msg {
 
 			// Drop stash using stash@{N} reference (git stash drop requires reference, not hash)
 			Log("[DEBUG] Finding stash reference by hash...")
-			stashRef := FindStashRefByHash(originalStashHash)
+			stashRef, found := FindStashRefByHash(originalStashHash)
+			if !found {
+				// Stash was manually dropped - log and continue
+				Log("Stash was manually dropped, skipping drop")
+				// Remove from config tracking system
+				Log("[DEBUG] Removing stash entry from config...")
+				config.RemoveStashEntry("time_travel", repoPath)
+				Log("[DEBUG] Stash entry removed from config")
+				return TimeTravelReturnMsg{
+					Success:        true,
+					OriginalBranch: originalBranch,
+					Error:          "",
+				}
+			}
 			Log(fmt.Sprintf("[DEBUG] Found stash reference: %s", stashRef))
 
 			Log(fmt.Sprintf("Dropping stash %s...", stashRef))

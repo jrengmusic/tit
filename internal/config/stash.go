@@ -52,18 +52,19 @@ func ensureStashDir() {
 }
 
 // loadStashList loads the stash list from TOML file
-// Returns empty list if file doesn't exist (first run)
+// Returns empty list if file doesn't exist or is corrupted
 func loadStashList() *StashList {
 	stashFile := getStashFilePath()
 
-	// If file doesn't exist, return empty list (not an error - first run)
+	// If file doesn't exist, return empty list (first run)
 	if _, err := os.Stat(stashFile); os.IsNotExist(err) {
 		return &StashList{Stash: []StashEntry{}}
 	}
 
 	var list StashList
 	if _, err := toml.DecodeFile(stashFile, &list); err != nil {
-		panic(fmt.Sprintf("FATAL: Failed to parse stash list %s: %v", stashFile, err))
+		// File corrupted - reset to empty list
+		return &StashList{Stash: []StashEntry{}}
 	}
 
 	return &list

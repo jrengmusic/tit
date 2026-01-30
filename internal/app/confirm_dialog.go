@@ -98,6 +98,14 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit,   // YES = Merge
 		Reject:  (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
 	},
+	"confirm_stale_stash_continue": {
+		Confirm: (*Application).executeConfirmStaleStashContinue,
+		Reject:  (*Application).executeRejectStaleStashContinue,
+	},
+	"confirm_stale_stash_merge_continue": {
+		Confirm: (*Application).executeConfirmStaleStashMergeContinue,
+		Reject:  (*Application).executeRejectStaleStashContinue,
+	},
 	string(ConfirmRewind): {
 		Confirm: (*Application).executeConfirmRewind,
 		Reject:  (*Application).executeRejectRewind,

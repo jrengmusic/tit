@@ -89,12 +89,12 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 	// Get selected commit
 	commit := app.pickerState.History.Commits[app.pickerState.History.SelectedIdx]
 
-	// Show time travel confirmation dialog
+	// Show time travel confirmation dialog with context
 	app.mode = ModeConfirmation
-	app.dialogState.SetContext(map[string]string{
+	dialogContext := map[string]string{
 		"commit_hash":    commit.Hash,
 		"commit_subject": commit.Subject,
-	})
+	}
 
 	// Create confirmation dialog using SSOT
 	// Format: hash (first 7 chars) on first line, subject on second line
@@ -114,8 +114,8 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 		NoLabel:     msg.NoLabel,
 		ActionID:    "time_travel",
 	}
-	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
-	app.dialogState.Show(dialog, nil)
+	dialog := ui.NewConfirmationDialog(config, app.sizing.ContentInnerWidth, &app.theme)
+	app.dialogState.Show(dialog, dialogContext)
 
 	return app, nil
 }

@@ -184,6 +184,11 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			return a, nil
 		}
 
+		// CRITICAL: Invalidate history cache when switching branches
+		// Cache was built for previous branch, needs rebuild for new branch
+		a.cacheManager.SetLoadingStarted(true)
+		cacheCmd := a.invalidateHistoryCaches()
+
 		// Regenerate menu with new branch state
 		menu := a.GenerateMenu()
 		a.menuItems = menu
@@ -193,6 +198,8 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.footerHint = GetFooterMessageText(MessageOperationComplete)
 		a.endAsyncOp()
 		a.mode = ModeConsole // Stay in console so user sees the success message
+
+		return a, cacheCmd
 
 	case "finalize_branch_switch":
 		// Branch switch conflicts resolved and finalized
@@ -204,6 +211,10 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			a.mode = ModeConsole
 			return a, nil
 		}
+
+		// CRITICAL: Invalidate history cache when switching branches
+		a.cacheManager.SetLoadingStarted(true)
+		cacheCmd := a.invalidateHistoryCaches()
 
 		// Regenerate menu with new branch state
 		menu := a.GenerateMenu()
@@ -217,6 +228,8 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.setExitAllowed(true)
 		a.conflictResolveState = nil
 		a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
+
+		return a, cacheCmd
 
 	case OpForcePush:
 		// Force push completed - reload state, stay in console
@@ -527,6 +540,9 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 		a.mode = ModeMenu
 		return a, a.startAutoUpdate()
 	}
+
+	// CRITICAL: Assign detected state to a.gitState (was local variable only!)
+	a.gitState = state
 
 	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
 	// Cache was built from detached HEAD during time travel, need full branch history

@@ -305,9 +305,8 @@ func (a *Application) GenerateConfigMenu() []MenuItem {
 	// Remove remote (only when remote exists)
 	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
 		items = append(items, GetMenuItem("config_remove_remote"))
+		items = append(items, Item("").Separator().Build())
 	}
-
-	items = append(items, Item("").Separator().Build())
 
 	// Branch switching (always available)
 	items = append(items, GetMenuItem("config_switch_branch"))

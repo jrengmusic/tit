@@ -14,7 +14,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-
 // ========================================
 // Dirty Pull Confirmation Handlers
 // ========================================
@@ -87,11 +86,11 @@ func (a *Application) executeRejectPullMerge() (tea.Model, tea.Cmd) {
 
 // executeConfirmTimeTravel handles YES response to time travel confirmation
 func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
-	// User confirmed time travel
-	a.dialogState.Hide()
-
-	// Get commit hash from context
+	// Get commit hash from context BEFORE hiding dialog (Hide() clears context)
 	commitHash := a.dialogState.GetContext()["commit_hash"]
+
+	// User confirmed time travel - hide dialog now that we have the hash
+	a.dialogState.Hide()
 
 	// Get original branch - CHECK BEFORE modifying Operation state
 	// Case 1: Already time traveling (Operation == TimeTraveling) → read from TIT_TIME_TRAVEL file
@@ -158,6 +157,10 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 
 	// Build TimeTravelInfo directly (fail fast if git calls fail)
 	// This prevents silent failures and inconsistent state
+	// CRITICAL: Validate commitHash is non-empty BEFORE git operations
+	if commitHash == "" {
+		LogErrorFatal("Failed to get commit subject", fmt.Errorf("commit hash is empty"))
+	}
 	commitSubject := strings.TrimSpace(git.Execute("log", "-1", "--format=%s", commitHash).Stdout)
 	if commitSubject == "" {
 		LogErrorFatal("Failed to get commit subject", fmt.Errorf("empty subject for %s", commitHash))
@@ -272,6 +275,12 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 		panic(fmt.Sprintf("FATAL: Failed to get current working directory: %v", err))
 	}
 
+	// Check if entry already exists (handles stale state from previous TIT session)
+	if _, exists := config.GetStashEntry("time_travel", repoPath); exists {
+		// Clean up stale entry first
+		config.RemoveStashEntry("time_travel", repoPath)
+	}
+
 	// Add stash entry to config tracking system
 	config.AddStashEntry("time_travel", stashHash, repoPath, originalBranch, commitHash)
 
@@ -321,6 +330,34 @@ func (a *Application) executeRejectTimeTravel() (tea.Model, tea.Cmd) {
 func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	a.dialogState.Hide()
 
+	// Check if there's a stash entry that needs validation
+	repoPath, _ := os.Getwd()
+	stashHash, hasStash := config.FindStashEntry("time_travel", repoPath)
+
+	// If stash exists, verify it still exists in git
+	if hasStash && !git.StashExists(stashHash) {
+		// Stash was manually dropped - show confirmation dialog
+		a.mode = ModeConfirmation
+		shortHash := git.ShortenHash(stashHash)
+		dialogContext := map[string]string{
+			"stash_hash":     shortHash,
+			"originalBranch": a.getOriginalBranchForTimeTravel(),
+		}
+		dialog := ui.NewConfirmationDialog(
+			ui.ConfirmationConfig{
+				Title:       "Stash Not Found",
+				Explanation: fmt.Sprintf("Original stash %s was manually dropped. Continue without restoring stash?", shortHash),
+				YesLabel:    "Continue",
+				NoLabel:     "Cancel",
+				ActionID:    "confirm_stale_stash_continue",
+			},
+			a.sizing.ContentInnerWidth,
+			&a.theme,
+		)
+		a.dialogState.Show(dialog, dialogContext)
+		return a, nil
+	}
+
 	// Transition to console to show streaming output (consistent with other git operations)
 	a.consoleState.SetAutoScroll(true)
 	a.mode = ModeConsole
@@ -353,6 +390,34 @@ func (a *Application) executeRejectTimeTravelReturn() (tea.Model, tea.Cmd) {
 // executeConfirmTimeTravelMerge handles YES response to merge-and-return confirmation
 func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	a.dialogState.Hide()
+
+	// Check if there's a stash entry that needs validation
+	repoPath, _ := os.Getwd()
+	stashHash, hasStash := config.FindStashEntry("time_travel", repoPath)
+
+	// If stash exists, verify it still exists in git
+	if hasStash && !git.StashExists(stashHash) {
+		// Stash was manually dropped - show confirmation dialog
+		a.mode = ModeConfirmation
+		shortHash := git.ShortenHash(stashHash)
+		dialogContext := map[string]string{
+			"stash_hash":     shortHash,
+			"originalBranch": a.getOriginalBranchForTimeTravel(),
+		}
+		dialog := ui.NewConfirmationDialog(
+			ui.ConfirmationConfig{
+				Title:       "Stash Not Found",
+				Explanation: fmt.Sprintf("Original stash %s was manually dropped. Continue without restoring stash?", shortHash),
+				YesLabel:    "Continue",
+				NoLabel:     "Cancel",
+				ActionID:    "confirm_stale_stash_merge_continue",
+			},
+			a.sizing.ContentInnerWidth,
+			&a.theme,
+		)
+		a.dialogState.Show(dialog, dialogContext)
+		return a, nil
+	}
 
 	// Get current commit hash
 	result := git.Execute("rev-parse", "HEAD")
@@ -527,6 +592,71 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 	return a, git.ExecuteTimeTravelReturn(originalBranch)
 }
 
+// executeConfirmStaleStashContinue handles YES response to stale stash confirmation
+func (a *Application) executeConfirmStaleStashContinue() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+
+	// Clean up the stale TOML entry
+	repoPath, _ := os.Getwd()
+	config.RemoveStashEntry("time_travel", repoPath)
+
+	// Proceed with time travel return (now without stash restore)
+	// Transition to console to show streaming output
+	a.consoleState.SetAutoScroll(true)
+	a.mode = ModeConsole
+	a.consoleState.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Returning to main..."
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel return!
+	a.timeTravelState.MarkRestoreInitiated()
+
+	// Get original branch and execute time travel return operation (stash will be skipped)
+	originalBranch := a.getOriginalBranchForTimeTravel()
+	return a, git.ExecuteTimeTravelReturn(originalBranch)
+}
+
+// executeRejectStaleStashContinue handles NO response - cancel operation
+func (a *Application) executeRejectStaleStashContinue() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+	return a.returnToMenu()
+}
+
+// executeConfirmStaleStashMergeContinue handles YES response to stale stash confirmation during merge
+func (a *Application) executeConfirmStaleStashMergeContinue() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+
+	// Clean up the stale TOML entry
+	repoPath, _ := os.Getwd()
+	config.RemoveStashEntry("time_travel", repoPath)
+
+	// Proceed with time travel merge (now without stash restore)
+	// Transition to console to show streaming output
+	a.consoleState.SetAutoScroll(true)
+	a.mode = ModeConsole
+	a.consoleState.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Merging back to main..."
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel merge!
+	a.timeTravelState.MarkRestoreInitiated()
+
+	// Get current commit hash
+	result := git.Execute("rev-parse", "HEAD")
+	if !result.Success {
+		a.footerHint = "Failed to get current commit"
+		return a, nil
+	}
+
+	timeTravelHash := strings.TrimSpace(result.Stdout)
+	originalBranch := a.getOriginalBranchForTimeTravel()
+	return a, git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
+}
+
 // executeRejectTimeTravelReturnDirty handles "Cancel" choice
 func (a *Application) executeRejectTimeTravelReturnDirty() (tea.Model, tea.Cmd) {
 	// User cancelled return
@@ -590,6 +720,9 @@ func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
 		return a.returnToMenu()
 	}
 
+	// Transition to console to show streaming output
+	a.prepareAsyncOperation("Switching branch...")
+
 	// Clean tree - perform branch switch directly
 	return a, a.cmdSwitchBranch(targetBranch)
 }
@@ -605,12 +738,15 @@ func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 
 // executeConfirmBranchSwitchDirty handles YES response (Stash changes)
 func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	a.dialogState.Hide()
-
+	// Get targetBranch from context BEFORE hiding dialog (Hide() clears context)
 	targetBranch := a.dialogState.GetContext()["targetBranch"]
 	if targetBranch == "" {
+		a.dialogState.Hide()
 		return a.returnToMenu()
 	}
+
+	// User confirmed - hide dialog now that we have the branch name
+	a.dialogState.Hide()
 
 	// Transition to console
 	a.prepareAsyncOperation("Switching branch with stash...")
@@ -621,12 +757,15 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 
 // executeRejectBranchSwitchDirty handles NO response (Discard changes)
 func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	a.dialogState.Hide()
-
+	// Get targetBranch from context BEFORE hiding dialog (Hide() clears context)
 	targetBranch := a.dialogState.GetContext()["targetBranch"]
 	if targetBranch == "" {
+		a.dialogState.Hide()
 		return a.returnToMenu()
 	}
+
+	// User confirmed - hide dialog now that we have the branch name
+	a.dialogState.Hide()
 
 	// Discard changes first
 	resetResult := git.Execute("reset", "--hard", "HEAD")
@@ -642,7 +781,7 @@ func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	}
 
 	// Transition to console
-	a.prepareAsyncOperation("Switching branch...")
+	a.prepareAsyncOperation(fmt.Sprintf("Switching to %s...", targetBranch))
 
 	// Clean tree now - perform switch
 	return a, a.cmdSwitchBranch(targetBranch)

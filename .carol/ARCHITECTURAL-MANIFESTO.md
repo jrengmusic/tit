@@ -1,0 +1,1 @@
+/Users/jreng/.carol/ARCHITECTURAL-MANIFESTO.md

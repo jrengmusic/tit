@@ -262,21 +262,21 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 	if hasDirtyTree {
 		// Show confirmation dialog for dirty tree
 		app.mode = ModeConfirmation
-		app.dialogState.SetContext(map[string]string{
+		dialogContext := map[string]string{
 			"targetBranch": selectedBranch.Name,
-		})
+		}
 		dialog := ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
 				Title:       fmt.Sprintf("Switch to %s with uncommitted changes?", selectedBranch.Name),
 				Explanation: "You have uncommitted changes. Choose action:\n(ESC to cancel)",
 				YesLabel:    "Stash changes",
 				NoLabel:     "Discard changes",
-				ActionID:    "branch_switch_dirty_choice",
+				ActionID:    "branch_switch_dirty",
 			},
-			a.sizing.ContentInnerWidth,
+			app.sizing.ContentInnerWidth,
 			&app.theme,
 		)
-		app.dialogState.Show(dialog, nil)
+		app.dialogState.Show(dialog, dialogContext)
 		dialog.SelectNo()
 		return app, nil
 	}
