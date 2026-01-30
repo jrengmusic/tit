@@ -160,6 +160,20 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		return a.dismissConfirmationDialog()
 	}
 
+	// Console mode after time travel completed: go to time travel menu
+	// This handles the case where time travel finishes successfully and user presses ESC
+	if (a.mode == ModeConsole || a.mode == ModeClone) && a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
+		a.mode = ModeMenu
+		a.consoleState.Reset()
+		a.consoleState.Clear()
+		menu := app.GenerateMenu()
+		app.menuItems = menu
+		app.selectedIndex = 0
+		app.footerHint = menu[0].Hint
+		app.rebuildMenuShortcuts(ModeMenu)
+		return a, nil
+	}
+
 	// All other modes: return to previousMode and regenerate menu
 	app.mode = app.workflowState.PreviousMode
 
