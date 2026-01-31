@@ -251,8 +251,8 @@ func (a *Application) menuHistory() []MenuItem {
 // menuTimeTraveling returns menu for TimeTraveling operation state
 // CONTRACT: Uses centralized cache checking (no hardcoded items)
 func (a *Application) menuTimeTraveling() []MenuItem {
-	// Get original branch from .git/TIT_TIME_TRAVEL file (not from detached HEAD)
-	originalBranch := "unknown"
+	// Get original branch (from TIT marker if exists, otherwise detect from git)
+	originalBranch := ""
 	travelInfoPath := filepath.Join(".git", "TIT_TIME_TRAVEL")
 	data, err := os.ReadFile(travelInfoPath)
 	if err == nil {
@@ -262,12 +262,43 @@ func (a *Application) menuTimeTraveling() []MenuItem {
 		}
 	}
 
+	// If no TIT marker (manual detached HEAD), detect available branches
+	if originalBranch == "" {
+		branchResult := git.Execute("branch", "--list")
+		if branchResult.Success {
+			branches := strings.TrimSpace(branchResult.Stdout)
+			if branches != "" {
+				branchLines := strings.Split(branches, "\n")
+				// Filter out asterisk (current branch marker is absent in detached)
+				var validBranches []string
+				for _, b := range branchLines {
+					b = strings.TrimSpace(strings.TrimPrefix(b, "* "))
+					if b != "" {
+						validBranches = append(validBranches, b)
+					}
+				}
+
+				if len(validBranches) == 1 {
+					// Single branch - auto-select
+					originalBranch = validBranches[0]
+				} else if len(validBranches) > 1 {
+					// Multiple branches - will use "Return to branch" (triggers picker)
+					originalBranch = ""
+				}
+			}
+		}
+	}
+
 	// Get history items with cache state applied (centralized logic)
 	items := a.getHistoryItemsWithCacheState("time_travel_history", "time_travel_files_history")
 
 	// Add single return option (handles both merge and discard via dialog when dirty)
 	returnItem := GetMenuItem("time_travel_return")
-	returnItem.Label = fmt.Sprintf("Return to %s", originalBranch)
+	if originalBranch != "" {
+		returnItem.Label = fmt.Sprintf("Return to %s", originalBranch)
+	} else {
+		returnItem.Label = "Return to branch"
+	}
 	items = append(items, returnItem)
 
 	return items

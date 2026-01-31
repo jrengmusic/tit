@@ -37,7 +37,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 
 	timelineInfo := map[git.Timeline]StateInfo{
 		git.InSync: {
-			Label: "Sync",
+			Label: "In sync",
 			Emoji: "🔗",
 			Color: theme.TimelineSynchronized,
 			Description: func(ahead, behind int) string {
@@ -46,7 +46,7 @@ func BuildStateInfo(theme ui.Theme) (map[git.WorkingTree]StateInfo, map[git.Time
 		},
 		git.Ahead: {
 			Label: "Local ahead",
-			Emoji: "🌎",
+			Emoji: "🌍",
 			Color: theme.TimelineLocalAhead,
 			Description: func(ahead, behind int) string {
 				return fmt.Sprintf(StateDescriptions["timeline_ahead"], ahead)

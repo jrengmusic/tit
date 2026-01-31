@@ -102,6 +102,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 			a.endAsyncOp()
 			return a, nil
 		}
+		// SSOT: detached HEAD cannot have upstream - skip upstream setting
+		if a.gitState.Detached {
+			buffer.Append("Skipped: cannot set upstream in detached HEAD state", ui.TypeInfo)
+			a.endAsyncOp()
+			return a, nil
+		}
 		return a, a.cmdSetUpstream(a.gitState.CurrentBranch)
 
 	case OpPull:

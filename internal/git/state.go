@@ -90,11 +90,13 @@ func DetectState() (*State, error) {
 
 	// Detect working tree state (always applicable)
 	// Graceful fallback: assume Clean if git status fails
-	workingTree, err := detectWorkingTree()
+	workingTree, modifiedCount, err := detectWorkingTree()
 	if err != nil {
 		state.WorkingTree = Clean // Default to Clean on system-level failure
+		state.ModifiedCount = 0
 	} else {
 		state.WorkingTree = workingTree
+		state.ModifiedCount = modifiedCount
 	}
 
 	// Detect operation state (determines if timeline is applicable)
@@ -137,30 +139,44 @@ func DetectState() (*State, error) {
 		state.CommitsBehind = 0
 	}
 
-	// Get current branch and commit hashes
+	// Get current commit hash FIRST (needed for detached HEAD display)
+	hash, _ = executeGitCommand("rev-parse", "--short", "HEAD")
+	if hash != "" {
+		state.CurrentHash = hash
+	}
+
+	// Get current branch
 	// Use symbolic-ref for branch name (works even with zero commits)
 	branch, err := executeGitCommand("symbolic-ref", "--short", "HEAD")
 	if err != nil {
 		// symbolic-ref fails when HEAD is detached
 		state.Detached = true
-		// rev-parse returns "HEAD" literally when detached
-		branch, err = executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
-		if err != nil {
-			// Graceful fallback: use "HEAD" if both commands fail
-			state.CurrentBranch = "HEAD"
+
+		// Check if this is TIT-initiated time travel
+		gitDir := internal.GitDirectoryName
+		if _, statErr := os.Stat(filepath.Join(gitDir, "TIT_TIME_TRAVEL")); statErr == nil {
+			state.IsTitTimeTravel = true
+			// TIT time travel: get original branch from marker for display
+			if data, err := os.ReadFile(filepath.Join(gitDir, "TIT_TIME_TRAVEL")); err == nil {
+				lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+				if len(lines) > 0 && lines[0] != "" {
+					state.CurrentBranch = lines[0] // Show original branch name
+				} else {
+					state.CurrentBranch = "DETACHED"
+				}
+			} else {
+				state.CurrentBranch = "DETACHED"
+			}
 		} else {
-			state.CurrentBranch = branch
+			// Manual detached: CurrentBranch will be set in app_view.go
+			state.CurrentBranch = "DETACHED"
 		}
+
+		// SSOT: detached HEAD uses TimeTraveling operation (for correct menu)
+		// Menu shows browse history + return, regardless of cause
+		state.Operation = TimeTraveling
 	} else {
 		state.CurrentBranch = branch
-	}
-
-	hash, err = executeGitCommand("rev-parse", "HEAD")
-	if err != nil {
-		// No commits yet (empty repo after init) - this is normal
-		state.CurrentHash = ""
-	} else {
-		state.CurrentHash = hash
 	}
 
 	if state.Remote == HasRemote {
@@ -178,20 +194,21 @@ func DetectState() (*State, error) {
 
 // detectWorkingTree checks for staged/unstaged changes or untracked files
 // Returns Clean as fallback if git status fails (system-level issue)
-func detectWorkingTree() (WorkingTree, error) {
+func detectWorkingTree() (WorkingTree, int, error) {
 	cmd := exec.Command("git", "status", "--porcelain=v2")
 	output, err := cmd.Output()
 	if err != nil {
-		return Clean, nil // Graceful fallback: assume Clean on system-level failure
+		return Clean, 0, nil // Graceful fallback: assume Clean on system-level failure
 	}
 
 	outputStr := string(output)
 
 	if outputStr == "" {
-		return Clean, nil
+		return Clean, 0, nil
 	}
 
 	lines := strings.Split(outputStr, "\n")
+	modifiedCount := 0
 
 	for _, line := range lines {
 		if len(line) == 0 {
@@ -203,11 +220,15 @@ func detectWorkingTree() (WorkingTree, error) {
 		}
 		// Lines starting with '1', '2' (changes) or '?' (untracked) indicate modifications
 		if line[0] == '1' || line[0] == '2' || line[0] == '?' {
-			return Dirty, nil
+			modifiedCount++
 		}
 	}
 
-	return Clean, nil
+	if modifiedCount > 0 {
+		return Dirty, modifiedCount, nil
+	}
+
+	return Clean, 0, nil
 }
 
 // detectTimeline checks relationship between local and remote branches

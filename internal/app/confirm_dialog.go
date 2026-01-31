@@ -95,7 +95,7 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 		Reject:  (*Application).executeRejectTimeTravelReturnDirty,
 	},
 	"time_travel_return_dirty_choice": {
-		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyCommit,   // YES = Merge
+		Confirm: (*Application).executeConfirmTimeTravelMergeDirtyStash,    // YES = Stash
 		Reject:  (*Application).executeConfirmTimeTravelReturnDirtyDiscard, // NO = Discard
 	},
 	"confirm_stale_stash_continue": {

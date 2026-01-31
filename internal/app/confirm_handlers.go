@@ -513,8 +513,14 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	// Marker file still exists during merge, but this is NOT an incomplete session
 	a.timeTravelState.MarkRestoreInitiated()
 
-	// Get original branch and execute time travel merge operation
-	originalBranch := a.getOriginalBranchForTimeTravel()
+	// Get original branch: prefer workflowState (for manual detached from branch picker),
+	// fallback to marker file (for TIT time travel)
+	originalBranch := a.workflowState.ReturnToBranchName
+	if originalBranch == "" {
+		// Fallback to marker file for TIT time travel
+		originalBranch = a.getOriginalBranchForTimeTravel()
+	}
+
 	return a, git.ExecuteTimeTravelMerge(originalBranch, timeTravelHash)
 }
 
@@ -785,4 +791,75 @@ func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
 
 	// Clean tree now - perform switch
 	return a, a.cmdSwitchBranch(targetBranch)
+}
+
+// executeConfirmTimeTravelMergeDirtyStash handles "Stash changes" choice
+// Stashes changes, then proceeds with merge, then applies stash back
+func (a *Application) executeConfirmTimeTravelMergeDirtyStash() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+
+	// Get target branch from workflow state
+	targetBranch := a.workflowState.ReturnToBranchName
+	if targetBranch == "" {
+		targetBranch = a.getOriginalBranchForTimeTravel()
+	}
+
+	// Get current commit hash (detached HEAD)
+	result := git.Execute("rev-parse", "HEAD")
+	if !result.Success {
+		a.footerHint = "Failed to get current commit"
+		a.mode = ModeMenu
+		return a, a.startAutoUpdate()
+	}
+	timeTravelHash := strings.TrimSpace(result.Stdout)
+
+	// Transition to console to show streaming output
+	a.consoleState.SetAutoScroll(true)
+	a.mode = ModeConsole
+	a.consoleState.Clear()
+	a.consoleState.Reset()
+	a.footerHint = "Stashing and merging back..."
+	a.workflowState.PreviousMode = ModeMenu
+	a.workflowState.PreviousMenuIndex = 0
+
+	// CRITICAL: Prevent restoration check from triggering during time travel merge!
+	a.timeTravelState.MarkRestoreInitiated()
+
+	// Stash changes with message
+	stashResult := git.Execute("stash", "push", "-u", "-m", "TIT time-travel merge")
+	if !stashResult.Success {
+		a.footerHint = fmt.Sprintf("Failed to stash changes: %s", stashResult.Stderr)
+		a.mode = ModeMenu
+		return a, a.startAutoUpdate()
+	}
+
+	// Get stash hash
+	stashListResult := git.Execute("stash", "list")
+	if !stashListResult.Success || stashListResult.Stdout == "" {
+		a.footerHint = "Failed to get stash list"
+		a.mode = ModeMenu
+		return a, a.startAutoUpdate()
+	}
+	stashLines := strings.Split(stashListResult.Stdout, "\n")
+	if len(stashLines) == 0 || stashLines[0] == "" {
+		a.footerHint = "No stash entries found"
+		a.mode = ModeMenu
+		return a, a.startAutoUpdate()
+	}
+	// First line is our stash, parse the hash
+	stashEntry := strings.TrimSpace(stashLines[0])
+	stashParts := strings.Split(stashEntry, ":")
+	if len(stashParts) < 2 {
+		a.footerHint = "Failed to parse stash entry"
+		a.mode = ModeMenu
+		return a, a.startAutoUpdate()
+	}
+	stashHash := strings.TrimSpace(stashParts[0])
+
+	// Store stash hash in config for later retrieval
+	repoPath, _ := os.Getwd()
+	config.AddStashEntry("time_travel", stashHash, repoPath, targetBranch, timeTravelHash)
+
+	// Execute merge
+	return a, git.ExecuteTimeTravelMerge(targetBranch, timeTravelHash)
 }

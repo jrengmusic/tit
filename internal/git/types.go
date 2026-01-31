@@ -68,6 +68,7 @@ func (e GitEnvironment) String() string {
 // State represents the complete git state tuple: (WorkingTree, Timeline, Operation, Remote)
 type State struct {
 	WorkingTree         WorkingTree
+	ModifiedCount       int // Number of modified files (for omp-style display)
 	Timeline            Timeline
 	Operation           Operation
 	Remote              Remote
@@ -78,6 +79,7 @@ type State struct {
 	CommitsBehind       int
 	LocalBranchOnRemote bool // Whether current branch exists on remote
 	Detached            bool // HEAD is detached (not on any branch)
+	IsTitTimeTravel     bool // True if detached HEAD was caused by TIT time travel
 }
 
 // CommitInfo contains basic information about a commit (for list display)

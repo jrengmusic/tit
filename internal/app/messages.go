@@ -545,13 +545,13 @@ var DialogMessages = map[string][2]string{
 var StateDescriptions = map[string]string{
 	// Working Tree (2 descriptions)
 	"working_tree_clean": "No local changes",
-	"working_tree_dirty": "You have local changes",
+	"working_tree_dirty": "Local changes present",
 
 	// Timeline (4 descriptions)
-	"timeline_in_sync":  "Matches remote",
-	"timeline_ahead":    "Your branch is %d commit(s) ahead",
-	"timeline_behind":   "Remote branch is %d commit(s) ahead",
-	"timeline_diverged": "Both branches have changes: %d ahead, %d behind",
+	"timeline_in_sync":  "In sync with remote",
+	"timeline_ahead":    "%d commit(s) ahead",
+	"timeline_behind":   "%d commit(s) behind",
+	"timeline_diverged": "%d↑ %d↓",
 
 	// Operation (7 descriptions)
 	"operation_normal":      "Ready",

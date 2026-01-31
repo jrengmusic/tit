@@ -15,6 +15,11 @@ type WorkflowState struct {
 
 	// Pending operations
 	PendingRewindCommit string
+
+	// Return to branch from manual detached
+	ReturnToBranchDirtyTree bool   // Track if working tree was dirty when entering picker
+	IsReturnToBranch        bool   // True when entering picker for return-from-detached
+	ReturnToBranchName      string // Target branch for return-from-detached
 }
 
 // NewWorkflowState creates a new WorkflowState with defaults.

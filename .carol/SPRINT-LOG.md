@@ -2,7 +2,7 @@
 
 **Project:** tit  
 **Repository:** /Users/jreng/Documents/Poems/dev/tit  
-**Started:** 2026-01-30
+**Started:** 2026-01-31
 
 **Purpose:** Long-term context memory across sessions. Tracks completed work, technical debt, and unresolved issues. Written by PRIMARY agents only when user explicitly requests.
 
@@ -99,6 +99,10 @@
 "@auditor verify this"
 ```
 
+**Available Agents:**
+- **PRIMARY:** COUNSELOR (domain specific strategic analysis), SURGEON (surgical precision problem solving)
+- **Subagents:** Pathfinder, Oracle, Engineer, Auditor, Machinist, Librarian
+
 ---
 
 <!-- SPRINT HISTORY STARTS BELOW -->
@@ -116,8 +120,8 @@
 
 ### Agents Participated
 - **COUNSELOR:** Kimi-K2 — Wrote SPEC.md and ARCHITECTURE.md
-- **Engineer** (invoked by COUNSELOR) — Created project structure
-- **Auditor** (invoked by COUNSELOR) — Verified spec compliance
+- **ENGINEER** (invoked by COUNSELOR) — Created project structure
+- **AUDITOR** (invoked by COUNSELOR) — Verified spec compliance
 
 ### Files Modified (8 total)
 - `SPEC.md:1-200` — Complete feature specification with all flows
@@ -148,76 +152,6 @@
 ---
 
 <!-- Actual sprint entries go here, written by PRIMARY agents -->
-
-## Sprint 2: Time Travel Double-Conflict Path & Stale Stash Handling ✅
-
-**Date:** 2026-01-30  
-**Duration:** ~3 hours
-
-### Agents Participated
-- **SURGEON:** OpenAI CodeGPT (MiniMax-M2.1) — Primary agent, all implementation
-- COUNSELOR — Provided handoff specification for stale stash handling
-
-### Files Modified (3 total)
-
-#### internal/git/execute.go
-- Lines 100-124: Refactored `FindStashRefByHash()` to return `(string, bool)` instead of panicking
-- Lines 126-130: Added `StashExists(stashHash string) bool` function
-- Lines 750-760: Updated TimeTravelMerge stash drop to handle missing stash
-- Lines 865-885: Updated TimeTravelReturn stash drop to handle missing stash
-- Lines 398-420, 716-740, 821-840: Updated `ListConflictedFiles()` callers to check len instead of error
-
-#### internal/app/confirm_handlers.go
-- Lines 323-343: Modified `executeConfirmTimeTravelReturn()` to validate stash before operation
-- Lines 384-412: Modified `executeConfirmTimeTravelMerge()` to validate stash before operation
-- Lines 559-620: Added `executeConfirmStaleStashContinue()`, `executeRejectStaleStashContinue()`, `executeConfirmStaleStashMergeContinue()`
-
-#### internal/app/confirm_dialog.go
-- Lines 101-106: Added `confirm_stale_stash_continue` handler pair
-- Lines 107-111: Added `confirm_stale_stash_merge_continue` handler pair
-
-### Alignment Check
-- [x] LIFESTAR principles followed (Lean, Immutable, Findable, Explicit, SSOT, Testable, Accessible, Reviewable)
-- [x] NAMING-CONVENTION.md adhered (verb-noun functions, semantic names, no type encoding)
-- [x] ARCHITECTURAL-MANIFESTO.md principles applied (no layer violations, explicit dependencies)
-- [x] No early returns used
-- [x] Fail-fast error handling implemented (panic → graceful handling)
-- [x] No scope creep (minimal surgical fixes per handoff)
-
-### Problems Solved
-1. **Panic on stale stash:** `FindStashRefByHash()` now returns gracefully instead of panicking
-2. **Conflicted file detection:** `ListConflictedFiles()` now returns empty slice instead of error
-3. **Double-conflict path:** User can trigger and resolve two sequential conflicts (time travel merge + stash apply)
-4. **Stale stash detection:** TIT now validates stash exists before operations, shows confirmation dialog
-5. **Config cleanup:** Stale TOML entries cleaned up on confirmation
-
-### Technical Debt / Follow-up
-- None identified — implementation follows existing patterns exactly
-
-### Acceptance Criteria Met
-- [x] User manually drops stash via `git stash drop`
-- [x] User initiates time travel return
-- [x] TIT shows confirmation dialog: "Original stash [hash] was manually dropped. Continue without restoring stash?"
-- [x] If Yes: clean up TOML entry, complete return without stash restore
-- [x] If No: cancel operation, return to menu
-- [x] Same behavior for time travel merge
-- [x] User can trigger and resolve double conflicts (merge + stash apply)
-- [x] User ends up DIRTY with all changes preserved
-
-### Test Repos Created
-- `/var/tmp/test_repo` — Main test repo with 7 commits, 3 branches
-- `/var/tmp/test_repo/scripts/test_double_conflict.sh` — Automated setup for double-conflict scenario
-
----
-
-## Handoff to SURGEON: Graceful Stale Stash Handling with Confirmation Dialog
-
-**From:** COUNSELOR  
-**Date:** 2026-01-30
-
-[Existing handoff content...]
-
----
 
 ---
 
