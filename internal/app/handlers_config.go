@@ -241,6 +241,37 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 
 	selectedBranch := app.pickerState.BranchPicker.Branches[app.pickerState.BranchPicker.SelectedIdx]
 
+	// Check if we're returning from manual detached (TimeTraveling mode)
+	isReturnFromDetached := app.workflowState.IsReturnToBranch
+
+	if isReturnFromDetached {
+		// For return from manual detached: check dirty tree and show confirmation
+		app.workflowState.IsReturnToBranch = false                 // Reset flag
+		app.workflowState.ReturnToBranchName = selectedBranch.Name // Store target branch
+
+		if app.workflowState.ReturnToBranchDirtyTree {
+			// Show stash/discard confirmation immediately
+			app.mode = ModeConfirmation
+			dialog := ui.NewConfirmationDialog(
+				ui.ConfirmationConfig{
+					Title:       fmt.Sprintf("Return to %s with uncommitted changes", selectedBranch.Name),
+					Explanation: "You have changes during time travel. Choose action:\n(Press ESC to cancel)",
+					YesLabel:    "Stash changes",
+					NoLabel:     "Discard changes",
+					ActionID:    "time_travel_return_dirty_choice",
+				},
+				app.sizing.ContentInnerWidth,
+				&app.theme,
+			)
+			app.dialogState.Show(dialog, nil)
+			dialog.SelectNo()
+			return app, nil
+		}
+
+		// Clean tree - switch directly
+		return app, a.cmdSwitchBranch(selectedBranch.Name)
+	}
+
 	// If already on this branch, just go back to config menu
 	if selectedBranch.IsCurrent {
 		app.workflowState.PreviousMode = ModeMenu // Config always returns to menu

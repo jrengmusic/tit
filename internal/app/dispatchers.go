@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -414,12 +415,28 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 	statusResult := git.Execute("status", "--porcelain")
 	hasDirtyTree := statusResult.Success && strings.TrimSpace(statusResult.Stdout) != ""
 
+	// Check if we have original branch from TIT marker
+	originalBranch := ""
+	travelInfoPath := filepath.Join(".git", "TIT_TIME_TRAVEL")
+	data, err := os.ReadFile(travelInfoPath)
+	if err == nil {
+		lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+		if len(lines) > 0 && lines[0] != "" {
+			originalBranch = lines[0]
+		}
+	}
+
+	// If no original branch (manual detached with multiple branches), show branch picker
+	if originalBranch == "" {
+		return app.dispatchReturnToBranchPicker(app, hasDirtyTree)
+	}
+
 	if hasDirtyTree {
 		app.workflowState.PreviousMode = app.mode
 		app.mode = ModeConfirmation
 		dialog := ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
-				Title:       "Return to main with uncommitted changes",
+				Title:       fmt.Sprintf("Return to %s with uncommitted changes", originalBranch),
 				Explanation: "You have changes during time travel. Choose action:\n(Press ESC to cancel)",
 				YesLabel:    "Merge changes",
 				NoLabel:     "Discard changes",
@@ -434,6 +451,7 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 		app.workflowState.PreviousMode = app.mode
 		app.mode = ModeConfirmation
 		msg := ConfirmationMessages[string(ConfirmTimeTravelReturn)]
+		msg.Title = fmt.Sprintf("Return to %s", originalBranch)
 		dialog := ui.NewConfirmationDialog(
 			ui.ConfirmationConfig{
 				Title:       msg.Title,
@@ -448,6 +466,52 @@ func (a *Application) dispatchTimeTravelReturn(app *Application) tea.Cmd {
 		app.dialogState.Show(dialog, nil)
 		dialog.SelectNo()
 	}
+	return nil
+}
+
+// dispatchReturnToBranchPicker enters branch picker for return to branch (manual detached)
+func (a *Application) dispatchReturnToBranchPicker(app *Application, hasDirtyTree bool) tea.Cmd {
+	// Load branches into the branch picker state
+	branches, err := git.ListBranchesWithDetails()
+	if err != nil {
+		app.footerHint = fmt.Sprintf("Failed to load branches: %v", err)
+		return nil
+	}
+
+	// Convert git.BranchDetails to ui.BranchInfo
+	uiBranches := make([]ui.BranchInfo, len(branches))
+	for i, b := range branches {
+		uiBranches[i] = ui.BranchInfo{
+			Name:           b.Name,
+			IsCurrent:      b.IsCurrent,
+			LastCommitTime: b.LastCommitTime,
+			LastCommitHash: b.LastCommitHash,
+			LastCommitSubj: b.LastCommitSubj,
+			Author:         b.Author,
+			TrackingRemote: b.TrackingRemote,
+			Ahead:          b.Ahead,
+			Behind:         b.Behind,
+		}
+	}
+
+	// Store dirty tree state for after branch selection
+	app.workflowState.ReturnToBranchDirtyTree = hasDirtyTree
+	app.workflowState.IsReturnToBranch = true // Mark this as return-from-detached
+
+	// Initialize branch picker state
+	app.pickerState.BranchPicker = &ui.BranchPickerState{
+		Branches:          uiBranches,
+		SelectedIdx:       0,
+		PaneFocused:       true,
+		ListScrollOffset:  0,
+		DetailsLineCursor: 0,
+		DetailsScrollOff:  0,
+	}
+
+	// Switch to branch picker mode
+	app.workflowState.PreviousMode = app.mode
+	app.mode = ModeBranchPicker
+	app.footerHint = "↑/↓ Navigate • Tab: Switch panes • Enter: Return to branch • ESC: Cancel"
 	return nil
 }
 
