@@ -87,6 +87,19 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 | `NoRemote` | No remote configured |
 | `HasRemote` | Remote exists |
 
+### IsTitTimeTravel — Distinguishes TIT time travel from manual detached HEAD
+| Value | Meaning |
+|-------|---------|
+| `false` | Manual detached HEAD (user ran `git checkout <commit>` outside TIT) |
+| `true` | TIT-initiated time travel (user pressed ENTER on commit in History mode) |
+
+**Usage:**
+- When `Operation = TimeTraveling`, `IsTitTimeTravel` determines menu behavior
+- Both cases show Time Travel menu (Browse history, Return to branch)
+- Return workflow differs:
+  - `IsTitTimeTravel = true`: Uses TIT marker file and config for stash tracking
+  - `IsTitTimeTravel = false`: Direct stash without TIT metadata
+
 **State Tuple:** `(GitEnvironment, WorkingTree, Timeline, Operation, Remote)`
 
 ---
@@ -109,8 +122,10 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 **Priority 3: Operation State** (For Valid Startups)
 - `Normal` → Proceed to check other axes
 - `TimeTraveling` → Time travel menu (Browse history, Merge back, Return)
-  - **Entered via:** History mode → select commit → ENTER
-  - **NOT a standalone menu item** - accessed only through History
+  - **Entered via:**
+    - History mode → select commit → ENTER (TIT-initiated)
+    - User ran `git checkout <commit>` outside TIT (manual detached)
+  - **NOT a standalone menu item** - accessed through History or detected on startup
 
 **Priority 4: Remote Presence**
 - `Remote = NoRemote` → Hide sync actions, show "Add remote"
@@ -172,19 +187,30 @@ Please complete or abort the operation using standard git commands:
 
 ### When Operation = TimeTraveling
 
-**Accessed from:** History mode (select commit → ENTER)
+**Accessed from:**
+- **TIT time travel:** History mode (select commit → ENTER)
+- **Manual detached:** User ran `git checkout <commit>` outside TIT
 
 **Show ONLY:**
 - 🕒 Browse history (view other commits while time traveling)
 - 📦 Merge changes back to [branch]
 - ⬅️ Return to [branch] (discard changes)
 
-**How to enter time travel:**
+**Note:** Both TIT time travel and manual detached HEAD show the same menu items. The difference is in the return workflow:
+- **TIT time travel:** Uses TIT marker file and config stash tracking
+- **Manual detached:** Direct stash → checkout → merge → apply (no TIT metadata)
+
+**How to enter time travel (TIT-initiated):**
 1. From main menu: Select "Commit history"
 2. Navigate to desired commit
 3. Press ENTER to confirm time travel
 4. If working tree is dirty → Dirty operation protocol (stash changes)
 5. On confirm → Detached HEAD at selected commit (Operation = TimeTraveling)
+
+**Manual detached entry:**
+- User ran `git checkout <commit>` outside TIT
+- TIT detects this on startup (no `.git/TIT_TIME_TRAVEL` marker file)
+- Offers same Time Travel menu with return option
 
 **While time traveling:**
 - **Read-only exploration:** View code at any point in history
@@ -762,18 +788,7 @@ git checkout -b main origin/main
 
 ### 13.5 Fatal Errors
 
-**Detached HEAD (not from time travel):**
-```
-⚠️ Detached HEAD detected
-
-You are not on a branch.
-TIT requires you to be on a branch.
-
-Please checkout a branch:
-git checkout main
-
-[Exit TIT]
-```
+**NOTE:** Manual detached HEAD is NO LONGER a fatal error. TIT now supports returning from manual detached HEAD (see Section 13.6).
 
 **Bare repository:**
 ```
@@ -782,6 +797,86 @@ git checkout main
 TIT requires a working tree.
 
 [Exit TIT]
+```
+
+---
+
+## 13.6 Manual Detached HEAD Support
+
+TIT supports returning from manual detached HEAD state (user ran `git checkout <commit>` outside TIT).
+
+### Detection
+
+When `Operation = TimeTraveling` AND `IsTitTimeTravel = false`:
+- No `.git/TIT_TIME_TRAVEL` marker file exists
+- User manually checked out a commit
+- TIT offers "Return to branch" option in menu
+
+### Menu Options
+
+| Menu Item | Description |
+|-----------|-------------|
+| **Browse history** | Jump to other commits (same as TIT time travel) |
+| **Return to branch** | Checkout target branch |
+
+### Return to Branch Flow
+
+1. **Select "Return to branch"**
+2. **Branch picker appears** (shows all local branches)
+3. **Select target branch**
+
+#### If working tree is clean:
+- Direct checkout to target branch
+- Operation changes to `Normal`
+
+#### If working tree is dirty:
+Confirmation dialog:
+```
+Return to <branch> with uncommitted changes
+
+You have changes during time travel. Choose action:
+(Press ESC to cancel)
+
+[Stash changes]  [Discard changes]
+```
+
+**Stash changes flow:**
+1. Stash uncommitted changes (`git stash push -u`)
+2. Checkout target branch
+3. Merge detached commit into target branch
+4. Apply stash back (may conflict - see conflict resolution below)
+5. Drop stash
+
+**Discard changes flow:**
+1. Checkout target branch (changes discarded)
+2. Operation changes to `Normal`
+
+### Conflict Resolution
+
+Two conflict scenarios:
+
+1. **Merge conflict:** Detached commit modifies same lines as target branch
+   - Enter conflict resolver
+   - User resolves, then stash apply happens
+
+2. **Stash apply conflict:** Stashed changes conflict with merged result
+   - Enter conflict resolver  
+   - User resolves to complete return
+
+Both scenarios use the same conflict resolution UI as time travel return.
+
+### State Transitions
+
+```
+Manual Detached (clean)
+    ├─ Return to branch → Normal
+    └─ Browse history → Manual Detached (different commit)
+
+Manual Detached (dirty)
+    ├─ Return to branch → Stash/Discard dialog
+    │    ├─ Stash → Merge → Apply Stash → Normal (or Conflict)
+    │    └─ Discard → Normal
+    └─ Browse history → Manual Detached (different commit)
 ```
 
 ---

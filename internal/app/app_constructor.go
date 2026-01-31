@@ -15,14 +15,26 @@ func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEn
 	envState := NewEnvironmentState()
 	envState.SetEnvironment(gitEnv)
 	app := &Application{
-		sizing:           sizing,
-		theme:            theme,
-		mode:             ModeSetupWizard,
+		// Embedded state clusters
+		UIState:         &UIState{},
+		NavigationState: &NavigationState{},
+		OperationState:  &OperationState{},
+		DialogManager:   &DialogManager{},
+		// Feature-specific state (standalone)
 		environmentState: envState,
-		asyncState:       AsyncState{exitAllowed: true},
-		consoleState:     NewConsoleState(),
-		dialogState:      NewDialogState(),
+		// Infrastructure (standalone)
+		cacheManager:  NewCacheManager(),
+		appConfig:     nil,
+		activityState: NewActivityState(),
 	}
+	// Initialize embedded cluster fields
+	app.UIState.SetSize(sizing.ContentInnerWidth, sizing.ContentHeight)
+	app.UIState.theme = theme
+	app.NavigationState.SetMode(ModeSetupWizard)
+	// Initialize console state to prevent nil pointer panics
+	newConsoleState := NewConsoleState()
+	app.OperationState.consoleState = &newConsoleState
+	app.OperationState.SetExitAllowed(true)
 	app.keyHandlers = app.buildKeyHandlers()
 	return app
 }
@@ -67,44 +79,33 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 
 	// Initialize application with detected state
 	app := &Application{
-		sizing:          sizing,
-		theme:           theme,
-		mode:            ModeMenu, // Default to menu mode
+		// Embedded state clusters
+		UIState:         &UIState{},
+		NavigationState: &NavigationState{},
+		OperationState:  &OperationState{},
+		DialogManager:   &DialogManager{},
+		// Core business logic (standalone)
 		gitState:        gitState,
-		selectedIndex:   0,
-		asyncState:      AsyncState{exitAllowed: true}, // Allow exit during initial setup
-		workflowState:   NewWorkflowState(),
-		consoleState:    NewConsoleState(),
 		workingTreeInfo: workingTreeInfo,
 		timelineInfo:    timelineInfo,
 		operationInfo:   operationInfo,
-		pickerState: PickerState{
-			History: &ui.HistoryState{
-				Commits:     make([]ui.CommitInfo, 0),
-				SelectedIdx: 0,
-				PaneFocused: true,
-			},
-			FileHistory: &ui.FileHistoryState{
-				Commits:           make([]ui.CommitInfo, 0),
-				Files:             make([]ui.FileInfo, 0),
-				SelectedCommitIdx: 0,
-				SelectedFileIdx:   0,
-				FocusedPane:       ui.PaneCommits,
-			},
-			BranchPicker: &ui.BranchPickerState{
-				Branches:    make([]ui.BranchInfo, 0),
-				SelectedIdx: 0,
-				PaneFocused: true,
-			},
-		},
+		// Infrastructure (standalone)
 		cacheManager:  NewCacheManager(),
 		appConfig:     cfg,
 		activityState: NewActivityState(),
-		dialogState:   NewDialogState(),
 	}
 
+	// Initialize embedded cluster fields
+	app.UIState.SetSize(sizing.ContentInnerWidth, sizing.ContentHeight)
+	app.UIState.theme = theme
+	app.NavigationState.SetMode(ModeMenu)
+	// Initialize console state to prevent nil pointer panics
+	newConsoleState := NewConsoleState()
+	app.OperationState.consoleState = &newConsoleState
+	app.OperationState.SetExitAllowed(true)
+
 	// Build and cache key handler registry for initial mode
-	app.keyHandlers = app.buildKeyHandlers()
+	app.NavigationState.SetKeyHandlers(app.buildKeyHandlers())
 
 	// Check for incomplete time travel restoration (Phase 0)
 	// If we're in TimeTraveling mode, TIT marker should exist
@@ -127,23 +128,23 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 
 	// If restoration needed, switch to console mode and prepare for async operation
 	if shouldRestore {
-		app.mode = ModeConsole
-		app.startAsyncOp()
-		app.workflowState.PreviousMode = ModeMenu
-		app.footerHint = "Restoring from incomplete time travel session..."
+		app.NavigationState.SetMode(ModeConsole)
+		app.OperationState.StartAsyncOp()
+		app.OperationState.GetWorkflowState().PreviousMode = ModeMenu
+		app.UIState.SetFooterHint("Restoring from incomplete time travel session...")
 	}
 
 	// Generate initial menu (Phase 1 of initialization)
 	menu := app.GenerateMenu()
-	app.menuItems = menu
+	app.NavigationState.SetMenuItems(menu)
 
 	// Set footer hint from first menu item (default)
 	if len(menu) > 0 && !shouldRestore {
-		app.footerHint = menu[0].Hint
+		app.UIState.SetFooterHint(menu[0].Hint)
 	}
 
 	// Set up key handlers for current mode (refreshes shortcuts)
-	app.rebuildMenuShortcuts(app.mode)
+	app.rebuildMenuShortcuts(app.NavigationState.GetMode())
 
 	// Start cache loading if not restoring
 	if !shouldRestore {
@@ -153,7 +154,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	// If restoration needed, start the async restoration operation
 	if shouldRestore {
 		// Will be executed via Update() on first render
-		app.startAsyncOp()
+		app.OperationState.StartAsyncOp()
 	}
 
 	return app
@@ -161,5 +162,5 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 
 // GetFooterHint returns the current footer hint text
 func (a *Application) GetFooterHint() string {
-	return a.footerHint
+	return a.UIState.GetFooterHint()
 }

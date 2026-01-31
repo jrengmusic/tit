@@ -122,7 +122,7 @@ func (a *Application) handleAutoUpdateComplete(state *git.State) (tea.Model, tea
 
 // scheduleAutoUpdateAnimation schedules spinner animation frames during auto-update
 func (a *Application) scheduleAutoUpdateAnimation() tea.Cmd {
-	return tea.Tick(100*time.Millisecond, func(time.Time) tea.Msg {
+	return tea.Tick(CacheRefreshInterval, func(time.Time) tea.Msg {
 		return AutoUpdateAnimationMsg{}
 	})
 }

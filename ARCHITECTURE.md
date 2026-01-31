@@ -285,6 +285,43 @@ type TimeTravelInfo struct {
 - `git log -1 --format=%s` → Subject
 - `git log -1 --format=%aI` → Time (parsed as RFC3339)
 
+**IsTitTimeTravel Flag:**
+
+The `git.State` struct includes an `IsTitTimeTravel` boolean field that distinguishes between:
+- **TIT-initiated time travel:** User pressed Enter on a commit in History mode
+  - `IsTitTimeTravel = true`
+  - `.git/TIT_TIME_TRAVEL` marker file exists
+  - Original branch/stash info stored in config
+  - Full return workflow with stash handling
+
+- **Manual detached HEAD:** User ran `git checkout <commit>` outside TIT
+  - `IsTitTimeTravel = false`
+  - No marker file exists
+  - TIT detects this case and offers "Return to branch" option
+  - Simplified return flow (checkout only, no TIT metadata)
+
+**Detection Logic:**
+```go
+// In git/state.go::DetectState()
+if state.Detached {
+    // Check if TIT marker file exists
+    hasMarker := FileExists(".git/TIT_TIME_TRAVEL")
+    
+    if hasMarker {
+        state.IsTitTimeTravel = true
+        state.Operation = TimeTraveling
+    } else {
+        // Manual detached HEAD - TIT still supports it!
+        state.IsTitTimeTravel = false
+        state.Operation = TimeTraveling  // Same menu behavior
+    }
+}
+```
+
+**Display Differences:**
+- **TIT time travel:** Shows "TIME TRAVEL" with original branch name
+- **Manual detached:** Shows "DETACHED" with commit hash
+
 **Storage in Application:**
 ```go
 type Application struct {

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"time"
 
 	"tit/internal/config"
 	"tit/internal/git"
@@ -28,68 +27,25 @@ import (
 // - Enforces application invariants and contracts
 
 type Application struct {
-	width             int
-	height            int
-	sizing            ui.DynamicSizing
-	theme             ui.Theme
-	mode              AppMode // Current application mode
-	quitConfirmActive bool
-	quitConfirmTime   time.Time
-	footerHint        string // Footer hint/message text
-	gitState          *git.State
-	selectedIndex     int                               // Current menu item selection
-	menuItems         []MenuItem                        // Cached menu items
-	keyHandlers       map[AppMode]map[string]KeyHandler // Cached key handlers
+	// Embedded state clusters
+	*UIState
+	*NavigationState
+	*OperationState
+	*DialogManager
 
-	// Input mode state
-	inputState InputState // Text input field state
-
-	// Workflow state (clone, init, mode restoration)
-	workflowState WorkflowState // Transient multi-step workflow state
-
-	// Remote operation state
-
-	// Async operation state
-	asyncState AsyncState
-
-	// Console output state (for clone, init, etc)
-	consoleState ConsoleState
-
-	// Process cancellation
-	cancelContext context.CancelFunc
-
-	// Confirmation dialog state
-	dialogState DialogState
-
-	// Conflict resolution state
-	conflictResolveState *ConflictResolveState
-
-	// Dirty operation tracking
-	dirtyOperationState *DirtyOperationState // nil when no dirty op in progress
-
-	// State display info maps
+	// Core business logic (standalone)
+	gitState        *git.State
 	workingTreeInfo map[git.WorkingTree]StateInfo
 	timelineInfo    map[git.Timeline]StateInfo
 	operationInfo   map[git.Operation]StateInfo
 
-	// Picker state (history, file history, branch picker)
-	pickerState PickerState
+	// Feature-specific state (standalone)
+	timeTravelState  TimeTravelState
+	environmentState EnvironmentState
 
-	// Time Travel state
-	timeTravelState TimeTravelState
-
-	// Environment state (git detection + setup wizard)
-	environmentState EnvironmentState // Git environment and setup wizard state
-
-	// History cache
-	cacheManager *CacheManager
-
-	// Config state (Session 86)
-	appConfig *config.Config // Loaded from ~/.config/tit/config.toml
-
-	// Preferences state (Session 86)
-
-	// Activity tracking (Session 2 - Lazy auto-update)
+	// Infrastructure (standalone)
+	cacheManager  *CacheManager
+	appConfig     *config.Config
 	activityState ActivityState
 }
 
@@ -105,38 +61,40 @@ type ModeTransition struct {
 
 // transitionTo handles standardized mode transitions and state resets.
 func (a *Application) transitionTo(config ModeTransition) {
-	a.mode = config.Mode
+	a.NavigationState.SetMode(config.Mode)
 
 	// Always reset common input state
-	a.selectedIndex = 0
-	a.inputState.Reset()
-	a.inputState.ClearConfirming = false
+	inputState := a.OperationState.GetInputState()
+	a.NavigationState.SetSelectedIndex(0)
+	inputState.Reset()
+	inputState.ClearConfirming = false
 
 	// Set new input config from the transition configuration
 	if config.InputPrompt != "" {
-		a.inputState.Prompt = config.InputPrompt
+		inputState.Prompt = config.InputPrompt
 	}
 	if config.InputAction != "" {
-		a.inputState.Action = config.InputAction
+		inputState.Action = config.InputAction
 	}
 	if config.FooterHint != "" {
-		a.footerHint = config.FooterHint
+		a.UIState.SetFooterHint(config.FooterHint)
 	}
 	if config.InputHeight > 0 {
-		a.inputState.Height = config.InputHeight
+		inputState.Height = config.InputHeight
 	} else if config.Mode == ModeInput || config.Mode == ModeCloneURL {
-		// Default to single-line input (4 = label + 3-line box)
-		a.inputState.Height = 4
+		// Default to single-line input (label + 3-line box)
+		inputState.Height = InputHeight
 	}
 
 	// Reset workflow-specific fields based on the configuration
+	workflowState := a.OperationState.GetWorkflowState()
 	for _, field := range config.ResetFields {
 		switch field {
 		case "clone":
-			a.workflowState.ResetClone()
+			workflowState.ResetClone()
 		case "all":
 			// Reset all workflow states
-			a.workflowState.ResetClone()
+			workflowState.ResetClone()
 		}
 	}
 }
@@ -157,15 +115,14 @@ func (a *Application) reloadGitState() error {
 // successFlag: set to true when caller wants to trigger conflict resolver (e.g., dirty pull merge)
 // successFlag: set to false for normal conflict detection during operations
 func (a *Application) checkForConflicts(step string, successFlag bool) *GitOperationMsg {
-	if err := a.reloadGitState(); err != nil {
-		return nil
-	}
-	if a.gitState.Operation == git.Conflicted {
-		return &GitOperationMsg{
-			Step:             step,
-			Success:          successFlag,
-			ConflictDetected: true,
-			Error:            "Merge conflicts detected",
+	if err := a.reloadGitState(); err == nil {
+		if a.gitState.Operation == git.Conflicted {
+			return &GitOperationMsg{
+				Step:             step,
+				Success:          successFlag,
+				ConflictDetected: true,
+				Error:            "Merge conflicts detected",
+			}
 		}
 	}
 	return nil
@@ -175,19 +132,19 @@ func (a *Application) checkForConflicts(step string, successFlag bool) *GitOpera
 // This is SSOT for git command execution with standard error handling.
 func (a *Application) executeGitOp(step string, args ...string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
-	a.cancelContext = cancel
+	a.OperationState.SetCancelContext(cancel)
 	return func() tea.Msg {
 		result := git.ExecuteWithStreaming(ctx, args...)
-		if !result.Success {
+		if result.Success {
 			return GitOperationMsg{
 				Step:    step,
-				Success: false,
-				Error:   result.Stderr,
+				Success: true,
 			}
 		}
 		return GitOperationMsg{
 			Step:    step,
-			Success: true,
+			Success: false,
+			Error:   result.Stderr,
 		}
 	}
 }
@@ -199,42 +156,42 @@ func (a *Application) executeGitOp(step string, args ...string) tea.Cmd {
 
 // startAsyncOp marks an async operation as active.
 func (a *Application) startAsyncOp() {
-	a.asyncState.Start()
+	a.OperationState.StartAsyncOp()
 }
 
 // endAsyncOp marks an async operation as complete.
 func (a *Application) endAsyncOp() {
-	a.asyncState.End()
+	a.OperationState.EndAsyncOp()
 }
 
 // abortAsyncOp marks an async operation as aborted by user.
 func (a *Application) abortAsyncOp() {
-	a.asyncState.Abort()
+	a.OperationState.AbortAsyncOp()
 }
 
 // isAsyncActive returns true if an async operation is running.
 func (a *Application) isAsyncActive() bool {
-	return a.asyncState.IsActive()
+	return a.OperationState.IsAsyncActive()
 }
 
 // isAsyncAborted returns true if current async operation was aborted.
 func (a *Application) isAsyncAborted() bool {
-	return a.asyncState.IsAborted()
+	return a.OperationState.IsAsyncAborted()
 }
 
 // clearAsyncAborted resets the aborted flag.
 func (a *Application) clearAsyncAborted() {
-	a.asyncState.ClearAborted()
+	a.OperationState.ClearAsyncAborted()
 }
 
 // setExitAllowed sets whether exit is allowed during operation.
 func (a *Application) setExitAllowed(allowed bool) {
-	a.asyncState.SetExitAllowed(allowed)
+	a.OperationState.SetExitAllowed(allowed)
 }
 
 // canExit returns true if exit is allowed.
 func (a *Application) canExit() bool {
-	return a.asyncState.CanExit()
+	return a.OperationState.CanExit()
 }
 
 // handleCacheProgress handles cache building progress updates
@@ -242,20 +199,22 @@ func (a *Application) canExit() bool {
 // handleMenuUp moves selection up
 func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
 	app.activityState.MarkActivity() // Track menu activity
-	if len(app.menuItems) > 0 {
-		startIdx := app.selectedIndex
-		app.selectedIndex = (app.selectedIndex - 1 + len(app.menuItems)) % len(app.menuItems)
+	menuItems := app.NavigationState.GetMenuItems()
+	if len(menuItems) > 0 {
+		startIdx := app.NavigationState.GetSelectedIndex()
+		newIdx := (startIdx - 1 + len(menuItems)) % len(menuItems)
 		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
-		for app.menuItems[app.selectedIndex].Separator || !app.menuItems[app.selectedIndex].Enabled {
-			app.selectedIndex = (app.selectedIndex - 1 + len(app.menuItems)) % len(app.menuItems)
+		for menuItems[newIdx].Separator || !menuItems[newIdx].Enabled {
+			newIdx = (newIdx - 1 + len(menuItems)) % len(menuItems)
 			// Prevent infinite loop if all items disabled
-			if app.selectedIndex == startIdx {
+			if newIdx == startIdx {
 				break
 			}
 		}
+		app.NavigationState.SetSelectedIndex(newIdx)
 		// Update footer hint
-		if app.selectedIndex < len(app.menuItems) {
-			app.footerHint = app.menuItems[app.selectedIndex].Hint
+		if newIdx < len(menuItems) {
+			app.UIState.SetFooterHint(menuItems[newIdx].Hint)
 		}
 	}
 	return app, nil
@@ -264,20 +223,22 @@ func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
 // handleMenuDown moves selection down
 func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
 	app.activityState.MarkActivity() // Track menu activity
-	if len(app.menuItems) > 0 {
-		startIdx := app.selectedIndex
-		app.selectedIndex = (app.selectedIndex + 1) % len(app.menuItems)
+	menuItems := app.NavigationState.GetMenuItems()
+	if len(menuItems) > 0 {
+		startIdx := app.NavigationState.GetSelectedIndex()
+		newIdx := (startIdx + 1) % len(menuItems)
 		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
-		for app.menuItems[app.selectedIndex].Separator || !app.menuItems[app.selectedIndex].Enabled {
-			app.selectedIndex = (app.selectedIndex + 1) % len(app.menuItems)
+		for menuItems[newIdx].Separator || !menuItems[newIdx].Enabled {
+			newIdx = (newIdx + 1) % len(menuItems)
 			// Prevent infinite loop if all items disabled
-			if app.selectedIndex == startIdx {
+			if newIdx == startIdx {
 				break
 			}
 		}
+		app.NavigationState.SetSelectedIndex(newIdx)
 		// Update footer hint
-		if app.selectedIndex < len(app.menuItems) {
-			app.footerHint = app.menuItems[app.selectedIndex].Hint
+		if newIdx < len(menuItems) {
+			app.UIState.SetFooterHint(menuItems[newIdx].Hint)
 		}
 	}
 	return app, nil
@@ -286,70 +247,70 @@ func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
 // handleMenuEnter selects current menu item and dispatches action
 func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
 	app.activityState.MarkActivity() // Track menu activity
-	if app.selectedIndex < 0 || app.selectedIndex >= len(app.menuItems) {
-		return app, nil
+	item, ok := app.NavigationState.GetSelectedItem()
+	if ok {
+		// CONTRACT: Cannot execute separators or disabled items (cache still building)
+		if !item.Separator && item.Enabled {
+			// Dispatch action
+			return app, app.dispatchAction(item.ID)
+		}
 	}
-	item := app.menuItems[app.selectedIndex]
-
-	// CONTRACT: Cannot execute separators or disabled items (cache still building)
-	if item.Separator || !item.Enabled {
-		return app, nil
-	}
-
-	// Dispatch action
-	return app, app.dispatchAction(item.ID)
+	return app, nil
 }
 
 // Input mode helpers
 
 // insertTextAtCursor inserts text at current cursor position (UTF-8 safe)
 func (a *Application) insertTextAtCursor(text string) {
+	inputState := a.OperationState.GetInputState()
 	// Defensive bounds checking
-	valueLen := len(a.inputState.Value)
-	if a.inputState.CursorPosition < 0 {
-		a.inputState.CursorPosition = 0
+	valueLen := len(inputState.Value)
+	if inputState.CursorPosition < 0 {
+		inputState.CursorPosition = 0
 	}
-	if a.inputState.CursorPosition > valueLen {
-		a.inputState.CursorPosition = valueLen
+	if inputState.CursorPosition > valueLen {
+		inputState.CursorPosition = valueLen
 	}
 
 	// Safe slice operation
-	before := a.inputState.Value[:a.inputState.CursorPosition]
-	after := a.inputState.Value[a.inputState.CursorPosition:]
-	a.inputState.Value = before + text + after
-	a.inputState.CursorPosition += len(text)
+	before := inputState.Value[:inputState.CursorPosition]
+	after := inputState.Value[inputState.CursorPosition:]
+	inputState.Value = before + text + after
+	inputState.CursorPosition += len(text)
 }
 
 // deleteAtCursor deletes character before cursor (UTF-8 safe)
 func (a *Application) deleteAtCursor() {
-	valueLen := len(a.inputState.Value)
-	if a.inputState.CursorPosition <= 0 || valueLen == 0 {
+	inputState := a.OperationState.GetInputState()
+	valueLen := len(inputState.Value)
+	if inputState.CursorPosition <= 0 || valueLen == 0 {
 		return
 	}
-	if a.inputState.CursorPosition > valueLen {
-		a.inputState.CursorPosition = valueLen
+	if inputState.CursorPosition > valueLen {
+		inputState.CursorPosition = valueLen
 	}
 
 	// Safe slice operation
-	before := a.inputState.Value[:a.inputState.CursorPosition-1]
-	after := a.inputState.Value[a.inputState.CursorPosition:]
-	a.inputState.Value = before + after
-	a.inputState.CursorPosition--
+	before := inputState.Value[:inputState.CursorPosition-1]
+	after := inputState.Value[inputState.CursorPosition:]
+	inputState.Value = before + after
+	inputState.CursorPosition--
 }
 
 // updateInputValidation updates validation message for current input
 func (a *Application) updateInputValidation() {
-	if a.inputState.Action == "clone_url" {
-		currentValue := a.inputState.Value
-		if a.mode == ModeInitializeBranches {
+	inputState := a.OperationState.GetInputState()
+	if inputState.Action == "clone_url" {
+		currentValue := inputState.Value
+		if a.NavigationState.GetMode() == ModeInitializeBranches {
 			return // No validation in branch mode
 		}
 		if currentValue == "" {
-			a.inputState.ValidationMsg = ""
+			inputState.ValidationMsg = ""
 		} else if ui.ValidateRemoteURL(currentValue) {
-			a.inputState.ValidationMsg = ""
+			inputState.ValidationMsg = ""
 		} else {
-			a.inputState.ValidationMsg = "Invalid URL format"
+			inputState.ValidationMsg = "Invalid URL format"
 		}
 	}
 }
@@ -359,7 +320,8 @@ func (a *Application) updateInputValidation() {
 // handleInputSubmit handles enter in generic input mode
 func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Route input submission based on action type
-	switch app.inputState.Action {
+	inputState := app.OperationState.GetInputState()
+	switch inputState.Action {
 	case "init_branch_name":
 		return app.handleInitBranchNameSubmit()
 	case "init_subdir_name":
@@ -377,16 +339,17 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 
 // handleHistoryRewind handles Ctrl+ENTER in history browser to initiate rewind
 func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd) {
-	if app.pickerState.History == nil || len(app.pickerState.History.Commits) == 0 {
+	pickerState := app.DialogManager.GetPickerState()
+	if pickerState.History == nil || len(pickerState.History.Commits) == 0 {
 		return app, nil
 	}
 
-	if app.pickerState.History.SelectedIdx < 0 || app.pickerState.History.SelectedIdx >= len(app.pickerState.History.Commits) {
+	if pickerState.History.SelectedIdx < 0 || pickerState.History.SelectedIdx >= len(pickerState.History.Commits) {
 		return app, nil
 	}
 
-	selectedCommit := app.pickerState.History.Commits[app.pickerState.History.SelectedIdx]
-	app.workflowState.PendingRewindCommit = selectedCommit.Hash
+	selectedCommit := pickerState.History.Commits[pickerState.History.SelectedIdx]
+	app.OperationState.GetWorkflowState().PendingRewindCommit = selectedCommit.Hash
 
 	return app, app.showRewindConfirmation(selectedCommit.Hash)
 }

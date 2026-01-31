@@ -113,6 +113,79 @@
 
 <!-- Example sprint entry (delete this after first real sprint) -->
 
+## Sprint 2: Manual Detached HEAD Handling ✅
+
+**Date:** 2026-01-31
+
+### Agents Participated
+- **SURGEON:** Implemented manual detached HEAD support with OMP-style compact display
+
+### Files Modified (11 total)
+- `internal/git/types.go:1-50` — Added `ModifiedCount`, `IsTitTimeTravel` fields
+- `internal/git/state.go:1-80` — Detached detection with flag, working tree count
+- `internal/ui/header.go:1-60` — 2-row layout for detached state
+- `internal/app/state_info.go:1-40` — OMP-style emojis (↑, ↓, ↕, ●)
+- `internal/app/app_view.go:1-100` — ModifiedCount display, detached handling
+- `internal/app/messages.go:1-30` — Compact descriptions
+- `internal/app/workflow_state.go:1-50` — `ReturnToBranchName`, `ReturnToBranchDirtyTree`
+- `internal/app/dispatchers.go:1-80` — Return workflow, branch picker
+- `internal/app/handlers_config.go:1-40` — Branch picker Enter handling
+- `internal/app/confirm_handlers.go:1-60` — Stash-based merge handler
+- `internal/app/confirm_dialog.go:1-50` — `time_travel_return_dirty_choice` type
+
+### Alignment Check
+- [x] LIFESTAR principles followed (SSOT for detached detection)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied (no layer violations)
+- [x] No early returns used
+- [x] Fail-fast error handling implemented
+
+### Problems Solved
+- Manual detached HEAD no longer shows fatal error
+- OMP-style compact display for timeline (↑, ↓, ↕) and working tree (● N)
+- Return to branch workflow with stash-based merge
+- Branch picker for multiple branch options
+
+### Technical Debt / Follow-up
+- ARCHITECTURE.md needs updates for dual-mode detached handling
+- SPEC.md needs updates (remove Section 13.5 fatal error, add manual detached workflow)
+
+---
+
+## Handoff to COUNSELOR
+
+**From:** SURGEON  
+**To:** COUNSELOR  
+**Context:** Manual detached HEAD feature implementation complete
+
+### What Was Built
+Manual detached HEAD handling feature with:
+- `IsTitTimeTravel` flag differentiates TIT-initiated vs manual detached
+- `ModifiedCount` field for working tree changes
+- OMP-style compact display (↑, ↓, ↕, ● N)
+- Return to branch workflow with stash-based merge
+- Branch picker for multiple branch options
+
+### What COUNSELOR Needs To Do
+
+**ARCHITECTURE.md Updates:**
+1. Document `IsTitTimeTravel` flag in TimeTraveling section (line 256+)
+2. Document dual-mode detached handling (TIT vs manual)
+3. Document 2-row header layout for detached state
+4. Document OMP-style display conventions
+
+**SPEC.md Updates:**
+1. **Section 10 Time Travel**: Extend for manual detached HEAD handling
+2. **Section 3 State Model**: Add `IsTitTimeTravel` field documentation
+3. **Section 6 State → Menu Mapping**: Add "Manual Detached" entry
+4. **New section**: "Manual Detached HEAD" workflow (vs TIT time travel)
+5. **Remove Section 13.5**: "Detached HEAD detected" fatal error - no longer applies
+
+### Reference
+Full implementation details above in this sprint entry.
+
+---
+
 ## Sprint 1: Project Setup and Initial Planning ✅
 
 **Date:** 2026-01-11  
