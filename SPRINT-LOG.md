@@ -146,4 +146,167 @@ if _, err := toml.DecodeFile(stashFile, &list); err != nil {
 
 ---
 
-**Session Complete** ✅
+## Sprint [N+1]: Detached HEAD + OMP Display + Return to Branch
+
+**Date:** Sat Jan 31 2026
+**Status:** ✅ COMPLETE
+
+---
+
+## Participants
+
+- `@surgeon` (Complex Fix Specialist)
+- `@pathfinder` (invoked for header rendering patterns)
+
+---
+
+## Problem Statement
+
+1. **Detached HEAD display issue**: TIT showed "HEAD" instead of "detached" when user manually checked out a commit
+2. **OMP-style display**: Match oh-my-posh compact visual style (arrows with counts, dirty indicator)
+3. **Manual detached handling**: TIT had no support for user-initiated detached HEAD (only TIT time travel)
+4. **Return workflow**: No proper "return to branch" flow for manual detached state
+
+---
+
+## Root Causes & Solutions
+
+### 1. Detached HEAD Detection (`internal/git/state.go`)
+
+**Problem:** `git rev-parse --abbrev-ref HEAD` returns literal "HEAD" when detached, code used it directly
+
+**Fix:**
+- Added `IsTitTimeTravel` flag to differentiate TIT time travel vs manual detached
+- Set `Operation = TimeTraveling` for both cases (correct menu behavior)
+- Show `"DETACHED"` in CurrentBranch (not literal "HEAD")
+
+### 2. Header Rendering (`internal/ui/header.go` + `internal/app/app_view.go`)
+
+**Problem:** Empty row balancing caused CWD to disappear, layout misalignment
+
+**Fix:**
+- Simplified to 2-row layout: OPS/Branch | CWD/Remote
+- Manual detached: `DETACHED` + hash with separate icons
+- TIT time travel: `TIME TRAVEL` + original branch name
+
+### 3. OMP-Style Display (`internal/app/state_info.go` + `internal/app/app_view.go`)
+
+**Problem:** TIT showed verbose text ("Local ahead", "Local behind") instead of compact arrows
+
+**Fix:**
+- Timeline: `Local ahead` → `↑ 2`, `Local behind` → `↓ 1`, `Diverged` → `↕ 2↑ 1↓`
+- WorkingTree: Added `ModifiedCount` field, display `● N` (dot + count)
+- Descriptions: Simplified to compact format ("2 commit(s) ahead")
+
+### 4. Return to Branch Flow (`internal/app/dispatchers.go` + `internal/app/handlers_config.go`)
+
+**Problem:** No workflow for returning from manual detached HEAD
+
+**Fix:**
+- `ReturnToBranchName` field in WorkflowState for target branch
+- Branch picker for multiple branches, auto-switch for single branch
+- Dirty tree: Stash/Discard confirmation dialog before branch picker
+- Clean tree: Direct checkout
+
+### 5. Stash-Based Merge (`internal/app/confirm_handlers.go`)
+
+**Problem:** Return with dirty tree needed stash → merge → apply stash flow
+
+**Fix:**
+- `executeConfirmTimeTravelMergeDirtyStash()` handler
+- Stash changes, merge commit, apply stash back
+- Tracked via `config.AddStashEntry()` for conflict recovery
+
+---
+
+## Files Modified
+
+### `internal/git/types.go`
+- **Line 79**: Added `ModifiedCount int` field
+- **Line 81**: Added `IsTitTimeTravel bool` field
+
+### `internal/git/state.go`
+- **Lines 147-167**: Updated detached HEAD detection with `IsTitTimeTravel` flag
+- **Lines 93-98**: `detectWorkingTree()` now returns `(WorkingTree, int, error)` with modified count
+
+### `internal/ui/header.go`
+- **Lines 62-83**: Simplified 2-row left column (CWD + Remote)
+- **Lines 88-104**: 2-row right column (Operation + Branch/Hash)
+
+### `internal/app/state_info.go`
+- **Lines 47-70**: Updated Timeline emojis to OMP-style (⬆, ⬇, ↕)
+- **Lines 28-35**: Updated WorkingTree emoji to `●`
+
+### `internal/app/app_view.go`
+- **Lines 212-219**: Added ModifiedCount to WorkingTreeLabel (`● N`)
+- **Lines 237-243**: Added OMP-style timeline labels with arrows
+- **Lines 259-276**: Manual detached HEAD handling (DETACHED + hash)
+
+### `internal/app/messages.go`
+- **Lines 550-554**: Updated descriptions to compact format
+
+### `internal/app/workflow_state.go`
+- **Lines 17-18**: Added `ReturnToBranchName`, `ReturnToBranchDirtyTree` fields
+
+### `internal/app/dispatchers.go`
+- **Lines 414-490**: `dispatchTimeTravelReturn()` with branch picker for manual detached
+- **Lines 493-516**: `dispatchReturnToBranchPicker()` for return workflow
+
+### `internal/app/handlers_config.go`
+- **Lines 244-275**: `handleBranchPickerEnter()` for return-from-detached with dirty tree handling
+
+### `internal/app/confirm_handlers.go`
+- **Lines 797-849**: `executeConfirmTimeTravelMergeDirtyStash()` stash-based merge flow
+
+### `internal/app/confirm_dialog.go`
+- **Line 97-100**: Added `time_travel_return_dirty_choice` confirmation type
+
+---
+
+## Alignment Check
+
+- [x] LIFESTAR principles followed (state-driven, fail-fast, SSOT)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO principles applied (single active branch, menu=contract)
+
+---
+
+## Problems Solved
+
+1. ✅ Detached HEAD shows "DETACHED" with hash, not "HEAD"
+2. ✅ Manual detached HEAD supported with same menu as time travel
+3. ✅ OMP-style compact display (arrows, dot+count)
+4. ✅ Return to branch workflow with stash/discard choice
+5. ✅ Changes preserved through stash → merge → apply flow
+
+---
+
+## Technical Debt / Follow-up
+
+1. **SPEC.md Section 13.5**: Update "Detached HEAD detected" fatal error - now TIT handles manual detached
+2. **ARCHITECTURE.md**: Document new detached HEAD handling (IsTitTimeTravel flag, dual-mode display)
+3. **Branch picker**: ESC handling from return workflow needs verification
+4. **Stash cleanup**: Old stashes not automatically cleaned up
+
+---
+
+## Handoff to COUNSELOR
+
+**For ARCHITECTURE.md updates:**
+- Document `IsTitTimeTravel` flag and dual-mode detached HEAD handling (Lines 147-167 of state.go)
+- Document new 2-row header layout for detached state (Lines 62-104 of header.go)
+- Update TimeTravelState section to include manual detached use case
+- Document OMP-style display conventions (arrows, dot+count)
+
+**For SPEC.md updates:**
+- **Section 13.5 Fatal Errors**: Remove "Detached HEAD detected" fatal error - now TIT handles manual detached
+- **Section 10 Time Travel**: Extend to include manual detached HEAD handling
+- **Section 3 State Model**: Add `IsTitTimeTravel` field explanation
+- **Section 6 State → Menu Mapping**: Add "Manual Detached" entry with menu items (Browse history, Return to branch)
+- **New section**: "Manual Detached HEAD" - TIT accepts detached HEAD (not from time travel) and provides return workflow
+
+**Key contract changes:**
+- TIT no longer shows fatal error for manual detached HEAD
+- Manual detached uses same `Operation = TimeTraveling` for menu (browse + return)
+- Header shows `DETACHED` with commit hash (vs `TIME TRAVEL` for TIT-initiated)
+- Return workflow: branch picker → stash/discard → checkout → (optional merge if dirty)

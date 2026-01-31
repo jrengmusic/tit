@@ -35,10 +35,15 @@ const (
 // UI constants
 const (
 	BezierCurveResolution = 20              // Resolution for cubic bezier curve approximation
-	QuitConfirmTimeout    = 3 * time.Second // Timeout for quit/clear confirmation dialogs
+	QuitConfirmTimeout    = 2 * time.Second // Timeout for quit/clear confirmation dialogs
 )
 
 // Git directory name
 const (
 	GitDirectoryName = ".git" // Git metadata directory name
+)
+
+// Search limits
+const (
+	StashSearchLimit = 10 // Maximum number of stashes to search when finding stash by hash
 )

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"tit/internal"
 
 	"tit/internal/git"
 	"tit/internal/ui"
@@ -24,8 +25,8 @@ var initLocationConfig = LocationChoiceConfig{
 			InputAction: "init_branch_name",
 			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
 		})
-		a.inputState.Value = "main"
-		a.inputState.CursorPosition = len("main")
+		a.inputState.Value = DefaultBranch
+		a.inputState.CursorPosition = len(DefaultBranch)
 		return a, nil
 	},
 	SubdirPrompt: "Repository name:",
@@ -77,7 +78,7 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 		subdirPath := fmt.Sprintf("%s/%s", cwd, app.inputState.Value)
 
 		// Create subdirectory
-		if err := os.MkdirAll(subdirPath, 0755); err != nil {
+		if err := os.MkdirAll(subdirPath, internal.StashDirPerms); err != nil {
 			app.footerHint = fmt.Sprintf(ErrorMessages["failed_create_dir"], err)
 			return app, nil
 		}
@@ -95,8 +96,8 @@ func (a *Application) handleInputSubmitSubdirName(app *Application) (tea.Model, 
 			InputAction: "init_branch_name",
 			FooterHint:  "Enter branch name (default: main), press Enter to initialize",
 		})
-		app.inputState.Value = "main"
-		app.inputState.CursorPosition = len("main")
+		app.inputState.Value = DefaultBranch
+		app.inputState.CursorPosition = len(DefaultBranch)
 		return app, nil
 	})
 }
