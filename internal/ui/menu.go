@@ -33,6 +33,15 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 	keyColWidth := 12
 	emojiColWidth := 3
 	labelColWidth := 21
+
+	// Dynamically shrink label if content is too narrow
+	if contentWidth < (keyColWidth + emojiColWidth + labelColWidth) {
+		labelColWidth = contentWidth - keyColWidth - emojiColWidth
+		if labelColWidth < 0 {
+			labelColWidth = 0
+		}
+	}
+
 	menuBoxWidth := keyColWidth + emojiColWidth + labelColWidth
 
 	// Build styled lines
@@ -207,7 +216,7 @@ func RenderMenuWithBanner(sizing DynamicSizing, items interface{}, selectedIndex
 	menuColumn := lipgloss.NewStyle().
 		Width(leftWidth).
 		Height(sizing.ContentHeight).
-		Align(lipgloss.Center).
+		Align(lipgloss.Left).
 		AlignVertical(lipgloss.Center).
 		Render(menuContent)
 
