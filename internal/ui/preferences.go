@@ -47,6 +47,15 @@ func RenderPreferencesMenu(rows []PreferenceRow, selectedIndex int, theme Theme,
 	emojiColWidth := 3
 	labelColWidth := 18
 	valueColWidth := 10
+
+	// Dynamically shrink label if content is too narrow
+	if contentWidth < (emojiColWidth + labelColWidth + valueColWidth) {
+		labelColWidth = contentWidth - emojiColWidth - valueColWidth
+		if labelColWidth < 0 {
+			labelColWidth = 0
+		}
+	}
+
 	menuBoxWidth := emojiColWidth + labelColWidth + valueColWidth
 
 	var lines []string
@@ -178,7 +187,7 @@ func RenderPreferencesWithBanner(cfg *config.Config, selectedIndex int, theme Th
 	menuColumn := lipgloss.NewStyle().
 		Width(leftWidth).
 		Height(sizing.ContentHeight).
-		Align(lipgloss.Center).
+		Align(lipgloss.Left).
 		AlignVertical(lipgloss.Center).
 		Render(menuContent)
 
