@@ -126,12 +126,38 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		}
 	}
 
-	// If restoration needed, switch to console mode and prepare for async operation
-	if shouldRestore {
+	// Check for incomplete dirty pull operation (Phase 0)
+	// If we're in Conflicted state AND TIT_DIRTY_OP marker exists, we have an incomplete dirty pull
+	hasDirtyPullMarker := git.FileExists(".git/TIT_DIRTY_OP") && isRepo
+	isConflicted := isRepo && app.gitState.Operation == git.Conflicted
+
+	// If conflicted state detected (with or without dirty pull marker), enter conflict resolver
+	if isConflicted {
+		// Load the dirty operation state if marker exists
+		if hasDirtyPullMarker {
+			snapshot := &git.DirtyOperationSnapshot{}
+			if err := snapshot.Load(); err == nil {
+				// Initialize dirty operation state
+				app.dirtyOperationState = &DirtyOperationState{
+					Phase:          "apply_changeset", // We're in the merge phase
+					OriginalBranch: snapshot.OriginalBranch,
+					OriginalHead:   snapshot.OriginalHead,
+				}
+			}
+		}
+		// Skip menu generation - enter conflict resolver immediately
 		app.NavigationState.SetMode(ModeConsole)
-		app.OperationState.StartAsyncOp()
-		app.OperationState.GetWorkflowState().PreviousMode = ModeMenu
-		app.UIState.SetFooterHint("Restoring from incomplete time travel session...")
+		app.UIState.SetFooterHint("Conflict detected - entering resolver...")
+
+		// Setup conflict resolver immediately
+		operationType := "pull_merge" // Default for manual conflicts
+		if hasDirtyPullMarker {
+			operationType = "dirty_pull_changeset_apply"
+		}
+		_, _ = app.setupConflictResolver(operationType, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+
+		// No need to generate menu or start cache loading
+		return app
 	}
 
 	// Generate initial menu (Phase 1 of initialization)

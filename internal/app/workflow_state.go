@@ -14,7 +14,8 @@ type WorkflowState struct {
 	PreviousMenuIndex int
 
 	// Pending operations
-	PendingRewindCommit string
+	PendingRewindCommit   string
+	PendingConflictResume bool // True when TIT starts with incomplete dirty pull in conflicted state
 
 	// Return to branch from manual detached
 	ReturnToBranchDirtyTree bool   // Track if working tree was dirty when entering picker
