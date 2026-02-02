@@ -40,7 +40,9 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 
 	// Detect which stages exist by checking the first conflicted file
 	// This determines how many columns we'll show (2-way vs 3-way merge)
+	// For delete/modify conflicts, we show placeholder text for deleted stages
 	var stagesPresent []int
+	var stagesDeleted []int
 	var activeLabels []string
 
 	if len(conflictFiles) > 0 {
@@ -50,21 +52,28 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		// Try stage 1 (BASE)
 		if _, err := git.ShowConflictVersion(testFile, 1); err == nil {
 			stagesPresent = append(stagesPresent, 1)
+		} else {
+			stagesDeleted = append(stagesDeleted, 1)
 		}
 
 		// Try stage 2 (LOCAL)
 		if _, err := git.ShowConflictVersion(testFile, 2); err == nil {
 			stagesPresent = append(stagesPresent, 2)
+		} else {
+			stagesDeleted = append(stagesDeleted, 2)
 		}
 
 		// Try stage 3 (REMOTE)
 		if _, err := git.ShowConflictVersion(testFile, 3); err == nil {
 			stagesPresent = append(stagesPresent, 3)
+		} else {
+			stagesDeleted = append(stagesDeleted, 3)
 		}
 
-		// Build active labels based on which stages exist
+		// Build active labels for all stages (present and deleted)
 		// columnLabels is indexed 0, 1, 2 for BASE, LOCAL, REMOTE
-		for _, stage := range stagesPresent {
+		allStages := []int{1, 2, 3}
+		for _, stage := range allStages {
 			labelIdx := stage - 1 // Stage 1->label[0], stage 2->label[1], stage 3->label[2]
 			if labelIdx < len(columnLabels) {
 				activeLabels = append(activeLabels, columnLabels[labelIdx])
@@ -72,12 +81,16 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 		}
 	}
 
-	numColumns := len(stagesPresent)
-	if numColumns == 0 {
-		// Fallback: assume 3-way merge
-		numColumns = 3
-		stagesPresent = []int{1, 2, 3}
-		activeLabels = columnLabels
+	// Always show 3 columns for standard 3-way conflicts
+	// But handle cases where stages are deleted (delete/modify conflicts)
+	numColumns := 3
+	if len(stagesPresent) == 0 {
+		// No stages could be read - this indicates a corrupt conflict state
+		buffer.Append("Error: No conflict stages found. The conflict state may be corrupted.", ui.TypeStderr)
+		a.endAsyncOp()
+		a.footerHint = ErrorMessages["operation_failed"]
+		a.mode = ModeConsole
+		return a, nil
 	}
 
 	// Read versions for each conflicted file
@@ -95,11 +108,13 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	for _, filePath := range conflictFiles {
 		var versions []string
 
-		// Read only the stages that actually exist
-		for _, stage := range stagesPresent {
+		// Read all 3 stages, showing placeholder for deleted stages
+		for stage := 1; stage <= 3; stage++ {
 			content, err := git.ShowConflictVersion(filePath, stage)
 			if err != nil {
-				content = fmt.Sprintf("Error reading stage %d: %v", stage, err)
+				// Stage doesn't exist (file was deleted in this version)
+				content = fmt.Sprintf("[FILE DELETED IN THIS VERSION]\n\nThis file was deleted in %s.\nThe conflict occurred because the other side modified it.",
+					map[int]string{1: "BASE", 2: "LOCAL", 3: "REMOTE"}[stage])
 			}
 			versions = append(versions, content)
 		}
