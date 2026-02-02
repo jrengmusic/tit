@@ -1,1 +1,0 @@
-/Users/jreng/.carol/scripts/rename-symbol.sh

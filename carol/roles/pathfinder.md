@@ -1,1 +1,0 @@
-/Users/jreng/.carol/roles/pathfinder.md
