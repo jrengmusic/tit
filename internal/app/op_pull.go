@@ -95,3 +95,37 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		}
 	}
 }
+
+// cmdResetHead executes git reset --hard HEAD + clean -fd (preserves local commits)
+func (a *Application) cmdResetHead() tea.Cmd {
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
+	return func() tea.Msg {
+		buffer := ui.GetBuffer()
+		buffer.Clear()
+
+		buffer.Append("Resetting working tree to HEAD...", ui.TypeInfo)
+
+		// Reset to HEAD
+		resetResult := git.ExecuteWithStreaming(ctx, "reset", "--hard", "HEAD")
+		if !resetResult.Success {
+			return GitOperationMsg{
+				Step:    OpHardReset,
+				Success: false,
+				Error:   "Failed to reset to HEAD",
+			}
+		}
+
+		// Clean untracked files
+		cleanResult := git.ExecuteWithStreaming(ctx, "clean", "-fd")
+		if !cleanResult.Success {
+			buffer.Append("Warning: Failed to clean untracked files", ui.TypeWarning)
+		}
+
+		return GitOperationMsg{
+			Step:    OpHardReset,
+			Success: true,
+			Output:  "Discarded all changes (reset to HEAD)",
+		}
+	}
+}

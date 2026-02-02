@@ -79,6 +79,9 @@ func (a *Application) menuWorkingTree() []MenuItem {
 			items = append(items, GetMenuItem("commit_push"))
 		}
 
+		// Always allow discarding changes if dirty, regardless of remote/sync status
+		items = append(items, GetMenuItem("reset_discard_changes"))
+
 		return items
 	}
 
@@ -100,10 +103,6 @@ func (a *Application) menuTimeline() []MenuItem {
 
 	switch a.gitState.Timeline {
 	case git.InSync:
-		// When in sync but have uncommitted changes, allow reset to remote
-		if a.gitState.WorkingTree == git.Dirty && a.gitState.Remote == git.HasRemote {
-			items = append(items, GetMenuItem("reset_discard_changes"))
-		}
 		// No other sync actions needed when in sync
 		return items
 

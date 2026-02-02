@@ -8,20 +8,9 @@ import (
 
 // dispatchInit starts the repository initialization workflow
 func (a *Application) dispatchInit(app *Application) tea.Cmd {
-	cwdEmpty := isCwdEmpty()
-	if !cwdEmpty {
-		// CWD not empty: ask for subdirectory name first
-		return a.cmdInitSubdirectory()
-	}
-	// CWD empty: ask for branch name directly, init here
 	app.transitionTo(ModeTransition{
-		Mode:        ModeInput,
-		InputPrompt: "Initial branch name:",
-		InputAction: "init_branch_name",
-		FooterHint:  "Enter branch name (default: main), press Enter to initialize",
+		Mode: ModeInitializeLocation,
 	})
-	app.inputState.Value = DefaultBranch
-	app.inputState.CursorPosition = len(DefaultBranch)
 	return nil
 }
 

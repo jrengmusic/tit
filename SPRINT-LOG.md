@@ -114,38 +114,6 @@ TIT crashes when user manually drops a stash after time travel:
 
 ---
 
-## Key Code Changes Summary
-
-```go
-// Before: Panics on missing stash
-func FindStashRefByHash(targetHash string) string
-
-// After: Returns (stashRef, found)
-func FindStashRefByHash(targetHash string) (string, bool)
-func StashExists(stashHash string) bool
-
-// Before: AddStashEntry panics on duplicate
-config.AddStashEntry("time_travel", hash, repoPath, branch, commit)
-
-// After: Check and clean stale entry first
-if _, exists := config.GetStashEntry("time_travel", repoPath); exists {
-    config.RemoveStashEntry("time_travel", repoPath)
-}
-config.AddStashEntry("time_travel", hash, repoPath, branch, commit)
-
-// Before: loadStashList panics on corrupted TOML
-if _, err := toml.DecodeFile(stashFile, &list); err != nil {
-    panic(fmt.Sprintf("FATAL: %v", err))
-}
-
-// After: Resets corrupted file gracefully
-if _, err := toml.DecodeFile(stashFile, &list); err != nil {
-    return &StashList{Stash: []StashEntry{}}
-}
-```
-
----
-
 ## Sprint [N+1]: Detached HEAD + OMP Display + Return to Branch
 
 **Date:** Sat Jan 31 2026
@@ -290,23 +258,150 @@ if _, err := toml.DecodeFile(stashFile, &list); err != nil {
 
 ---
 
-## Handoff to COUNSELOR
+## Sprint [N+2]: Enable Discard Changes in Dirty State
 
-**For ARCHITECTURE.md updates:**
-- Document `IsTitTimeTravel` flag and dual-mode detached HEAD handling (Lines 147-167 of state.go)
-- Document new 2-row header layout for detached state (Lines 62-104 of header.go)
-- Update TimeTravelState section to include manual detached use case
-- Document OMP-style display conventions (arrows, dot+count)
+**Date:** Mon Feb 02 2026
+**Status:** ✅ COMPLETE
 
-**For SPEC.md updates:**
-- **Section 13.5 Fatal Errors**: Remove "Detached HEAD detected" fatal error - now TIT handles manual detached
-- **Section 10 Time Travel**: Extend to include manual detached HEAD handling
-- **Section 3 State Model**: Add `IsTitTimeTravel` field explanation
-- **Section 6 State → Menu Mapping**: Add "Manual Detached" entry with menu items (Browse history, Return to branch)
-- **New section**: "Manual Detached HEAD" - TIT accepts detached HEAD (not from time travel) and provides return workflow
+---
 
-**Key contract changes:**
-- TIT no longer shows fatal error for manual detached HEAD
-- Manual detached uses same `Operation = TimeTraveling` for menu (browse + return)
-- Header shows `DETACHED` with commit hash (vs `TIME TRAVEL` for TIT-initiated)
-- Return workflow: branch picker → stash/discard → checkout → (optional merge if dirty)
+## Participants
+
+- `@counselor` (Specification & Planning)
+- `@surgeon` (Implementation)
+
+---
+
+## Problem Statement
+
+Users requested the ability to discard uncommitted changes (hard reset) even when the repository is not in sync with the remote (or has no remote). Previously, "Discard all changes" was only available when `Timeline == InSync`.
+
+---
+
+## Changes
+
+### `SPEC.md`
+- **Section 6 (Working Tree Actions)**: Added `💥 Discard all changes` to the `Dirty` state table.
+
+### `internal/app/menu_render_core.go`
+- **menuWorkingTree()**: Moved `reset_discard_changes` here so it appears whenever `WorkingTree == Dirty`, regardless of remote/sync status.
+- **menuTimeline()**: Removed `reset_discard_changes` from `InSync` case to avoid duplication.
+
+---
+
+## Problems Solved
+
+1. ✅ "Discard all changes" now available in any Dirty state.
+2. ✅ "Discard all changes" now available when NoRemote.
+3. ✅ "Discard all changes" now available when Ahead, Behind, or Diverged.
+
+---
+
+## Alignment Check
+
+- [x] LIFESTAR principles followed (SSOT, state-driven)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO principles applied (menu=contract)
+
+---
+
+## Sprint [N+3]: Restore Repository Initialization Flow
+
+**Date:** Mon Feb 02 2026
+**Status:** ✅ COMPLETE
+
+---
+
+## Participants
+
+- `@surgeon` (Complex Fix Specialist)
+
+---
+
+## Problem Statement
+
+The repository initialization flow (`init`) was bypassing the location picker (`ModeInitializeLocation`), preventing users from choosing between initializing in the current directory or a new subdirectory. It also aggressively staged and committed all files in non-empty directories without confirmation.
+
+---
+
+## Changes
+
+### `internal/app/dispatch_menu.go`
+- **dispatchInit()**: Restored the transition to `ModeInitializeLocation`. Removed the `isCwdEmpty()` shortcut that bypassed the location picker.
+
+### `internal/app/op_init.go`
+- **cmdInitSubdirectory()**: Removed the unused function as it was replaced by the correct `ModeInitializeLocation` flow which uses `cmdInit` after location/branch selection.
+
+---
+
+## Problems Solved
+
+1. ✅ Users can now choose between "Init Here" and "Create Subdirectory" when initializing a repository.
+2. ✅ initialization no longer aggressively commits files in non-empty directories without user interaction.
+3. ✅ Reconnected the unreachable `handleInputSubmitSubdirName` and `initLocationConfig` logic.
+
+---
+
+## Alignment Check
+
+- [x] LIFESTAR principles followed (SSOT, state-driven)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO principles applied (menu=contract)
+
+---
+
+## Sprint [N+4]: Fix Discard Changes Flow
+
+**Date:** Mon Feb 02 2026
+**Status:** ✅ COMPLETE
+
+---
+
+## Participants
+
+- `@surgeon` (Complex Fix Specialist)
+
+---
+
+## Problem Statement
+
+The "Discard Changes" (reset --hard) flow was contract-violating and unsafe:
+1. It always attempted to fetch and reset to `origin/<branch>`, failing if no remote existed.
+2. It offered no option to just reset to local `HEAD` (preserving local commits).
+3. The confirmation dialog was misleading when no remote existed.
+
+---
+
+## Changes
+
+### `internal/app/messages_dialog.go`
+- Added `confirm_discard_changes_remote_choice`: 3-way choice (Reset HEAD vs Reset Remote vs Cancel).
+- Added `confirm_discard_changes_local`: Simple choice (Discard vs Cancel) for no-remote scenarios.
+
+### `internal/app/op_pull.go`
+- Added `cmdResetHead()`: Executes `git reset --hard HEAD` and `git clean -fd`.
+
+### `internal/app/dispatch_git_basic.go`
+- **dispatchResetDiscardChanges()**: Added logic to check `gitState.Remote`.
+  - **HasRemote**: Shows Remote Choice dialog (Default: Local).
+  - **NoRemote**: Shows Local dialog (Default: Cancel).
+
+### `internal/app/confirm_dialog_handlers.go`
+- Registered new handlers mapping dialog choices to `cmdResetHead` or `cmdHardReset`.
+
+---
+
+## Problems Solved
+
+1. ✅ Users can now safely discard changes (reset to HEAD) without a remote.
+2. ✅ When a remote exists, users can choose between "Reset to HEAD" (keep commits) and "Reset to Remote" (nuclear option).
+3. ✅ Flow respects `NoRemote` state and doesn't attempt invalid fetches.
+4. ✅ Safety defaults applied (Cancel focused for simple discard).
+
+---
+
+## Alignment Check
+
+- [x] LIFESTAR principles followed (SSOT, state-driven, fail-fast)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO principles applied (menu=contract)

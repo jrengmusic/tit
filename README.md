@@ -4,59 +4,57 @@
 
 # TIT — Terminal Interface for git
 
-I have severe git skills issues.
+**I have severe git skills issues.**
 
-I'm sick and tired wrestling with git commands that might failed. So i made TUI that always shows exactly what's possible operation based on actual git state. No surprises. No "command failed" messages. No confusion.
+I’m sick and tired of wrestling with git commands that fail when I need them most. So I made TIT: a Terminal UI that always shows exactly what is possible based on your actual git state. No surprises. No "command failed" messages. No confusion.
 
 **If it's in the menu, it works. Period.**
 
+---
 
-## TIT Kicks git's Ass 
+## TIT Tames the Git Beast
 
-**✅ Zero-Surprise Guarantee**  
-TIT analyzes your git state first, then builds the menu. If an action appears, it will succeed. No more `error: cannot push` after you spend time crafting the perfect commit message.
+TIT isn’t just a wrapper; it’s a **safety engine**. It’s opinionated about how git should be used so you can focus on code without the command-line anxiety.
 
-**🚀 5-Axis State Engine**  
-While others show static menus, TIT tracks WorkingTree + Timeline + Operation + Remote + Environment. Dynamic menus that match reality.
+### ✅ Zero-Surprise Guarantee
+TIT analyzes your repository state across **5 axes** (WorkingTree, Timeline, Operation, Remote, and Environment) before building the menu. If an action appears, it is mathematically guaranteed to succeed. No more `error: cannot push` after you've already committed.
 
-**⏰ Time Travel** *(Not just history viewing)*  
-Browse any commit, make changes, test them, then merge back to your branch. True exploration with zero consequences until you decide to keep changes.
+### ⏰ Fearless Time Travel
+TIT makes "detached HEAD" state useful rather than terrifying. 
+- **Explore:** Jump to any commit to view, build, or test old code in a read-only state.
+- **Experiment:** Make local changes while traveling without affecting your branch.
+- **Merge Back:** Found a fix in the past? Merge those changes directly back into your current branch with zero friction.
+
+### 🧼 Automatic "Dirty" Operations
+Stop managing stashes by hand. If you pull or time-travel with uncommitted changes, TIT automatically snapshots your work, performs the operation, and reapplies your changes on top. If conflicts occur, TIT stops and lets you resolve them immediately.
+
+### ✍🏻 Truth-Preserving History (No Rebase)
+TIT is built on the philosophy that history should be the truth, not a sanitized fiction.
+- **No Rewriting:** TIT doesn't offer rebase. We don't believe in lying to your timeline.
+- **Visual Merging:** Built-in 3-way conflict resolution handles the hard parts of merging safely and visually.
+- **Integrity:** Your history tells the story of what actually happened.
+
+---
+
+## Sophisticated Workflow, Simple UI
 
 **🔧 SSH Setup Wizard**  
-First run? TIT detects missing SSH keys and walks you through setup. Generate keys, display public key for any remote service of your choice in 30 seconds.
+TIT detects missing SSH keys on first run and walks you through generation and setup for GitHub/GitLab in 30 seconds.
 
 **🎨 Seasonal Themes**  
-5 built-in themes including Spring, Summer, Autumn, Winter. Meticulously hand picked color palette that would be a sight for sore eyes.
-```
-~/.config/tit/themes/
-
-add your own, select from config menu. shortcut / 
-```
+Visuals matter. TIT includes 5 meticulously hand-picked color palettes (Spring, Summer, Autumn, Winter) that are a sight for sore eyes.
 
 **🔍 3-Pane File History**  
-Not just "what changed"—see Commits + Files + Actual Diffs. Navigate changes instantly with cached history.
+Not just "what changed"—see the Commit list, the Files, and the Actual Diffs in one cohesive view.
 
-**⚡ Auto-Update State**  
-Background git state detection keeps TIT current. Menu updates when you switch branches, no refresh needed.
+**⚡ Live State Engine**  
+Background git state detection keeps TIT current. The menu updates automatically when you switch branches or edit files in another terminal.
 
-**💪 Conflict Resolution**  
-Built-in 3-way merge resolver. TIT will explicitly asked you to resolve immediately for any operations where conflicts might occur before even running.
-
-**🧼 Dirty Operations**
-There's no manual stash management. If you choose to pull or time travel with dirty working tree TIT will stash uncommitted changes before continue running operation, and apply that that changes back on top whatever state you currently have after operation. When conflicts occur you must resolve before continue, otherwise it will bring back your dirty tree.
-
-**✍🏻 No rebase**
-TIT doesn't write false history. TIT doesn't lie.
-
-Instead:
-- **Time travel** to explore old commits safely
-- **Merge back** to bring old ideas forward  
-- **Clean conflicts** with visual resolution
-- **Preserve truth** in your git history
-
-Your timeline should tell the story of what actually happened, not some sanitized fiction.
+---
 
 ## Get Started
+
+TIT compiles to a single static binary with zero dependencies.
 
 ```bash
 ./build.sh
@@ -65,53 +63,26 @@ Your timeline should tell the story of what actually happened, not some sanitize
 
 **Requirements:** Go 1.25+, Git, Terminal (70×30 minimum)
 
-
-## Rock 'n Roll Workflow
-
-**Start anywhere:** TIT works in any directory. Not a repo? Get init/clone options.
-
-**See what's possible:** Menu shows only actions that guaranteed to be successful.
-
-**Explore fearlessly:** Time travel lets you test ideas without commitment.
-
-**Stay current:** Auto-update keeps state fresh as you work.
-
-**Resolve conflicts:** Built-in merger handles 3-way conflicts visually.
-
-**Never get stuck:** Every operation has clear escape routes.
-
-## Navigation
-
+### Controls
 | Key | Action |
 |-----|--------|
-| `↑/k` `↓/j` | Navigate |
-| `Enter` | Execute (always works) |
-| `Tab` | Switch panes |
-| `Esc` | Back/Cancel |
+| `↑/k` `↓/j` | Navigate menus |
+| `Enter` | Execute (guaranteed success) |
+| `Tab` | Switch panes (History/Conflicts) |
+| `Esc` | Back / Cancel |
+| `Ctrl+R` | **Rewind** (Hard Reset to Commit) |
 | `Ctrl+C` | Exit (press twice) |
-| `/` | Configs |
+| `/` | Config Menu |
 
-## For Developers
+---
 
-**Built with:** Go + Bubble Tea + Lip Gloss  
-**Architecture:** State-driven Model-View-Update  
-**No dependencies:** Single static binary  
-**No config files:** State reflects git reality  
+## For Architects & Engineers
 
-**Documentation:**
-- [SPEC.md](SPEC.md) — Complete technical specification
-- [ARCHITECTURE.md](ARCHITECTURE.md) — System design (2000+ lines)
-- [CODEBASE-MAP.md](CODEBASE-MAP.md) — Navigation guide
+TIT follows a strict **Model-View-Update** architecture where the UI is a pure function of the git state.
 
-**Philosophy docs:**
-- Truth-preserving git workflows
-- 5-axis state detection engine
-- Zero-surprise menu contracts
-- Time travel implementation
-
-## License
-
-MIT — Use it, break it, fix it, ship it.
+- **[SPEC.md](SPEC.md)** — The complete technical contract.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — System design and 5-axis engine details.
+- **[CODEBASE-MAP.md](CODEBASE-MAP.md)** — Internal navigation guide.
 
 ---
 
@@ -119,7 +90,7 @@ MIT — Use it, break it, fix it, ship it.
   <img src="internal/ui/assets/tit-logo.svg" alt="TIT Logo" width="128" height="128">
 </div>
 
-**TIT: lightning in a bottle. Because git is thunder.**
+**TIT: Lightning in a bottle. Because git is thunder.**
 
 ---
 Rock 'n Roll!
