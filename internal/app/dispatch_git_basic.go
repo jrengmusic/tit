@@ -84,17 +84,32 @@ func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
 	app.dialogState.SetContext(map[string]string{})
-	msg := ConfirmationMessages["hard_reset"]
+
+	var confirmType string
+	if app.gitState.Remote == git.HasRemote {
+		confirmType = "confirm_discard_changes_remote_choice"
+	} else {
+		confirmType = "confirm_discard_changes_local"
+	}
+
+	msg := ConfirmationMessages[confirmType]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
 		Explanation: msg.Explanation,
 		YesLabel:    msg.YesLabel,
 		NoLabel:     msg.NoLabel,
-		ActionID:    "hard_reset",
+		ActionID:    confirmType,
 	}
 	dialog := ui.NewConfirmationDialog(config, a.sizing.ContentInnerWidth, &app.theme)
 	app.dialogState.Show(dialog, nil)
-	dialog.SelectNo()
+
+	// For simple discard (Yes/Cancel), select Cancel (No) by default for safety
+	// For remote choice (Local/Remote), select Local (Yes) by default
+	if confirmType == "confirm_discard_changes_local" {
+		dialog.SelectNo()
+	} else {
+		dialog.SelectYes()
+	}
 	return nil
 }
 

@@ -93,6 +93,18 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 		YesLabel:    "Rewind",
 		NoLabel:     "Cancel",
 	},
+	"confirm_discard_changes_remote_choice": {
+		Title:       "Discard Changes (Remote Available)",
+		Explanation: "You have uncommitted changes. How would you like to reset?\n\n• Reset to HEAD: Discards uncommitted changes, keeps local commits.\n• Reset to Remote: Discards EVERYTHING (commits & changes) to match remote.",
+		YesLabel:    "Reset to HEAD",
+		NoLabel:     "Reset to remote",
+	},
+	"confirm_discard_changes_local": {
+		Title:       "Discard Changes",
+		Explanation: "This will discard all uncommitted changes and untracked files.\n\nYour local commits will be preserved.\n\nContinue?",
+		YesLabel:    "Discard changes",
+		NoLabel:     "Cancel",
+	},
 }
 
 // DialogMessages centralizes dialog box content (titles + explanations)

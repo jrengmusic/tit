@@ -79,6 +79,14 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 		Confirm: (*Application).executeConfirmBranchSwitchDirty,
 		Reject:  (*Application).executeRejectBranchSwitchDirty,
 	},
+	"confirm_discard_changes_remote_choice": {
+		Confirm: (*Application).executeConfirmDiscardChangesLocal,  // YES = Reset to HEAD
+		Reject:  (*Application).executeConfirmDiscardChangesRemote, // NO = Reset to Remote
+	},
+	"confirm_discard_changes_local": {
+		Confirm: (*Application).executeConfirmDiscardChangesLocal, // YES = Discard
+		Reject:  (*Application).executeRejectHardReset,            // NO = Cancel (re-use existing cancel)
+	},
 }
 
 // handleConfirmationResponse routes confirmation YES/NO responses to appropriate handlers
@@ -110,6 +118,20 @@ func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea
 	}
 
 	return handler(a)
+}
+
+// executeConfirmDiscardChangesLocal handles YES response to local discard (Reset to HEAD)
+func (a *Application) executeConfirmDiscardChangesLocal() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
+	return a, a.cmdResetHead()
+}
+
+// executeConfirmDiscardChangesRemote handles NO response to remote choice (Reset to Remote)
+func (a *Application) executeConfirmDiscardChangesRemote() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
+	return a, a.cmdHardReset()
 }
 
 // executeConfirmNestedRepoInit handles YES response to nested repo warning

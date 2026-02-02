@@ -172,18 +172,19 @@ Please complete or abort the operation using standard git commands:
 
 **Purpose:** User is not in a git repository. Show initialization options.
 
-**Smart location dispatch:**
-- **If CWD is empty** → Show two options:
-   - 🔨 Initialize here
-   - 📥 Clone repository
-- **If CWD not empty** → Skip menu, directly dispatch to:
-   - 📥 Clone as subdirectory (only option for init/clone)
+**Menu items:**
+- ✅ Initialize repository (triggers location choice: Here or Subdirectory)
+- 📥 Clone repository (triggers location choice: Here or Subdirectory)
 
-**Why:** Can't init in non-empty directory. No single-option menus.
+**Location Choice (ModeInitializeLocation):**
+When "Initialize repository" is selected, TIT prompts:
+1. 📍 Initialize directory (current working directory)
+2. 📁 Create subdirectory (prompts for name, then initializes there)
 
-**Menu items (CWD empty):**
-- ✅ Initialize repository (CWD must be empty)
-- 📥 Clone repository
+**Clone Choice (ModeCloneLocation):**
+When "Clone repository" is selected, TIT prompts:
+1. 📍 Clone to directory (clones into current working directory)
+2. 📁 Create subdirectory (clones into new subdirectory)
 
 ### When Operation = TimeTraveling
 
@@ -229,7 +230,7 @@ Please complete or abort the operation using standard git commands:
 | State | Menu Items |
 |-------|------------|
 | `Clean` | *(no working tree actions)* |
-| `Dirty` | ✅ Commit changes<br>🚀 Commit and push |
+| `Dirty` | ✅ Commit changes<br>🚀 Commit and push<br>💥 Discard all changes |
 
 #### Timeline Sync Actions
 

@@ -526,6 +526,24 @@ The operation logic is organized into 9 focused files:
 - Easy to locate operation logic via `grep -r "cmd" op_*.go`
 - No import tracing needed (single package)
 - Consistent with Go standard library patterns
+- **Deterministic initialization:** Always offers location choice (Here vs Subdir), preventing accidental in-place initialization in non-empty directories.
+
+### Safety-First Discard Flow
+
+TIT provides a context-aware "Discard all changes" (reset --hard) flow that prioritizes data safety and local vs remote intentionality.
+
+**Workflow Logic:**
+1. **Selection:** User selects "Discard all changes" (or press Ctrl+R).
+2. **Remote Check:** TIT checks if a remote repository is configured.
+3. **Branching UI:**
+   - **If HasRemote:** Shows a 3-way choice dialog:
+     - **Reset to HEAD:** Discards uncommitted changes, preserves local commits.
+     - **Reset to Remote:** Nuclear option; discards local commits and changes to match remote.
+     - **Cancel:** Aborts operation (via ESC).
+   - **If NoRemote:** Shows a simple confirmation dialog:
+     - **Discard changes:** Discards uncommitted changes (Reset to HEAD).
+     - **Cancel:** Aborts operation (via ESC).
+4. **Execution:** Triggers `cmdResetHead()` or `cmdHardReset()` based on choice.
 
 ---
 
@@ -943,25 +961,30 @@ Row 2: 🔗 Remote/Status (80% left)      | 🌿 BRANCH (20% right, right-aligne
 
 ─── FULL-WIDTH SECTION ───
 Row 3: ──────────────────────── (separator line)
-Row 4: ✅ WORKING TREE LABEL (bold, colored)
-Row 5: Description of working tree state (indented)
+Row 4: ✅ WORKING TREE LABEL (bold, colored, includes OMP-style ● count)
+Row 5: Description of working tree state (indented, compact)
 Row 6: [Additional description line if needed]
-Row 7: 🔗 TIMELINE LABEL (bold, colored)
-Row 8: Description of timeline state (indented)
+Row 7: 🔗 TIMELINE LABEL (bold, colored, includes OMP-style arrows)
+Row 8: Description of timeline state (indented, compact)
 Row 9: [Additional description line if needed]
 ```
 
-**Actual Height:** HeaderHeight = 9 content rows (with padding: 11 total lines including top/bottom margins)
+**Compact Display Indicators (OMP-Style):**
+- **Working Tree:** `● N` (where N is the number of modified files)
+- **Timeline:**
+  - `⬆ N` (Ahead by N commits)
+  - `⬇ N` (Behind by N commits)
+  - `↕ N⬆ M⬇` (Diverged: Ahead by N, Behind by M)
 
-**Normal Operation Example (Operation = Normal, Timeline = InSync):**
+**Normal Operation Example (Operation = Normal, Timeline = Ahead):**
 ```
 📁 /Users/jreng/Documents/Poems/tit        🟢 READY
 🔗 github.com/user/repo                    🌿 main
 ─────────────────────────────────────────────────────────
-✅ CLEAN
-   Your files match the remote.
-🔗 IN SYNC
-   Local and remote are in sync.
+✅ DIRTY ● 3
+   3 file(s) modified.
+🔗 AHEAD ⬆ 2
+   2 commit(s) ahead of remote.
 ```
 
 **Time Traveling Example (Operation = TimeTraveling):**
@@ -975,24 +998,25 @@ Row 9: [Additional description line if needed]
    Mon, 7 Jan 2026 04:45:12
 ```
 
-**No Remote Example (Remote = NoRemote):**
+**Manual Detached Example (IsTitTimeTravel = false):**
 ```
-📁 /Users/jreng/Documents/Poems/tit        🟢 READY
-🔌 NO REMOTE                               🌿 main
+📁 /Users/jreng/Documents/Poems/tit        🌀 DETACHED
+🔗 github.com/user/repo                    🔀 c53233c
 ─────────────────────────────────────────────────────────
 ✅ CLEAN
    Your files match the remote.
-🔌 N/A
-   No remote configured.
+📌 COMMIT c53233c
+   Mon, 7 Jan 2026 04:45:12
 ```
 
 **Design Details:**
-- **HeaderState struct** (ui/header.go): 18 fields capturing all header display state
-- **2-column section** (rows 1-2): Fixed 80/20 split with right-aligned operation/branch
-- **Separator** (row 3): Full-width dashes, themed color
-- **Description lines**: Indented with `EmojiColumnWidth = 3` spaces for alignment
-- **Dynamic widths**: All calculations use DynamicSizing for responsive layout
-- **Color system**: Operation/WorkingTree/Timeline colors from theme (SSOT in ui/theme.go)
+- **IsTitTimeTravel flag:** Distinguishes between TIT-initiated time travel (`TIME TRAVEL` + branch name) and manual detached HEAD (`DETACHED` + commit hash).
+- **HeaderState struct** (ui/header.go): 18 fields capturing all header display state.
+- **2-column section** (rows 1-2): Fixed 80/20 split with right-aligned operation/branch.
+- **Separator** (row 3): Full-width dashes, themed color.
+- **Description lines**: Indented with `EmojiColumnWidth = 3` spaces for alignment.
+- **Dynamic widths**: All calculations use DynamicSizing for responsive layout.
+- **Color system**: Operation/WorkingTree/Timeline colors from theme (SSOT in ui/theme.go).
 
 ---
 
