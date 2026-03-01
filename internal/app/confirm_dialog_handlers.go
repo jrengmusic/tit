@@ -87,6 +87,10 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 		Confirm: (*Application).executeConfirmDiscardChangesLocal, // YES = Discard
 		Reject:  (*Application).executeRejectHardReset,            // NO = Cancel (re-use existing cancel)
 	},
+	"config_remove_remote": {
+		Confirm: (*Application).executeConfirmRemoveRemote,
+		Reject:  (*Application).executeRejectRemoveRemote,
+	},
 }
 
 // handleConfirmationResponse routes confirmation YES/NO responses to appropriate handlers
@@ -118,6 +122,19 @@ func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea
 	}
 
 	return handler(a)
+}
+
+// executeConfirmRemoveRemote handles YES response to remove remote confirmation
+func (a *Application) executeConfirmRemoveRemote() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+	a.prepareAsyncOperation(GetFooterMessageText(MessageOperationInProgress))
+	return a, a.cmdConfigRemoveRemote()
+}
+
+// executeRejectRemoveRemote handles NO response to remove remote confirmation
+func (a *Application) executeRejectRemoveRemote() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+	return a.returnToMenu()
 }
 
 // executeConfirmDiscardChangesLocal handles YES response to local discard (Reset to HEAD)

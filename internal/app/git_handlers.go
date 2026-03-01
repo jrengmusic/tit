@@ -196,6 +196,12 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		a.dialogState.Hide()
 		return a.returnToMenu()
 
+	case "config_switch_remote":
+		return a.handleAddRemote(msg)
+
+	case "config_add_remote":
+		return a.handleAddRemote(msg)
+
 	default:
 		// Default: just cleanup
 		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)

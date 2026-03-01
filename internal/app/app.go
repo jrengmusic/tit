@@ -332,6 +332,10 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 		return app.handleCommitSubmit(app)
 	case "commit_push_message":
 		return app.handleCommitPushSubmit(app)
+	case "config_switch_remote_url":
+		return app.handleConfigSwitchRemoteURLSubmit(app)
+	case "config_add_remote_url":
+		return app.handleConfigAddRemoteURLSubmit(app)
 	default:
 		return app, nil
 	}

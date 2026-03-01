@@ -105,6 +105,12 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 		YesLabel:    "Discard changes",
 		NoLabel:     "Cancel",
 	},
+	"remove_remote": {
+		Title:       "Remove Remote",
+		Explanation: "This will remove the origin remote from your repository.\n\nYou can add a new remote later.\n\nContinue?",
+		YesLabel:    "Remove",
+		NoLabel:     "Cancel",
+	},
 }
 
 // DialogMessages centralizes dialog box content (titles + explanations)
