@@ -37,6 +37,9 @@ ties/
 # TIT runtime data
 .tit/
 
+# CAROL agent framework
+carol/
+
 # Cache (OpenAI)
 .opencode/**/
 
