@@ -101,6 +101,21 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	case OpForcePush:
 		return a.handleForcePush(msg)
 
+	case OpPushSyncNeeded:
+		// Push was rejected - auto fetch+merge then push
+		return a, a.cmdPushSyncMerge()
+
+	case OpPushSyncMerge:
+		// Merge succeeded with no conflicts - push now
+		if msg.ConflictDetected {
+			return a.setupConflictResolverForPushSync(msg)
+		}
+		return a, a.cmdPushAfterSync()
+
+	case OpFinalizePushSync:
+		// Merge conflict resolved and committed - push now
+		return a, a.cmdPushAfterSync()
+
 	case OpHardReset:
 		return a.handleHardReset(msg)
 

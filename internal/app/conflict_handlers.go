@@ -209,6 +209,13 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeTimeTravelReturn()
+	} else if app.conflictResolveState.Operation == OpPushSyncMerge {
+		// Push sync conflicts resolved: commit merge then push
+		app.startAsyncOp()
+		app.mode = ModeConsole
+		app.consoleState.GetBuffer().Clear()
+		app.consoleState.Reset()
+		return app, app.cmdFinalizePushSyncMerge()
 	}
 
 	// Default: return to menu
@@ -246,6 +253,15 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 				ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
 				return app, app.cmdAbortDirtyPull()
 			}
+		} else if app.conflictResolveState.Operation == OpPushSyncMerge {
+			// Abort push sync: abort the merge, return to menu
+			// Push did not complete - user cancelled conflict resolution
+			app.startAsyncOp()
+			app.mode = ModeConsole
+			app.consoleState.GetBuffer().Clear()
+			app.consoleState.Reset()
+			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
+			return app, app.cmdAbortMerge()
 		}
 	}
 

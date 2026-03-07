@@ -42,6 +42,15 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 	return nil
 }
 
+// dispatchPushAutoSync starts auto sync push flow directly (no confirmation — not destructive)
+func (a *Application) dispatchPushAutoSync(app *Application) tea.Cmd {
+	a.startAsyncOp()
+	a.workflowState.PreviousMode = ModeMenu
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	return app.cmdPushSyncMerge()
+}
+
 // dispatchForcePush shows confirmation dialog for force push
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode // Track previous mode (Menu)

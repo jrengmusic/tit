@@ -15,8 +15,11 @@ const (
 	OpCommitPush = "commit_push"
 
 	// Push operations
-	OpPush      = "push"
-	OpForcePush = "force_push"
+	OpPush             = "push"
+	OpForcePush        = "force_push"
+	OpPushSyncNeeded   = "push_sync_needed"   // Push rejected - need to sync first
+	OpPushSyncMerge    = "push_sync_merge"    // Merging remote into local before push
+	OpFinalizePushSync = "finalize_push_sync" // Finalizing merge commit then pushing
 
 	// Pull operations
 	OpPull              = "pull"

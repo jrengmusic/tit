@@ -75,13 +75,13 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 			}
 		}
 
-		// Push
+		// Push (optimistic - no fetch first)
+		// If rejected due to divergence, OpPushSyncNeeded triggers auto fetch+merge+push
 		result = git.ExecuteWithStreaming(ctx, "push")
 		if !result.Success {
 			return GitOperationMsg{
-				Step:    OpCommitPush,
-				Success: false,
-				Error:   "Failed to push",
+				Step:    OpPushSyncNeeded,
+				Success: true, // Not a failure - triggering auto-sync flow
 			}
 		}
 

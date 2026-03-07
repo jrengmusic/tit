@@ -136,9 +136,19 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			Build(),
 	}
 
+	// Input modes where character keys must not be intercepted by global handlers
+	inputModes := map[AppMode]bool{
+		ModeInput:    true,
+		ModeCloneURL: true,
+	}
+
 	// Merge global handlers into each mode (global takes priority)
+	// Exception: skip character key "/" in input modes so it types normally
 	for mode := range modeHandlers {
 		for key, handler := range globalHandlers {
+			if inputModes[mode] && key == "/" {
+				continue
+			}
 			modeHandlers[mode][key] = handler
 		}
 	}

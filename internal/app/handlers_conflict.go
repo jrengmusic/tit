@@ -151,6 +151,12 @@ func (a *Application) setupConflictResolverForDirtyPull(msg GitOperationMsg, con
 	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
 }
 
+// setupConflictResolverForPushSync initializes conflict resolver for push sync conflicts (convenience wrapper)
+// Conflicts occur when auto-merging remote changes before push
+func (a *Application) setupConflictResolverForPushSync(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	return a.setupConflictResolver(OpPushSyncMerge, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+}
+
 // setupConflictResolverForBranchSwitch initializes conflict resolver for branch switch conflicts (convenience wrapper)
 // Conflicts occur when switching would overwrite local changes
 func (a *Application) setupConflictResolverForBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cmd) {

@@ -106,6 +106,14 @@ var MenuItems = map[string]MenuItem{
 		Hint:     "Fetch remote and merge diverged branches",
 		Enabled:  true,
 	},
+	"push_auto_sync": {
+		ID:       "push_auto_sync",
+		Shortcut: "]",
+		Emoji:    "📤",
+		Label:    "Push (auto sync)",
+		Hint:     "Merge remote changes then push — TIT handles conflicts",
+		Enabled:  true,
+	},
 
 	// History
 	"history": {
@@ -138,7 +146,7 @@ var MenuItems = map[string]MenuItem{
 	// Time traveling
 	"time_travel_history": {
 		ID:       "time_travel_history",
-		Shortcut: "l",
+		Shortcut: "h",
 		Emoji:    "🕒",
 		Label:    "History",
 		Hint:     "View commit history while time traveling",

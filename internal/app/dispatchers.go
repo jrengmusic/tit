@@ -13,6 +13,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"commit":                    a.dispatchCommit,
 		"commit_push":               a.dispatchCommitPush,
 		"push":                      a.dispatchPush,
+		"push_auto_sync":            a.dispatchPushAutoSync,
 		"force_push":                a.dispatchForcePush,
 		"pull_merge":                a.dispatchPullMerge,
 		"pull_merge_diverged":       a.dispatchPullMerge,

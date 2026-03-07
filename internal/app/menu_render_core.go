@@ -140,8 +140,9 @@ func (a *Application) menuTimeline() []MenuItem {
 				GetMenuItem("replace_local"), // Destructive option (has confirmation)
 			)
 		} else {
-			// Clean → ONLY clean pull options
+			// Clean → auto sync push + power user options
 			items = append(items,
+				GetMenuItem("push_auto_sync"),
 				GetMenuItem("pull_merge_diverged"),
 				GetMenuItem("force_push"),
 				GetMenuItem("replace_local"),
