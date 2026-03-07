@@ -109,7 +109,10 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 	// CRITICAL: Disable interactive prompts - fail fast instead of hanging
 	// This prevents git from waiting for SSH passphrase, HTTP auth, etc.
 	// User must have SSH keys or credential helpers configured
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = append(os.Environ(),
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_PROGRESS_DELAY=0", // Show progress immediately, no initial delay
+	)
 
 	// Create pipes for stdout and stderr
 	stdout, err := cmd.StdoutPipe()
@@ -137,10 +140,33 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// CRITICAL: Use io.Copy instead of scanner to avoid blocking on \r without \n
-		// Git progress sends \r (carriage return) without \n (newline)
-		io.Copy(io.Discard, stdout)
-		// Output is captured by stderr scanner - stdout from git is usually empty for clone
+		var currentLine strings.Builder
+		oneByte := make([]byte, 1)
+		for {
+			n, err := stdout.Read(oneByte)
+			if n > 0 {
+				ch := oneByte[0]
+				if ch == '\n' || ch == '\r' {
+					line := strings.TrimSpace(currentLine.String())
+					if line != "" {
+						Log(line)
+					}
+					currentLine.Reset()
+				} else {
+					currentLine.WriteByte(ch)
+				}
+			}
+			if err == io.EOF {
+				line := strings.TrimSpace(currentLine.String())
+				if line != "" {
+					Log(line)
+				}
+				break
+			}
+			if err != nil {
+				break
+			}
+		}
 	}()
 
 	// Stream stderr
@@ -180,11 +206,12 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 		}
 	}()
 
+	// Wait for all output to be read from pipes before calling Wait()
+	// CRITICAL: Must drain pipes before cmd.Wait() or output may be lost
+	wg.Wait()
+
 	// Wait for command to complete
 	err = cmd.Wait()
-
-	// Wait for all output to be read from pipes
-	wg.Wait()
 
 	// Check if context was cancelled
 	if ctx.Err() == context.Canceled {

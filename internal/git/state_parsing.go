@@ -19,9 +19,8 @@ func executeGitCommand(args ...string) (string, error) {
 func CurrentBranchExistsOnRemote() bool {
 	currentBranch, err := executeGitCommand("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		return false // Can't determine branch, assume doesn't exist on remote
+		return false
 	}
-	remoteBranch := "refs/remotes/origin/" + currentBranch
-	cmd := exec.Command("git", "rev-parse", remoteBranch)
+	cmd := exec.Command("git", "config", "--get", "branch."+currentBranch+".remote")
 	return cmd.Run() == nil
 }

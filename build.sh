@@ -19,7 +19,7 @@ SYMLINK_PATH="$SYMLINK_DIR/$APP_NAME"
 
 # Build
 echo "Building $BINARY_NAME..."
-go build -o "$BINARY_NAME" ./cmd/tit
+go build -ldflags="-s -w" -o "$BINARY_NAME" ./cmd/tit
 
 # Install
 mkdir -p "$BIN_DIR" "$SYMLINK_DIR"
