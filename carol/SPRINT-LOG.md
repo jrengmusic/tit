@@ -151,6 +151,111 @@
 
 ---
 
+## Sprint 3: Replace-Last-Line for Git Progress ✅
+
+**Date:** 2026-03-24
+**Duration:** ~20 min
+
+### Agents Participated
+- **COUNSELOR** — Requirements, delegation
+- **Engineer** — Implementation
+
+### Files Modified (4 total)
+- `internal/ui/buffer.go:49-68` — Added ReplaceLast() method to OutputBuffer
+- `internal/git/types.go:114-118` — Extended Logger interface with LogReplace, ErrorReplace
+- `internal/git/types.go:143-157` — Added package-level LogReplace(), ErrorReplace() functions
+- `internal/app/git_logger.go` — Implemented LogReplace/ErrorReplace on GitLogger (calls ReplaceLast)
+- `internal/git/execute.go:139-207` — Both streaming goroutines now track isProgressLine; \r triggers replace, \n triggers append
+
+### Alignment Check
+- [x] LIFESTAR principles followed (Lean: minimal addition, SSOT: Logger interface is single contract, Explicit Encapsulation: git signals intent, UI handles rendering)
+- [x] NAMING-CONVENTION.md adhered (ReplaceLast, LogReplace, ErrorReplace, isProgressLine)
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied
+- [x] No early returns
+- [x] Fail-fast error handling
+
+### Problems Solved
+- Git progress output (Receiving objects: X%) now updates in-place like bare terminal instead of spamming 100 lines
+
+### Technical Debt / Follow-up
+- None
+
+**Status:** ✅ APPROVED — Build clean
+
+---
+
+## Sprint 2: Transparent LFS + Console UX Fixes ✅
+
+**Date:** 2026-03-24
+**Duration:** ~2 hours
+
+### Agents Participated
+- **COUNSELOR** — Requirements analysis, plan, contract alignment, delegation
+- **Pathfinder** — Codebase discovery (state model, execute patterns, header rendering, cache flow, ESC handlers)
+- **Researcher** — Git LFS integration patterns, edge cases, failure modes
+- **Librarian** — Git progress.c source analysis, pipe buffering behavior
+- **Engineer** — Implementation (6 tasks LFS, --progress flag, cache defer)
+- **Auditor** — Contract compliance audit (found 5 critical, 3 high, 3 medium issues)
+
+### Files Modified (16 total)
+
+**LFS Feature:**
+- `internal/git/lfs.go:1-48` — NEW: IsRepoLFS(), IsLFSInstalled(), IsLFSBinaryAvailable(), SetupLFSFilters(), FetchLFSObjects(), CheckoutLFSObjects()
+- `internal/git/types.go:83-84` — Added LFS, LFSReady bool fields to State struct
+- `internal/git/types.go:130-134` — Exported warn() to Warn() for git package logging
+- `internal/git/state.go:47-51` — LFS detection in DetectState() after isRepo check
+- `internal/ui/header.go:30-31` — Added LFSLabel, LFSColor to HeaderState
+- `internal/ui/header.go:125-138` — LFS badge rendering next to version (independent styled pieces)
+- `internal/app/app_view_header.go:119-130` — LFS indicator population from State
+- `internal/app/app_constructor.go` — LFS auto-setup at startup (binary check + filter install)
+- `internal/app/environment_state.go` — Clean (lfsChecked removed after audit)
+- `internal/app/op_remote.go:49-77` — cmdFetchRemote chains git lfs fetch when LFS
+- `internal/app/op_pull.go:91-98` — cmdHardReset chains git lfs checkout when LFS
+
+**--progress Flag (9 files):**
+- `internal/app/op_clone.go` — clone --progress
+- `internal/app/op_pull.go` — pull --progress, fetch --progress
+- `internal/app/op_push.go` — push --progress, force push --progress
+- `internal/app/op_commit.go` — commit+push --progress
+- `internal/app/op_remote.go` — fetch --all --progress
+- `internal/app/op_dirty_pull_merge.go` — dirty pull --progress
+- `internal/app/op_push_sync.go` — push sync --progress
+- `internal/app/handlers_git_pull.go` — pull merge/rebase --progress
+- `internal/app/handlers_git_workflow.go` — push workflow --progress
+
+**Cache Defer:**
+- `internal/app/handlers_commit.go` — Removed invalidateHistoryCaches(), shows completion immediately
+- `internal/app/handlers_pull.go` — Removed cache invalidation from branch switch handlers
+- `internal/app/handlers_timetravel.go` — Removed cache invalidation from 3 time travel handlers
+- `internal/app/app_update_cmd.go` — Removed console completion message from handleCacheProgress
+- `internal/app/history_cache.go` — Removed all buffer.Append() from cache goroutines (silent build)
+- `internal/app/handlers_global_menu.go` — Added invalidateHistoryCaches() to ESC ModeMenu path, time-travel ESC path, and returnToMenu()
+
+**Version:**
+- `internal/constants.go:12` — v1.2.0 → v1.3.0
+
+### Alignment Check
+- [x] LIFESTAR principles followed
+- [x] NAMING-CONVENTION.md adhered (IsRepoLFS, IsLFSInstalled, IsLFSBinaryAvailable)
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied (Lean: no new axes/modes, SSOT: LFS state in DetectState, Explicit Encapsulation: lfs.go knows nothing about UI)
+- [x] No early returns (audit caught and fixed)
+- [x] Fail-fast error handling
+
+### Problems Solved
+- **LFS transparency:** Repos with LFS now auto-detect, auto-setup filters, and include LFS objects in fetch/reset. Header shows LFS status.
+- **Stale console:** git suppresses progress to pipes without --progress flag. Added flag to all 16 streaming git commands.
+- **Cache noise:** Cache goroutines raced with operation output in console. Moved cache rebuild to ESC-return-to-menu path. Cache builds silently.
+
+### Technical Debt / Follow-up
+- `op_pull.go:55` uses raw `exec.Command` instead of `git.Execute()` (pre-existing, not from this sprint)
+- `handlers_remote.go` has pre-existing early returns in handleFetchRemote
+- LFS management UI (track/untrack/prune/locks) not in scope — future feature if needed
+- DirtyOperation state path skips LFS detection (state.LFS=false) — acceptable since DirtyOperation blocks all ops
+
+**Status:** ✅ APPROVED — Build clean
+
+---
+
 <!-- Actual sprint entries go here, written by PRIMARY agents -->
 
 ---

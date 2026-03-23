@@ -115,8 +115,10 @@ type TimeTravelInfo struct {
 // Logger interface for git package to emit messages without UI dependency.
 type Logger interface {
 	Log(message string)
+	LogReplace(message string)
 	Warn(message string)
 	Error(message string)
+	ErrorReplace(message string)
 }
 
 // Package-level logger (set by application at startup)
@@ -141,10 +143,26 @@ func Log(message string) {
 	}
 }
 
+// LogReplace replaces the last info message if logger is configured.
+// Used for git progress output that overwrites the same line via \r.
+func LogReplace(message string) {
+	if packageLogger != nil {
+		packageLogger.LogReplace(message)
+	}
+}
+
 // Error emits an error message if logger is configured.
 func Error(message string) {
 	if packageLogger != nil {
 		packageLogger.Error(message)
+	}
+}
+
+// ErrorReplace replaces the last error message if logger is configured.
+// Used for git progress output that overwrites the same line via \r.
+func ErrorReplace(message string) {
+	if packageLogger != nil {
+		packageLogger.ErrorReplace(message)
 	}
 }
 

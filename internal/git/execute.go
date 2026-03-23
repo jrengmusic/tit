@@ -141,15 +141,32 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 	go func() {
 		defer wg.Done()
 		var currentLine strings.Builder
+		isProgressLine := false // Track if last output was a \r-terminated progress line
 		oneByte := make([]byte, 1)
 		for {
 			n, err := stdout.Read(oneByte)
 			if n > 0 {
 				ch := oneByte[0]
-				if ch == '\n' || ch == '\r' {
+				if ch == '\n' {
 					line := strings.TrimSpace(currentLine.String())
 					if line != "" {
-						Log(line)
+						if isProgressLine {
+							LogReplace(line)
+						} else {
+							Log(line)
+						}
+					}
+					currentLine.Reset()
+					isProgressLine = false
+				} else if ch == '\r' {
+					line := strings.TrimSpace(currentLine.String())
+					if line != "" {
+						if isProgressLine {
+							LogReplace(line)
+						} else {
+							Log(line)
+							isProgressLine = true
+						}
 					}
 					currentLine.Reset()
 				} else {
@@ -159,7 +176,11 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 			if err == io.EOF {
 				line := strings.TrimSpace(currentLine.String())
 				if line != "" {
-					Log(line)
+					if isProgressLine {
+						LogReplace(line)
+					} else {
+						Log(line)
+					}
 				}
 				break
 			}
@@ -175,17 +196,33 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 		defer wg.Done()
 		// CRITICAL: Read byte-by-byte to handle \r without \n from git progress
 		var currentLine strings.Builder
+		isProgressLine := false // Track if last output was a \r-terminated progress line
 		oneByte := make([]byte, 1)
 
 		for {
 			n, err := stderr.Read(oneByte)
 			if n > 0 {
 				ch := oneByte[0]
-				if ch == '\n' || ch == '\r' {
-					// End of line - process what we have
+				if ch == '\n' {
 					line := strings.TrimSpace(currentLine.String())
 					if line != "" {
-						Error(line)
+						if isProgressLine {
+							ErrorReplace(line)
+						} else {
+							Error(line)
+						}
+					}
+					currentLine.Reset()
+					isProgressLine = false
+				} else if ch == '\r' {
+					line := strings.TrimSpace(currentLine.String())
+					if line != "" {
+						if isProgressLine {
+							ErrorReplace(line)
+						} else {
+							Error(line)
+							isProgressLine = true
+						}
 					}
 					currentLine.Reset()
 				} else {
@@ -193,10 +230,13 @@ func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
 				}
 			}
 			if err == io.EOF {
-				// Final line (no trailing \n or \r)
 				line := strings.TrimSpace(currentLine.String())
 				if line != "" {
-					Error(line)
+					if isProgressLine {
+						ErrorReplace(line)
+					} else {
+						Error(line)
+					}
 				}
 				break
 			}

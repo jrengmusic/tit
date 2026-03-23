@@ -67,6 +67,30 @@ func (b *OutputBuffer) Append(text string, lineType OutputLineType) {
 	}
 }
 
+// ReplaceLast overwrites the last line in the buffer with new content.
+// Used for git progress output that uses \r to update the same line.
+// If buffer is empty, falls back to Append behavior.
+// Thread-safe for concurrent writes.
+func (b *OutputBuffer) ReplaceLast(text string, lineType OutputLineType) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	now := time.Now()
+	timestamp := now.Format("15:04:05")
+
+	line := OutputLine{
+		Time: timestamp,
+		Type: lineType,
+		Text: text,
+	}
+
+	if len(b.lines) > 0 {
+		b.lines[len(b.lines)-1] = line
+	} else {
+		b.lines = append(b.lines, line)
+	}
+}
+
 // GetLines returns a slice of lines from startIdx to startIdx+count
 // Thread-safe for concurrent reads
 func (b *OutputBuffer) GetLines(startIdx, count int) []OutputLine {
