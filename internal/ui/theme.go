@@ -66,6 +66,10 @@ type Theme struct {
 	DiffAddedLineColor   string
 	DiffRemovedLineColor string
 
+	// Copy Hash Mode Colors
+	CopyHashLabelForeground string
+	CopyHashLabelBackground string
+
 	// Console Output Colors
 	OutputStdoutColor  string
 	OutputStderrColor  string

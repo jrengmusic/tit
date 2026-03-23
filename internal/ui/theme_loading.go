@@ -77,6 +77,10 @@ type ThemeDefinition struct {
 		DiffAddedLineColor   string `toml:"diffAddedLineColor"`
 		DiffRemovedLineColor string `toml:"diffRemovedLineColor"`
 
+		// Copy Hash Mode Colors
+		CopyHashLabelForeground string `toml:"copyHashLabelForeground"`
+		CopyHashLabelBackground string `toml:"copyHashLabelBackground"`
+
 		// Console Output Colors
 		OutputStdoutColor  string `toml:"outputStdoutColor"`
 		OutputStderrColor  string `toml:"outputStderrColor"`
@@ -163,6 +167,10 @@ func LoadTheme(themeFilePath string) (Theme, error) {
 		// Diff Colors
 		DiffAddedLineColor:   themeDef.Palette.DiffAddedLineColor,
 		DiffRemovedLineColor: themeDef.Palette.DiffRemovedLineColor,
+
+		// Copy Hash Mode Colors
+		CopyHashLabelForeground: themeDef.Palette.CopyHashLabelForeground,
+		CopyHashLabelBackground: themeDef.Palette.CopyHashLabelBackground,
 
 		// Console Output Colors
 		OutputStdoutColor:  themeDef.Palette.OutputStdoutColor,

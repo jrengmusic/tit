@@ -77,8 +77,10 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("j", a.handleHistoryDown).
 			On("tab", a.handleHistoryTab).
 			On("enter", a.handleHistoryEnter).
+			On("y", a.handleHistoryCopyHashEnter).
+			On("Y", a.handleHistoryCopyHashFullEnter).
 			On("ctrl+r", a.handleHistoryRewind).
-			On("esc", a.handleHistoryEsc).
+			On("esc", a.handleHistoryCopyHashEsc).
 			Build(),
 		ModeFileHistory: NewModeHandlers().
 			On("up", a.handleFileHistoryUp).

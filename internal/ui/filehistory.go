@@ -83,7 +83,7 @@ func renderFileHistoryCommitsPane(state *FileHistoryState, theme Theme, width, h
 	listPane := NewListPane("Commits", &theme)
 
 	// Build list items from actual commits using shared utility
-	items := buildCommitListItems(state.Commits, state.SelectedCommitIdx, theme)
+	items := buildCommitListItems(state.Commits, state.SelectedCommitIdx, theme, nil)
 
 	visibleLines := height - 2
 	if visibleLines < 1 {

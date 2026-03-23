@@ -66,6 +66,9 @@ func (a *Application) getFooterHintKey() string {
 		return "menu"
 
 	case ModeHistory:
+		if a.pickerState.History != nil && a.pickerState.History.CopyHashMode {
+			return "history_copyhash"
+		}
 		if a.pickerState.History.PaneFocused {
 			return "history_list"
 		}

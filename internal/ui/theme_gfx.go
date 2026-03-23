@@ -69,6 +69,10 @@ spinnerColor = "#00FFFF"              # electric cyan
 diffAddedLineColor = "#5A9C7A"        # muted green
 diffRemovedLineColor = "#B07070"      # muted red
 
+# Copy Hash Mode
+copyHashLabelForeground = "#090D12"   # bunker (dark contrast)
+copyHashLabelBackground = "#01C2D2"   # caribbeanBlue (bright accent)
+
 # Console Output Colors
 outputStdoutColor = "#999999"         # neutral gray
 outputStderrColor = "#FC704C"         # preciousPersimmon

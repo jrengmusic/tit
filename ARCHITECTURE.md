@@ -795,7 +795,7 @@ Terminal displays result
 | **ModeInput** | Generic text input | Cursor nav + character input | No | **DEPRECATED** - being phased out in favor of dedicated modes |
 | **ModeConsole** | Streaming git command output | Console scroll (↑↓/PgUp/PgDn), ESC abort | Yes | Shows progress indicator during async operations |
 | **ModeConfirmation** | Yes/No confirmation dialog | left/right/h/l/y/n/enter | No | For destructive operations (nested repo, force push, etc) |
-| **ModeHistory** | Commit history browser (2-pane) | ↑↓ nav, TAB pane, ENTER time travel, ESC menu | No | Commits (left, 24 chars) + Details (right) |
+| **ModeHistory** | Commit history browser (2-pane) | ↑↓ nav, TAB pane, ENTER time travel, y/Y copy hash, ESC menu | No | Commits (left, 24 chars) + Details (right) |
 | **ModeConflictResolve** | N-column parallel conflict resolution | ↑↓ scroll, TAB cycle panes, SPACE mark, ENTER apply | No | Used for merge, dirty pull, time travel conflicts |
 | **ModeInitializeLocation** | Choose init location (cwd/subdir) | Menu selection | No | First step of init flow |
 | **ModeInitializeBranches** | Dual input for canon + working branch | Text input (canon pre-filled 'main') | No | Second step of init flow |
@@ -3032,6 +3032,32 @@ ModeMenu + updated state
 - `git.ResetHardAtCommit(commitHash)` executes reset
 - OutputBuffer streams git output in real-time
 - RewindMsg handler refreshes git state and regenerates menu
+
+## Copy Hash Mode (History Panel)
+
+**Entry Point:** Press `y` (short hash) or `Y` (full hash) in History list pane.
+
+**Behavior:**
+- Activates `CopyHashMode` sub-state on `HistoryState` (not a separate `AppMode`)
+- For each visible commit (up to 10), computes a unique character from its shortened hash
+- Algorithm: for each commit, find the first char position (0-6) where that char is unique among all visible commits
+- The unique char is highlighted with `CopyHashLabelForeground`/`CopyHashLabelBackground` theme colors
+- Selection highlight is disabled during CopyHashMode
+- All navigation keys (j/k/up/down/tab/enter) are blocked
+
+**Key Handling:**
+- Hex char `[0-9a-f]` matching a visible commit's key → copies hash to clipboard → exits mode
+- `y` copies short hash (7 chars), `Y` copies full 40-char hash (hidden feature, not in footer)
+- `ESC` exits CopyHashMode without copying
+- Non-matching hex chars are consumed silently (stay in mode)
+
+**Implementation:**
+- `ui.HistoryState.CopyHashMode` / `CopyHashFull` — sub-state flags
+- `ui.ComputeCopyHashKeys()` — computes unique char labels at render time
+- `ui.ListItem.CopyHashChar/CharPos/Fg/Bg` — per-item flash char rendering
+- `app.handleHistoryCopyHashKeypress()` — pre-dispatch intercept in `Update()` (blocks all keys except ESC)
+- `app.handleKeyESC()` — global ESC handler checks CopyHashMode first
+- Clipboard via `github.com/atotto/clipboard` (existing dependency)
 
 ## Related Documentation
 

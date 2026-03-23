@@ -66,8 +66,13 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 	"history_list": {
 		{Key: "↑↓", Desc: "navigate"},
 		{Key: "Enter", Desc: "time travel"},
+		{Key: "y", Desc: "copy hash"},
 		{Key: "Tab", Desc: "details"},
 		{Key: "Esc", Desc: "back"},
+	},
+	"history_copyhash": {
+		{Key: "a-f/0-9", Desc: "copy highlighted"},
+		{Key: "Esc", Desc: "cancel"},
 	},
 	"history_details": {
 		{Key: "↑↓", Desc: "scroll"},

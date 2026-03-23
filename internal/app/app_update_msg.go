@@ -106,6 +106,11 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 
+		// CopyHashMode intercept: consume hex char keypresses before normal dispatch
+		if handled, model, cmd := a.handleHistoryCopyHashKeypress(keyStr); handled {
+			return model, cmd
+		}
+
 		// Look up handler in cached registry
 		if modeHandlers, modeExists := a.keyHandlers[a.mode]; modeExists {
 			if handler, exists := modeHandlers[keyStr]; exists {

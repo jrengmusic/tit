@@ -24,6 +24,12 @@ type ListItem struct {
 	ContentColor   string // Color for content when not selected (hex color code)
 	ContentBold    bool   // Whether content should be bold when not selected
 	IsSelected     bool   // True if this item is currently selected
+
+	// Copy Hash Mode flash label fields — zero value = inactive
+	CopyHashChar    rune   // If non-zero, this char is highlighted within ContentText
+	CopyHashCharPos int    // Position of the char within ContentText
+	CopyHashFg      string // Foreground color for the highlighted char
+	CopyHashBg      string // Background color for the highlighted char
 }
 
 // NewListPane creates a new ListPane instance with the given title and theme
@@ -251,7 +257,25 @@ func (lp *ListPane) renderItem(item ListItem, width int, isActive bool) string {
 			Bold(item.ContentBold).
 			Width(contentWidth)
 	}
-	styledContent := contentStyle.Render(item.ContentText)
+	var styledContent string
+	if item.CopyHashChar != 0 && item.CopyHashCharPos < len(item.ContentText) {
+		before := item.ContentText[:item.CopyHashCharPos]
+		flashChar := string(item.ContentText[item.CopyHashCharPos])
+		after := item.ContentText[item.CopyHashCharPos+1:]
+
+		beforeStyled := contentStyle.UnsetWidth().Render(before)
+		flashStyled := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(item.CopyHashFg)).
+			Background(lipgloss.Color(item.CopyHashBg)).
+			Bold(true).
+			Render(flashChar)
+		afterStyled := contentStyle.UnsetWidth().Render(after)
+
+		combined := beforeStyled + flashStyled + afterStyled
+		styledContent = lipgloss.NewStyle().Width(contentWidth).Render(combined)
+	} else {
+		styledContent = contentStyle.Render(item.ContentText)
+	}
 
 	// Combine attribute + space + content
 	if item.AttributeText != "" {

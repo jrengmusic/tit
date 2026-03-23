@@ -69,6 +69,10 @@ spinnerColor = "#00FFFF"              # electric cyan
 diffAddedLineColor = "#5BCF90"        # emerald (added)
 diffRemovedLineColor = "#FD5B68"      # wildWatermelon (removed)
 
+# Copy Hash Mode
+copyHashLabelForeground = "#323B9E"   # sapphire (dark contrast)
+copyHashLabelBackground = "#FEEA85"   # salomie (bright yellow)
+
 # Console Output Colors
 outputStdoutColor = "#999999"         # neutral gray
 outputStderrColor = "#FD5B68"         # wildWatermelon
@@ -146,6 +150,10 @@ spinnerColor = "#00FFFF"              # electric cyan
 # Diff Colors
 diffAddedLineColor = "#19E5FF"        # cyan (added)
 diffRemovedLineColor = "#FF3469"      # radicalRed (removed)
+
+# Copy Hash Mode
+copyHashLabelForeground = "#000000"   # black (maximum contrast)
+copyHashLabelBackground = "#FFBF16"   # lightningYellow (electric accent)
 
 # Console Output Colors
 outputStdoutColor = "#999999"         # neutral gray
@@ -225,6 +233,10 @@ spinnerColor = "#00FFFF"              # electric cyan
 diffAddedLineColor = "#F5BB09"        # corn (added)
 diffRemovedLineColor = "#DC3003"      # grenadier (removed)
 
+# Copy Hash Mode
+copyHashLabelForeground = "#3E0338"   # jacaranda (darkest contrast)
+copyHashLabelBackground = "#F5BB09"   # corn (gold — high visibility)
+
 # Console Output Colors
 outputStdoutColor = "#999999"         # neutral gray
 outputStderrColor = "#DC3003"         # grenadier
@@ -302,6 +314,10 @@ spinnerColor = "#00FFFF"              # electric cyan
 # Diff Colors
 diffAddedLineColor = "#6281DC"        # havelockBlue (added)
 diffRemovedLineColor = "#E0BACF"      # melanie (removed)
+
+# Copy Hash Mode
+copyHashLabelForeground = "#233253"   # cloudBurst (dark background contrast)
+copyHashLabelBackground = "#F6F5FA"   # whisper (bright white)
 
 # Console Output Colors
 outputStdoutColor = "#999999"         # neutral gray

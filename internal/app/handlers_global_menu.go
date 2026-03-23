@@ -13,6 +13,13 @@ import (
 // SSOT: ESC returns to previousMode (Menu mode quits app)
 // Special cases: Conflict resolver (delegate), Console with async (block), Input (confirm clear)
 func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
+	// History CopyHashMode: exit mode, stay in history
+	if a.mode == ModeHistory && a.pickerState.History != nil && a.pickerState.History.CopyHashMode {
+		a.pickerState.History.CopyHashMode = false
+		a.footerHint = ""
+		return a, nil
+	}
+
 	// Conflict resolver mode: delegate to conflict-specific handler
 	if a.mode == ModeConflictResolve {
 		return a.handleConflictEsc(app)

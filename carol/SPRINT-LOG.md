@@ -151,6 +151,59 @@
 
 ---
 
+## Sprint 4: Copy Hash Mode in History Panel ✅
+
+**Date:** 2026-03-24
+**Duration:** ~1 hour
+
+### Agents Participated
+- **COUNSELOR** — Requirements, plan, contract alignment, delegation
+- **Pathfinder** — History panel rendering, key dispatch, listpane, footer patterns
+- **Engineer** — Implementation
+
+### Files Modified (14 total)
+- `internal/ui/theme.go:70-71` — Added CopyHashLabelForeground/Background to Theme struct
+- `internal/ui/theme_gfx.go:72-74` — Added copyHashLabel colors to GFX (default) theme
+- `internal/ui/theme_seasons.go` — Added copyHashLabel colors to all 4 seasonal themes
+- `internal/ui/theme_loading.go:81-82,172-173` — TOML mapping for new theme fields
+- `internal/ui/history.go:21-22` — Added CopyHashMode/CopyHashFull to HistoryState
+- `internal/ui/history.go:24-89` — NEW: CopyHashKey struct, ComputeCopyHashKeys algorithm, constants
+- `internal/ui/history.go:130-158` — buildCommitListItems accepts copyHashKeys, disables selection in CopyHashMode
+- `internal/ui/listpane.go:28-31` — Added CopyHashChar/CharPos/Fg/Bg to ListItem
+- `internal/ui/listpane.go:261-276` — renderItem highlights flash char with theme fg/bg
+- `internal/ui/filehistory.go` — Updated buildCommitListItems call with nil keys
+- `internal/app/handlers_history_copyhash.go:1-98` — NEW: enter, enter-full, esc, keypress handlers
+- `internal/app/app_keys.go:80-81,83` — Registered y, Y, rewired esc to CopyHashMode-aware handler
+- `internal/app/app_update_msg.go:109-112` — CopyHashMode key intercept before normal dispatch
+- `internal/app/handlers_global_menu.go:17-21` — CopyHashMode ESC check in global handleKeyESC
+- `internal/app/messages_menu.go` — Added y shortcut to history_list, new history_copyhash entry
+- `internal/app/footer.go:69-71` — CopyHashMode footer hint key routing
+- `ARCHITECTURE.md` — Documented Copy Hash Mode section
+
+### Alignment Check
+- [x] LIFESTAR principles followed (Lean: sub-state not new AppMode, SSOT: theme colors, Explicit Encapsulation: ui computes keys, app handles clipboard)
+- [x] NAMING-CONVENTION.md adhered (CopyHashMode, CopyHashKey, ComputeCopyHashKeys, CopyHashFull)
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied
+- [x] No early returns
+- [x] Fail-fast error handling
+
+### Problems Solved
+- Copy commit hash from History panel via flash/jump-style unique char labels
+- y = short hash (7 chars, for communication), Y = full hash (40 chars, hidden power feature)
+- Selection highlight and navigation disabled during mode — clean modal UX
+
+### Bugs Fixed During Sprint
+- GFX (default) theme missing copyHashLabel fields — labels invisible
+- ESC blocked by CopyHashMode key intercept (len("esc")==3 returned true) — fixed to pass through
+- Global ESC handler overrides mode-specific handler — added CopyHashMode check to handleKeyESC
+
+### Technical Debt / Follow-up
+- handleHistoryCopyHashKeypress recomputes ListPane scroll state to match renderer — coupling between key handler and render logic
+
+**Status:** ✅ APPROVED — Build clean
+
+---
+
 ## Sprint 3: Replace-Last-Line for Git Progress ✅
 
 **Date:** 2026-03-24
