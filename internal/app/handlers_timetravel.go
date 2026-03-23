@@ -44,17 +44,14 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	a.endAsyncOp()
 	a.setExitAllowed(true)
 
-	// CONTRACT: Rebuild cache for new detached HEAD state (history always ready)
-	// Don't show messages here - cache functions will show progress
-	// Final "Time travel successful" message shown after cache completes
-	a.cacheManager.SetLoadingStarted(true)
-	cacheCmd := a.invalidateHistoryCaches()
+	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
 
 	// STAY IN CONSOLE - Let user see output and press ESC to return to menu
 	// Mode remains ModeConsole, git state is now Operation = TimeTraveling
 	// ESC handler will detect this and show time travel menu
 
-	return a, cacheCmd
+	return a, nil
 }
 
 // handleTimeTravelMerge handles git.TimeTravelMergeMsg
@@ -125,17 +122,10 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	a.endAsyncOp()
 	a.setExitAllowed(true)
 
-	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
-	// Cache was built from detached HEAD during time travel, need full branch history
-	var cacheCmd tea.Cmd
-	if a.gitState.Operation == git.Normal {
-		a.cacheManager.SetLoadingStarted(true)
-		cacheCmd = a.invalidateHistoryCaches()
-	}
+	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
 
-	// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
-
-	return a, cacheCmd
+	return a, nil
 }
 
 // handleTimeTravelReturn handles git.TimeTravelReturnMsg
@@ -199,17 +189,10 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	// CRITICAL: Assign detected state to a.gitState (was local variable only!)
 	a.gitState = state
 
-	// CONTRACT: ALWAYS rebuild cache when exiting time travel (merge or return)
-	// Cache was built from detached HEAD during time travel, need full branch history
-	var cacheCmd tea.Cmd
-	if state.Operation == git.Normal {
-		a.cacheManager.SetLoadingStarted(true)
-		cacheCmd = a.invalidateHistoryCaches()
-	}
+	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
 
-	// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
-
-	return a, cacheCmd
+	return a, nil
 }
 
 // handleFinalizeTravelMerge handles OpFinalizeTravelMerge

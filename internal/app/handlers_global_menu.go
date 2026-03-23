@@ -102,11 +102,14 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		app.selectedIndex = 0
 		app.footerHint = menu[0].Hint
 		app.rebuildMenuShortcuts(ModeMenu)
-		return a, nil
+		cacheCmd := app.invalidateHistoryCaches()
+		return a, cacheCmd
 	}
 
 	// All other modes: return to previousMode and regenerate menu
 	app.mode = app.workflowState.PreviousMode
+
+	var cmd tea.Cmd
 
 	// Regenerate menu based on new mode
 	switch app.mode {
@@ -123,6 +126,8 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 			}
 		}
 		app.rebuildMenuShortcuts(ModeMenu)
+		// Rebuild history caches (deferred from operation completion to avoid console noise)
+		cmd = app.invalidateHistoryCaches()
 	case ModeConfig:
 		app.workflowState.PreviousMode = ModeMenu // Config always returns to menu on next ESC
 		app.menuItems = app.GenerateConfigMenu()
@@ -143,7 +148,7 @@ func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
 		app.rebuildMenuShortcuts(app.mode)
 	}
 
-	return app, nil
+	return app, cmd
 }
 
 // dismissConfirmationDialog dismisses confirmation dialog and returns to previous mode
@@ -208,6 +213,6 @@ func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	// Rebuild shortcuts for new menu
 	a.rebuildMenuShortcuts(ModeMenu)
 
-	// Restart auto-update when returning to menu
-	return a, a.startAutoUpdate()
+	// Restart auto-update when returning to menu and rebuild history caches
+	return a, tea.Batch(a.startAutoUpdate(), a.invalidateHistoryCaches())
 }

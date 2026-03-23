@@ -77,7 +77,7 @@ func (a *Application) cmdCommitPush(message string) tea.Cmd {
 
 		// Push (optimistic - no fetch first)
 		// If rejected due to divergence, OpPushSyncNeeded triggers auto fetch+merge+push
-		result = git.ExecuteWithStreaming(ctx, "push")
+		result = git.ExecuteWithStreaming(ctx, "push", "--progress")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpPushSyncNeeded,

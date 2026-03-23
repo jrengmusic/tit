@@ -177,7 +177,7 @@ func (a *Application) cmdPushWorkflow() tea.Cmd {
 	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
-		result := git.ExecuteWithStreaming(ctx, "push")
+		result := git.ExecuteWithStreaming(ctx, "push", "--progress")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    "push",

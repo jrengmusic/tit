@@ -45,8 +45,6 @@ func ParseDiffCacheKey(key string) (hash, filepath, version string, err error) {
 // Call via: return app.cmdPreloadHistoryMetadata()
 func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 	workerCmd := func() tea.Msg {
-		buffer := ui.GetBuffer()
-
 		// Determine git ref to log from
 		// During time travel: use original branch to show full history
 		// Otherwise: use HEAD (current position)
@@ -55,7 +53,6 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 			originalBranch, _, err := git.GetTimeTravelInfo()
 			if err == nil && originalBranch != "" {
 				ref = originalBranch
-				buffer.Append(fmt.Sprintf("Building history cache from branch %s...", ref), ui.TypeStatus)
 			}
 		}
 
@@ -66,7 +63,6 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 			a.cacheManager.SetMetadataReady(true)
 			a.cacheManager.SetMetadataProgress(0, 0)
 
-			buffer.Append("History cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
 				CacheType: CacheTypeMetadata,
 				Current:   0,
@@ -94,7 +90,6 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 		// Mark cache as complete
 		a.cacheManager.SetMetadataReady(true)
 
-		buffer.Append(fmt.Sprintf("History metadata cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
 			CacheType: CacheTypeMetadata,
 			Current:   len(commits),
@@ -117,8 +112,6 @@ func (a *Application) cmdPreloadHistoryMetadata() tea.Cmd {
 // Call via: return app.cmdPreloadFileHistoryDiffs()
 func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 	workerCmd := func() tea.Msg {
-		buffer := ui.GetBuffer()
-
 		// Determine git ref to log from (same logic as metadata cache)
 		ref := ""
 		if a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
@@ -135,7 +128,6 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 			a.cacheManager.SetDiffsReady(true)
 			a.cacheManager.SetDiffsProgress(0, 0)
 
-			buffer.Append("File history cache build complete (no commits)", ui.TypeStatus)
 			return CacheProgressMsg{
 				CacheType: CacheTypeDiffs,
 				Current:   0,
@@ -190,7 +182,6 @@ func (a *Application) cmdPreloadFileHistoryDiffs() tea.Cmd {
 		// Mark cache as complete
 		a.cacheManager.SetDiffsReady(true)
 
-		buffer.Append(fmt.Sprintf("File history cache complete (%d commits)", len(commits)), ui.TypeStatus)
 		return CacheProgressMsg{
 			CacheType: CacheTypeDiffs,
 			Current:   len(commits),

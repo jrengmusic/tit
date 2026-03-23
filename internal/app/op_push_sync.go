@@ -18,7 +18,7 @@ func (a *Application) cmdPushSyncMerge() tea.Cmd {
 		buffer := ui.GetBuffer()
 		buffer.Append("Remote has new commits - syncing before push...", ui.TypeInfo)
 
-		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase", "--progress")
 		if !result.Success {
 			if msg := a.checkForConflicts(OpPushSyncMerge, true); msg != nil {
 				buffer.Append("Conflicts detected - opening resolver...", ui.TypeWarning)
@@ -86,9 +86,9 @@ func (a *Application) cmdPushAfterSync() tea.Cmd {
 	return func() tea.Msg {
 		var result git.CommandResult
 		if !hasUpstream {
-			result = git.ExecuteWithStreaming(ctx, "push", "-u", "origin", branch)
+			result = git.ExecuteWithStreaming(ctx, "push", "--progress", "-u", "origin", branch)
 		} else {
-			result = git.ExecuteWithStreaming(ctx, "push")
+			result = git.ExecuteWithStreaming(ctx, "push", "--progress")
 		}
 		if !result.Success {
 			return GitOperationMsg{

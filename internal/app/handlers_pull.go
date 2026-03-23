@@ -91,11 +91,6 @@ func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cm
 		return a, nil
 	}
 
-	// CRITICAL: Invalidate history cache when switching branches
-	// Cache was built for previous branch, needs rebuild for new branch
-	a.cacheManager.SetLoadingStarted(true)
-	cacheCmd := a.invalidateHistoryCaches()
-
 	// Regenerate menu with new branch state
 	menu := a.GenerateMenu()
 	a.menuItems = menu
@@ -106,7 +101,7 @@ func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cm
 	a.endAsyncOp()
 	a.mode = ModeConsole // Stay in console so user sees the success message
 
-	return a, cacheCmd
+	return a, nil
 }
 
 // handleFinalizeBranchSwitch handles finalize_branch_switch step
@@ -123,10 +118,6 @@ func (a *Application) handleFinalizeBranchSwitch(msg GitOperationMsg) (tea.Model
 		return a, nil
 	}
 
-	// CRITICAL: Invalidate history cache when switching branches
-	a.cacheManager.SetLoadingStarted(true)
-	cacheCmd := a.invalidateHistoryCaches()
-
 	// Regenerate menu with new branch state
 	menu := a.GenerateMenu()
 	a.menuItems = menu
@@ -140,5 +131,5 @@ func (a *Application) handleFinalizeBranchSwitch(msg GitOperationMsg) (tea.Model
 	a.conflictResolveState = nil
 	a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 
-	return a, cacheCmd
+	return a, nil
 }

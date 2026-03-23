@@ -20,7 +20,7 @@ func (a *Application) cmdPull() tea.Cmd {
 		buffer.Clear()
 
 		// Pull with explicit --no-rebase to merge (required for diverged branches)
-		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase", "--progress")
 
 		if !result.Success {
 			// Check if we're in a conflicted state (more reliable than parsing stderr)
@@ -67,7 +67,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		buffer.Append("Fetching and resetting to remote state...", ui.TypeInfo)
 
 		// Fetch first to ensure we have latest remote state
-		fetchResult := git.ExecuteWithStreaming(ctx, "fetch", "origin")
+		fetchResult := git.ExecuteWithStreaming(ctx, "fetch", "--progress", "origin")
 		if !fetchResult.Success {
 			buffer.Append("Warning: fetch failed, using local remote refs", ui.TypeWarning)
 		}

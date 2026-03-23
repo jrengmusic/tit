@@ -18,9 +18,9 @@ func (a *Application) cmdPush() tea.Cmd {
 	return func() tea.Msg {
 		var result git.CommandResult
 		if !hasUpstream {
-			result = git.ExecuteWithStreaming(ctx, "push", "-u", "origin", branch)
+			result = git.ExecuteWithStreaming(ctx, "push", "--progress", "-u", "origin", branch)
 		} else {
-			result = git.ExecuteWithStreaming(ctx, "push")
+			result = git.ExecuteWithStreaming(ctx, "push", "--progress")
 		}
 		if !result.Success {
 			// Push rejected - trigger auto sync flow
@@ -40,7 +40,7 @@ func (a *Application) cmdPush() tea.Cmd {
 // Uses -u origin <branch> when no upstream tracking is set (first push to bare remote).
 func (a *Application) cmdForcePush() tea.Cmd {
 	if !a.gitState.LocalBranchOnRemote {
-		return a.executeGitOp(OpForcePush, "push", "-u", "origin", a.gitState.CurrentBranch, "--force")
+		return a.executeGitOp(OpForcePush, "push", "--progress", "-u", "origin", a.gitState.CurrentBranch, "--force")
 	}
-	return a.executeGitOp(OpForcePush, "push", "--force")
+	return a.executeGitOp(OpForcePush, "push", "--progress", "--force")
 }

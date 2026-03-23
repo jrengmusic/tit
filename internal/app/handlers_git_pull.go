@@ -17,7 +17,7 @@ func (a *Application) cmdPullMergeWorkflow() tea.Cmd {
 	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
-		result := git.ExecuteWithStreaming(ctx, "pull")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--progress")
 		if !result.Success {
 			// Check if conflict occurred
 			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stdout, "CONFLICT") {
@@ -48,7 +48,7 @@ func (a *Application) cmdPullRebaseWorkflow() tea.Cmd {
 	a.cancelContext = cancel
 	return func() tea.Msg {
 		// WORKER THREAD - Never touch Application
-		result := git.ExecuteWithStreaming(ctx, "pull", "--rebase")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--rebase", "--progress")
 		if !result.Success {
 			// Check if conflict occurred
 			if strings.Contains(result.Stderr, "CONFLICT") || strings.Contains(result.Stdout, "CONFLICT") {

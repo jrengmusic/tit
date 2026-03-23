@@ -18,7 +18,7 @@ func (a *Application) cmdDirtyPullMerge() tea.Cmd {
 		buffer := ui.GetBuffer()
 		buffer.Append(OutputMessages["dirty_pull_merge_started"], ui.TypeInfo)
 
-		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase")
+		result := git.ExecuteWithStreaming(ctx, "pull", "--no-rebase", "--progress")
 		if !result.Success {
 			// Check if we're in a conflicted state (more reliable than parsing stderr)
 			// This detects merge conflicts by checking git state (.git/MERGE_HEAD + unmerged files)

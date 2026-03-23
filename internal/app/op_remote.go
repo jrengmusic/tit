@@ -51,7 +51,7 @@ func (a *Application) cmdFetchRemote() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancelContext = cancel
 	return func() tea.Msg {
-		result := git.ExecuteWithStreaming(ctx, "fetch", "--all")
+		result := git.ExecuteWithStreaming(ctx, "fetch", "--all", "--progress")
 		if !result.Success {
 			return GitOperationMsg{
 				Step:    OpFetchRemote,

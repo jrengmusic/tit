@@ -1,9 +1,6 @@
 package app
 
 import (
-	"tit/internal/git"
-	"tit/internal/ui"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -28,23 +25,6 @@ func (a *Application) handleCacheProgress(msg CacheProgressMsg) (tea.Model, tea.
 			a.rebuildMenuShortcuts(ModeMenu)
 		}
 
-		// Check if BOTH caches are now complete (for time travel success message)
-		metadataReady := a.cacheManager.IsMetadataReady()
-		diffsReady := a.cacheManager.IsDiffsReady()
-
-		// If both caches complete AND in console mode after async operation finished,
-		// show "Press ESC to return to menu" message
-		if metadataReady && diffsReady && a.mode == ModeConsole && !a.isAsyncActive() {
-			buffer := ui.GetBuffer()
-
-			// Check if this is time travel mode (handled separately)
-			if a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
-				buffer.Append(ConsoleMessages["time_travel_success"], ui.TypeStatus)
-			} else {
-				// Regular operation (commit, push, etc.) - show completion message
-				buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-			}
-		}
 	}
 
 	return a, nil

@@ -19,15 +19,11 @@ func (a *Application) handleCommitPush(msg GitOperationMsg) (tea.Model, tea.Cmd)
 		return a, nil
 	}
 
-	// CONTRACT: Rebuild cache before showing completion (commit changes history)
-	cacheCmd := a.invalidateHistoryCaches()
-
+	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
 	a.endAsyncOp()
 
-	// NOTE: "Press ESC..." message is appended in handleCacheProgress after cache completes
-	// This ensures cache messages appear before "Press ESC to return to menu"
-
-	return a, cacheCmd
+	return a, nil
 }
 
 // handleForcePush handles OpForcePush
