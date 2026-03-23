@@ -80,6 +80,8 @@ type State struct {
 	LocalBranchOnRemote bool // Whether current branch exists on remote
 	Detached            bool // HEAD is detached (not on any branch)
 	IsTitTimeTravel     bool // True if detached HEAD was caused by TIT time travel
+	LFS                 bool // Repo has .gitattributes with filter=lfs
+	LFSReady            bool // git-lfs binary installed AND filters registered
 }
 
 // CommitInfo contains basic information about a commit (for list display)
@@ -125,8 +127,8 @@ func SetLogger(l Logger) {
 	packageLogger = l
 }
 
-// warn emits a warning if logger is configured.
-func warn(message string) {
+// Warn emits a warning if logger is configured.
+func Warn(message string) {
 	if packageLogger != nil {
 		packageLogger.Warn(message)
 	}

@@ -88,6 +88,15 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			buffer.Append("Warning: Failed to clean untracked files", ui.TypeWarning)
 		}
 
+		// LFS: materialize pointer files after reset
+		if a.gitState != nil && a.gitState.LFS {
+			git.Log("Checking out LFS objects...")
+			lfsResult := git.CheckoutLFSObjects(ctx)
+			if !lfsResult.Success {
+				git.Warn("LFS checkout warning: " + lfsResult.Stderr)
+			}
+		}
+
 		return GitOperationMsg{
 			Step:    OpHardReset,
 			Success: true,

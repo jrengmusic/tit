@@ -44,6 +44,12 @@ func DetectState() (*State, error) {
 		}, nil
 	}
 
+	// Detect LFS usage (cheap file read + one subprocess if LFS present)
+	state.LFS = IsRepoLFS()
+	if state.LFS {
+		state.LFSReady = IsLFSInstalled()
+	}
+
 	// Check if repo has any commits yet
 	hash, err := executeGitCommand("rev-parse", "HEAD")
 	hasCommits := err == nil && hash != ""

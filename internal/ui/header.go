@@ -27,8 +27,10 @@ type HeaderState struct {
 	TimelineLabel    string
 	TimelineDesc     []string
 	TimelineColor    string
-	SyncInProgress   bool // True when timeline sync is running
-	SyncFrame        int  // Animation frame for spinner
+	SyncInProgress   bool   // True when timeline sync is running
+	SyncFrame        int    // Animation frame for spinner
+	LFSLabel         string // "LFS", "LFS ⚠", or "" (empty = no LFS in repo)
+	LFSColor         string // Color for LFS badge
 }
 
 // TimelineSyncSpinner returns spinner frame based on animation frame
@@ -120,12 +122,20 @@ func RenderHeaderInfo(sizing DynamicSizing, theme Theme, state HeaderState) stri
 		Width(leftWidth).
 		Render(wtLabel)
 
-	versionText := internal.AppVersion
-	versionStyled := lipgloss.NewStyle().
+	versionPart := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.DimmedTextColor)).
+		Render(internal.AppVersion)
+	rightContent := versionPart
+	if state.LFSLabel != "" {
+		lfsPart := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(state.LFSColor)).
+			Render(state.LFSLabel)
+		rightContent = lfsPart + "  " + versionPart
+	}
+	versionStyled := lipgloss.NewStyle().
 		Align(lipgloss.Right).
 		Width(rightWidth).
-		Render(versionText)
+		Render(rightContent)
 
 	wtVersionLine := lipgloss.JoinHorizontal(lipgloss.Top, wtLabelStyled, versionStyled)
 	fullWidthLines = append(fullWidthLines, wtVersionLine)

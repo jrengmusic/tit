@@ -116,6 +116,19 @@ func (a *Application) RenderStateHeader() string {
 
 	// OMP-style: use workingTreeLabel from above
 
+	// LFS indicator
+	lfsLabel := ""
+	lfsColor := a.theme.DimmedTextColor
+	if state.LFS {
+		if state.LFSReady {
+			lfsLabel = "LFS"
+			lfsColor = a.theme.AccentTextColor
+		} else {
+			lfsLabel = "LFS ⚠️"
+			lfsColor = a.theme.OutputWarningColor
+		}
+	}
+
 	headerState := ui.HeaderState{
 		CurrentDirectory: cwd,
 		RemoteURL:        remoteURL,
@@ -136,6 +149,8 @@ func (a *Application) RenderStateHeader() string {
 		TimelineColor:    timelineColor,
 		SyncInProgress:   a.activityState.IsAutoUpdateInProgress(),
 		SyncFrame:        a.activityState.GetFrame(),
+		LFSLabel:         lfsLabel,
+		LFSColor:         lfsColor,
 	}
 
 	info := ui.RenderHeaderInfo(a.sizing, a.theme, headerState)

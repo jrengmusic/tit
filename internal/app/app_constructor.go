@@ -74,6 +74,24 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		gitState = &git.State{Operation: git.NotRepo}
 	}
 
+	// LFS: auto-setup filters if binary available but not yet configured
+	envState := NewEnvironmentState()
+	if gitState != nil && gitState.LFS {
+		if gitState.LFSReady {
+			// LFS fully configured — nothing to do
+		} else if git.IsLFSBinaryAvailable() {
+			result := git.SetupLFSFilters()
+			if result.Success {
+				git.Log("LFS filters installed automatically")
+				gitState.LFSReady = true
+			} else {
+				git.Warn("Failed to setup LFS filters: " + result.Stderr)
+			}
+		} else {
+			git.Warn("This project uses LFS. Install git-lfs for full functionality.")
+		}
+	}
+
 	// Build state info maps for display
 	workingTreeInfo, timelineInfo, operationInfo := BuildStateInfo(theme)
 
@@ -89,6 +107,8 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		workingTreeInfo: workingTreeInfo,
 		timelineInfo:    timelineInfo,
 		operationInfo:   operationInfo,
+		// Feature-specific state (standalone)
+		environmentState: envState,
 		// Infrastructure (standalone)
 		cacheManager:  NewCacheManager(),
 		appConfig:     cfg,

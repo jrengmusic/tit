@@ -9,7 +9,7 @@ type EnvironmentState struct {
 	SetupWizardStep  SetupWizardStep    // Current step in wizard
 	SetupWizardError string             // Error message for SetupStepError
 	SetupEmail       string             // Email for SSH key generation
-	SetupKeyCopied   bool               // Public key copied to clipboard
+	SetupKeyCopied bool // Public key copied to clipboard
 }
 
 // NewEnvironmentState creates a new EnvironmentState with defaults.

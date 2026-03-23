@@ -48,7 +48,32 @@ func (a *Application) cmdAddRemote(url string) tea.Cmd {
 
 // cmdFetchRemote fetches from origin (step 2 of 3-step chain)
 func (a *Application) cmdFetchRemote() tea.Cmd {
-	return a.executeGitOp(OpFetchRemote, "fetch", "--all")
+	ctx, cancel := context.WithCancel(context.Background())
+	a.cancelContext = cancel
+	return func() tea.Msg {
+		result := git.ExecuteWithStreaming(ctx, "fetch", "--all")
+		if !result.Success {
+			return GitOperationMsg{
+				Step:    OpFetchRemote,
+				Success: false,
+				Error:   result.Stderr,
+			}
+		}
+
+		// LFS: fetch objects after git fetch (git fetch does NOT fetch LFS objects)
+		if a.gitState != nil && a.gitState.LFS {
+			git.Log("Fetching LFS objects...")
+			lfsResult := git.FetchLFSObjects(ctx)
+			if !lfsResult.Success {
+				git.Warn("LFS fetch warning: " + lfsResult.Stderr)
+			}
+		}
+
+		return GitOperationMsg{
+			Step:    OpFetchRemote,
+			Success: true,
+		}
+	}
 }
 
 // cmdSetUpstream sets upstream tracking (step 3 of 3-step chain)
