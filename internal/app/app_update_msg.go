@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"tit/internal/git"
@@ -92,8 +91,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// Handle bracketed paste - entire paste comes as single KeyMsg with Paste=true
 		if msg.Paste && a.isInputMode() {
-			text := string(msg.Runes) // Don't trim - preserve formatting
-			text = strings.ReplaceAll(text, "\r", "")
+			text := ui.SanitizeCommitMessage(string(msg.Runes))
 			if len(text) > 0 {
 				a.insertTextAtCursor(text)
 				a.updateInputValidation()

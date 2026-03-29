@@ -1,7 +1,6 @@
 package app
 
 import (
-	"strings"
 	"time"
 	"tit/internal"
 	"tit/internal/git"
@@ -94,9 +93,7 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 			return app, nil
 		}
 
-		// Trim whitespace from pasted text
-		text = strings.TrimSpace(text)
-		text = strings.ReplaceAll(text, "\r", "")
+		text = ui.SanitizeCommitMessage(text)
 
 		// Clamp cursor position to valid range
 		if app.inputState.CursorPosition < 0 {

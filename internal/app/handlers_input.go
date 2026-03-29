@@ -220,7 +220,7 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 // handleCommitSubmit validates commit message and executes commit
 func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Validate commit message
-	message := app.inputState.Value
+	message := ui.SanitizeCommitMessage(app.inputState.Value)
 	if message == "" {
 		app.footerHint = ErrorMessages["commit_message_empty"]
 		return app, nil
@@ -241,7 +241,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 // handleCommitPushSubmit validates commit message and executes commit+push
 func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.Cmd) {
 	// UI THREAD - Validate commit message
-	message := app.inputState.Value
+	message := ui.SanitizeCommitMessage(app.inputState.Value)
 	if message == "" {
 		app.footerHint = ErrorMessages["commit_message_empty"]
 		return app, nil

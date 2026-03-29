@@ -39,6 +39,42 @@ func GetRemoteURLError() string {
 		"  • Local: /path/to/repo or ~/path/to/repo"
 }
 
+// SanitizeCommitMessage strips all characters outside the safe ASCII set.
+// Allows: printable ASCII (0x20-0x7E), newline (0x0A).
+// Strips: control chars, \r, zero-width Unicode, BiDi overrides,
+// Private Use Area (Nerd Font icons), and all non-ASCII codepoints.
+// Collapses consecutive blank lines into a single blank line.
+func SanitizeCommitMessage(text string) string {
+	var b strings.Builder
+	b.Grow(len(text))
+
+	prevWasNewline := false
+	prevWasBlankLine := false
+
+	for _, r := range text {
+		if r == '\n' {
+			if prevWasNewline && prevWasBlankLine {
+				continue // collapse consecutive blank lines
+			}
+			if prevWasNewline {
+				prevWasBlankLine = true
+			}
+			prevWasNewline = true
+			b.WriteRune(r)
+			continue
+		}
+
+		if r >= 0x20 && r <= 0x7E {
+			prevWasNewline = false
+			prevWasBlankLine = false
+			b.WriteRune(r)
+		}
+		// Everything else is silently stripped
+	}
+
+	return strings.TrimSpace(b.String())
+}
+
 // InputValidator defines a function type for input validation.
 // It returns true if the input is valid, and a message if it's not.
 type InputValidator func(string) (bool, string)
