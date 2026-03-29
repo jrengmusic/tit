@@ -2,11 +2,13 @@ package app
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"tit/internal/git"
 	"tit/internal/ui"
 
+	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -92,6 +94,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle bracketed paste - entire paste comes as single KeyMsg with Paste=true
 		if msg.Paste && a.isInputMode() {
 			text := string(msg.Runes) // Don't trim - preserve formatting
+			text = strings.ReplaceAll(text, "\r", "")
 			if len(text) > 0 {
 				a.insertTextAtCursor(text)
 				a.updateInputValidation()
@@ -120,6 +123,38 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle character input in input modes
 		if a.isInputMode() && len(keyStr) == 1 && keyStr[0] >= 32 && keyStr[0] <= 126 {
+			const pasteBurstThreshold = 50 * time.Millisecond
+			inputState := a.OperationState.GetInputState()
+
+			if time.Now().Before(inputState.PasteBurstUntil) {
+				// Paste burst suppression window active — extend and discard raw event
+				inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
+				return a, nil
+			}
+
+			if time.Since(inputState.LastCharInsertTime) < pasteBurstThreshold {
+				// Rapid input — paste burst detected
+				// Remove the previous char (first char of the burst, already inserted)
+				inputState.DeleteBeforeCursor()
+
+				text, err := clipboard.ReadAll()
+				if err != nil || len(text) == 0 {
+					// Clipboard unavailable — fall back: re-insert current char normally
+					inputState.LastCharInsertTime = time.Now()
+					a.insertTextAtCursor(keyStr)
+					a.updateInputValidation()
+					return a, nil
+				}
+
+				text = strings.ReplaceAll(text, "\r", "")
+				text = strings.TrimSpace(text)
+				a.insertTextAtCursor(text)
+				inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
+				a.updateInputValidation()
+				return a, nil
+			}
+
+			inputState.LastCharInsertTime = time.Now()
 			a.insertTextAtCursor(keyStr)
 			a.updateInputValidation()
 			return a, nil

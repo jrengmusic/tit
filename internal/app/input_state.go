@@ -1,6 +1,10 @@
 package app
 
-import "tit/internal/ui"
+import (
+	"time"
+
+	"tit/internal/ui"
+)
 
 // InputState manages user input in text entry modes.
 // Thread-safe: All operations happen on UI thread (single-threaded).
@@ -11,7 +15,9 @@ type InputState struct {
 	Height          int
 	Action          string
 	ValidationMsg   string
-	ClearConfirming bool
+	ClearConfirming    bool
+	LastCharInsertTime time.Time
+	PasteBurstUntil    time.Time // suppress raw events until this time (set on paste burst detection)
 }
 
 // Reset clears Value, CursorPosition, ValidationMsg (preserves Height, Action).

@@ -111,7 +111,36 @@
 
 ## SPRINT HISTORY
 
-<!-- Example sprint entry (delete this after first real sprint) -->
+## Sprint 5: Fix Stale Time Travel Marker Misdetection ✅
+
+**Date:** 2026-03-29
+**Duration:** ~30 min
+
+### Agents Participated
+- **COUNSELOR** — Root cause analysis, plan, contract alignment, delegation
+- **Pathfinder** — Codebase discovery (state detection flow, menu generation, header rendering)
+- **Engineer** — Investigated end repo state, implemented fix
+- **Auditor** — Verified fix, caught SSOT violation (inline os.Remove vs ClearTimeTravelInfo)
+
+### Files Modified (1 total)
+- `internal/git/state_detection.go:171-182` — Priority 2 block in detectOperation() now cross-validates TIT_TIME_TRAVEL marker against actual HEAD state via symbolic-ref; stale markers cleaned up via ClearTimeTravelInfo() (SSOT)
+
+### Alignment Check
+- [x] LIFESTAR principles followed
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied (SSOT: uses existing ClearTimeTravelInfo instead of inline os.Remove)
+- [ ] No early returns used — pre-existing in detectOperation(); not introduced by this fix
+
+### Problems Solved
+- Stale .git/TIT_TIME_TRAVEL marker (left from interrupted time travel return) caused detectOperation() to return TimeTraveling even when HEAD was on a branch, displaying normal repos as "DETACHED @ hash" with TimeTraveling menu
+
+### Technical Debt / Follow-up
+- detectOperation() uses early returns throughout (pre-existing) — full refactor to positive checks would be a separate effort
+- No test coverage for stale marker scenario
+
+**Status:** ✅ Build passes
+
+---
 
 ## Sprint 1: Project Setup and Initial Planning ✅
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"tit/internal/config"
 	"tit/internal/git"
@@ -319,8 +320,12 @@ func (a *Application) updateInputValidation() {
 
 // handleInputSubmit handles enter in generic input mode
 func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
-	// UI THREAD - Route input submission based on action type
 	inputState := app.OperationState.GetInputState()
+	if time.Now().Before(inputState.PasteBurstUntil) {
+		inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
+		return app, nil
+	}
+	// UI THREAD - Route input submission based on action type
 	switch inputState.Action {
 	case "init_branch_name":
 		return app.handleInitBranchNameSubmit()

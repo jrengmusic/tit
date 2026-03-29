@@ -169,9 +169,16 @@ func detectOperation() (Operation, error) {
 	}
 
 	// Priority 2: Check for time traveling (TIT-specific)
+	// Cross-check with symbolic-ref: if HEAD is on a branch, the marker is stale
 	gitDir := internal.GitDirectoryName
 	if _, err := os.Stat(filepath.Join(gitDir, "TIT_TIME_TRAVEL")); err == nil {
-		return TimeTraveling, nil
+		_, symRefErr := executeGitCommand("symbolic-ref", "--short", "HEAD")
+		if symRefErr != nil {
+			// symbolic-ref failed — HEAD is detached, marker is valid
+			return TimeTraveling, nil
+		}
+		// symbolic-ref succeeded — HEAD is on a branch, marker is stale; clean up and fall through
+		ClearTimeTravelInfo()
 	}
 
 	// Priority 3: Check for ongoing operations

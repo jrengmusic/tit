@@ -96,6 +96,7 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 
 		// Trim whitespace from pasted text
 		text = strings.TrimSpace(text)
+		text = strings.ReplaceAll(text, "\r", "")
 
 		// Clamp cursor position to valid range
 		if app.inputState.CursorPosition < 0 {
@@ -108,6 +109,9 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 		// Insert pasted text at cursor position (atomically, not character by character)
 		app.inputState.Value = app.inputState.Value[:app.inputState.CursorPosition] + text + app.inputState.Value[app.inputState.CursorPosition:]
 		app.inputState.CursorPosition += len(text)
+
+		// Suppress raw events from terminal paste that follow Ctrl+V
+		app.inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
 
 		// Update real-time validation if in clone URL mode
 		if app.inputState.Action == "clone_url" {
