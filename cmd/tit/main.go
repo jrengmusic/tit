@@ -27,7 +27,15 @@ func main() {
 	sizing := ui.CalculateDynamicSizing(80, 40)
 	application := app.NewApplication(sizing, theme, cfg)
 
-	tea.NewProgram(application,
-		tea.WithAltScreen(),
-	).Run()
+	opts := []tea.ProgramOption{tea.WithAltScreen()}
+
+	reader, restore := platformInput()
+	if reader != nil {
+		opts = append(opts, tea.WithInput(reader))
+	}
+	if restore != nil {
+		defer restore()
+	}
+
+	tea.NewProgram(application, opts...).Run()
 }

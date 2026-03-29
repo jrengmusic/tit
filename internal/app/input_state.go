@@ -15,9 +15,8 @@ type InputState struct {
 	Height          int
 	Action          string
 	ValidationMsg   string
-	ClearConfirming    bool
-	LastCharInsertTime time.Time
-	PasteBurstUntil    time.Time // suppress raw events until this time (set on paste burst detection)
+	ClearConfirming bool
+	PasteBurstUntil time.Time // suppress raw events until this time (set on paste burst detection)
 }
 
 // Reset clears Value, CursorPosition, ValidationMsg (preserves Height, Action).
