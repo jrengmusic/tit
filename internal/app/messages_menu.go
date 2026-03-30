@@ -72,6 +72,7 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 	},
 	"history_copyhash": {
 		{Key: "a-f/0-9", Desc: "copy highlighted"},
+		{Key: "Space", Desc: "next page"},
 		{Key: "Esc", Desc: "cancel"},
 	},
 	"history_details": {

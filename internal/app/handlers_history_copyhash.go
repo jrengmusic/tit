@@ -63,20 +63,26 @@ func (a *Application) handleHistoryCopyHashKeypress(keyStr string) (bool, tea.Mo
 	}
 
 	ch := rune(keyStr[0])
+
+	// Spacebar cycles visible window by CopyHashMaxVisible, wrapping to top
+	if ch == ' ' {
+		commitCount := len(a.pickerState.History.Commits)
+		nextIdx := a.pickerState.History.SelectedIdx + ui.CopyHashMaxVisible
+		if nextIdx >= commitCount {
+			nextIdx = 0
+		}
+		a.pickerState.History.SelectedIdx = nextIdx
+		return true, a, nil
+	}
+
 	isHexChar := (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f')
 	if !isHexChar {
 		return true, a, nil
 	}
 
-	// Compute visible window — recompute the same keys the renderer would have used
-	listPane := ui.NewListPane("Commits", &a.theme)
-	paneHeight := a.sizing.TerminalHeight - ui.SplitPaneHeightOffset
-	visibleLines := paneHeight - 2
-	if visibleLines < 1 {
-		visibleLines = 1
-	}
-	listPane.AdjustScroll(a.pickerState.History.SelectedIdx, visibleLines)
-	keys := ui.ComputeCopyHashKeys(a.pickerState.History.Commits, listPane.ScrollOffset, visibleLines)
+	// Compute copy-hash keys for current page — must match renderer's computation
+	pageStart := (a.pickerState.History.SelectedIdx / ui.CopyHashMaxVisible) * ui.CopyHashMaxVisible
+	keys := ui.ComputeCopyHashKeys(a.pickerState.History.Commits, pageStart, ui.CopyHashMaxVisible)
 
 	// Find the commit whose key matches the pressed char
 	matchedCommitIdx := -1

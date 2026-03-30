@@ -174,7 +174,8 @@ func renderHistoryListPane(state *HistoryState, theme Theme, width, height int) 
 	// Compute copy-hash flash keys for visible window when mode is active
 	var copyHashKeys []CopyHashKey
 	if state.CopyHashMode {
-		copyHashKeys = ComputeCopyHashKeys(state.Commits, listPane.ScrollOffset, visibleLines)
+		pageStart := (state.SelectedIdx / CopyHashMaxVisible) * CopyHashMaxVisible
+		copyHashKeys = ComputeCopyHashKeys(state.Commits, pageStart, CopyHashMaxVisible)
 	}
 
 	// Build list items from actual commits

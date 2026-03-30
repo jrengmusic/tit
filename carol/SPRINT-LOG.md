@@ -111,6 +111,40 @@
 
 ## SPRINT HISTORY
 
+## Sprint 6: Copy Hash Mode Spacebar Page Cycling ✅
+
+**Date:** 2026-03-30
+**Duration:** ~30 min
+
+### Agents Participated
+- **COUNSELOR** — Requirements, root cause analysis, plan, delegation
+- **Pathfinder** — Codebase discovery (copy-hash implementation, listpane, scroll, render pipeline)
+- **Engineer** — Implementation (spacebar handler, footer hint, page derivation fix)
+- **Auditor** — Verified both rounds (initial + fix), build clean
+
+### Files Modified (3 total)
+- `internal/app/handlers_history_copyhash.go:68-76` — Added spacebar handler in handleHistoryCopyHashKeypress: advances SelectedIdx by CopyHashMaxVisible, wraps to 0
+- `internal/app/handlers_history_copyhash.go:84-85` — Replaced ScrollOffset-based key computation with pageStart derivation from SelectedIdx (matches renderer)
+- `internal/ui/history.go:177-178` — renderHistoryListPane now derives pageStart from SelectedIdx instead of ScrollOffset for ComputeCopyHashKeys
+- `internal/app/messages_menu.go:75` — Added Space hint to history_copyhash footer
+
+### Alignment Check
+- [x] LIFESTAR principles followed (Lean: no new state fields, SSOT: pageStart derivation identical in render + handler)
+- [x] NAMING-CONVENTION.md adhered (pageStart, commitCount, nextIdx)
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied (Explicit Encapsulation: UI computes page, app handles input)
+- [x] No early returns
+
+### Problems Solved
+- Spacebar page cycling in CopyHashMode: press Space to advance labels to next 10 commits, wraps to top
+- Bug: initial implementation moved SelectedIdx but labels didn't update because ComputeCopyHashKeys used ScrollOffset (stays 0 when terminal is tall enough). Fixed by deriving page boundary from SelectedIdx via integer division
+
+### Technical Debt / Follow-up
+- None
+
+**Status:** ✅ Build passes
+
+---
+
 ## Sprint 5: Fix Stale Time Travel Marker Misdetection ✅
 
 **Date:** 2026-03-29
