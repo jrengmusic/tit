@@ -111,6 +111,68 @@
 
 ## SPRINT HISTORY
 
+## Sprint 7: Branch Operations — New Branch, Merge From, Dirty Switch/Merge Protocol ✅
+
+**Date:** 2026-03-31
+**Duration:** ~6 hours
+
+### Agents Participated
+- **COUNSELOR** — Requirements counseling, plan, delegation, bug investigation, root cause analysis
+- **Pathfinder** — Codebase discovery (branch switch flow, dirty ops protocol, conflict detection, DetectState short-circuit)
+- **Engineer** — Implementation (new branch, merge from, dirty switch protocol, dirty merge protocol, conflict detection fix)
+- **Auditor** — Verified Feature 1 (2 issues caught: PreviousMode, SSOT strings), Feature 2 (2 issues caught: BranchPickerPurpose leak, dirty merge conflict gap), Dirty merge protocol (2 issues caught: finalize constant, conflictResolveState leak)
+
+### Files Modified (21 tracked + 4 new = 25 total)
+- `internal/git/state_detection.go` — Added `HasConflicts()` — direct conflict check bypassing `DetectState` DirtyOperation short-circuit
+- `internal/app/app.go` — `checkForConflicts` now uses `git.HasConflicts()` instead of `reloadGitState()`
+- `internal/app/menu_items.go` — Added `config_new_branch`, `config_merge_branch` SSOT entries
+- `internal/app/menu_render_extra.go` — Added both items to `GenerateConfigMenu()`, merge conditional on 2+ branches
+- `internal/app/dispatchers.go` — Registered `config_new_branch`, `config_merge_branch` dispatchers
+- `internal/app/dispatch_dialog.go` — Added `dispatchConfigNewBranch`, `dispatchConfigMergeBranch`, cleared `BranchPickerPurpose` in switch dispatcher
+- `internal/app/handlers_config_branch.go` — Added merge purpose routing in `handleBranchPickerEnter`
+- `internal/app/handlers_git_branch.go` — Added `handleNewBranchNameSubmit`, `cmdCreateBranch`; removed monolithic `cmdBranchSwitchWithStash`
+- `internal/app/workflow_state.go` — Added `BranchPickerPurpose` field
+- `internal/app/confirm_dialog.go` — Added `ConfirmMergeBranch`, `ConfirmMergeBranchDirty` types
+- `internal/app/confirm_dialog_handlers.go` — Registered merge confirmation handler pairs
+- `internal/app/confirm_branch.go` — Rewrote dirty switch handlers to use Dirty Operation Protocol
+- `internal/app/confirm_merge.go` — NEW: merge flow handlers, `cmdMergeBranch`, `cmdFinalizeBranchMerge`
+- `internal/app/messages_dialog.go` — Added merge branch confirmation messages
+- `internal/app/messages_error.go` — Added `branch_name_invalid`, `branch_already_exists`, `merge_branch_failed`
+- `internal/app/messages_state.go` — Added dirty switch and dirty merge output messages
+- `internal/app/operation_steps.go` — Added 13 new operation step constants (branch create, merge, dirty merge, dirty switch)
+- `internal/app/dirty_state.go` — Added `MergeBranch`, `TargetBranch` fields
+- `internal/app/op_dirty_merge.go` — NEW: full Dirty Operation Protocol for merge (6 phase functions)
+- `internal/app/op_dirty_switch.go` — NEW: full Dirty Operation Protocol for branch switch (6 phase functions)
+- `internal/app/git_handlers.go` — Added routing for all dirty merge and dirty switch phases; fixed `conflictResolveState` leak in `OpDirtyPullFinalize`
+- `internal/app/handlers_pull.go` — Added `handleMergeBranchResult`, `handleFinalizeBranchMerge`
+- `internal/app/handlers_conflict.go` — Added `setupConflictResolverForBranchMerge`, `setupConflictResolverForDirtyMerge`, `setupConflictResolverForDirtySwitch`
+- `internal/app/conflict_handlers.go` — Added finalize/abort routing for merge, dirty merge, dirty switch
+- `internal/app/op_dirty_pull_snapshot.go` — Fixed `conflictResolveState` leak in `OpDirtyPullFinalize`
+
+### Alignment Check
+- [x] LIFESTAR principles followed (SSOT: all strings in message maps, Lean: reused existing dirty op protocol)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied (Explicit Encapsulation: dirty ops are source-agnostic)
+- [ ] No early returns — pre-existing pattern in input validation handlers; not introduced by this sprint
+
+### Problems Solved
+- **New Branch**: Config menu item `n` — creates and switches to new branch from current HEAD
+- **Merge From**: Config menu item `m` (visible when 2+ branches) — merge another branch into current with full confirmation flow
+- **Dirty Switch Protocol**: Decomposed monolithic `cmdBranchSwitchWithStash` into 4-phase Dirty Operation Protocol identical to dirty pull (snapshot → switch → apply snapshot → finalize)
+- **Dirty Merge Protocol**: Full Dirty Operation Protocol for merge with dirty tree (snapshot → merge → apply snapshot → finalize)
+- **Conflict Detection Bug**: `checkForConflicts` failed during ALL dirty operations because `DetectState()` short-circuits to `DirtyOperation` when `.git/TIT_DIRTY_OP` exists, never reaching `detectOperation()` which checks for `u ` conflict lines. Fixed by adding `git.HasConflicts()` which checks index directly
+- **`conflictResolveState` leak**: Pre-existing bug in `OpDirtyPullFinalize` — stale conflict state not cleared. Fixed in pull, merge, and switch finalize paths
+- **`GenerateMenu` panic on Conflicted state**: Discovered via panic trace — `GenerateMenu()` doesn't handle `Conflicted` operation state, panics when ESC pressed from console after failed stash apply (bug 2, see tech debt)
+
+### Technical Debt / Follow-up
+- **Bug 2 (not fixed)**: `GenerateMenu()` panics with "Unknown git operation state: Conflicted" when git state is `Conflicted` and menu regeneration is triggered. Discovered during dirty switch testing. Needs separate fix.
+- Redundant console messages in dirty pull and dirty merge flows (only dirty switch was cleaned up)
+- `PLAN-branch-operations.md` in project root — can be deleted after commit
+
+**Status:** ✅ Build passes
+
+---
+
 ## Sprint 6: Copy Hash Mode Spacebar Page Cycling ✅
 
 **Date:** 2026-03-30

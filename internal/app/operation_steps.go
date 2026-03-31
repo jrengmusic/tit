@@ -53,4 +53,25 @@ const (
 	OpFinalizeTravelMerge  = "finalize_time_travel_merge"
 	OpTimeTravelReturn     = "time_travel_return"
 	OpFinalizeTravelReturn = "finalize_time_travel_return"
+
+	// Branch operations
+	OpBranchCreate = "branch_create"
+
+	OpMergeBranch         = "merge_branch"
+	OpFinalizeBranchMerge = "finalize_branch_merge"
+
+	// Dirty merge (save changes before merge) operation phases
+	OpDirtyMergeSnapshot      = "dirty_merge_snapshot"
+	OpDirtyMerge              = "dirty_merge"
+	OpDirtyMergeApplySnapshot = "dirty_merge_apply_snapshot"
+	OpDirtyMergeFinalize      = "dirty_merge_finalize"
+	OpDirtyMergeAbort         = "dirty_merge_abort"
+	OpFinalizeDirtyMerge      = "finalize_dirty_merge"
+
+	// Dirty branch switch (save changes before switch) operation phases
+	OpDirtySwitchSnapshot      = "dirty_switch_snapshot"
+	OpDirtySwitchExecute       = "dirty_switch_execute"
+	OpDirtySwitchApplySnapshot = "dirty_switch_apply_snapshot"
+	OpDirtySwitchFinalize      = "dirty_switch_finalize"
+	OpDirtySwitchAbort         = "dirty_switch_abort"
 )

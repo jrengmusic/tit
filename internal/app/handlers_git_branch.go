@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"tit/internal/git"
 	"tit/internal/ui"
@@ -51,58 +52,68 @@ func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 	}
 }
 
-// cmdBranchSwitchWithStash performs: stash → switch → stash apply
-func (a *Application) cmdBranchSwitchWithStash(targetBranch string) tea.Cmd {
+// handleNewBranchNameSubmit validates branch name and creates new branch
+func (a *Application) handleNewBranchNameSubmit() (tea.Model, tea.Cmd) {
+	inputState := a.OperationState.GetInputState()
+	branchName := strings.TrimSpace(inputState.Value)
+
+	if branchName == "" {
+		a.footerHint = ErrorMessages["branch_name_empty"]
+		return a, nil
+	}
+
+	// Validate branch name using git check-ref-format
+	validateResult := git.Execute("check-ref-format", "--branch", branchName)
+	if !validateResult.Success {
+		a.footerHint = fmt.Sprintf(ErrorMessages["branch_name_invalid"], branchName)
+		return a, nil
+	}
+
+	// Check if branch already exists
+	existsResult := git.Execute("rev-parse", "--verify", "refs/heads/"+branchName)
+	if existsResult.Success {
+		a.footerHint = fmt.Sprintf(ErrorMessages["branch_already_exists"], branchName)
+		return a, nil
+	}
+
+	// Set up async state for console display
+	buffer := ui.GetBuffer()
+	buffer.Clear()
+	buffer.Append(fmt.Sprintf("Creating branch %s...", branchName), ui.TypeStatus)
+
+	a.startAsyncOp()
+	a.workflowState.PreviousMode = ModeConfig
+	a.workflowState.PreviousMenuIndex = 0
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	inputState.Value = ""
+
+	return a, a.cmdCreateBranch(branchName)
+}
+
+// cmdCreateBranch performs git checkout -b to create and switch to new branch
+func (a *Application) cmdCreateBranch(branchName string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 
-		// Step1: Stash changes
-		buffer.Append("Stashing changes...", ui.TypeStatus)
-		stashResult := git.Execute("stash", "push", "-u")
-		if !stashResult.Success {
-			buffer.Append(fmt.Sprintf("Failed to stash: %s", stashResult.Stderr), ui.TypeStderr)
+		result := git.ExecuteWithStreaming(ctx, "checkout", "-b", branchName)
+		if !result.Success {
 			return GitOperationMsg{
-				Step:    "branch_switch",
+				Step:    OpBranchCreate,
 				Success: false,
-				Error:   "Failed to stash changes",
+				Error:   fmt.Sprintf("Failed to create branch %s: %s", branchName, result.Stderr),
 			}
 		}
-		buffer.Append("Changes stashed", ui.TypeStatus)
 
-		// Step2: Switch branch
-		buffer.Append(fmt.Sprintf("Switching to %s...", targetBranch), ui.TypeStatus)
-		switchResult := git.ExecuteWithStreaming(ctx, "switch", targetBranch)
-		if !switchResult.Success {
-			buffer.Append(fmt.Sprintf("Failed to switch: %s", switchResult.Stderr), ui.TypeStderr)
-
-			// Try to restore stash on failure
-			buffer.Append("Restoring stash...", ui.TypeStatus)
-			git.Execute("stash", "pop")
-
-			return GitOperationMsg{
-				Step:    "branch_switch",
-				Success: false,
-				Error:   fmt.Sprintf("Failed to switch to %s", targetBranch),
-			}
-		}
-		buffer.Append(fmt.Sprintf("Switched to %s", targetBranch), ui.TypeStatus)
-
-		// Step3: Restore stash
-		buffer.Append("Restoring changes...", ui.TypeStatus)
-		applyResult := git.Execute("stash", "pop")
-		if !applyResult.Success {
-			buffer.Append("Warning: Stash apply failed (conflicts or errors)", ui.TypeWarning)
-			buffer.Append("Your changes are still in stash (use 'git stash apply')", ui.TypeInfo)
-		} else {
-			buffer.Append("Changes restored", ui.TypeStatus)
-		}
-
+		buffer.Append(fmt.Sprintf("Created and switched to branch %s", branchName), ui.TypeInfo)
 		return GitOperationMsg{
-			Step:    "branch_switch",
-			Success: true,
-			Output:  fmt.Sprintf("Switched to %s", targetBranch),
+			Step:       OpBranchCreate,
+			Success:    true,
+			Output:     fmt.Sprintf("Created and switched to branch %s", branchName),
+			BranchName: branchName,
 		}
 	}
 }
+

@@ -77,6 +77,12 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 		return app, a.cmdSwitchBranch(selectedBranch.Name)
 	}
 
+	// Check if this is a merge operation
+	if app.workflowState.BranchPickerPurpose == "merge" {
+		app.workflowState.BranchPickerPurpose = "" // Reset flag
+		return app.handleMergeBranchSelection(selectedBranch.Name)
+	}
+
 	// If already on this branch, just go back to config menu
 	if selectedBranch.IsCurrent {
 		app.workflowState.PreviousMode = ModeMenu // Config always returns to menu

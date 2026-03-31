@@ -153,6 +153,23 @@ func determineTimeline(ahead, behind int) Timeline {
 	return InSync // fallback
 }
 
+// HasConflicts checks if the index has unmerged entries (conflicts)
+// Bypasses DetectState which short-circuits on DirtyOperation
+// Used by checkForConflicts during dirty operations where TIT_DIRTY_OP exists
+func HasConflicts() bool {
+	cmd := exec.Command("git", "status", "--porcelain=v2")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.HasPrefix(line, "u ") {
+			return true
+		}
+	}
+	return false
+}
+
 // detectOperation checks for merge/rebase/conflict/cherry-pick
 // Returns Normal as fallback if detection fails (system-level issue)
 func detectOperation() (Operation, error) {

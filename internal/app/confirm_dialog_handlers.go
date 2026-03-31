@@ -91,6 +91,14 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 		Confirm: (*Application).executeConfirmRemoveRemote,
 		Reject:  (*Application).executeRejectRemoveRemote,
 	},
+	string(ConfirmMergeBranch): {
+		Confirm: (*Application).executeConfirmMergeBranch,
+		Reject:  (*Application).executeRejectMergeBranch,
+	},
+	string(ConfirmMergeBranchDirty): {
+		Confirm: (*Application).executeConfirmMergeBranchDirty,
+		Reject:  (*Application).executeRejectMergeBranchDirty,
+	},
 }
 
 // handleConfirmationResponse routes confirmation YES/NO responses to appropriate handlers

@@ -21,6 +21,9 @@ type WorkflowState struct {
 	ReturnToBranchDirtyTree bool   // Track if working tree was dirty when entering picker
 	IsReturnToBranch        bool   // True when entering picker for return-from-detached
 	ReturnToBranchName      string // Target branch for return-from-detached
+
+	// Branch picker purpose (disambiguates switch vs merge)
+	BranchPickerPurpose string
 }
 
 // NewWorkflowState creates a new WorkflowState with defaults.

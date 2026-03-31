@@ -48,6 +48,23 @@ var OutputMessages = map[string]string{
 	"dirty_pull_aborting":               "Aborting dirty pull and restoring original state...",
 	"original_state_restored":           "Original state restored",
 
+	// Dirty branch switch operation phases
+	"dirty_switch_snapshot_saved":   "Snapshot saved. Switching branch...",
+	"dirty_switch_started":          "Switching branch...",
+	"dirty_switch_succeeded":        "Branch switch succeeded. Reapplying your changes...",
+	"dirty_switch_finalize_started": "Finalizing branch switch...",
+	"dirty_switch_completed":        "Branch switch completed successfully",
+	"dirty_switch_aborting":         "Aborting branch switch and restoring original state...",
+
+	// Dirty merge operation phases
+	"dirty_merge_snapshot_saved":   "Snapshot saved. Starting merge...",
+	"dirty_merge_started":          "Merging branch...",
+	"dirty_merge_succeeded":        "Merge succeeded. Reapplying your changes...",
+	"dirty_merge_finalize_started": "Finalizing dirty merge operation...",
+	"dirty_merge_completed":        "Dirty merge completed successfully",
+	"dirty_merge_aborting":         "Aborting dirty merge and restoring original state...",
+	"merge_committed":              "Merge commit created",
+
 	// Rewind (reset --hard) operations
 	"rewind_resetting": "Resetting to commit %s...",
 	"rewind_completed": "Rewind completed successfully",

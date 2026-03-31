@@ -27,11 +27,13 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"time_travel_merge":         a.dispatchTimeTravelMerge,
 		"time_travel_return":        a.dispatchTimeTravelReturn,
 		// Config menu actions
+		"config_new_branch":         a.dispatchConfigNewBranch,
 		"config_add_remote":         a.dispatchConfigAddRemote,
 		"config_switch_remote":      a.dispatchConfigSwitchRemote,
 		"config_remove_remote":      a.dispatchConfigRemoveRemote,
 		"config_toggle_auto_update": a.dispatchConfigToggleAutoUpdate,
 		"config_switch_branch":      a.dispatchConfigSwitchBranch,
+		"config_merge_branch":       a.dispatchConfigMergeBranch,
 		"config_preferences":        a.dispatchConfigPreferences,
 		// Preferences menu actions
 		"preferences_auto_update": a.dispatchPreferencesToggleAutoUpdate,

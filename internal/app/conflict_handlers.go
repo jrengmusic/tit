@@ -216,6 +216,32 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizePushSyncMerge()
+	} else if app.conflictResolveState.Operation == OpMergeBranch {
+		// Branch merge conflicts resolved: commit the merge
+		app.startAsyncOp()
+		app.mode = ModeConsole
+		app.consoleState.GetBuffer().Clear()
+		app.consoleState.Reset()
+		return app, app.cmdFinalizeBranchMerge()
+	} else if app.conflictResolveState.Operation == "dirty_merge_changeset_apply" {
+		// Dirty merge conflicts resolved: commit merge before reapplying stash
+		app.startAsyncOp()
+		app.mode = ModeConsole
+		app.dirtyOperationState.SetPhase("finalize_merge")
+		return app, app.cmdFinalizeDirtyMerge()
+	} else if app.conflictResolveState.Operation == "dirty_merge_snapshot_reapply" {
+		// Dirty merge stash reapply conflicts resolved: finalize
+		app.startAsyncOp()
+		app.mode = ModeConsole
+		app.dirtyOperationState.SetPhase("finalizing")
+		return app, app.cmdDirtyMergeFinalize()
+	} else if app.conflictResolveState.Operation == "dirty_switch_snapshot_reapply" {
+		// Dirty switch stash reapply conflicts resolved: finalize directly
+		// No merge commit needed — stash conflicts don't create MERGE_HEAD
+		app.startAsyncOp()
+		app.mode = ModeConsole
+		app.dirtyOperationState.SetPhase("finalizing")
+		return app, app.cmdDirtySwitchFinalize()
 	}
 
 	// Default: return to menu
@@ -262,6 +288,34 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 			app.consoleState.Reset()
 			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
 			return app, app.cmdAbortMerge()
+		} else if app.conflictResolveState.Operation == OpMergeBranch {
+			// Abort branch merge: abort the merge, return to menu
+			app.startAsyncOp()
+			app.mode = ModeConsole
+			app.consoleState.GetBuffer().Clear()
+			app.consoleState.Reset()
+			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
+			return app, app.cmdAbortMerge()
+		} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_merge_") {
+			// Abort dirty merge: restore original state
+			if app.dirtyOperationState != nil {
+				app.startAsyncOp()
+				app.mode = ModeConsole
+				app.consoleState.GetBuffer().Clear()
+				app.consoleState.Reset()
+				ui.GetBuffer().Append(OutputMessages["dirty_merge_aborting"], ui.TypeInfo)
+				return app, app.cmdAbortDirtyMerge()
+			}
+		} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_switch_") {
+			// Abort dirty switch: restore original state
+			if app.dirtyOperationState != nil {
+				app.startAsyncOp()
+				app.mode = ModeConsole
+				app.consoleState.GetBuffer().Clear()
+				app.consoleState.Reset()
+				ui.GetBuffer().Append(OutputMessages["dirty_switch_aborting"], ui.TypeInfo)
+				return app, app.cmdAbortDirtySwitch()
+			}
 		}
 	}
 

@@ -116,14 +116,12 @@ func (a *Application) reloadGitState() error {
 // successFlag: set to true when caller wants to trigger conflict resolver (e.g., dirty pull merge)
 // successFlag: set to false for normal conflict detection during operations
 func (a *Application) checkForConflicts(step string, successFlag bool) *GitOperationMsg {
-	if err := a.reloadGitState(); err == nil {
-		if a.gitState.Operation == git.Conflicted {
-			return &GitOperationMsg{
-				Step:             step,
-				Success:          successFlag,
-				ConflictDetected: true,
-				Error:            "Merge conflicts detected",
-			}
+	if git.HasConflicts() {
+		return &GitOperationMsg{
+			Step:             step,
+			Success:          successFlag,
+			ConflictDetected: true,
+			Error:            "Merge conflicts detected",
 		}
 	}
 	return nil
@@ -329,6 +327,8 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 	switch inputState.Action {
 	case "init_branch_name":
 		return app.handleInitBranchNameSubmit()
+	case "new_branch_name":
+		return app.handleNewBranchNameSubmit()
 	case "init_subdir_name":
 		return app.handleInputSubmitSubdirName(app)
 	case "add_remote_url":

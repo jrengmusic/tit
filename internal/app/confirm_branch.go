@@ -1,10 +1,6 @@
 package app
 
 import (
-	"fmt"
-
-	"tit/internal/git"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -37,53 +33,36 @@ func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// executeConfirmBranchSwitchDirty handles YES response (Stash changes)
+// executeConfirmBranchSwitchDirty handles YES response (Stash changes via Dirty Operation Protocol)
 func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	// Get targetBranch from context BEFORE hiding dialog (Hide() clears context)
 	targetBranch := a.dialogState.GetContext()["targetBranch"]
+	a.dialogState.Hide()
+
 	if targetBranch == "" {
-		a.dialogState.Hide()
 		return a.returnToMenu()
 	}
 
-	// User confirmed - hide dialog now that we have the branch name
-	a.dialogState.Hide()
+	// Initialize dirty operation state
+	a.dirtyOperationState = NewDirtyOperationState("dirty_switch", true)
+	a.dirtyOperationState.TargetBranch = targetBranch
 
-	// Transition to console
-	a.prepareAsyncOperation("Switching branch with stash...")
-
-	// Execute: stash → switch → stash apply
-	return a, a.cmdBranchSwitchWithStash(targetBranch)
+	a.prepareAsyncOperation("Saving changes and switching branch...")
+	return a, a.cmdDirtySwitchSnapshot(true)
 }
 
-// executeRejectBranchSwitchDirty handles NO response (Discard changes)
+// executeRejectBranchSwitchDirty handles NO response (Discard changes via Dirty Operation Protocol)
 func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	// Get targetBranch from context BEFORE hiding dialog (Hide() clears context)
 	targetBranch := a.dialogState.GetContext()["targetBranch"]
+	a.dialogState.Hide()
+
 	if targetBranch == "" {
-		a.dialogState.Hide()
 		return a.returnToMenu()
 	}
 
-	// User confirmed - hide dialog now that we have the branch name
-	a.dialogState.Hide()
+	// Initialize dirty operation state (discard mode)
+	a.dirtyOperationState = NewDirtyOperationState("dirty_switch", false)
+	a.dirtyOperationState.TargetBranch = targetBranch
 
-	// Discard changes first
-	resetResult := git.Execute("reset", "--hard", "HEAD")
-	if !resetResult.Success {
-		a.footerHint = fmt.Sprintf("Failed to discard changes: %s", resetResult.Stderr)
-		a.mode = ModeBranchPicker
-		return a, nil
-	}
-
-	cleanResult := git.Execute("clean", "-fd")
-	if !cleanResult.Success {
-		a.footerHint = "Warning: Failed to clean untracked files"
-	}
-
-	// Transition to console
-	a.prepareAsyncOperation(fmt.Sprintf("Switching to %s...", targetBranch))
-
-	// Clean tree now - perform switch
-	return a, a.cmdSwitchBranch(targetBranch)
+	a.prepareAsyncOperation("Discarding changes and switching branch...")
+	return a, a.cmdDirtySwitchSnapshot(false)
 }

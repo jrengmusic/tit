@@ -61,6 +61,17 @@ func (a *Application) dispatchConfigToggleAutoUpdate(app *Application) tea.Cmd {
 	return app.cmdToggleAutoUpdate()
 }
 
+// dispatchConfigNewBranch starts new branch creation workflow
+func (a *Application) dispatchConfigNewBranch(app *Application) tea.Cmd {
+	app.transitionTo(ModeTransition{
+		Mode:        ModeInput,
+		InputPrompt: "New branch name:",
+		InputAction: "new_branch_name",
+		FooterHint:  "Enter branch name, press Enter to create and switch",
+	})
+	return nil
+}
+
 // dispatchConfigSwitchBranch enters branch picker mode
 func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 	// Load branches into the branch picker state
@@ -98,8 +109,60 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 
 	// Switch to branch picker mode
 	app.workflowState.PreviousMode = app.mode // Track previous mode (Config)
+	app.workflowState.BranchPickerPurpose = "" // Explicit: this is a switch, not merge
 	app.mode = ModeBranchPicker
 	app.footerHint = "↑/↓ Navigate • Tab: Switch panes • Enter: Switch branch • ESC: Cancel"
+	return nil
+}
+
+// dispatchConfigMergeBranch enters branch picker for merge source selection
+func (a *Application) dispatchConfigMergeBranch(app *Application) tea.Cmd {
+	branches, err := git.ListBranchesWithDetails()
+	if err != nil {
+		app.footerHint = fmt.Sprintf("Failed to load branches: %v", err)
+		return nil
+	}
+
+	// Filter out current branch (cannot merge current into current)
+	var filteredBranches []ui.BranchInfo
+	currentBranch := ""
+	for _, b := range branches {
+		if b.IsCurrent {
+			currentBranch = b.Name
+		}
+		if !b.IsCurrent {
+			filteredBranches = append(filteredBranches, ui.BranchInfo{
+				Name:           b.Name,
+				IsCurrent:      b.IsCurrent,
+				LastCommitTime: b.LastCommitTime,
+				LastCommitHash: b.LastCommitHash,
+				LastCommitSubj: b.LastCommitSubj,
+				Author:         b.Author,
+				TrackingRemote: b.TrackingRemote,
+				Ahead:          b.Ahead,
+				Behind:         b.Behind,
+			})
+		}
+	}
+
+	if len(filteredBranches) == 0 {
+		app.footerHint = "No other branches to merge from"
+		return nil
+	}
+
+	app.pickerState.BranchPicker = &ui.BranchPickerState{
+		Branches:          filteredBranches,
+		SelectedIdx:       0,
+		PaneFocused:       true,
+		ListScrollOffset:  0,
+		DetailsLineCursor: 0,
+		DetailsScrollOff:  0,
+	}
+
+	app.workflowState.PreviousMode = app.mode
+	app.workflowState.BranchPickerPurpose = "merge"
+	app.mode = ModeBranchPicker
+	app.footerHint = fmt.Sprintf("Select branch to merge into %s", currentBranch)
 	return nil
 }
 

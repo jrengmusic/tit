@@ -111,6 +111,18 @@ var ConfirmationMessages = map[string]ConfirmationMessage{
 		YesLabel:    "Remove",
 		NoLabel:     "Cancel",
 	},
+	"merge_branch": {
+		Title:       "Merge branch?",
+		Explanation: "This will merge %s into %s.\n\nConflicts will be handled if they occur.\nBoth branches remain intact.",
+		YesLabel:    "Merge",
+		NoLabel:     "Cancel",
+	},
+	"merge_branch_dirty": {
+		Title:       "Uncommitted changes",
+		Explanation: "You have uncommitted changes.\n\nTo merge, they must be temporarily stashed.\nAfter the merge, they'll be reapplied.\n\n(This may cause conflicts if changes overlap.)",
+		YesLabel:    "Stash and merge",
+		NoLabel:     "Cancel",
+	},
 }
 
 // DialogMessages centralizes dialog box content (titles + explanations)

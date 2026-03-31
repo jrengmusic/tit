@@ -149,8 +149,15 @@ func (a *Application) GenerateConfigMenu() []MenuItem {
 		items = append(items, Item("").Separator().Build())
 	}
 
-	// Branch switching (always available)
+	// Branch operations (always available)
+	items = append(items, GetMenuItem("config_new_branch"))
 	items = append(items, GetMenuItem("config_switch_branch"))
+
+	// Merge (only when 2+ branches exist)
+	branches, branchErr := git.ListBranches()
+	if branchErr == nil && len(branches) >= 2 {
+		items = append(items, GetMenuItem("config_merge_branch"))
+	}
 
 	// Preferences (always available)
 	items = append(items, GetMenuItem("config_preferences"))

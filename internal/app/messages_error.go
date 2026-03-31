@@ -43,6 +43,10 @@ var ErrorMessages = map[string]string{
 	"failed_load_time_travel_info":     "Error: %v",
 
 	// Rewind (reset --hard) errors
+	"branch_name_invalid":      "Invalid branch name: %s",
+	"branch_already_exists":    "Branch '%s' already exists",
+	"merge_branch_failed":      "Failed to merge branch: %s",
+
 	"rewind_commit_hash_empty": "Commit hash cannot be empty",
 	"rewind_failed":            "Reset failed: %s",
 	// Timeline sync errors

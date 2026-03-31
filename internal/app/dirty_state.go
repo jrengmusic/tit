@@ -17,6 +17,8 @@ type DirtyOperationState struct {
 	PullStrategy string // "merge" or "rebase" (for dirty pull)
 	RemoteName   string // e.g., "origin"
 	RemoteBranch string // e.g., "main"
+	MergeBranch  string // Source branch for dirty merge (e.g., "dev")
+	TargetBranch string // Target branch for dirty switch (e.g., "main")
 
 	// Conflict information (populated if conflicts detected)
 	ConflictDetectedAt string   // which phase: "changeset_apply", "snapshot_reapply"

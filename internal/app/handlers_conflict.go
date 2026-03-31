@@ -175,3 +175,20 @@ func (a *Application) setupConflictResolverForBranchSwitch(msg GitOperationMsg) 
 
 	return a.setupConflictResolver("branch_switch", labels)
 }
+
+// setupConflictResolverForBranchMerge sets up conflict resolver for branch merge
+func (a *Application) setupConflictResolverForBranchMerge(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	return a.setupConflictResolver(OpMergeBranch, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+}
+
+// setupConflictResolverForDirtyMerge sets up conflict resolver for dirty merge operation
+func (a *Application) setupConflictResolverForDirtyMerge(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
+	operation := "dirty_merge_" + conflictPhase
+	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+}
+
+// setupConflictResolverForDirtySwitch sets up conflict resolver for dirty branch switch
+func (a *Application) setupConflictResolverForDirtySwitch(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
+	operation := "dirty_switch_" + conflictPhase
+	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+}

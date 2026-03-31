@@ -244,12 +244,28 @@ var MenuItems = map[string]MenuItem{
 		Hint:     "Enable/disable background timeline sync",
 		Enabled:  true,
 	},
+	"config_new_branch": {
+		ID:       "config_new_branch",
+		Shortcut: "n",
+		Emoji:    "➕",
+		Label:    "New Branch",
+		Hint:     "Create a new branch from current HEAD and switch to it",
+		Enabled:  true,
+	},
 	"config_switch_branch": {
 		ID:       "config_switch_branch",
 		Shortcut: "b",
 		Emoji:    "🌿",
 		Label:    "Switch Branch",
 		Hint:     "Switch to a different local branch",
+		Enabled:  true,
+	},
+	"config_merge_branch": {
+		ID:       "config_merge_branch",
+		Shortcut: "m",
+		Emoji:    "🔀",
+		Label:    "Merge from...",
+		Hint:     "Merge another branch into the current branch",
 		Enabled:  true,
 	},
 	"config_preferences": {

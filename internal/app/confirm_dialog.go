@@ -24,6 +24,8 @@ const (
 	ConfirmRewind                ConfirmationType = "rewind"
 	ConfirmBranchSwitchClean     ConfirmationType = "branch_switch_clean"
 	ConfirmBranchSwitchDirty     ConfirmationType = "branch_switch_dirty"
+	ConfirmMergeBranch           ConfirmationType = "merge_branch"
+	ConfirmMergeBranchDirty      ConfirmationType = "merge_branch_dirty"
 )
 
 // ConfirmationAction is a function that handles a confirmed action

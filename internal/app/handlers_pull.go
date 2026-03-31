@@ -104,6 +104,57 @@ func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cm
 	return a, nil
 }
 
+// handleMergeBranchResult handles OpMergeBranch - reloads state after successful merge
+func (a *Application) handleMergeBranchResult(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	buffer := ui.GetBuffer()
+
+	if err := a.reloadGitState(); err != nil {
+		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+		a.endAsyncOp()
+		return a, nil
+	}
+
+	// Regenerate menu (push will naturally appear if now Ahead)
+	menu := a.GenerateMenu()
+	a.menuItems = menu
+	a.selectedIndex = 0
+
+	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
+	a.endAsyncOp()
+	a.mode = ModeConsole
+
+	return a, nil
+}
+
+// handleFinalizeBranchMerge handles OpFinalizeBranchMerge - merge conflicts resolved
+func (a *Application) handleFinalizeBranchMerge(msg GitOperationMsg) (tea.Model, tea.Cmd) {
+	buffer := ui.GetBuffer()
+
+	if err := a.reloadGitState(); err != nil {
+		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
+		a.endAsyncOp()
+		a.setExitAllowed(true)
+		a.mode = ModeConsole
+		return a, nil
+	}
+
+	// Regenerate menu with new state
+	menu := a.GenerateMenu()
+	a.menuItems = menu
+	a.selectedIndex = 0
+
+	buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
+	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
+	a.footerHint = GetFooterMessageText(MessageOperationComplete)
+	a.endAsyncOp()
+	a.setExitAllowed(true)
+	a.conflictResolveState = nil
+	a.mode = ModeConsole
+
+	return a, nil
+}
+
 // handleFinalizeBranchSwitch handles finalize_branch_switch step
 func (a *Application) handleFinalizeBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
