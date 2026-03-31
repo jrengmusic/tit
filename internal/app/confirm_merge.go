@@ -103,6 +103,7 @@ func (a *Application) executeConfirmMergeBranchDirty() (tea.Model, tea.Cmd) {
 	// Initialize dirty operation state
 	a.dirtyOperationState = NewDirtyOperationState("dirty_merge", true)
 	a.dirtyOperationState.MergeBranch = sourceBranch
+	a.dirtyOperationState.OriginalBranch = a.gitState.CurrentBranch
 
 	a.prepareAsyncOperation(fmt.Sprintf("Saving changes and merging %s...", sourceBranch))
 	return a, a.cmdDirtyMergeSnapshot(true)

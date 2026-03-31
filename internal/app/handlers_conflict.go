@@ -166,11 +166,11 @@ func (a *Application) setupConflictResolverForBranchSwitch(msg GitOperationMsg) 
 		currentBranch = a.gitState.CurrentBranch
 	}
 
-	// Column labels: BASE, LOCAL (current branch), REMOTE (target branch)
+	// Column labels: BASE, current branch, target branch
 	labels := []string{
 		"BASE",
-		fmt.Sprintf("LOCAL (%s)", currentBranch),
-		fmt.Sprintf("REMOTE (%s)", targetBranch),
+		fmt.Sprintf("%s (current)", currentBranch),
+		fmt.Sprintf("%s (incoming)", targetBranch),
 	}
 
 	return a.setupConflictResolver("branch_switch", labels)
@@ -178,17 +178,37 @@ func (a *Application) setupConflictResolverForBranchSwitch(msg GitOperationMsg) 
 
 // setupConflictResolverForBranchMerge sets up conflict resolver for branch merge
 func (a *Application) setupConflictResolverForBranchMerge(msg GitOperationMsg) (tea.Model, tea.Cmd) {
-	return a.setupConflictResolver(OpMergeBranch, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+	currentBranch := ""
+	if a.gitState != nil {
+		currentBranch = a.gitState.CurrentBranch
+	}
+	sourceBranch := msg.BranchName
+	return a.setupConflictResolver(OpMergeBranch, []string{"BASE", fmt.Sprintf("%s (current)", currentBranch), fmt.Sprintf("%s (incoming)", sourceBranch)})
 }
 
 // setupConflictResolverForDirtyMerge sets up conflict resolver for dirty merge operation
 func (a *Application) setupConflictResolverForDirtyMerge(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
 	operation := "dirty_merge_" + conflictPhase
-	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+	currentBranch := ""
+	sourceBranch := ""
+	if a.dirtyOperationState != nil {
+		currentBranch = a.dirtyOperationState.OriginalBranch
+		sourceBranch = a.dirtyOperationState.MergeBranch
+	}
+	if conflictPhase == "snapshot_reapply" {
+		return a.setupConflictResolver(operation, []string{"BASE", fmt.Sprintf("%s (merged)", currentBranch), "stashed changes"})
+	}
+	return a.setupConflictResolver(operation, []string{"BASE", fmt.Sprintf("%s (current)", currentBranch), fmt.Sprintf("%s (incoming)", sourceBranch)})
 }
 
 // setupConflictResolverForDirtySwitch sets up conflict resolver for dirty branch switch
 func (a *Application) setupConflictResolverForDirtySwitch(msg GitOperationMsg, conflictPhase string) (tea.Model, tea.Cmd) {
 	operation := "dirty_switch_" + conflictPhase
-	return a.setupConflictResolver(operation, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+	targetBranch := ""
+	originalBranch := ""
+	if a.dirtyOperationState != nil {
+		targetBranch = a.dirtyOperationState.TargetBranch
+		originalBranch = a.dirtyOperationState.OriginalBranch
+	}
+	return a.setupConflictResolver(operation, []string{"BASE", fmt.Sprintf("%s (current)", targetBranch), fmt.Sprintf("%s (stashed)", originalBranch)})
 }

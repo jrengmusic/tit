@@ -111,6 +111,38 @@
 
 ## SPRINT HISTORY
 
+## Sprint 8: Contextual Conflict Resolver Labels ✅
+
+**Date:** 2026-03-31
+**Duration:** ~20 min
+
+### Agents Participated
+- **COUNSELOR** — Requirements, label mapping, delegation
+- **Pathfinder** — Discovered all `setupConflictResolver` call sites and available branch context
+- **Engineer** — Implementation
+
+### Files Modified (3 total)
+- `internal/app/handlers_conflict.go` — Updated `setupConflictResolverForBranchSwitch`, `setupConflictResolverForBranchMerge`, `setupConflictResolverForDirtyMerge`, `setupConflictResolverForDirtySwitch` with contextual branch-name labels instead of generic LOCAL/REMOTE/yours/theirs
+- `internal/app/confirm_branch.go` — Set `OriginalBranch` in dirty switch initiators (both stash and discard paths)
+- `internal/app/confirm_merge.go` — Set `OriginalBranch` in dirty merge initiator
+
+### Alignment Check
+- [x] LIFESTAR principles followed (Findable: labels tell you exactly what each column represents)
+- [x] NAMING-CONVENTION.md adhered
+- [x] ARCHITECTURAL-MANIFESTO.md principles applied (LOVE Empathizes: user sees branch names, not git jargon)
+
+### Problems Solved
+- Conflict resolver columns showed generic `LOCAL (yours)` / `REMOTE (theirs)` for all operations. Now shows actual branch names with context: `main (current)` / `dev (incoming)`, `main (current)` / `dev (stashed)`, etc.
+- Pull/push sync labels unchanged — remote ops are already clear
+
+### Technical Debt / Follow-up
+- Startup conflict resolver (`app_constructor.go`) still uses generic labels — no branch context available at startup
+- Time travel labels use commit hash/date format — separate convention, left as-is
+
+**Status:** ✅ Build passes
+
+---
+
 ## Sprint 7: Branch Operations — New Branch, Merge From, Dirty Switch/Merge Protocol ✅
 
 **Date:** 2026-03-31

@@ -45,6 +45,7 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	// Initialize dirty operation state
 	a.dirtyOperationState = NewDirtyOperationState("dirty_switch", true)
 	a.dirtyOperationState.TargetBranch = targetBranch
+	a.dirtyOperationState.OriginalBranch = a.gitState.CurrentBranch
 
 	a.prepareAsyncOperation("Saving changes and switching branch...")
 	return a, a.cmdDirtySwitchSnapshot(true)
@@ -62,6 +63,7 @@ func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	// Initialize dirty operation state (discard mode)
 	a.dirtyOperationState = NewDirtyOperationState("dirty_switch", false)
 	a.dirtyOperationState.TargetBranch = targetBranch
+	a.dirtyOperationState.OriginalBranch = a.gitState.CurrentBranch
 
 	a.prepareAsyncOperation("Discarding changes and switching branch...")
 	return a, a.cmdDirtySwitchSnapshot(false)
