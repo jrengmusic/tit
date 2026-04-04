@@ -111,6 +111,33 @@
 
 ## SPRINT HISTORY
 
+## Sprint 9: MSYS2 ARM64 Architecture Detection in build.sh ✅
+
+**Date:** 2026-04-03
+**Duration:** ~15 min
+
+### Agents Participated
+- **COUNSELOR** — Requirements counseling, investigation, trivial fix
+- **Pathfinder** — Discovered build.sh architecture detection logic
+
+### Files Modified (1 total)
+- `build.sh:5-14` — Architecture detection now checks `$MSYSTEM` first (authoritative on MSYS2), falls back to `uname -m` for non-MSYS2 systems (macOS, Linux). `CLANGARM64` maps to arm64, `MINGW64`/`UCRT64`/`MSYS` maps to x64.
+
+### Alignment Check
+- [x] BLESSED principles followed (SSOT: $MSYSTEM is the single source of truth for MSYS2 arch)
+- [x] No early returns
+- [x] Fail-fast error handling
+
+### Problems Solved
+- `uname -m` always reports `x86_64` on MSYS2 regardless of actual architecture. On ARM64 Windows (UTM on Apple Silicon), build.sh produced `tit_x64` instead of `tit_arm64`. Fixed by checking `$MSYSTEM` environment variable first — `CLANGARM64` correctly identifies ARM64 MSYS2 environment.
+
+### Technical Debt / Follow-up
+- `build.sh` is Unix-only (bash, ln). No Windows-native build path exists.
+
+**Status:** ✅ Build passes
+
+---
+
 ## Sprint 8: Contextual Conflict Resolver Labels ✅
 
 **Date:** 2026-03-31
