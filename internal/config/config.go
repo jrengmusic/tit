@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 
 	"github.com/pelletier/go-toml/v2"
 )

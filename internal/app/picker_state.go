@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/ui"
+import "github.com/jrengmusic/tit/internal/ui"
 
 // PickerState manages all picker mode states (history, file history, branch picker).
 // These share a common pattern: list pane + details pane with coordinated scrolling.

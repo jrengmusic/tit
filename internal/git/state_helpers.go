@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // IsInitializedRepo checks if current working directory is a git repository

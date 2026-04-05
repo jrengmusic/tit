@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/ui"
+import "github.com/jrengmusic/tit/internal/ui"
 
 // ConflictResolveState holds state for conflict resolution mode
 // Used for dirty pull, cherry-pick conflicts, and other conflict scenarios

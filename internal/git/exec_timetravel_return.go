@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"tit/internal/config"
+	"github.com/jrengmusic/tit/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

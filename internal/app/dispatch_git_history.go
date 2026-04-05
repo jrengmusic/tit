@@ -2,7 +2,7 @@ package app
 
 import (
 	"sort"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

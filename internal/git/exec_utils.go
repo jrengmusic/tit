@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // FindStashRefByHash finds the stash reference (stash@{N}) for a given hash

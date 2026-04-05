@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"tit/internal/config"
+	"github.com/jrengmusic/tit/internal/config"
 
 	"github.com/charmbracelet/lipgloss"
 )

@@ -1,8 +1,8 @@
 package app
 
 import (
-	"tit/internal"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 // FooterMessageType enum for different footer message states

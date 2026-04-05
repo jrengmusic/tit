@@ -7,10 +7,10 @@ package internal
 import "time"
 
 // Version information (SSOT)
-const (
-	AppName    = "TIT"    // Application name
-	AppVersion = "v1.3.1" // Application version (semantic versioning)
-)
+const AppName = "TIT" // Application name
+
+// AppVersion is injected at build time via ldflags. Default "dev" for local builds.
+var AppVersion = "dev"
 
 // Bit sizes for strconv parsing functions
 const (

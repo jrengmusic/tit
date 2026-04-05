@@ -3,7 +3,7 @@ package app
 import (
 	"fmt"
 
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 func (a *Application) View() string {

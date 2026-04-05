@@ -2,9 +2,9 @@ package main
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"tit/internal/app"
-	"tit/internal/config"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/app"
+	"github.com/jrengmusic/tit/internal/config"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 func main() {

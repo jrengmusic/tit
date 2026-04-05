@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // Point represents a 2D coordinate

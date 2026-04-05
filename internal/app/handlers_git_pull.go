@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

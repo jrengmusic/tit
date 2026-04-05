@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // DetectState performs comprehensive 5-axis git state detection for the current repository.
@@ -106,7 +106,7 @@ func DetectState() (*State, error) {
 	}
 
 	// Get current commit hash FIRST (needed for detached HEAD display)
-	hash, _ = executeGitCommand("rev-parse", "--short", "HEAD")
+	hash, _ = executeGitCommand("rev-parse", "--short", "HEAD") // error ignored: empty hash is valid fallback for detached HEAD
 	if hash != "" {
 		state.CurrentHash = hash
 	}

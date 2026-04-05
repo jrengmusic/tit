@@ -2,13 +2,14 @@ package ui
 
 import (
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
 const EmojiColumnWidth = 3
 
+// HeaderState holds the data needed to render the git state header
 type HeaderState struct {
 	CurrentDirectory string
 	RemoteURL        string

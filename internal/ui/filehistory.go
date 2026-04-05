@@ -2,7 +2,7 @@ package ui
 
 import (
 	"github.com/charmbracelet/lipgloss"
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 )
 
 // FileInfo is an alias for git.FileInfo to avoid import cycles in UI

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // EnsureFiveThemesExist creates/regenerates all 5 themes at startup

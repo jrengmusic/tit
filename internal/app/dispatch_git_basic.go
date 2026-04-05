@@ -1,8 +1,8 @@
 package app
 
 import (
-	"tit/internal/git"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/git"
+	"github.com/jrengmusic/tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

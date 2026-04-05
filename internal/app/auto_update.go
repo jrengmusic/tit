@@ -3,7 +3,7 @@ package app
 import (
 	"time"
 
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

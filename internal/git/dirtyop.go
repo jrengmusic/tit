@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // DirtyOperationSnapshot stores the state before a dirty operation

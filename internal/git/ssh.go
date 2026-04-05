@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // GenerateSSHKey generates a new SSH key pair

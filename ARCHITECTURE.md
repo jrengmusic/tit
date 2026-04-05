@@ -227,29 +227,32 @@ Return to Bubble Tea
 View() → Render based on current mode
 ```
 
-### Pre-Flight Blocker Check
+### Mid-Operation Recovery (Startup)
 
-**States that block startup (fatal errors):**
+**All mid-operation states are recoverable at startup:**
+
+| State | Startup Behavior |
+|-------|-----------------|
+| `Conflicted` | Enter conflict resolver immediately |
+| `Merging` | Show menu: Finalize merge / Abort merge |
+| `Rebasing` | If conflicts: enter resolver. Else: show menu: Continue / Abort |
+| `DirtyOperation` | Resume pipeline from `.git/TIT_DIRTY_OP` marker |
+
 ```go
-// In git/state.go::DetectState()
-state, err := git.DetectState()
-
-// Check for blockers (before returning state)
-if state.Operation == Conflicted ||
-   state.Operation == Merging ||
-   state.Operation == Rebasing ||
-   state.Operation == DirtyOperation {
-    // Startup blocked - show fatal error
-    return FatalError("Unresolved merge/rebase/conflicts detected")
+// In app_constructor.go::NewApplication()
+if isConflicted {
+    // Enter conflict resolver (handles both manual and dirty-op conflicts)
+    setupConflictResolver(...)
+}
+if operation == git.Merging {
+    // Show finalize/abort menu
+}
+if operation == git.Rebasing {
+    // If conflicts: enter resolver. Else: show continue/abort menu
 }
 ```
 
-**User must resolve externally:**
-```bash
-git merge --abort / --continue
-git rebase --abort / --continue
-git stash pop
-```
+**No state blocks startup. TIT handles all of them.**
 
 ---
 
@@ -325,53 +328,35 @@ if state.Detached {
 **Storage in Application:**
 ```go
 type Application struct {
-    // Core UI state
-    width             int
-    height            int
-    sizing            ui.DynamicSizing
-    theme             ui.Theme
-    mode              AppMode
-    quitConfirmActive bool
-    quitConfirmTime   time.Time
-    footerHint        string
-    selectedIndex     int
-    menuItems         []MenuItem
-    keyHandlers       map[AppMode]map[string]KeyHandler
+    // Embedded state clusters (promoted fields)
+    *UIState          // width, height, sizing, theme, footerHint
+    *NavigationState  // mode, selectedIndex, menuItems, keyHandlers, quitConfirm
+    *OperationState   // asyncState, workflowState, consoleState, inputState, cancelContext, conflict/dirty state
+    *DialogManager    // dialogState, pickerState
 
-    // Git state
+    // Core business logic
     gitState          *git.State
+    workingTreeInfo   map[git.WorkingTree]StateInfo
+    timelineInfo      map[git.Timeline]StateInfo
+    operationInfo     map[git.Operation]StateInfo
 
-    // Extracted state structs:
-    inputState        InputState              // Input field management (7 fields)
-    cacheManager      *CacheManager           // Cache lifecycle (14 fields)
-    asyncState        AsyncState              // Async operation state (3 fields)
-    workflowState     WorkflowState           // Workflow and clone state (7 fields)
-    environmentState  EnvironmentState        // Git environment and setup state (5 fields)
-    pickerState       PickerState             // Picker UI state (3 fields)
-    consoleState      ConsoleState            // Console output state (3 fields)
-    activityState     ActivityState           // Activity tracking state (4 fields)
-    dialogState       DialogState             // Dialog UI state (2 fields)
-    timeTravelState   TimeTravelState         // Time travel operation state (2 fields)
+    // Feature-specific state
+    timeTravelState   TimeTravelState
+    environmentState  EnvironmentState
 
-    // Other state
-    cancelContext    context.CancelFunc
-    conflictResolveState *ConflictResolveState
-    dirtyOperationState *DirtyOperationState
-    workingTreeInfo  map[git.WorkingTree]StateInfo
-    timelineInfo     map[git.Timeline]StateInfo
-    operationInfo    map[git.Operation]StateInfo
-    appConfig        *config.Config
+    // Infrastructure
+    cacheManager      *CacheManager
+    appConfig         *config.Config
+    activityState     ActivityState
 }
 ```
 
 **Application Struct Architecture:**
-- **Current state:** 31 fields (reduced from 47 originally)
-
-**Application Struct Architecture:**
-- **Current state:** 21 fields (reduced from 47)
+- **4 embedded state clusters** + 7 standalone fields
+- State clusters use Go's field promotion — direct field access within `package app` (LANGUAGE.md E: encapsulation boundary is the package)
 - **Extracted structs:**
-  - `InputState` (`internal/app/input_state.go`) - Input field management (7 fields, 148 lines)
-  - `CacheManager` (`internal/app/cache_manager.go`) - Cache lifecycle (14 fields, 307 lines)
+  - `InputState` (`internal/app/input_state.go`) - Input field management
+  - `CacheManager` (`internal/app/cache_manager.go`) - History cache lifecycle (mutex-protected)
   - `AsyncState` (`internal/app/async_state.go`) - Async operation state (3 fields, 59 lines)
   - `WorkflowState` (`internal/app/workflow_state.go`) - Workflow and clone state (7 fields)
   - `EnvironmentState` (`internal/app/environment_state.go`) - Git environment and setup state (5 fields)
@@ -382,12 +367,12 @@ type Application struct {
   - `TimeTravelState` (`internal/app/time_travel_state.go`) - Time travel operation state (2 fields)
 
 **InputState Methods:**
-- Reset(), SetValue(), GetValue()
-- SetCursorPos(), GetCursorPos(), MoveCursorBy()
+- Reset(), ReplaceValue() (sets value + moves cursor to end)
+- ClampCursorTo() (bounds-checked), MoveCursorBy()
 - InsertAtCursor(), DeleteBeforeCursor(), DeleteAfterCursor()
-- SetPrompt(), GetPrompt(), GetAction()
-- SetValidationMessage(), ClearValidationMessage(), GetValidationMessage(), HasValidationError()
-- SetClearConfirming(), IsClearConfirming(), ToggleClearConfirming()
+- ConfigurePrompt() (sets prompt, action, height in one call)
+- ClearValidationMessage(), HasValidationError()
+- IsClearConfirming(), ToggleClearConfirming()
 
 **CacheManager Methods:**
 - Status: IsLoadingStarted(), SetLoadingStarted(), IsMetadataReady(), SetMetadataReady(), IsDiffsReady(), SetDiffsReady()
@@ -401,20 +386,17 @@ type Application struct {
 
 **AsyncState Methods:**
 - Start(), End(), Abort(), ClearAborted()
-- IsActive(), IsAborted(), CanExit(), SetExitAllowed()
+- IsActive(), IsAborted(), CanExit()
 
-**Direct State Access (No Delegation Methods):**
-All delegation methods have been removed. The codebase now uses direct state access:
+**OperationState Behavioral Methods (promoted via embedding):**
+- `StartAsyncOp()`, `EndAsyncOp()`, `AbortAsyncOp()` — async lifecycle
+- `IsAsyncActive()`, `IsAsyncAborted()`, `ClearAsyncAborted()` — async queries
+- `PermitExit(bool)`, `CanExit()` — exit control
+- `EnsureConsoleState()` — lazy init console state
+- `EnterConsoleMode()` — `Reset()` + workflow state init
 
-- Async: `a.asyncState.Start()`, `a.asyncState.End()`, etc.
-- Cache: `a.cacheManager.IsLoadingStarted()`, `a.cacheManager.GetMetadata()`, etc.
-- Workflow: `a.workflowState.ResetClone()`, `a.workflowState.SaveCurrentMode()`, etc.
-- Environment: `a.environmentState.IsReady()`, `a.environmentState.NeedsSetup()`, etc.
-- Picker: `a.pickerState.GetHistoryState()`, `a.pickerState.SetHistoryState()`, etc.
-- Console: `a.consoleState.GetBuffer()`, `a.consoleState.ClearBuffer()`, etc.
-- Activity: `a.activityState.MarkActivity()`, `a.activityState.IsMenuInactive()`, etc.
-- Dialog: `a.dialogState.GetDialog()`, `a.dialogState.SetDialog()`, etc.
-- TimeTravel: `a.timeTravelState.IsActive()`, `a.timeTravelState.GetInfo()`, etc.
+**State Access Pattern (LANGUAGE.md E):**
+Within `package app`, fields are accessed directly via Go's field promotion. No same-package accessors. Behavioral methods (bounds checking, lazy init, multi-field coordination) are kept as methods with semantic names (e.g., `SelectAt`, `ReplaceMenu`, `AdvancePhase`).
 
 **Safety invariant:** ESC at any point restores exact original state by restoring original branch and reapplying stash.
 
@@ -480,8 +462,10 @@ internal/app/
 ├── app.go                    (393 lines) - Core Application struct + essential handlers
 ├── app_constructor.go        (180 lines) - Constructor logic (NewApplication, newSetupWizardApp)
 ├── app_keys.go               (234 lines) - Key handler registration (buildKeyHandlers)
-├── app_update.go             (326 lines) - Update() method + message handlers
-├── app_view.go               (301 lines) - View() method + rendering helpers
+├── app_update_cmd.go         - Update() command handlers
+├── app_update_msg.go         - Update() message handlers
+├── app_view_header.go        - State header rendering
+├── app_view_main.go          - View() method + content rendering
 ├── app_init.go               (135 lines) - Init() method + RestoreFromTimeTravel
 ├── confirm_dialog.go         (362 lines) - Dialog infrastructure + confirmation types
 ├── confirm_handlers.go       (649 lines) - Confirmation action handlers
@@ -517,7 +501,7 @@ The operation logic is organized into 9 focused files:
 - `op_commit.go` - Commit operations
 - `op_push.go` - Push operations
 - `op_pull.go` - Pull operations
-- `op_dirty_pull.go` - Dirty pull handling
+- `op_dirty_pull_merge.go`, `op_dirty_pull_snapshot.go` - Dirty pull handling
 - `op_merge.go` - Merge operations
 - `op_time_travel.go` - Time travel operations
 
@@ -823,39 +807,30 @@ If an action appears in the menu, it MUST succeed. Never show operations that co
 
 **TIT Startup Check (Before Any Menu):**
 
-If git state detection finds any of these:
-- `Conflicted` (merge/rebase/conflict in progress)
-- `Merging` (merge in progress, no conflicts)
-- `Rebasing` (rebase in progress)
-- `DirtyOperation` (stash mid-operation)
+All mid-operation states are recoverable. TIT handles them at startup:
+- `Conflicted` → Enter conflict resolver immediately
+- `Merging` → Show finalize/abort merge menu
+- `Rebasing` → If conflicts: enter resolver. Else: show continue/abort menu
+- `DirtyOperation` → Resume pipeline from `.git/TIT_DIRTY_OP` marker
 
-→ TIT shows fatal error screen and **refuses to start**. User must resolve externally:
-```bash
-git merge --continue / --abort
-git rebase --continue / --abort
-git stash pop
-```
-
-**Why:** These are pre-existing abnormal states, not states TIT creates or manages. TIT operates only on clean/normal repositories.
-
-**Valid MenuGenerators (Only for Normal Startups):**
+**MenuGenerators (All Operation States Covered):**
 
 ```go
-type MenuGenerator func(*Application) []MenuItem
-
 menuGenerators := map[git.Operation]MenuGenerator{
     git.NotRepo:        (*Application).menuNotRepo,
     git.Normal:         (*Application).menuNormal,
-    git.TimeTraveling:  (*Application).menuTimeTraveling,  // Only entered via History mode
+    git.TimeTraveling:  (*Application).menuTimeTraveling,
+    git.Conflicted:     (*Application).menuConflicted,
+    git.Merging:        (*Application).menuMerging,
+    git.Rebasing:       (*Application).menuRebasing,
+    git.DirtyOperation: (*Application).menuDirtyOperation,
+    git.Rewinding:      (*Application).menuNormal,  // transient state
 }
-
-// These states cause startup failure, never reach menuGenerators:
-// git.Conflicted, git.Merging, git.Rebasing, git.DirtyOperation
 ```
 
 ### MenuItem SSOT System
 
-All menu items defined in single source of truth (`internal/app/menuitems.go`):
+All menu items defined in single source of truth (`internal/app/menu_items.go`):
 
 ```go
 var MenuItems = map[string]MenuItem{
@@ -906,24 +881,25 @@ Layout() displays footer with current hint
 
 ### Generators in `internal/app/menu.go`
 
-**Valid startups only:**
+**Normal operation:**
 - `menuNotRepo()` - Init/Clone (not in repo)
 - `menuNormal()` - Full menu (normal state)
   - `menuWorkingTree()` - Commit (when Dirty)
   - `menuTimeline()` - Push/Pull based on Timeline
   - `menuHistory()` - Commit history browser (time travel entry point)
-- `menuTimeTraveling()` - Browse history, Merge back, Return (only when `Operation = TimeTraveling`)
+- `menuTimeTraveling()` - Browse history, Merge back, Return
 
-**Never called (pre-flight check blocks startup):**
-- ~~`menuConflicted()`~~ - Startup prevents any menu if Conflicted
-- ~~`menuOperation()`~~ - Startup prevents any menu if Merging/Rebasing
-- ~~`menuDirtyOperation()`~~ - Startup prevents any menu if DirtyOperation in progress
+**Mid-operation recovery:**
+- `menuConflicted()` - Abort option (conflict resolver is primary UI)
+- `menuMerging()` - Finalize merge / Abort merge
+- `menuRebasing()` - Continue rebase / Abort rebase
+- `menuDirtyOperation()` - Abort option (pipeline manages state)
 
 ### State Display System (StateDescriptions SSOT)
 
 **Purpose:** Centralize all git state descriptions for consistent, translatable UI messages.
 
-**Implementation** (`internal/app/stateinfo.go` uses `StateDescriptions` SSOT):
+**Implementation** (`internal/app/state_info.go` uses `StateDescriptions` SSOT):
 
 ```go
 // messages.go - State descriptions SSOT
@@ -937,7 +913,7 @@ var StateDescriptions = map[string]string{
     "timeline_diverged":   "Both have new commits. Ahead %d, Behind %d.",
 }
 
-// stateinfo.go - Uses SSOT
+// state_info.go - Uses SSOT
 type StateInfo struct {
     Label       string
     Emoji       string
@@ -2298,7 +2274,7 @@ func executeOperation() tea.Cmd {
 
 ### Adding a New Menu Item
 
-**Step 1: Define in SSOT** (`menuitems.go`)
+**Step 1: Define in SSOT** (`menu_items.go`)
 ```go
 var MenuItems = map[string]MenuItem{
     // ... existing items ...
@@ -2833,7 +2809,7 @@ githandlers.go routes based on Operation
 
 **Example: Adding a new menu item type**
 ```go
-// app/menuitems.go (location: same as MenuItem)
+// app/menu_items.go (location: same as MenuItem)
 type MenuItemCategory string
 
 const (
@@ -2898,7 +2874,7 @@ The operation logic is organized into 9 focused files:
 - `op_commit.go` - Commit operations
 - `op_push.go` - Push operations
 - `op_pull.go` - Pull operations
-- `op_dirty_pull.go` - Dirty pull handling
+- `op_dirty_pull_merge.go`, `op_dirty_pull_snapshot.go` - Dirty pull handling
 - `op_merge.go` - Merge operations
 - `op_time_travel.go` - Time travel operations
 

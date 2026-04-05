@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 )
 
 // CommitInfo is an alias for git.CommitInfo to avoid import cycles in UI
@@ -55,7 +55,7 @@ func ComputeCopyHashKeys(commits []CommitInfo, startIdx, count int) []CopyHashKe
 	keys := make([]CopyHashKey, 0, len(visible))
 
 	for i, commit := range visible {
-		short := ShortenHash(commit.Hash)
+		short := git.ShortenHash(commit.Hash)
 		assignedPos := -1
 
 		for pos := 0; pos < len(short); pos++ {
@@ -65,7 +65,7 @@ func ComputeCopyHashKeys(commits []CommitInfo, startIdx, count int) []CopyHashKe
 				if j == i {
 					continue
 				}
-				otherShort := ShortenHash(other.Hash)
+				otherShort := git.ShortenHash(other.Hash)
 				if pos < len(otherShort) && rune(otherShort[pos]) == candidate {
 					unique = false
 					break
@@ -140,7 +140,7 @@ func buildCommitListItems(commits []CommitInfo, selectedIdx int, theme Theme, co
 		item := ListItem{
 			AttributeText:  commit.Time.Format("02-Jan 15:04"),
 			AttributeColor: theme.DimmedTextColor,
-			ContentText:    ShortenHash(commit.Hash),
+			ContentText:    git.ShortenHash(commit.Hash),
 			ContentColor:   theme.ContentTextColor,
 			ContentBold:    false,
 			IsSelected:     i == selectedIdx && len(copyHashKeys) == 0,

@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/ui"
+import "github.com/jrengmusic/tit/internal/ui"
 
 // ConsoleState manages console scroll position and auto-scroll behavior.
 // Buffer access is via ui.GetBuffer() — ConsoleState does not own the buffer.

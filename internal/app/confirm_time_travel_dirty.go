@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"tit/internal/config"
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/config"
+	"github.com/jrengmusic/tit/internal/git"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

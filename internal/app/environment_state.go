@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/git"
+import "github.com/jrengmusic/tit/internal/git"
 
 // EnvironmentState manages git environment detection and setup wizard state.
 // This is only relevant before main application loop starts.

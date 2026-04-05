@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"tit/internal/git"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/git"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 // RenderStateHeader renders the state header per REACTIVE-LAYOUT-PLAN.md

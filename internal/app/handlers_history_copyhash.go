@@ -2,7 +2,8 @@ package app
 
 import (
 	"github.com/atotto/clipboard"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/git"
+	"github.com/jrengmusic/tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -99,7 +100,7 @@ func (a *Application) handleHistoryCopyHashKeypress(keyStr string) (bool, tea.Mo
 	}
 
 	fullHash := a.pickerState.History.Commits[matchedCommitIdx].Hash
-	hash := ui.ShortenHash(fullHash)
+	hash := git.ShortenHash(fullHash)
 	if a.pickerState.History.CopyHashFull {
 		hash = fullHash
 	}

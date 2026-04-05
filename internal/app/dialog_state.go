@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/ui"
+import "github.com/jrengmusic/tit/internal/ui"
 
 // DialogState manages confirmation dialog display and context.
 type DialogState struct {

@@ -2,7 +2,7 @@ package app
 
 import (
 	"fmt"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 // GetFooterContent returns the rendered footer for current mode.

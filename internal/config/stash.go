@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 
 	"github.com/BurntSushi/toml"
 )

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"tit/internal/config"
-	"tit/internal/git"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/config"
+	"github.com/jrengmusic/tit/internal/git"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 // newSetupWizardApp creates a minimal Application for the setup wizard
@@ -175,7 +175,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		if hasDirtyPullMarker {
 			operationType = "dirty_pull_changeset_apply"
 		}
-		_, _ = app.setupConflictResolver(operationType, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"})
+		_, _ = app.setupConflictResolver(operationType, []string{"BASE", "LOCAL (yours)", "REMOTE (theirs)"}) // return values ignored: model is always app, no cmd needed at startup
 
 		// No need to generate menu or start cache loading
 		return app
@@ -192,7 +192,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		if git.HasConflicts() {
 			app.NavigationState.mode = ModeConsole
 			app.UIState.footerHint = "Rebase conflict detected - entering resolver..."
-			_, _ = app.setupConflictResolverForRebase()
+			_, _ = app.setupConflictResolverForRebase() // return values ignored: model is always app, no cmd needed at startup
 			return app
 		}
 		// No conflicts — show rebase menu (continue/abort) via menuRebasing()

@@ -2,7 +2,7 @@ package app
 
 import (
 	"fmt"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 // ErrorLevel categorizes the severity and visibility of errors in TIT.

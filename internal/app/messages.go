@@ -3,7 +3,7 @@ package app
 import (
 	"time"
 
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 )
 
 // TickMsg is a custom message for quit confirmation timeout

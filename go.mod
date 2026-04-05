@@ -1,4 +1,4 @@
-module tit
+module github.com/jrengmusic/tit
 
 go 1.24.0
 

@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/ui"
+import "github.com/jrengmusic/tit/internal/ui"
 
 // DialogManager manages all dialog and picker state
 type DialogManager struct {

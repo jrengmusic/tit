@@ -1,6 +1,6 @@
 package app
 
-import "tit/internal/git"
+import "github.com/jrengmusic/tit/internal/git"
 
 // TimeTravelState manages time travel operation state.
 type TimeTravelState struct {

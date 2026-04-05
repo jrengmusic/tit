@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // FetchRecentCommits fetches the last N commits with basic info

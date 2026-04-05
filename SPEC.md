@@ -81,6 +81,7 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 | `Rebasing` | Rebase in progress (may have conflicts) |
 | `TimeTraveling` | Detached HEAD (exploring history, read-only) |
 | `DirtyOperation` | Executing dirty pull/merge with stashed work |
+| `Rewinding` | Hard reset in progress (transient) |
 
 ### Remote — Remote repository presence
 | Code | Meaning |
@@ -899,7 +900,7 @@ Manual Detached (dirty)
 
 ```
 ┌────────────────────────────────────────┐
-│  ⣿⣿⣿ TIT v2.0.0 ⣿⣿⣿               │ ← Banner
+│  ⣿⣿⣿ TIT vX.Y.Z ⣿⣿⣿               │ ← Banner
 ├────────────────────────────────────────┤
 │  CWD: /path/to/repo                   │ ← Header
 │  Branch: main | Clean | In sync       │

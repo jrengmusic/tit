@@ -2,7 +2,7 @@ package app
 
 import (
 	"sync"
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 )
 
 // CacheManager handles async metadata and diff caching for history modes.

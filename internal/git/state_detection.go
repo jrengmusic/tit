@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // detectWorkingTree checks for staged/unstaged changes or untracked files

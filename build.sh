@@ -23,9 +23,12 @@ BIN_DIR="$INSTALL_ROOT/bin"
 SYMLINK_DIR="$HOME/.local/bin"
 SYMLINK_PATH="$SYMLINK_DIR/$APP_NAME"
 
+# Version from git tag
+VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
+
 # Build
-echo "Building $BINARY_NAME..."
-go build -ldflags="-s -w" -o "$BINARY_NAME" ./cmd/tit
+echo "Building $BINARY_NAME ($VERSION)..."
+go build -ldflags="-s -w -X github.com/jrengmusic/tit/internal.AppVersion=$VERSION" -o "$BINARY_NAME" ./cmd/tit
 
 # Install
 mkdir -p "$BIN_DIR" "$SYMLINK_DIR"

@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/git"
+	"github.com/jrengmusic/tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -96,7 +97,7 @@ func (a *Application) handleHistoryEnter(app *Application) (tea.Model, tea.Cmd) 
 
 	// Create confirmation dialog using SSOT
 	// Format: hash (first 7 chars) on first line, subject on second line
-	shortHash := ui.ShortenHash(commit.Hash)
+	shortHash := git.ShortenHash(commit.Hash)
 
 	// Extract only first line of commit message (subject)
 	subject := commit.Subject

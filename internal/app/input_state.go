@@ -3,7 +3,7 @@ package app
 import (
 	"time"
 
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/ui"
 )
 
 // InputState manages user input in text entry modes.

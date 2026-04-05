@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // BranchDetails represents a single branch with all metadata
@@ -68,10 +68,10 @@ func ListBranchesWithDetails() ([]BranchDetails, error) {
 				fields := strings.Fields(trackStr)
 				for i, f := range fields {
 					if f == "ahead" && i+1 < len(fields) {
-						ahead, _ = strconv.Atoi(strings.TrimSuffix(fields[i+1], ","))
+						ahead, _ = strconv.Atoi(strings.TrimSuffix(fields[i+1], ",")) // error ignored: unparseable count defaults to 0 (no ahead commits)
 					}
 					if f == "behind" && i+1 < len(fields) {
-						behind, _ = strconv.Atoi(fields[i+1])
+						behind, _ = strconv.Atoi(fields[i+1]) // error ignored: unparseable count defaults to 0 (no behind commits)
 					}
 				}
 			}

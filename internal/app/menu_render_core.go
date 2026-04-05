@@ -2,7 +2,7 @@ package app
 
 import (
 	"os"
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 )
 
 // menuNotRepo returns menu for NotRepo state

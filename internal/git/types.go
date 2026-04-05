@@ -2,6 +2,7 @@ package git
 
 import "time"
 
+// WorkingTree represents the state of the git working tree
 type WorkingTree string
 
 const (
@@ -9,6 +10,7 @@ const (
 	Dirty WorkingTree = "Dirty"
 )
 
+// Timeline represents the sync state between local and remote branches
 type Timeline string
 
 const (
@@ -19,6 +21,7 @@ const (
 	// Empty string ("") = Timeline N/A (no remote OR detached HEAD)
 )
 
+// Operation represents the current git operation state
 type Operation string
 
 const (
@@ -32,6 +35,7 @@ const (
 	Rewinding      Operation = "Rewinding" // Represents active rewind operation (git reset --hard in progress)
 )
 
+// Remote represents the remote repository presence
 type Remote string
 
 const (

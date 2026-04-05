@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"tit/internal"
+	"github.com/jrengmusic/tit/internal"
 )
 
 // DefaultGitignoreContent contains common patterns to ignore
@@ -43,8 +43,8 @@ Desktop.ini
 *.log
 `
 
-// InitializeRepository initializes a git repository in the given directory
-// WORKER THREAD - called from git operations, must be in worker goroutine
+// InitializeRepository initializes a git repository in the given directory.
+// WORKER THREAD - called from git operations, must be in worker goroutine.
 func InitializeRepository(dirPath string) error {
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(dirPath, internal.StashDirPerms); err != nil {
@@ -70,8 +70,8 @@ func InitializeRepository(dirPath string) error {
 	return nil
 }
 
-// CreateBranch creates a new git branch (or checks out if it exists as tracking)
-// WORKER THREAD - called from git operations, must be in worker goroutine
+// CreateBranch creates a new git branch, or checks out an existing tracking branch.
+// WORKER THREAD - called from git operations, must be in worker goroutine.
 func CreateBranch(branchName string) error {
 	// Check if branch already exists
 	cmd := exec.Command("git", "rev-parse", "--verify", branchName)
@@ -93,8 +93,8 @@ func CreateBranch(branchName string) error {
 	return nil
 }
 
-// CheckoutBranch checks out an existing branch
-// WORKER THREAD - called from git operations, must be in worker goroutine
+// CheckoutBranch checks out an existing branch.
+// WORKER THREAD - called from git operations, must be in worker goroutine.
 func CheckoutBranch(branchName string) error {
 	cmd := exec.Command("git", "checkout", branchName)
 	if output, err := cmd.CombinedOutput(); err != nil {

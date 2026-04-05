@@ -57,14 +57,13 @@ tit/
 │   │   ├── history.go             ← History split-pane rendering
 │   │   ├── filehistory.go         ← File(s) history 3-pane rendering
 │   │   ├── conflictresolver.go    ← Conflict resolver N-column rendering
-│   │   ├── textpane.go            ← Text/diff pane with scrolling
+│   │   ├── textpane_render.go     ← Text/diff pane rendering with scrolling
+│   │   ├── textpane_input.go      ← Text/diff pane input handling
 │   │   ├── listpane.go            ← List pane with selection
 │   │   ├── confirmation.go        ← Confirmation dialog
 │   │   ├── console.go             ← Streaming output console
-│   │   ├── statusbar.go           ← 🌟 SSOT: Status bar styling
 │   │   ├── buffer.go              ← Thread-safe output buffer
 │   │   ├── formatters.go          ← Text formatting helpers
-│   │   ├── input.go               ← Input field rendering
 │   │   ├── textinput.go           ← Text input rendering
 │   │   ├── validation.go          ← Input validation (URLs, branches)
 │   │   └── assets/                ← Braille/SVG assets
@@ -348,7 +347,7 @@ When user views history:
 | **Terminal size** | `ui/sizing.go` | All pane sizes |
 | **Messages** | `app/messages.go` | All user-facing text |
 | **State enums** | `git/types.go` | All state-dependent logic |
-| **Status bar** | `ui/statusbar.go` | All status bars |
+| **Status bar** | `ui/layout.go` | All status bars |
 
 ---
 

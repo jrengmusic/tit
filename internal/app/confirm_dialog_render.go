@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"tit/internal/config"
-	"tit/internal/git"
-	"tit/internal/ui"
+	"github.com/jrengmusic/tit/internal/config"
+	"github.com/jrengmusic/tit/internal/git"
+	"github.com/jrengmusic/tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -104,7 +104,7 @@ func (a *Application) showRewindConfirmation(commitHash string) tea.Cmd {
 	msg := ConfirmationMessages["rewind"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
-		Explanation: fmt.Sprintf(msg.Explanation, ui.ShortenHash(commitHash)),
+		Explanation: fmt.Sprintf(msg.Explanation, git.ShortenHash(commitHash)),
 		YesLabel:    msg.YesLabel,
 		NoLabel:     msg.NoLabel,
 		ActionID:    string(ConfirmRewind),

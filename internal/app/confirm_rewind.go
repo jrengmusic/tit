@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"tit/internal/git"
+	"github.com/jrengmusic/tit/internal/git"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

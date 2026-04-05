@@ -4,7 +4,7 @@ import (
 	"embed"
 	"strings"
 
-	"tit/internal/banner"
+	"github.com/jrengmusic/tit/internal/banner"
 
 	"github.com/charmbracelet/lipgloss"
 )
