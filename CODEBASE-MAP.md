@@ -16,20 +16,17 @@ tit/
 │   │   ├── app.go                 ← Application struct, Update(), View()
 │   │   ├── modes.go               ← AppMode enum (Menu, Console, Input, etc.)
 │   │   ├── menu.go                ← Menu generation (state → menu items)
-│   │   ├── menuitems.go           ← 🌟 SSOT: All menu items defined here
-│   │   ├── messages.go            ← 📝 String constants (prompts, errors, hints)
-│   │   ├── operations.go          ← cmd* functions (git operations)
-│   │   ├── handlers.go            ← Input handlers (keyboard, selection)
-│   │   ├── githandlers.go         ← Git operation result handlers
-│   │   ├── confirmationhandlers.go ← Confirmation dialog handlers
-│   │   ├── conflicthandlers.go    ← Conflict resolver handlers
+│   │   ├── menu_items.go          ← SSOT: All menu items defined here
+│   │   ├── messages.go            ← String constants (prompts, errors, hints)
+│   │   ├── git_handlers.go        ← Git operation result handlers
+│   │   ├── conflict_handlers.go   ← Conflict resolver handlers
 │   │   ├── dispatchers.go         ← Action dispatchers (menu → handler)
-│   │   ├── historycache.go        ← History metadata cache preloading
-│   │   ├── menu*.go               ← Menu helpers (generator map, builder)
-│   │   ├── dirtystate.go          ← Dirty operation state tracking
-│   │   ├── conflictstate.go       ← Conflict resolver state
-│   │   └── async.go               ← AsyncOperation builder
-│   │   ├── 
+│   │   ├── history_cache.go       ← History metadata cache preloading
+│   │   ├── menu_builders.go       ← Menu helpers (generator map, builder)
+│   │   ├── dirty_state.go         ← Dirty operation state tracking
+│   │   ├── conflict_state.go      ← Conflict resolver state
+│   │   ├── handlers_git_result.go ← Extracted git operation result handlers
+│   │   ├── op_rebase.go           ← Rebase cmd and handler functions
 │   │   ├── // State struct files (extracted from Application God Object)
 │   │   ├── input_state.go          ← Input field management state (7 fields)
 │   │   ├── cache_manager.go        ← Cache lifecycle state (14 fields)
@@ -46,6 +43,7 @@ tit/
 │   │   ├── state.go               ← State detection (WorkingTree, Timeline, etc.)
 │   │   ├── types.go               ← State enums & type definitions
 │   │   ├── execute.go             ← Git command execution
+│   │   ├── exec_*.go              ← Per-operation git command files
 │   │   ├── init.go                ← Repository initialization
 │   │   ├── dirtyop.go             ← Dirty operation (stash/restore)
 │   │   └── messages.go            ← Git operation message types
@@ -246,15 +244,15 @@ type Theme struct {
 ## 🎯 Finding Code by Task
 
 ### "I need to add a new menu item"
-1. **Define in SSOT:** `internal/app/menuitems.go` (add to `MenuItems` map)
+1. **Define in SSOT:** `internal/app/menu_items.go` (add to `MenuItems` map)
 2. **Generate in menu:** `internal/app/menu.go` (add to appropriate `menu*()` function)
 3. **Dispatch action:** `internal/app/dispatchers.go` (add to `actionDispatchers` map)
-4. **Handle action:** `internal/app/handlers.go` or `*handlers.go` (add handler function)
+4. **Handle action:** `internal/app/handlers_*.go` (add handler function)
 5. **Register key:** `internal/app/keyboard.go` (add to mode handlers)
 
 ### "I need to add a new git operation"
-1. **Define command:** `internal/app/operations.go` (create `cmd*()` function)
-2. **Handle result:** `internal/app/githandlers.go` (add case in `handleGitOperation()`)
+1. **Define command:** `internal/app/op_*.go` (create `cmd*()` function in appropriate op file)
+2. **Handle result:** `internal/app/handlers_git_result.go` (add case in `handleGitOperation()`)
 3. **Add messages:** `internal/app/messages.go` (add error/success text)
 
 ### "I need to add a new state indicator"
@@ -333,7 +331,7 @@ When user views history:
 | File | Why Critical | Change Impact |
 |------|-------------|----------------|
 | `app.go` | Main loop (Update, View, Init) | Breaks entire app |
-| `menuitems.go` | Menu SSOT | Menu items missing/duplicated |
+| `menu_items.go` | Menu SSOT | Menu items missing/duplicated |
 | `theme.go` | Color SSOT | Visual regression |
 | `messages.go` | String SSOT | UX text wrong |
 | `git/state.go` | State detection | Wrong menu options shown |
@@ -345,7 +343,7 @@ When user views history:
 
 | What | Where | Update Impact |
 |------|-------|---------------|
-| **Menu items** | `menuitems.go` | All items affected |
+| **Menu items** | `menu_items.go` | All items affected |
 | **Colors** | `ui/theme.go` | All UI colors |
 | **Terminal size** | `ui/sizing.go` | All pane sizes |
 | **Messages** | `app/messages.go` | All user-facing text |
@@ -405,9 +403,9 @@ grep "func.*execute.*Command\|execute.*Workflow" internal/app/
 4. Add to `menuGenerators` map
 
 ### Adding a new git operation
-1. Create `cmd*()` in `operations.go`
+1. Create `cmd*()` in `op_*.go` (appropriate op file or new one)
 2. Add dispatcher in `dispatchers.go`
-3. Add handler in `githandlers.go`
+3. Add handler in `handlers_git_result.go`
 4. Add messages in `messages.go`
 5. Add to menu in `menu.go`
 

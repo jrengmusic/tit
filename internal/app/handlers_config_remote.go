@@ -32,7 +32,7 @@ func (a *Application) handleConfigAddRemoteURLSubmit(app *Application) (tea.Mode
 		return app, nil
 	}
 
-	app.startAsyncOp()
+	app.StartAsyncOp()
 	app.workflowState.PreviousMode = ModeConfig
 	app.workflowState.PreviousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole
@@ -61,7 +61,7 @@ func (a *Application) handleConfigSwitchRemoteURLSubmit(app *Application) (tea.M
 		return app, nil
 	}
 
-	app.startAsyncOp()
+	app.StartAsyncOp()
 	app.workflowState.PreviousMode = ModeConfig
 	app.workflowState.PreviousMenuIndex = app.selectedIndex
 	app.mode = ModeConsole

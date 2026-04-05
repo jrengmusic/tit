@@ -26,10 +26,11 @@ const (
 	MessageExitBlocked
 )
 
-// GetFooterMessageText returns display text for a message type
-func GetFooterMessageText(msgType FooterMessageType) string {
+var footerMessageTexts map[FooterMessageType]string
+
+func init() {
 	timeoutStr := internal.QuitConfirmTimeout.String()
-	messages := map[FooterMessageType]string{
+	footerMessageTexts = map[FooterMessageType]string{
 		MessageNone:                "",
 		MessageCtrlCConfirm:        "Press Ctrl+C again to quit (" + timeoutStr + " timeout)",
 		MessageEscClearConfirm:     "Press ESC again to clear input (" + timeoutStr + " timeout)",
@@ -46,8 +47,11 @@ func GetFooterMessageText(msgType FooterMessageType) string {
 		MessageOperationAborting:   "Aborting operation. Please wait...",
 		MessageExitBlocked:         "Exit blocked. Operation must complete or be aborted first.",
 	}
+}
 
-	if msg, exists := messages[msgType]; exists {
+// GetFooterMessageText returns display text for a message type
+func GetFooterMessageText(msgType FooterMessageType) string {
+	if msg, exists := footerMessageTexts[msgType]; exists {
 		return msg
 	}
 	return ""

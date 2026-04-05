@@ -28,7 +28,6 @@ var ErrorMessages = map[string]string{
 	// Validation errors
 	"remote_url_empty_validation":      "Remote URL cannot be empty",
 	"remote_already_exists_validation": "Remote 'origin' already exists",
-
 	// Time travel errors
 	"time_travel_failed":               "Time travel failed: %s",
 	"time_travel_merge_failed":         "Time travel merge failed: %s",

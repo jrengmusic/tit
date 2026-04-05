@@ -103,12 +103,12 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 
 // handleConfirmationResponse routes confirmation YES/NO responses to appropriate handlers
 func (a *Application) handleConfirmationResponse(confirmed bool) (tea.Model, tea.Cmd) {
-	if a.dialogState.GetDialog() == nil {
+	if a.dialogState.dialog == nil {
 		// No active confirmation dialog
 		return a.returnToMenu()
 	}
 
-	confirmType := a.dialogState.GetDialog().Config.ActionID
+	confirmType := a.dialogState.dialog.Config.ActionID
 	actions, ok := confirmationHandlers[confirmType]
 	if !ok {
 		// No handler registered for this type - return to menu

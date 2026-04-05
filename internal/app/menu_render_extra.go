@@ -114,6 +114,38 @@ func (a *Application) menuTimeTraveling() []MenuItem {
 	return items
 }
 
+// menuMerging returns menu for Merging operation state (merge in progress, no conflicts)
+func (a *Application) menuMerging() []MenuItem {
+	return []MenuItem{
+		GetMenuItem("finalize_merge"),
+		GetMenuItem("abort_merge"),
+	}
+}
+
+// menuRebasing returns menu for Rebasing operation state
+func (a *Application) menuRebasing() []MenuItem {
+	return []MenuItem{
+		GetMenuItem("rebase_continue"),
+		GetMenuItem("rebase_abort"),
+	}
+}
+
+// menuConflicted returns menu for Conflicted operation state
+// Conflict resolver is active — menu shows abort option
+func (a *Application) menuConflicted() []MenuItem {
+	return []MenuItem{
+		GetMenuItem("abort_merge"),
+	}
+}
+
+// menuDirtyOperation returns menu for DirtyOperation state
+// Dirty operation pipeline handles this — menu shows abort option
+func (a *Application) menuDirtyOperation() []MenuItem {
+	return []MenuItem{
+		GetMenuItem("abort_merge"),
+	}
+}
+
 // menuInitializeLocation returns options for where to initialize repository
 func (a *Application) menuInitializeLocation() []MenuItem {
 	return []MenuItem{

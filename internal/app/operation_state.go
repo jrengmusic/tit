@@ -46,9 +46,9 @@ func (o *OperationState) ClearAsyncAborted() {
 	o.asyncState.ClearAborted()
 }
 
-// SetExitAllowed sets whether app can exit during async op
-func (o *OperationState) SetExitAllowed(allowed bool) {
-	o.asyncState.SetExitAllowed(allowed)
+// PermitExit sets whether app can exit during async op
+func (o *OperationState) PermitExit(allowed bool) {
+	o.asyncState.exitAllowed = allowed
 }
 
 // CanExit returns true if app can exit
@@ -61,16 +61,6 @@ func (o *OperationState) CanExit() bool {
 
 // CancelContext Helpers
 
-// SetCancelContext stores the cancel function for current operation
-func (o *OperationState) SetCancelContext(cancel context.CancelFunc) {
-	o.cancelContext = cancel
-}
-
-// GetCancelContext returns the cancel function
-func (o *OperationState) GetCancelContext() context.CancelFunc {
-	return o.cancelContext
-}
-
 // ClearCancelContext removes stored cancel function
 func (o *OperationState) ClearCancelContext() {
 	o.cancelContext = nil
@@ -78,8 +68,8 @@ func (o *OperationState) ClearCancelContext() {
 
 // Workflow State Helpers
 
-// GetWorkflowState returns the workflow state
-func (o *OperationState) GetWorkflowState() *WorkflowState {
+// WorkflowState returns the workflow state reference
+func (o *OperationState) WorkflowState() *WorkflowState {
 	return &o.workflowState
 }
 
@@ -90,8 +80,8 @@ func (o *OperationState) ResetWorkflow() {
 
 // Console State Helpers
 
-// GetConsoleState returns the console state, initializing if needed
-func (o *OperationState) GetConsoleState() *ConsoleState {
+// EnsureConsoleState returns the console state, initializing if needed
+func (o *OperationState) EnsureConsoleState() *ConsoleState {
 	if o.consoleState == nil {
 		newState := NewConsoleState()
 		o.consoleState = &newState
@@ -99,11 +89,9 @@ func (o *OperationState) GetConsoleState() *ConsoleState {
 	return o.consoleState
 }
 
-// EnterConsoleMode prepares console state for async operation display.
+// EnterConsoleMode prepares console and workflow state for async operation display.
 // Callers must also set NavigationState mode to ModeConsole and UIState footerHint.
 func (o *OperationState) EnterConsoleMode() {
-	o.consoleState.SetAutoScroll(true)
-	o.consoleState.Clear()
 	o.consoleState.Reset()
 	o.workflowState.PreviousMode = ModeMenu
 	o.workflowState.PreviousMenuIndex = 0
@@ -111,22 +99,12 @@ func (o *OperationState) EnterConsoleMode() {
 
 // Input State Helpers
 
-// GetInputState returns the input state
-func (o *OperationState) GetInputState() *InputState {
+// InputState returns the input state reference
+func (o *OperationState) InputState() *InputState {
 	return &o.inputState
 }
 
 // Conflict Resolution Helpers
-
-// SetConflictResolveState sets conflict resolution state
-func (o *OperationState) SetConflictResolveState(state *ConflictResolveState) {
-	o.conflictResolveState = state
-}
-
-// GetConflictResolveState returns conflict resolution state
-func (o *OperationState) GetConflictResolveState() *ConflictResolveState {
-	return o.conflictResolveState
-}
 
 // ClearConflictResolveState clears conflict resolution state
 func (o *OperationState) ClearConflictResolveState() {
@@ -134,16 +112,6 @@ func (o *OperationState) ClearConflictResolveState() {
 }
 
 // Dirty Operation Helpers
-
-// SetDirtyOperationState sets dirty operation state
-func (o *OperationState) SetDirtyOperationState(state *DirtyOperationState) {
-	o.dirtyOperationState = state
-}
-
-// GetDirtyOperationState returns dirty operation state
-func (o *OperationState) GetDirtyOperationState() *DirtyOperationState {
-	return o.dirtyOperationState
-}
 
 // ClearDirtyOperationState clears dirty operation state
 func (o *OperationState) ClearDirtyOperationState() {

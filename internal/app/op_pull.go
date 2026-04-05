@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 
 	"tit/internal/git"
@@ -52,9 +51,8 @@ func (a *Application) cmdHardReset() tea.Cmd {
 		buffer.Clear()
 
 		// Get current branch name
-		cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
-		output, err := cmd.Output()
-		if err != nil {
+		branchResult := git.Execute("rev-parse", "--abbrev-ref", "HEAD")
+		if !branchResult.Success {
 			buffer.Append(ErrorMessages["failed_determine_branch"], ui.TypeStderr)
 			return GitOperationMsg{
 				Step:    OpHardReset,
@@ -63,7 +61,7 @@ func (a *Application) cmdHardReset() tea.Cmd {
 			}
 		}
 
-		branchName := strings.TrimSpace(string(output))
+		branchName := strings.TrimSpace(branchResult.Stdout)
 		buffer.Append("Fetching and resetting to remote state...", ui.TypeInfo)
 
 		// Fetch first to ensure we have latest remote state

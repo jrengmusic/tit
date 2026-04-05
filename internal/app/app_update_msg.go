@@ -11,7 +11,7 @@ import (
 )
 
 func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	buffer := ui.GetBuffer()
 
 	if !msg.Success {
@@ -34,7 +34,7 @@ func (a *Application) handleRewind(msg RewindMsg) (tea.Model, tea.Cmd) {
 // handleRestoreTimeTravel processes the result of time travel restoration (Phase 0)
 
 func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Model, tea.Cmd) {
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.timeTravelState.ClearRestore()
 
 	if !msg.Success {
@@ -64,18 +64,14 @@ func (a *Application) handleRestoreTimeTravel(msg RestoreTimeTravelMsg) (tea.Mod
 	return a, nil
 }
 
-// Package-level counter for Update() calls
-var updateCallCount int = 0
-
 // Update handles all messages
 
 func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	updateCallCount++
 	// CRITICAL: If restoration is needed, initiate it on first update (Phase 0)
 	hasMarker := git.FileExists(".git/TIT_TIME_TRAVEL")
 
 	// Double-check before calling RestoreFromTimeTravel
-	if a.isAsyncActive() && a.mode == ModeConsole && !a.timeTravelState.IsRestoreInitiated() && hasMarker {
+	if a.IsAsyncActive() && a.mode == ModeConsole && !a.timeTravelState.IsRestoreInitiated() && hasMarker {
 		// Verify marker still exists right before restoration
 		a.timeTravelState.MarkRestoreInitiated()
 		return a, a.RestoreFromTimeTravel()
@@ -120,11 +116,11 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle character input in input modes
 		if a.isInputMode() && len(keyStr) == 1 && keyStr[0] >= 32 && keyStr[0] <= 126 {
-			inputState := a.OperationState.GetInputState()
+			inputState := a.OperationState.InputState()
 
 			if time.Now().Before(inputState.PasteBurstUntil) {
 				// Suppress raw events from terminal paste (set by handleKeyPaste)
-				inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
+				inputState.PasteBurstUntil = time.Now().Add(PasteBurstWindow)
 				return a, nil
 			}
 
@@ -155,7 +151,7 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case OutputRefreshMsg:
 		// Force re-render to display updated console output
 		// If operation still active, schedule next refresh tick
-		if a.isAsyncActive() {
+		if a.IsAsyncActive() {
 			return a, tea.Tick(CacheRefreshInterval, func(t time.Time) tea.Msg {
 				return OutputRefreshMsg{}
 			})
@@ -193,14 +189,14 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SetupCompleteMsg:
 		// SSH key generation completed successfully
 		if msg.Step == "generate" {
-			a.environmentState.SetWizardStep(SetupStepDisplayKey)
+			a.environmentState.SetupWizardStep = SetupStepDisplayKey
 		}
 		return a, nil
 
 	case SetupErrorMsg:
 		// Error occurred during setup - show error to user
-		a.environmentState.SetWizardError(msg.Error)
-		a.environmentState.SetWizardStep(SetupStepError)
+		a.environmentState.SetupWizardError = msg.Error
+		a.environmentState.SetupWizardStep = SetupStepError
 		return a, nil
 
 	case RewindMsg:

@@ -49,10 +49,8 @@ func (a *Application) executeConfirmTimeTravelReturn() (tea.Model, tea.Cmd) {
 	}
 
 	// Transition to console to show streaming output (consistent with other git operations)
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Returning to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
@@ -119,10 +117,8 @@ func (a *Application) executeConfirmTimeTravelMerge() (tea.Model, tea.Cmd) {
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output (consistent with other git operations)
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
@@ -164,10 +160,8 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyStash() (tea.Model, tea.
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Stashing and merging back..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0

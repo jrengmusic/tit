@@ -22,7 +22,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	conflictFiles, err := git.ListConflictedFiles()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(OutputMessages["conflict_detection_error"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		a.footerHint = ErrorMessages["operation_failed"]
 		a.mode = ModeConsole
 		return a, nil
@@ -33,7 +33,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	if len(conflictFiles) == 0 {
 		// No conflicts found - should not happen, but handle gracefully
 		buffer.Append(OutputMessages["conflict_detection_none"], ui.TypeInfo)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -87,7 +87,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 	if len(stagesPresent) == 0 {
 		// No stages could be read - this indicates a corrupt conflict state
 		buffer.Append("Error: No conflict stages found. The conflict state may be corrupted.", ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		a.footerHint = ErrorMessages["operation_failed"]
 		a.mode = ModeConsole
 		return a, nil
@@ -130,7 +130,7 @@ func (a *Application) setupConflictResolver(operation string, columnLabels []str
 
 	// Store conflict state and transition to resolver UI
 	a.conflictResolveState = resolveState
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.mode = ModeConflictResolve
 	a.footerHint = fmt.Sprintf(ConsoleMessages["resolve_conflicts_help"], len(conflictFiles))
 
@@ -195,10 +195,15 @@ func (a *Application) setupConflictResolverForDirtyMerge(msg GitOperationMsg, co
 		currentBranch = a.dirtyOperationState.OriginalBranch
 		sourceBranch = a.dirtyOperationState.MergeBranch
 	}
-	if conflictPhase == "snapshot_reapply" {
+	if conflictPhase == DirtyConflictSnapshotReapply {
 		return a.setupConflictResolver(operation, []string{"BASE", fmt.Sprintf("%s (merged)", currentBranch), "stashed changes"})
 	}
 	return a.setupConflictResolver(operation, []string{"BASE", fmt.Sprintf("%s (current)", currentBranch), fmt.Sprintf("%s (incoming)", sourceBranch)})
+}
+
+// setupConflictResolverForRebase sets up conflict resolver for mid-rebase conflicts
+func (a *Application) setupConflictResolverForRebase() (tea.Model, tea.Cmd) {
+	return a.setupConflictResolver("rebase", []string{"BASE", "OURS (rebased)", "THEIRS (incoming)"})
 }
 
 // setupConflictResolverForDirtySwitch sets up conflict resolver for dirty branch switch

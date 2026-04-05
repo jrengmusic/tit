@@ -13,112 +13,120 @@ import (
 // SSOT: ESC returns to previousMode (Menu mode quits app)
 // Special cases: Conflict resolver (delegate), Console with async (block), Input (confirm clear)
 func (a *Application) handleKeyESC(app *Application) (tea.Model, tea.Cmd) {
-	// History CopyHashMode: exit mode, stay in history
 	if a.mode == ModeHistory && a.pickerState.History != nil && a.pickerState.History.CopyHashMode {
-		a.pickerState.History.CopyHashMode = false
-		a.footerHint = ""
-		return a, nil
+		return a.handleEscCopyHashMode()
 	}
 
-	// Conflict resolver mode: delegate to conflict-specific handler
 	if a.mode == ModeConflictResolve {
 		return a.handleConflictEsc(app)
 	}
 
-	// Block ESC in console mode while async operation is active
-	// ESC aborts the operation and sets abort flag
-	if (a.mode == ModeConsole || a.mode == ModeClone) && a.isAsyncActive() {
-		// Kill running process (like Ctrl+C)
-		if a.cancelContext != nil {
-			a.cancelContext()
-		}
-		a.abortAsyncOp()
-		// Print abort message to console using stderr color from theme
-		a.consoleState.GetBuffer().Append("", ui.TypeStdout)
-		a.consoleState.GetBuffer().Append("Operation aborted by user", ui.TypeStderr)
-		a.consoleState.GetBuffer().Append("Press ESC to return to menu", ui.TypeInfo)
-		return a, nil
+	if (a.mode == ModeConsole || a.mode == ModeClone) && a.IsAsyncActive() {
+		return a.handleEscAsyncAbort()
 	}
 
-	// If async operation was aborted but completed: restore previous state
-	if a.isAsyncAborted() {
-		a.endAsyncOp()
-		a.clearAsyncAborted()
-		a.mode = a.workflowState.PreviousMode
-		a.selectedIndex = a.workflowState.PreviousMenuIndex
-		a.consoleState.Reset()
-		a.consoleState.Clear()
-		a.footerHint = ""
-
-		// Regenerate menu if returning to menu mode
-		if a.mode == ModeMenu {
-			menu := app.GenerateMenu()
-			app.menuItems = menu
-			if a.workflowState.PreviousMenuIndex < len(menu) && len(menu) > 0 {
-				app.footerHint = menu[a.workflowState.PreviousMenuIndex].Hint
-			}
-			// Rebuild shortcuts for new menu
-			app.rebuildMenuShortcuts(ModeMenu)
-		}
-		return a, nil
+	if a.IsAsyncAborted() {
+		return a.handleEscPostAbort(app)
 	}
 
-	// In input mode: handle based on input content
 	if a.isInputMode() {
-		// If input is empty: back to menu
-		if a.inputState.Value == "" {
-			return a.returnToMenu()
-		}
-
-		// If clear confirm active: clear input and stay
-		if a.inputState.ClearConfirming {
-			a.inputState.Value = ""
-			a.inputState.CursorPosition = 0
-			a.inputState.ValidationMsg = ""
-			a.inputState.ClearConfirming = false
-			a.footerHint = ""
-			return a, nil
-		}
-
-		// First ESC with non-empty input: start clear confirmation
-		a.inputState.ClearConfirming = true
-		a.footerHint = GetFooterMessageText(MessageEscClearConfirm)
-		return a, tea.Tick(internal.QuitConfirmTimeout, func(t time.Time) tea.Msg {
-			return ClearTickMsg(t)
-		})
+		return a.handleEscInput(app)
 	}
 
-	// Menu mode: ESC does nothing (quit handled by Ctrl+C)
 	if a.mode == ModeMenu {
 		return a, nil
 	}
 
-	// Confirmation mode: ESC dismisses dialog directly (bypass handler routing)
 	if a.mode == ModeConfirmation {
 		return a.dismissConfirmationDialog()
 	}
 
-	// Console mode after time travel completed: go to time travel menu
-	// This handles the case where time travel finishes successfully and user presses ESC
 	if (a.mode == ModeConsole || a.mode == ModeClone) && a.gitState != nil && a.gitState.Operation == git.TimeTraveling {
-		a.mode = ModeMenu
-		a.consoleState.Reset()
-		a.consoleState.Clear()
-		menu := app.GenerateMenu()
-		app.menuItems = menu
-		app.selectedIndex = 0
-		app.footerHint = menu[0].Hint
-		app.rebuildMenuShortcuts(ModeMenu)
-		cacheCmd := app.invalidateHistoryCaches()
-		return a, cacheCmd
+		return a.handleEscTimeTravelConsole(app)
 	}
 
-	// All other modes: return to previousMode and regenerate menu
+	return a.handleEscReturnToPrevious(app)
+}
+
+// handleEscCopyHashMode exits CopyHash mode, stays in history
+func (a *Application) handleEscCopyHashMode() (tea.Model, tea.Cmd) {
+	a.pickerState.History.CopyHashMode = false
+	a.footerHint = ""
+	return a, nil
+}
+
+// handleEscAsyncAbort aborts the active async operation and prints abort message to console
+func (a *Application) handleEscAsyncAbort() (tea.Model, tea.Cmd) {
+	if a.cancelContext != nil {
+		a.cancelContext()
+	}
+	a.AbortAsyncOp()
+	ui.GetBuffer().Append("", ui.TypeStdout)
+	ui.GetBuffer().Append("Operation aborted by user", ui.TypeStderr)
+	ui.GetBuffer().Append("Press ESC to return to menu", ui.TypeInfo)
+	return a, nil
+}
+
+// handleEscPostAbort restores previous state after an aborted async operation completes
+func (a *Application) handleEscPostAbort(app *Application) (tea.Model, tea.Cmd) {
+	a.EndAsyncOp()
+	a.ClearAsyncAborted()
+	a.mode = a.workflowState.PreviousMode
+	a.selectedIndex = a.workflowState.PreviousMenuIndex
+	a.consoleState.Reset()
+	a.footerHint = ""
+
+	if a.mode == ModeMenu {
+		menu := app.GenerateMenu()
+		app.menuItems = menu
+		if a.workflowState.PreviousMenuIndex < len(menu) && len(menu) > 0 {
+			app.footerHint = menu[a.workflowState.PreviousMenuIndex].Hint
+		}
+		app.rebuildMenuShortcuts(ModeMenu)
+	}
+	return a, nil
+}
+
+// handleEscInput handles ESC in input mode: back to menu if empty, confirm clear if non-empty
+func (a *Application) handleEscInput(app *Application) (tea.Model, tea.Cmd) {
+	if a.inputState.Value == "" {
+		return a.returnToMenu()
+	}
+
+	if a.inputState.ClearConfirming {
+		a.inputState.Value = ""
+		a.inputState.CursorPosition = 0
+		a.inputState.ValidationMsg = ""
+		a.inputState.ClearConfirming = false
+		a.footerHint = ""
+		return a, nil
+	}
+
+	a.inputState.ClearConfirming = true
+	a.footerHint = GetFooterMessageText(MessageEscClearConfirm)
+	return a, tea.Tick(internal.QuitConfirmTimeout, func(t time.Time) tea.Msg {
+		return ClearTickMsg(t)
+	})
+}
+
+// handleEscTimeTravelConsole exits console after time travel, returns to menu with refreshed history
+func (a *Application) handleEscTimeTravelConsole(app *Application) (tea.Model, tea.Cmd) {
+	a.mode = ModeMenu
+	a.consoleState.Reset()
+	menu := app.GenerateMenu()
+	app.menuItems = menu
+	app.selectedIndex = 0
+	app.footerHint = menu[0].Hint
+	app.rebuildMenuShortcuts(ModeMenu)
+	return a, app.invalidateHistoryCaches()
+}
+
+// handleEscReturnToPrevious returns to previousMode and regenerates menu for all other modes
+func (a *Application) handleEscReturnToPrevious(app *Application) (tea.Model, tea.Cmd) {
 	app.mode = app.workflowState.PreviousMode
 
 	var cmd tea.Cmd
 
-	// Regenerate menu based on new mode
 	switch app.mode {
 	case ModeMenu:
 		menu := app.GenerateMenu()
@@ -194,25 +202,85 @@ func (a *Application) dismissConfirmationDialog() (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+// handleMenuUp moves selection up
+func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
+	app.activityState.MarkActivity() // Track menu activity
+	menuItems := app.NavigationState.menuItems
+	if len(menuItems) > 0 {
+		startIdx := app.NavigationState.selectedIndex
+		newIdx := (startIdx - 1 + len(menuItems)) % len(menuItems)
+		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
+		for menuItems[newIdx].Separator || !menuItems[newIdx].Enabled {
+			newIdx = (newIdx - 1 + len(menuItems)) % len(menuItems)
+			// Prevent infinite loop if all items disabled
+			if newIdx == startIdx {
+				break
+			}
+		}
+		app.NavigationState.SelectAt(newIdx)
+		// Update footer hint
+		if newIdx < len(menuItems) {
+			app.UIState.footerHint = menuItems[newIdx].Hint
+		}
+	}
+	return app, nil
+}
+
+// handleMenuDown moves selection down
+func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
+	app.activityState.MarkActivity() // Track menu activity
+	menuItems := app.NavigationState.menuItems
+	if len(menuItems) > 0 {
+		startIdx := app.NavigationState.selectedIndex
+		newIdx := (startIdx + 1) % len(menuItems)
+		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
+		for menuItems[newIdx].Separator || !menuItems[newIdx].Enabled {
+			newIdx = (newIdx + 1) % len(menuItems)
+			// Prevent infinite loop if all items disabled
+			if newIdx == startIdx {
+				break
+			}
+		}
+		app.NavigationState.SelectAt(newIdx)
+		// Update footer hint
+		if newIdx < len(menuItems) {
+			app.UIState.footerHint = menuItems[newIdx].Hint
+		}
+	}
+	return app, nil
+}
+
+// handleMenuEnter selects current menu item and dispatches action
+func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
+	app.activityState.MarkActivity() // Track menu activity
+	item, ok := app.NavigationState.SelectedItem()
+	if ok {
+		// CONTRACT: Cannot execute separators or disabled items (cache still building)
+		if !item.Separator && item.Enabled {
+			// Dispatch action
+			return app, app.dispatchAction(item.ID)
+		}
+	}
+	return app, nil
+}
+
 // returnToMenu resets state and returns to menu mode
 func (a *Application) returnToMenu() (tea.Model, tea.Cmd) {
 	a.mode = ModeMenu
 	a.selectedIndex = 0
 	a.consoleState.Reset()
-	a.consoleState.Clear()
 	a.footerHint = ""
 	a.inputState.Value = ""
 	a.inputState.CursorPosition = 0
 	a.inputState.ValidationMsg = ""
 	a.inputState.ClearConfirming = false
-	a.setExitAllowed(true) // ALWAYS allow exit when in menu
+	a.PermitExit(true) // ALWAYS allow exit when in menu
 
 	menu := a.GenerateMenu()
 	a.menuItems = menu
 	if len(menu) > 0 {
-		if a.gitState != nil && a.gitState.Remote == git.HasRemote && a.gitState.Timeline == "" && a.gitState.CurrentHash == "" {
-
-		} else {
+		isEmptyRemoteRepo := a.gitState != nil && a.gitState.Remote == git.HasRemote && a.gitState.Timeline == "" && a.gitState.CurrentHash == ""
+		if !isEmptyRemoteRepo {
 			a.footerHint = menu[0].Hint
 		}
 	}

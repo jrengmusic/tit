@@ -47,7 +47,7 @@ func (a *Application) handleAutoUpdateTick() (tea.Model, tea.Cmd) {
 	}
 
 	// Skip if user recently navigated menu (lazy update)
-	if time.Since(a.activityState.GetLastActivity()) < a.activityState.activityTimeout {
+	if time.Since(a.activityState.lastActivity) < a.activityState.activityTimeout {
 		return a, a.scheduleAutoUpdateTick()
 	}
 
@@ -57,7 +57,7 @@ func (a *Application) handleAutoUpdateTick() (tea.Model, tea.Cmd) {
 	}
 
 	// Start auto-update: set in progress and run
-	a.startAutoUpdate()
+	a.activityState.StartAutoUpdate()
 	return a, tea.Batch(
 		a.cmdAutoUpdate(),
 		a.scheduleAutoUpdateAnimation(), // Start spinner animation

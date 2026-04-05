@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"tit/internal/git"
-	"tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -24,12 +23,11 @@ func (a *Application) executeConfirmRewind() (tea.Model, tea.Cmd) {
 	a.workflowState.PendingRewindCommit = "" // Clear after capturing
 
 	// Set up async operation
-	a.startAsyncOp()
+	a.StartAsyncOp()
 	a.workflowState.PreviousMode = ModeHistory
 	a.workflowState.PreviousMenuIndex = a.pickerState.History.SelectedIdx
 	a.mode = ModeConsole
 	a.consoleState.Reset()
-	ui.GetBuffer().Clear()
 
 	// Start rewind + refresh ticker
 	return a, tea.Batch(

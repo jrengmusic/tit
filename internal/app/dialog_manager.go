@@ -10,8 +10,8 @@ type DialogManager struct {
 
 // Dialog State Helpers
 
-// GetDialogState returns the dialog state
-func (d *DialogManager) GetDialogState() *DialogState {
+// DialogState returns the dialog state reference
+func (d *DialogManager) DialogState() *DialogState {
 	return &d.dialogState
 }
 
@@ -27,12 +27,12 @@ func (d *DialogManager) HideDialog() {
 
 // IsDialogActive returns true if a dialog is showing
 func (d *DialogManager) IsDialogActive() bool {
-	return d.dialogState.IsVisible()
+	return d.dialogState.dialog != nil
 }
 
-// GetDialogContext returns the dialog context data
-func (d *DialogManager) GetDialogContext() map[string]string {
-	return d.dialogState.GetContext()
+// DialogContext returns the dialog context data
+func (d *DialogManager) DialogContext() map[string]string {
+	return d.dialogState.context
 }
 
 // ShowConfirmation displays a confirmation dialog for the given type
@@ -51,7 +51,7 @@ func (d *DialogManager) ShowConfirmation(confirmType string, context map[string]
 
 // Picker State Helpers
 
-// GetPickerState returns the picker state
-func (d *DialogManager) GetPickerState() *PickerState {
+// PickerState returns the picker state reference
+func (d *DialogManager) PickerState() *PickerState {
 	return &d.pickerState
 }

@@ -15,12 +15,11 @@ import (
 
 // startCloneOperation sets up async state and executes clone
 func (a *Application) startCloneOperation() (tea.Model, tea.Cmd) {
-	a.startAsyncOp()
+	a.StartAsyncOp()
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeClone
 	a.consoleState.Reset()
-	a.consoleState.Clear()
 	a.footerHint = GetFooterMessageText(MessageClone)
 
 	// Return BOTH the clone worker AND periodic refresh ticker

@@ -16,8 +16,8 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_failed"], msg.Error), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 
 		// Try to cleanup time travel info file
 		git.ClearTimeTravelInfo()
@@ -30,8 +30,8 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 	// Time travel successful - reload git state
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_travel"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 
 		// Try to cleanup time travel info file
 		git.ClearTimeTravelInfo()
@@ -41,8 +41,8 @@ func (a *Application) handleTimeTravelCheckout(msg git.TimeTravelCheckoutMsg) (t
 		return a, nil
 	}
 
-	a.endAsyncOp()
-	a.setExitAllowed(true)
+	a.EndAsyncOp()
+	a.PermitExit(true)
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
@@ -60,8 +60,8 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_merge_failed"], msg.Error), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 
 		// If conflicts detected, set up conflict resolver
 		if msg.ConflictDetected {
@@ -111,16 +111,16 @@ func (a *Application) handleTimeTravelMerge(msg git.TimeTravelMergeMsg) (tea.Mod
 	// Time travel merge successful - reload git state
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_merge"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 
 		// Return to menu
 		a.mode = ModeMenu
 		return a, a.startAutoUpdate()
 	}
 
-	a.endAsyncOp()
-	a.setExitAllowed(true)
+	a.EndAsyncOp()
+	a.PermitExit(true)
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
@@ -134,8 +134,8 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 
 	if !msg.Success {
 		buffer.Append(fmt.Sprintf(ErrorMessages["time_travel_return_failed"], msg.Error), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 
 		// If conflicts detected, set up conflict resolver
 		if msg.ConflictDetected {
@@ -178,8 +178,8 @@ func (a *Application) handleTimeTravelReturn(msg git.TimeTravelReturnMsg) (tea.M
 	state, err := git.DetectState()
 	if err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state_after_return"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 
 		// Return to menu
 		a.mode = ModeMenu
@@ -202,8 +202,8 @@ func (a *Application) handleFinalizeTravelMerge(msg GitOperationMsg) (tea.Model,
 	// Merge finalization succeeded: reload state and stay in console
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -211,8 +211,8 @@ func (a *Application) handleFinalizeTravelMerge(msg GitOperationMsg) (tea.Model,
 	buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true)
+	a.EndAsyncOp()
+	a.PermitExit(true)
 	a.conflictResolveState = nil
 	a.mode = ModeConsole
 
@@ -226,8 +226,8 @@ func (a *Application) handleFinalizeTravelReturn(msg GitOperationMsg) (tea.Model
 	// Merge finalization succeeded: reload state and stay in console
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -235,8 +235,8 @@ func (a *Application) handleFinalizeTravelReturn(msg GitOperationMsg) (tea.Model
 	buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true)
+	a.EndAsyncOp()
+	a.PermitExit(true)
 	a.conflictResolveState = nil
 	a.mode = ModeConsole
 

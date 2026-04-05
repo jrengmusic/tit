@@ -30,31 +30,6 @@ func (e *EnvironmentState) NeedsSetup() bool {
 	return e.GitEnvironment == git.NeedsSetup
 }
 
-// SetEnvironment updates the git environment state.
-func (e *EnvironmentState) SetEnvironment(env git.GitEnvironment) {
-	e.GitEnvironment = env
-}
-
-// SetWizardStep updates the current setup wizard step.
-func (e *EnvironmentState) SetWizardStep(step SetupWizardStep) {
-	e.SetupWizardStep = step
-}
-
-// SetWizardError sets an error message for the wizard.
-func (e *EnvironmentState) SetWizardError(err string) {
-	e.SetupWizardError = err
-}
-
-// GetEmail returns the setup email.
-func (e *EnvironmentState) GetEmail() string {
-	return e.SetupEmail
-}
-
-// SetEmail sets the setup email.
-func (e *EnvironmentState) SetEmail(email string) {
-	e.SetupEmail = email
-}
-
 // MarkKeyCopied marks the SSH key as copied.
 func (e *EnvironmentState) MarkKeyCopied() {
 	e.SetupKeyCopied = true

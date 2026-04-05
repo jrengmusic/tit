@@ -51,13 +51,13 @@ func convertGitFilesToUIFileInfo(gitFiles []git.FileInfo) []ui.FileInfo {
 // Otherwise: prompts for confirmation before quitting
 func (a *Application) handleKeyCtrlC(app *Application) (tea.Model, tea.Cmd) {
 	// Block exit during critical operations (e.g., pull merge with potential conflicts)
-	if !a.canExit() {
+	if !a.CanExit() {
 		a.footerHint = GetFooterMessageText(MessageExitBlocked)
 		return a, nil
 	}
 
 	// If async operation is running, show "in progress" message
-	if a.isAsyncActive() && !a.isAsyncAborted() {
+	if a.IsAsyncActive() && !a.IsAsyncAborted() {
 		a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 		return a, nil
 	}
@@ -108,16 +108,14 @@ func (a *Application) handleKeyPaste(app *Application) (tea.Model, tea.Cmd) {
 		app.inputState.CursorPosition += len(text)
 
 		// Suppress raw events from terminal paste that follow Ctrl+V
-		app.inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
+		app.inputState.PasteBurstUntil = time.Now().Add(PasteBurstWindow)
 
 		// Update real-time validation if in clone URL mode
-		if app.inputState.Action == "clone_url" {
+		if app.inputState.Action == InputActionCloneURL {
 			if app.inputState.Value == "" {
 				app.inputState.ValidationMsg = ""
-			} else if ui.ValidateRemoteURL(app.inputState.Value) {
-				app.inputState.ValidationMsg = "" // Valid - no error message
 			} else {
-				app.inputState.ValidationMsg = "Invalid URL format"
+				_, app.inputState.ValidationMsg = ui.Validators["url"](app.inputState.Value)
 			}
 		}
 	}

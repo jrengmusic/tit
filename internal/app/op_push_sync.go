@@ -13,7 +13,7 @@ import (
 // Called when push was rejected due to divergence.
 func (a *Application) cmdPushSyncMerge() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
-	a.OperationState.SetCancelContext(cancel)
+	a.OperationState.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 		buffer.Append("Remote has new commits - syncing before push...", ui.TypeInfo)
@@ -43,7 +43,7 @@ func (a *Application) cmdPushSyncMerge() tea.Cmd {
 // Called after user resolves conflicts in the push sync flow.
 func (a *Application) cmdFinalizePushSyncMerge() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
-	a.OperationState.SetCancelContext(cancel)
+	a.OperationState.cancelContext = cancel
 	return func() tea.Msg {
 		buffer := ui.GetBuffer()
 
@@ -82,7 +82,7 @@ func (a *Application) cmdPushAfterSync() tea.Cmd {
 		hasUpstream = a.gitState.LocalBranchOnRemote
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	a.OperationState.SetCancelContext(cancel)
+	a.OperationState.cancelContext = cancel
 	return func() tea.Msg {
 		var result git.CommandResult
 		if !hasUpstream {

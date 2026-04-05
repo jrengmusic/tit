@@ -26,9 +26,9 @@ func (a *Application) dispatchClone(app *Application) tea.Cmd {
 		app.workflowState.CloneMode = "subdir"
 		app.transitionTo(ModeTransition{
 			Mode:        ModeCloneURL,
-			InputPrompt: InputMessages["clone_url"].Prompt,
-			InputAction: "clone_url",
-			FooterHint:  InputMessages["clone_url"].Hint,
+			InputPrompt: InputMessages[InputActionCloneURL].Prompt,
+			InputAction: InputActionCloneURL,
+			FooterHint:  InputMessages[InputActionCloneURL].Hint,
 			ResetFields: []string{"clone"},
 		})
 	}

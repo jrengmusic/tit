@@ -25,6 +25,7 @@ var OutputMessages = map[string]string{
 	"mark_choices_in_resolver":     "Mark your choices in the resolver (SPACE to select, ENTER to continue)",
 	"aborting_dirty_pull":          "Aborting dirty pull...",
 	"aborting_merge":               "Aborting merge...",
+	"aborting_rebase":              "Aborting rebase...",
 	"merge_finalized":              "Merge completed successfully",
 	"merge_aborted":                "Merge aborted - state restored",
 	"abort_successful":             "Successfully aborted by user",

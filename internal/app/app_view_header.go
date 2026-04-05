@@ -8,13 +8,7 @@ import (
 	"tit/internal/ui"
 )
 
-// RenderStateHeader renders the full git state header (5 rows) using lipgloss
-// Row 1: CWD (left) | OPERATION (right)
 // RenderStateHeader renders the state header per REACTIVE-LAYOUT-PLAN.md
-// 2-column layout: 80/20 split
-// LEFT (80%): CWD, Remote, WorkingTree, Timeline
-// RIGHT (20%): Operation, Branch
-
 func (a *Application) RenderStateHeader() string {
 	state := a.gitState
 
@@ -52,15 +46,15 @@ func (a *Application) RenderStateHeader() string {
 	timelineDesc := []string{"No remote configured."}
 
 	if state.Operation == git.TimeTraveling {
-		if a.timeTravelState.GetInfo() != nil {
-			shortHash := a.timeTravelState.GetInfo().CurrentCommit.Hash
+		if a.timeTravelState.info != nil {
+			shortHash := a.timeTravelState.info.CurrentCommit.Hash
 			if len(shortHash) >= 7 {
 				shortHash = shortHash[:7]
 			}
 			timelineEmoji = "📌"
 			timelineLabel = "DETACHED @ " + shortHash
 			timelineColor = a.theme.OutputWarningColor
-			timelineDesc = []string{"Viewing commit from " + a.timeTravelState.GetInfo().CurrentCommit.Time.Format("Jan 2, 2006")}
+			timelineDesc = []string{"Viewing commit from " + a.timeTravelState.info.CurrentCommit.Time.Format("Jan 2, 2006")}
 		}
 	} else if state.Timeline != "" {
 		tlInfo := a.timelineInfo[state.Timeline]
@@ -148,7 +142,7 @@ func (a *Application) RenderStateHeader() string {
 		TimelineDesc:     timelineDesc,
 		TimelineColor:    timelineColor,
 		SyncInProgress:   a.activityState.IsAutoUpdateInProgress(),
-		SyncFrame:        a.activityState.GetFrame(),
+		SyncFrame:        a.activityState.autoUpdateFrame,
 		LFSLabel:         lfsLabel,
 		LFSColor:         lfsColor,
 	}
@@ -164,25 +158,6 @@ func (a *Application) isInputMode() bool {
 	return a.mode == ModeInput ||
 		a.mode == ModeCloneURL ||
 		(a.mode == ModeSetupWizard && a.environmentState.SetupWizardStep == SetupStepEmail)
-}
-
-// menuItemsToMaps converts MenuItem slice to map slice for rendering
-// Note: Hint is excluded from maps (displayed in footer instead)
-
-func (a *Application) menuItemsToMaps(items []MenuItem) []map[string]interface{} {
-	maps := make([]map[string]interface{}, len(items))
-	for i, item := range items {
-		maps[i] = map[string]interface{}{
-			"ID":            item.ID,
-			"Shortcut":      item.Shortcut,
-			"ShortcutLabel": item.ShortcutLabel,
-			"Emoji":         item.Emoji,
-			"Label":         item.Label,
-			"Enabled":       item.Enabled,
-			"Separator":     item.Separator,
-		}
-	}
-	return maps
 }
 
 // buildKeyHandlers builds the complete handler registry for all modes

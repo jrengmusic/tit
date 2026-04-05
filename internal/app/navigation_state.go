@@ -12,16 +12,6 @@ type NavigationState struct {
 	quitConfirmTime   time.Time
 }
 
-// SetMode updates the current application mode
-func (n *NavigationState) SetMode(mode AppMode) {
-	n.mode = mode
-}
-
-// GetMode returns the current application mode
-func (n *NavigationState) GetMode() AppMode {
-	return n.mode
-}
-
 // SelectNext moves selection down, returns true if changed
 func (n *NavigationState) SelectNext() bool {
 	if len(n.menuItems) == 0 {
@@ -43,28 +33,23 @@ func (n *NavigationState) SelectPrevious() bool {
 	return false
 }
 
-// GetSelectedIndex returns current selection index
-func (n *NavigationState) GetSelectedIndex() int {
-	return n.selectedIndex
-}
-
-// SetSelectedIndex sets selection to specific index
-func (n *NavigationState) SetSelectedIndex(index int) {
+// SelectAt sets selection to specific index with bounds checking
+func (n *NavigationState) SelectAt(index int) {
 	if index >= 0 && index < len(n.menuItems) {
 		n.selectedIndex = index
 	}
 }
 
-// GetSelectedItem returns currently selected menu item
-func (n *NavigationState) GetSelectedItem() (MenuItem, bool) {
+// SelectedItem returns currently selected menu item
+func (n *NavigationState) SelectedItem() (MenuItem, bool) {
 	if n.selectedIndex >= 0 && n.selectedIndex < len(n.menuItems) {
 		return n.menuItems[n.selectedIndex], true
 	}
 	return MenuItem{}, false
 }
 
-// SetMenuItems updates menu items and resets selection
-func (n *NavigationState) SetMenuItems(items []MenuItem) {
+// ReplaceMenu updates menu items and resets selection
+func (n *NavigationState) ReplaceMenu(items []MenuItem) {
 	n.menuItems = items
 	n.selectedIndex = 0
 }
@@ -81,24 +66,14 @@ func (n *NavigationState) RegenerateMenu(items []MenuItem) (string, bool) {
 	return "", false
 }
 
-// GetMenuItems returns current menu items
-func (n *NavigationState) GetMenuItems() []MenuItem {
-	return n.menuItems
-}
-
-// GetKeyHandler returns handler for key in current mode
-func (n *NavigationState) GetKeyHandler(key string) (KeyHandler, bool) {
+// ResolveKeyHandler returns handler for key in current mode via map lookup
+func (n *NavigationState) ResolveKeyHandler(key string) (KeyHandler, bool) {
 	if handlers, ok := n.keyHandlers[n.mode]; ok {
 		if handler, ok := handlers[key]; ok {
 			return handler, true
 		}
 	}
 	return nil, false
-}
-
-// SetKeyHandlers updates key handler map
-func (n *NavigationState) SetKeyHandlers(handlers map[AppMode]map[string]KeyHandler) {
-	n.keyHandlers = handlers
 }
 
 // ActivateQuitConfirm enables quit confirmation with timestamp
@@ -117,7 +92,3 @@ func (n *NavigationState) IsQuitConfirmActive() bool {
 	return n.quitConfirmActive
 }
 
-// GetQuitConfirmTime returns when quit was initiated
-func (n *NavigationState) GetQuitConfirmTime() time.Time {
-	return n.quitConfirmTime
-}

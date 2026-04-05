@@ -23,24 +23,9 @@ func (a *ActivityState) MarkActivity() {
 	a.lastActivity = time.Now()
 }
 
-// GetLastActivity returns the last activity timestamp.
-func (a *ActivityState) GetLastActivity() time.Time {
-	return a.lastActivity
-}
-
 // IsInactive returns true if no activity for longer than timeout.
 func (a *ActivityState) IsInactive() bool {
 	return time.Since(a.lastActivity) > a.activityTimeout
-}
-
-// SetActivityTimeout sets the inactivity timeout duration.
-func (a *ActivityState) SetActivityTimeout(timeout time.Duration) {
-	a.activityTimeout = timeout
-}
-
-// GetActivityTimeout returns the inactivity timeout duration.
-func (a *ActivityState) GetActivityTimeout() time.Duration {
-	return a.activityTimeout
 }
 
 // StartAutoUpdate marks auto-update as in progress.
@@ -64,7 +49,3 @@ func (a *ActivityState) IncrementFrame() {
 	a.autoUpdateFrame++
 }
 
-// GetFrame returns the current auto-update frame.
-func (a *ActivityState) GetFrame() int {
-	return a.autoUpdateFrame
-}

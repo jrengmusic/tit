@@ -3,19 +3,11 @@ package app
 import (
 	"fmt"
 	"tit/internal/git"
+	"tit/internal/ui"
 )
 
-// MenuItem represents a single menu action or separator
-type MenuItem struct {
-	ID            string // Unique identifier for the action
-	Shortcut      string // Keyboard shortcut (actual key binding, e.g., "}", "{")
-	ShortcutLabel string // Display label for shortcut (e.g., "shift + ]"), empty = use Shortcut
-	Emoji         string // Leading emoji
-	Label         string // Action name
-	Hint          string // Plain language hint shown on focus
-	Enabled       bool   // Whether this item can be selected
-	Separator     bool   // If true, this is a visual separator (non-selectable)
-}
+// MenuItem is defined in the ui package for cross-package type safety
+type MenuItem = ui.MenuItem
 
 // MenuGenerator is a function type that generates menu items
 type MenuGenerator func(*Application) []MenuItem
@@ -28,9 +20,14 @@ func (a *Application) GenerateMenu() []MenuItem {
 	}
 
 	menuGenerators := map[git.Operation]MenuGenerator{
-		git.NotRepo:       (*Application).menuNotRepo,
-		git.Normal:        (*Application).menuNormal,
-		git.TimeTraveling: (*Application).menuTimeTraveling,
+		git.NotRepo:        (*Application).menuNotRepo,
+		git.Normal:         (*Application).menuNormal,
+		git.TimeTraveling:  (*Application).menuTimeTraveling,
+		git.Conflicted:     (*Application).menuConflicted,
+		git.Merging:        (*Application).menuMerging,
+		git.Rebasing:       (*Application).menuRebasing,
+		git.DirtyOperation: (*Application).menuDirtyOperation,
+		git.Rewinding:      (*Application).menuNormal, // Rewinding is transient — by render time it's done
 	}
 
 	if generator, exists := menuGenerators[a.gitState.Operation]; exists {

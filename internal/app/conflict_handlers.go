@@ -11,10 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// ========================================
-// Conflict Resolution Mode Handlers
-// ========================================
-
 // handleConflictUp navigates up in file list or scrolls content pane
 func (a *Application) handleConflictUp(app *Application) (tea.Model, tea.Cmd) {
 	if app.mode != ModeConflictResolve || app.conflictResolveState == nil {
@@ -107,16 +103,11 @@ func (a *Application) handleConflictSpace(app *Application) (tea.Model, tea.Cmd)
 		if fileIdx >= 0 && fileIdx < len(a.conflictResolveState.Files) {
 			file := &a.conflictResolveState.Files[fileIdx]
 
-			// Radio button behavior: if already chosen in this column, do nothing
-			if file.Chosen == focusedPane {
-
-				return a, nil
+			if file.Chosen != focusedPane {
+				file.Chosen = focusedPane
+				columnLabel := a.conflictResolveState.ColumnLabels[focusedPane]
+				a.footerHint = fmt.Sprintf(ConsoleMessages["marked_file_column"], file.Path, columnLabel)
 			}
-
-			// Mark this column as chosen (radio button - switches from other column)
-			file.Chosen = focusedPane
-			columnLabel := a.conflictResolveState.ColumnLabels[focusedPane]
-			a.footerHint = fmt.Sprintf(ConsoleMessages["marked_file_column"], file.Path, columnLabel)
 		}
 	}
 
@@ -140,7 +131,6 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	if !allMarked {
-
 		return app, nil
 	}
 
@@ -166,92 +156,74 @@ func (a *Application) handleConflictEnter(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	// Route based on operation type
-	if app.conflictResolveState.Operation == "pull_merge" {
-		// Regular pull with merge conflicts: finalize merge
-		// Transition to console to show finalization operation
-		app.startAsyncOp()
+	switch app.conflictResolveState.Operation {
+	case "pull_merge":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizePullMerge()
-	} else if app.conflictResolveState.Operation == "branch_switch" {
-		// Branch switch with conflicts: finalize by committing resolved files
-		// Transition to console to show finalization operation
-		app.startAsyncOp()
+	case "branch_switch":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeBranchSwitch()
-	} else if app.conflictResolveState.Operation == "dirty_pull_changeset_apply" {
-		// Dirty pull merge conflicts resolved: commit merge before reapplying stash
-		// Must finalize the merge commit before proceeding to stash apply
-		app.startAsyncOp()
+	case "dirty_pull_changeset_apply":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.dirtyOperationState.SetPhase("finalize_merge")
+		app.dirtyOperationState.AdvancePhase(DirtyPhaseFinalizeMerge)
 		return app, app.cmdFinalizeDirtyPullMerge()
-	} else if app.conflictResolveState.Operation == "dirty_pull_snapshot_reapply" {
-		// Continue to finalize
-		app.startAsyncOp()
+	case "dirty_pull_snapshot_reapply":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.dirtyOperationState.SetPhase("finalizing")
+		app.dirtyOperationState.AdvancePhase(DirtyPhaseFinalizing)
 		return app, app.cmdDirtyPullFinalize()
-	} else if app.conflictResolveState.Operation == "time_travel_merge" {
-		// Time travel merge conflicts resolved: commit and clean up marker file
-		app.startAsyncOp()
+	case "time_travel_merge":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeTimeTravelMerge()
-	} else if app.conflictResolveState.Operation == "time_travel_return" {
-		// Time travel return conflicts resolved: commit and clean up marker file
-		app.startAsyncOp()
+	case "time_travel_return":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeTimeTravelReturn()
-	} else if app.conflictResolveState.Operation == OpPushSyncMerge {
-		// Push sync conflicts resolved: commit merge then push
-		app.startAsyncOp()
+	case OpPushSyncMerge:
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizePushSyncMerge()
-	} else if app.conflictResolveState.Operation == OpMergeBranch {
-		// Branch merge conflicts resolved: commit the merge
-		app.startAsyncOp()
+	case OpMergeBranch:
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.consoleState.GetBuffer().Clear()
 		app.consoleState.Reset()
 		return app, app.cmdFinalizeBranchMerge()
-	} else if app.conflictResolveState.Operation == "dirty_merge_changeset_apply" {
-		// Dirty merge conflicts resolved: commit merge before reapplying stash
-		app.startAsyncOp()
+	case OpRebase:
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.dirtyOperationState.SetPhase("finalize_merge")
+		app.consoleState.Reset()
+		return app, app.cmdRebaseContinue()
+	case "dirty_merge_changeset_apply":
+		app.StartAsyncOp()
+		app.mode = ModeConsole
+		app.dirtyOperationState.AdvancePhase(DirtyPhaseFinalizeMerge)
 		return app, app.cmdFinalizeDirtyMerge()
-	} else if app.conflictResolveState.Operation == "dirty_merge_snapshot_reapply" {
-		// Dirty merge stash reapply conflicts resolved: finalize
-		app.startAsyncOp()
+	case "dirty_merge_snapshot_reapply":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.dirtyOperationState.SetPhase("finalizing")
+		app.dirtyOperationState.AdvancePhase(DirtyPhaseFinalizing)
 		return app, app.cmdDirtyMergeFinalize()
-	} else if app.conflictResolveState.Operation == "dirty_switch_snapshot_reapply" {
-		// Dirty switch stash reapply conflicts resolved: finalize directly
-		// No merge commit needed — stash conflicts don't create MERGE_HEAD
-		app.startAsyncOp()
+	case "dirty_switch_snapshot_reapply":
+		app.StartAsyncOp()
 		app.mode = ModeConsole
-		app.dirtyOperationState.SetPhase("finalizing")
+		app.dirtyOperationState.AdvancePhase(DirtyPhaseFinalizing)
 		return app, app.cmdDirtySwitchFinalize()
+	default:
+		return app.returnToMenu()
 	}
-
-	// Default: return to menu
-	return app.returnToMenu()
 }
 
-// handleConflictEsc exits conflict resolution and aborts the operation
-// Routes to proper abort based on operation type
-// CRITICAL: Always returns to Console to show abort operation completing
-// User must press ESC again in console to return to menu
+// handleConflictEsc exits conflict resolution and aborts the operation.
+// CRITICAL: Always returns to Console to show abort operation completing.
 func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 	if app.mode != ModeConflictResolve {
 		return app, nil
@@ -259,66 +231,59 @@ func (a *Application) handleConflictEsc(app *Application) (tea.Model, tea.Cmd) {
 
 	// Route abort based on operation type
 	if app.conflictResolveState != nil {
-		if app.conflictResolveState.Operation == "pull_merge" {
-			// Abort pull merge: transition to Console, run git merge --abort
-			// User will see abort operation complete, then press ESC to return to menu
-			app.startAsyncOp()
+		switch app.conflictResolveState.Operation {
+		case "pull_merge":
+			app.StartAsyncOp()
 			app.mode = ModeConsole
-			app.consoleState.GetBuffer().Clear()
 			app.consoleState.Reset()
 			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
 			return app, app.cmdAbortMerge()
-		} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_pull_") {
-			// Abort dirty pull: transition to Console, restore original state
-			// User will see abort operation complete, then press ESC to return to menu
-			if app.dirtyOperationState != nil {
-				app.startAsyncOp()
-				app.mode = ModeConsole
-				app.consoleState.GetBuffer().Clear()
-				app.consoleState.Reset()
-				ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
-				return app, app.cmdAbortDirtyPull()
-			}
-		} else if app.conflictResolveState.Operation == OpPushSyncMerge {
-			// Abort push sync: abort the merge, return to menu
-			// Push did not complete - user cancelled conflict resolution
-			app.startAsyncOp()
+		case OpPushSyncMerge:
+			app.StartAsyncOp()
 			app.mode = ModeConsole
-			app.consoleState.GetBuffer().Clear()
 			app.consoleState.Reset()
 			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
 			return app, app.cmdAbortMerge()
-		} else if app.conflictResolveState.Operation == OpMergeBranch {
-			// Abort branch merge: abort the merge, return to menu
-			app.startAsyncOp()
+		case OpMergeBranch:
+			app.StartAsyncOp()
 			app.mode = ModeConsole
-			app.consoleState.GetBuffer().Clear()
 			app.consoleState.Reset()
 			ui.GetBuffer().Append(OutputMessages["aborting_merge"], ui.TypeInfo)
 			return app, app.cmdAbortMerge()
-		} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_merge_") {
-			// Abort dirty merge: restore original state
-			if app.dirtyOperationState != nil {
-				app.startAsyncOp()
-				app.mode = ModeConsole
-				app.consoleState.GetBuffer().Clear()
-				app.consoleState.Reset()
-				ui.GetBuffer().Append(OutputMessages["dirty_merge_aborting"], ui.TypeInfo)
-				return app, app.cmdAbortDirtyMerge()
-			}
-		} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_switch_") {
-			// Abort dirty switch: restore original state
-			if app.dirtyOperationState != nil {
-				app.startAsyncOp()
-				app.mode = ModeConsole
-				app.consoleState.GetBuffer().Clear()
-				app.consoleState.Reset()
-				ui.GetBuffer().Append(OutputMessages["dirty_switch_aborting"], ui.TypeInfo)
-				return app, app.cmdAbortDirtySwitch()
+		case OpRebase:
+			app.StartAsyncOp()
+			app.mode = ModeConsole
+			app.consoleState.Reset()
+			ui.GetBuffer().Append(OutputMessages["aborting_rebase"], ui.TypeInfo)
+			return app, app.cmdRebaseAbort()
+		default:
+			if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_pull_") {
+				if app.dirtyOperationState != nil {
+					app.StartAsyncOp()
+					app.mode = ModeConsole
+					app.consoleState.Reset()
+					ui.GetBuffer().Append(OutputMessages["aborting_dirty_pull"], ui.TypeInfo)
+					return app, app.cmdAbortDirtyPull()
+				}
+			} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_merge_") {
+				if app.dirtyOperationState != nil {
+					app.StartAsyncOp()
+					app.mode = ModeConsole
+					app.consoleState.Reset()
+					ui.GetBuffer().Append(OutputMessages["dirty_merge_aborting"], ui.TypeInfo)
+					return app, app.cmdAbortDirtyMerge()
+				}
+			} else if strings.HasPrefix(app.conflictResolveState.Operation, "dirty_switch_") {
+				if app.dirtyOperationState != nil {
+					app.StartAsyncOp()
+					app.mode = ModeConsole
+					app.consoleState.Reset()
+					ui.GetBuffer().Append(OutputMessages["dirty_switch_aborting"], ui.TypeInfo)
+					return app, app.cmdAbortDirtySwitch()
+				}
 			}
 		}
 	}
 
-	// Default: return to menu (should not reach here normally)
 	return app.returnToMenu()
 }

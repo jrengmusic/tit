@@ -1,9 +1,6 @@
 package app
 
 import (
-	"fmt"
-
-	"tit/internal/git"
 	"tit/internal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,42 +28,24 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 	// Conflicts are "failures" but require special handling (conflict resolver UI)
 	if msg.ConflictDetected && msg.Step == OpPull {
 		// Pull operation with merge conflicts: setup conflict resolver
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a.setupConflictResolverForPull(msg)
 	}
 
 	if msg.ConflictDetected && msg.Step == "branch_switch" {
 		// Branch switch with conflicts: setup conflict resolver
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a.setupConflictResolverForBranchSwitch(msg)
 	}
 
 	if msg.ConflictDetected && msg.Step == OpMergeBranch {
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a.setupConflictResolverForBranchMerge(msg)
 	}
 
 	// Handle other failures
 	if !msg.Success {
-		buffer.Append(msg.Error, ui.TypeStderr)
-		buffer.Append(GetFooterMessageText(MessageOperationFailed), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationFailed)
-		a.endAsyncOp()
-
-		// Clean up dirty operation snapshot if this was a dirty operation phase
-		if a.dirtyOperationState != nil {
-			snapshot := &git.DirtyOperationSnapshot{}
-			snapshot.Delete() // Clean up .git/TIT_DIRTY_OP on failure
-			a.dirtyOperationState = nil
-		}
-
-		// Always refresh git state after failure - the operation may have partially succeeded
-		// (e.g., commit with weird exit code but changes were actually committed)
-		if err := a.reloadGitState(); err != nil {
-			// State reload failed, but proceed with cleanup
-		}
-
-		return a, nil
+		return a.handleGitOperationFailure(msg, buffer)
 	}
 
 	// Operation succeeded
@@ -116,213 +95,79 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		return a.handleForcePush(msg)
 
 	case OpPushSyncNeeded:
-		// Push was rejected - auto fetch+merge then push
 		return a, a.cmdPushSyncMerge()
 
 	case OpPushSyncMerge:
-		// Merge succeeded with no conflicts - push now
-		if msg.ConflictDetected {
-			return a.setupConflictResolverForPushSync(msg)
-		}
-		return a, a.cmdPushAfterSync()
+		return a.handlePushSyncMerge(msg)
 
 	case OpFinalizePushSync:
-		// Merge conflict resolved and committed - push now
 		return a, a.cmdPushAfterSync()
 
 	case OpHardReset:
 		return a.handleHardReset(msg)
 
 	case OpDirtyPullSnapshot:
-		// Phase 1 complete: snapshot saved, changes stashed/discarded
-		// Next: merge or rebase
-		buffer.Append(OutputMessages["dirty_pull_snapshot_saved"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_changeset")
-		return a, a.cmdDirtyPullMerge()
+		return a.handleDirtyPullSnapshot(buffer)
 
 	case OpDirtyPullMerge:
-		// Phase 2a complete: pull with merge succeeded
-		// Check for conflicts before proceeding
-		if msg.ConflictDetected {
-			// Conflicts during merge: setup conflict resolver
-			return a.setupConflictResolverForDirtyPull(msg, "changeset_apply")
-		}
-		// No conflicts: proceed to snapshot reapply
-		buffer.Append(OutputMessages["dirty_pull_merge_succeeded"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_snapshot")
-		return a, a.cmdDirtyPullApplySnapshot()
+		return a.handleDirtyPullMerge(msg, buffer)
 
 	case "finalize_dirty_pull_merge":
-		// Phase 2b complete: merge conflicts resolved and committed
-		// Now proceed to stash apply
-		buffer.Append(OutputMessages["dirty_pull_merge_succeeded"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_snapshot")
-		a.conflictResolveState = nil // Clear conflict state
-		return a, a.cmdDirtyPullApplySnapshot()
+		return a.handleFinalizeDirtyPullMerge(buffer)
 
 	case OpPullRebase:
-		// Phase 2b complete: pull with rebase succeeded
-		// Check for conflicts before proceeding
-		if msg.ConflictDetected {
-			// Conflicts during rebase: setup conflict resolver
-			return a.setupConflictResolverForDirtyPull(msg, "changeset_apply")
-		}
-		// No conflicts: proceed to snapshot reapply
-		buffer.Append(OutputMessages["dirty_pull_rebase_succeeded"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_snapshot")
-		return a, a.cmdDirtyPullApplySnapshot()
+		return a.handleDirtyPullRebase(msg, buffer)
 
 	case OpDirtyPullApplySnapshot:
-		// Phase 3 complete: stashed changes reapplied
-		// Check for conflicts before finalizing
-		if msg.ConflictDetected {
-			// Conflicts during snapshot reapply: setup conflict resolver
-			return a.setupConflictResolverForDirtyPull(msg, "snapshot_reapply")
-		}
-		// No conflicts: finalize operation
-		buffer.Append(OutputMessages["dirty_pull_changes_reapplied"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("finalizing")
-		return a, a.cmdDirtyPullFinalize()
+		return a.handleDirtyPullApplySnapshot(msg, buffer)
 
 	case OpDirtyPullFinalize:
-		// Operation complete: cleanup stash and snapshot file
-		if err := a.reloadGitState(); err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.endAsyncOp()
-			a.dirtyOperationState = nil
-			a.conflictResolveState = nil
-			return a, nil
-		}
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
-		a.dirtyOperationState = nil
-		a.conflictResolveState = nil
-		a.mode = ModeConsole
+		return a.handleDirtyPullFinalize(buffer)
 
 	case OpDirtyPullAbort:
-		// Abort complete: original state restored
-		if err := a.reloadGitState(); err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.endAsyncOp()
-			a.dirtyOperationState = nil
-			a.conflictResolveState = nil
-			return a, nil
-		}
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
-		a.dirtyOperationState = nil
-		a.conflictResolveState = nil
-		a.mode = ModeConsole
+		return a.handleDirtyPullAbort(buffer)
 
 	case OpDirtyMergeSnapshot:
-		buffer.Append(OutputMessages["dirty_merge_snapshot_saved"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_changeset")
-		return a, a.cmdDirtyMerge()
+		return a.handleDirtyMergeSnapshot(buffer)
 
 	case OpDirtyMerge:
-		if msg.ConflictDetected {
-			return a.setupConflictResolverForDirtyMerge(msg, "changeset_apply")
-		}
-		buffer.Append(OutputMessages["dirty_merge_succeeded"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_snapshot")
-		return a, a.cmdDirtyMergeApplySnapshot()
+		return a.handleDirtyMergeOp(msg, buffer)
 
 	case OpFinalizeDirtyMerge:
-		buffer.Append(OutputMessages["dirty_merge_succeeded"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_snapshot")
-		a.conflictResolveState = nil
-		return a, a.cmdDirtyMergeApplySnapshot()
+		return a.handleFinalizeDirtyMerge(buffer)
 
 	case OpDirtyMergeApplySnapshot:
-		if msg.ConflictDetected {
-			return a.setupConflictResolverForDirtyMerge(msg, "snapshot_reapply")
-		}
-		buffer.Append(OutputMessages["dirty_pull_changes_reapplied"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("finalizing")
-		return a, a.cmdDirtyMergeFinalize()
+		return a.handleDirtyMergeApplySnapshot(msg, buffer)
 
 	case OpDirtyMergeFinalize:
-		if err := a.reloadGitState(); err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.endAsyncOp()
-			a.dirtyOperationState = nil
-			a.conflictResolveState = nil
-			return a, nil
-		}
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
-		a.dirtyOperationState = nil
-		a.conflictResolveState = nil
-		a.mode = ModeConsole
+		return a.handleDirtyMergeFinalize(buffer)
 
 	case OpDirtyMergeAbort:
-		if err := a.reloadGitState(); err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.endAsyncOp()
-			a.dirtyOperationState = nil
-			a.conflictResolveState = nil
-			return a, nil
-		}
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
-		a.dirtyOperationState = nil
-		a.conflictResolveState = nil
-		a.mode = ModeConsole
+		return a.handleDirtyMergeAbort(buffer)
 
 	case OpDirtySwitchSnapshot:
-		buffer.Append(OutputMessages["dirty_switch_snapshot_saved"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("apply_changeset")
-		return a, a.cmdDirtySwitchExecute()
+		return a.handleDirtySwitchSnapshot(buffer)
 
 	case OpDirtySwitchExecute:
-		a.dirtyOperationState.SetPhase("apply_snapshot")
-		return a, a.cmdDirtySwitchApplySnapshot()
+		return a.handleDirtySwitchExecuteResult()
 
 	case OpDirtySwitchApplySnapshot:
-		if msg.ConflictDetected {
-			return a.setupConflictResolverForDirtySwitch(msg, "snapshot_reapply")
-		}
-		buffer.Append(OutputMessages["dirty_pull_changes_reapplied"], ui.TypeInfo)
-		a.dirtyOperationState.SetPhase("finalizing")
-		return a, a.cmdDirtySwitchFinalize()
+		return a.handleDirtySwitchApplySnapshot(msg, buffer)
 
 	case OpDirtySwitchFinalize:
-		if err := a.reloadGitState(); err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.endAsyncOp()
-			a.dirtyOperationState = nil
-			a.conflictResolveState = nil
-			return a, nil
-		}
-		// Regenerate menu with new branch state
-		menu := a.GenerateMenu()
-		a.menuItems = menu
-		a.selectedIndex = 0
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
-		a.dirtyOperationState = nil
-		a.conflictResolveState = nil
-		a.mode = ModeConsole
+		return a.handleDirtySwitchFinalize(buffer)
 
 	case OpDirtySwitchAbort:
-		if err := a.reloadGitState(); err != nil {
-			buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-			a.endAsyncOp()
-			a.dirtyOperationState = nil
-			a.conflictResolveState = nil
-			return a, nil
-		}
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
-		a.dirtyOperationState = nil
-		a.conflictResolveState = nil
-		a.mode = ModeConsole
+		return a.handleDirtySwitchAbort(buffer)
+
+	case OpRebaseContinue:
+		return a.handleRebaseContinue(buffer)
+
+	case OpRebaseAbort:
+		return a.handleRebaseAbort(buffer)
+
+	case OpFinalizeMergeFromMenu:
+		return a.handleFinalizeMergeFromMenu(buffer)
 
 	case OpFinalizeTravelMerge:
 		return a.handleFinalizeTravelMerge(msg)
@@ -331,9 +176,7 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		return a.handleFinalizeTravelReturn(msg)
 
 	case "cancel":
-		// User cancelled any confirmation dialog
-		a.dialogState.Hide()
-		return a.returnToMenu()
+		return a.handleCancelDialog()
 
 	case "config_switch_remote":
 		return a.handleAddRemote(msg)
@@ -342,11 +185,6 @@ func (a *Application) handleGitOperation(msg GitOperationMsg) (tea.Model, tea.Cm
 		return a.handleAddRemote(msg)
 
 	default:
-		// Default: just cleanup
-		buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
-		a.footerHint = GetFooterMessageText(MessageOperationComplete)
-		a.endAsyncOp()
+		return a.handleGitOperationDefault(buffer)
 	}
-
-	return a, nil
 }

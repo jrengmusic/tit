@@ -18,7 +18,7 @@ func (a *Application) handleInitCloneCheckout(msg GitOperationMsg) (tea.Model, t
 	if msg.Path != "" {
 		if err := os.Chdir(msg.Path); err != nil {
 			buffer.Append(fmt.Sprintf(ErrorMessages["failed_cd_into"], msg.Path, err), ui.TypeStderr)
-			a.endAsyncOp()
+			a.EndAsyncOp()
 			return a, nil
 		}
 	}
@@ -26,13 +26,13 @@ func (a *Application) handleInitCloneCheckout(msg GitOperationMsg) (tea.Model, t
 	// Detect new state after init/clone/checkout
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.mode = ModeConsole
 
 	return a, nil

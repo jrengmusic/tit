@@ -211,6 +211,40 @@ var MenuItems = map[string]MenuItem{
 		Enabled:  true,
 	},
 
+	// Mid-operation recovery
+	"finalize_merge": {
+		ID:       "finalize_merge",
+		Shortcut: "f",
+		Emoji:    "✅",
+		Label:    "Finalize merge",
+		Hint:     "Complete the merge by committing",
+		Enabled:  true,
+	},
+	"abort_merge": {
+		ID:       "abort_merge",
+		Shortcut: "a",
+		Emoji:    "↩️",
+		Label:    "Abort merge",
+		Hint:     "Abort merge and return to pre-merge state",
+		Enabled:  true,
+	},
+	"rebase_continue": {
+		ID:       "rebase_continue",
+		Shortcut: "c",
+		Emoji:    "▶️",
+		Label:    "Continue rebase",
+		Hint:     "Continue rebase after resolving conflicts",
+		Enabled:  true,
+	},
+	"rebase_abort": {
+		ID:       "rebase_abort",
+		Shortcut: "a",
+		Emoji:    "↩️",
+		Label:    "Abort rebase",
+		Hint:     "Abort rebase and return to pre-rebase state",
+		Enabled:  true,
+	},
+
 	// Config menu items (used in GenerateConfigMenu)
 	"config_add_remote": {
 		ID:       "config_add_remote",

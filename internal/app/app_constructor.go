@@ -13,7 +13,7 @@ import (
 // This bypasses all git state detection since git environment is not ready
 func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEnvironment) *Application {
 	envState := NewEnvironmentState()
-	envState.SetEnvironment(gitEnv)
+	envState.GitEnvironment = gitEnv
 	app := &Application{
 		// Embedded state clusters
 		UIState:         &UIState{},
@@ -28,13 +28,13 @@ func newSetupWizardApp(sizing ui.DynamicSizing, theme ui.Theme, gitEnv git.GitEn
 		activityState: NewActivityState(),
 	}
 	// Initialize embedded cluster fields
-	app.UIState.SetSize(sizing.ContentInnerWidth, sizing.ContentHeight)
+	app.UIState.Resize(sizing.ContentInnerWidth, sizing.ContentHeight)
 	app.UIState.theme = theme
-	app.NavigationState.SetMode(ModeSetupWizard)
+	app.NavigationState.mode = ModeSetupWizard
 	// Initialize console state to prevent nil pointer panics
 	newConsoleState := NewConsoleState()
 	app.OperationState.consoleState = &newConsoleState
-	app.OperationState.SetExitAllowed(true)
+	app.OperationState.PermitExit(true)
 	app.keyHandlers = app.buildKeyHandlers()
 	return app
 }
@@ -63,6 +63,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			// cannot cd into repo - this is a fatal error
 			panic(fmt.Sprintf("cannot cd into repository at %s: %v", repoPath, err))
 		}
+		git.CleanStaleLocks()
 		state, err := git.DetectState()
 		if err != nil {
 			// In a repo but state detection failed - this should not happen
@@ -116,16 +117,16 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	}
 
 	// Initialize embedded cluster fields
-	app.UIState.SetSize(sizing.ContentInnerWidth, sizing.ContentHeight)
+	app.UIState.Resize(sizing.ContentInnerWidth, sizing.ContentHeight)
 	app.UIState.theme = theme
-	app.NavigationState.SetMode(ModeMenu)
+	app.NavigationState.mode = ModeMenu
 	// Initialize console state to prevent nil pointer panics
 	newConsoleState := NewConsoleState()
 	app.OperationState.consoleState = &newConsoleState
-	app.OperationState.SetExitAllowed(true)
+	app.OperationState.PermitExit(true)
 
 	// Build and cache key handler registry for initial mode
-	app.NavigationState.SetKeyHandlers(app.buildKeyHandlers())
+	app.NavigationState.keyHandlers = app.buildKeyHandlers()
 
 	// Check for incomplete time travel restoration (Phase 0)
 	// If we're in TimeTraveling mode, TIT marker should exist
@@ -142,7 +143,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			shouldRestore = true
 		} else {
 			// Valid time travel info - restore it
-			app.timeTravelState.SetInfo(ttInfo)
+			app.timeTravelState.info = ttInfo
 		}
 	}
 
@@ -159,15 +160,15 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 			if err := snapshot.Load(); err == nil {
 				// Initialize dirty operation state
 				app.dirtyOperationState = &DirtyOperationState{
-					Phase:          "apply_changeset", // We're in the merge phase
+					Phase:          DirtyPhaseApplyChangeset, // We're in the merge phase
 					OriginalBranch: snapshot.OriginalBranch,
 					OriginalHead:   snapshot.OriginalHead,
 				}
 			}
 		}
 		// Skip menu generation - enter conflict resolver immediately
-		app.NavigationState.SetMode(ModeConsole)
-		app.UIState.SetFooterHint("Conflict detected - entering resolver...")
+		app.NavigationState.mode = ModeConsole
+		app.UIState.footerHint = "Conflict detected - entering resolver..."
 
 		// Setup conflict resolver immediately
 		operationType := "pull_merge" // Default for manual conflicts
@@ -180,17 +181,35 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		return app
 	}
 
+	// Handle pre-existing Merging state at startup
+	if isRepo && app.gitState.Operation == git.Merging {
+		app.NavigationState.mode = ModeMenu
+		// Menu will show finalize/abort merge options via menuMerging()
+	}
+
+	// Handle pre-existing Rebasing state at startup
+	if isRepo && app.gitState.Operation == git.Rebasing {
+		if git.HasConflicts() {
+			app.NavigationState.mode = ModeConsole
+			app.UIState.footerHint = "Rebase conflict detected - entering resolver..."
+			_, _ = app.setupConflictResolverForRebase()
+			return app
+		}
+		// No conflicts — show rebase menu (continue/abort) via menuRebasing()
+		app.NavigationState.mode = ModeMenu
+	}
+
 	// Generate initial menu (Phase 1 of initialization)
 	menu := app.GenerateMenu()
-	app.NavigationState.SetMenuItems(menu)
+	app.NavigationState.ReplaceMenu(menu)
 
 	// Set footer hint from first menu item (default)
 	if len(menu) > 0 && !shouldRestore {
-		app.UIState.SetFooterHint(menu[0].Hint)
+		app.UIState.footerHint = menu[0].Hint
 	}
 
 	// Set up key handlers for current mode (refreshes shortcuts)
-	app.rebuildMenuShortcuts(app.NavigationState.GetMode())
+	app.rebuildMenuShortcuts(app.NavigationState.mode)
 
 	// Start cache loading if not restoring
 	if !shouldRestore {
@@ -204,9 +223,4 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 	}
 
 	return app
-}
-
-// GetFooterHint returns the current footer hint text
-func (a *Application) GetFooterHint() string {
-	return a.UIState.GetFooterHint()
 }

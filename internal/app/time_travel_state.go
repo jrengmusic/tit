@@ -18,16 +18,6 @@ func (t *TimeTravelState) IsActive() bool {
 	return t.info != nil
 }
 
-// GetInfo returns the time travel info (may be nil).
-func (t *TimeTravelState) GetInfo() *git.TimeTravelInfo {
-	return t.info
-}
-
-// SetInfo sets the time travel info.
-func (t *TimeTravelState) SetInfo(info *git.TimeTravelInfo) {
-	t.info = info
-}
-
 // Clear removes time travel state.
 func (t *TimeTravelState) Clear() {
 	t.info = nil

@@ -97,9 +97,6 @@ func Execute(args ...string) CommandResult {
 // Use this for user-initiated actions that should display console output
 // WORKER THREAD - Must be called from async operation
 func ExecuteWithStreaming(ctx context.Context, args ...string) CommandResult {
-	// Clean any stale git locks from interrupted operations
-	cleanStaleLocks()
-
 	// Log the command being executed
 	cmdString := "git " + strings.Join(args, " ")
 	Log(cmdString)

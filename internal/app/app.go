@@ -62,11 +62,11 @@ type ModeTransition struct {
 
 // transitionTo handles standardized mode transitions and state resets.
 func (a *Application) transitionTo(config ModeTransition) {
-	a.NavigationState.SetMode(config.Mode)
+	a.NavigationState.mode = config.Mode
 
 	// Always reset common input state
-	inputState := a.OperationState.GetInputState()
-	a.NavigationState.SetSelectedIndex(0)
+	inputState := a.OperationState.InputState()
+	a.NavigationState.SelectAt(0)
 	inputState.Reset()
 	inputState.ClearConfirming = false
 
@@ -78,7 +78,7 @@ func (a *Application) transitionTo(config ModeTransition) {
 		inputState.Action = config.InputAction
 	}
 	if config.FooterHint != "" {
-		a.UIState.SetFooterHint(config.FooterHint)
+		a.UIState.footerHint = config.FooterHint
 	}
 	if config.InputHeight > 0 {
 		inputState.Height = config.InputHeight
@@ -88,7 +88,7 @@ func (a *Application) transitionTo(config ModeTransition) {
 	}
 
 	// Reset workflow-specific fields based on the configuration
-	workflowState := a.OperationState.GetWorkflowState()
+	workflowState := a.OperationState.WorkflowState()
 	for _, field := range config.ResetFields {
 		switch field {
 		case "clone":
@@ -131,7 +131,7 @@ func (a *Application) checkForConflicts(step string, successFlag bool) *GitOpera
 // This is SSOT for git command execution with standard error handling.
 func (a *Application) executeGitOp(step string, args ...string) tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
-	a.OperationState.SetCancelContext(cancel)
+	a.OperationState.cancelContext = cancel
 	return func() tea.Msg {
 		result := git.ExecuteWithStreaming(ctx, args...)
 		if result.Success {
@@ -148,120 +148,11 @@ func (a *Application) executeGitOp(step string, args ...string) tea.Cmd {
 	}
 }
 
-// ========================================
-// Async Operation State Helpers
-// ========================================
-// SSOT for async operation lifecycle.
-
-// startAsyncOp marks an async operation as active.
-func (a *Application) startAsyncOp() {
-	a.OperationState.StartAsyncOp()
-}
-
-// endAsyncOp marks an async operation as complete.
-func (a *Application) endAsyncOp() {
-	a.OperationState.EndAsyncOp()
-}
-
-// abortAsyncOp marks an async operation as aborted by user.
-func (a *Application) abortAsyncOp() {
-	a.OperationState.AbortAsyncOp()
-}
-
-// isAsyncActive returns true if an async operation is running.
-func (a *Application) isAsyncActive() bool {
-	return a.OperationState.IsAsyncActive()
-}
-
-// isAsyncAborted returns true if current async operation was aborted.
-func (a *Application) isAsyncAborted() bool {
-	return a.OperationState.IsAsyncAborted()
-}
-
-// clearAsyncAborted resets the aborted flag.
-func (a *Application) clearAsyncAborted() {
-	a.OperationState.ClearAsyncAborted()
-}
-
-// setExitAllowed sets whether exit is allowed during operation.
-func (a *Application) setExitAllowed(allowed bool) {
-	a.OperationState.SetExitAllowed(allowed)
-}
-
-// canExit returns true if exit is allowed.
-func (a *Application) canExit() bool {
-	return a.OperationState.CanExit()
-}
-
-// handleCacheProgress handles cache building progress updates
-
-// handleMenuUp moves selection up
-func (a *Application) handleMenuUp(app *Application) (tea.Model, tea.Cmd) {
-	app.activityState.MarkActivity() // Track menu activity
-	menuItems := app.NavigationState.GetMenuItems()
-	if len(menuItems) > 0 {
-		startIdx := app.NavigationState.GetSelectedIndex()
-		newIdx := (startIdx - 1 + len(menuItems)) % len(menuItems)
-		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
-		for menuItems[newIdx].Separator || !menuItems[newIdx].Enabled {
-			newIdx = (newIdx - 1 + len(menuItems)) % len(menuItems)
-			// Prevent infinite loop if all items disabled
-			if newIdx == startIdx {
-				break
-			}
-		}
-		app.NavigationState.SetSelectedIndex(newIdx)
-		// Update footer hint
-		if newIdx < len(menuItems) {
-			app.UIState.SetFooterHint(menuItems[newIdx].Hint)
-		}
-	}
-	return app, nil
-}
-
-// handleMenuDown moves selection down
-func (a *Application) handleMenuDown(app *Application) (tea.Model, tea.Cmd) {
-	app.activityState.MarkActivity() // Track menu activity
-	menuItems := app.NavigationState.GetMenuItems()
-	if len(menuItems) > 0 {
-		startIdx := app.NavigationState.GetSelectedIndex()
-		newIdx := (startIdx + 1) % len(menuItems)
-		// Skip separators and disabled items (CONTRACT: disabled items not selectable)
-		for menuItems[newIdx].Separator || !menuItems[newIdx].Enabled {
-			newIdx = (newIdx + 1) % len(menuItems)
-			// Prevent infinite loop if all items disabled
-			if newIdx == startIdx {
-				break
-			}
-		}
-		app.NavigationState.SetSelectedIndex(newIdx)
-		// Update footer hint
-		if newIdx < len(menuItems) {
-			app.UIState.SetFooterHint(menuItems[newIdx].Hint)
-		}
-	}
-	return app, nil
-}
-
-// handleMenuEnter selects current menu item and dispatches action
-func (a *Application) handleMenuEnter(app *Application) (tea.Model, tea.Cmd) {
-	app.activityState.MarkActivity() // Track menu activity
-	item, ok := app.NavigationState.GetSelectedItem()
-	if ok {
-		// CONTRACT: Cannot execute separators or disabled items (cache still building)
-		if !item.Separator && item.Enabled {
-			// Dispatch action
-			return app, app.dispatchAction(item.ID)
-		}
-	}
-	return app, nil
-}
-
 // Input mode helpers
 
 // insertTextAtCursor inserts text at current cursor position (UTF-8 safe)
 func (a *Application) insertTextAtCursor(text string) {
-	inputState := a.OperationState.GetInputState()
+	inputState := a.OperationState.InputState()
 	// Defensive bounds checking
 	valueLen := len(inputState.Value)
 	if inputState.CursorPosition < 0 {
@@ -280,7 +171,7 @@ func (a *Application) insertTextAtCursor(text string) {
 
 // deleteAtCursor deletes character before cursor (UTF-8 safe)
 func (a *Application) deleteAtCursor() {
-	inputState := a.OperationState.GetInputState()
+	inputState := a.OperationState.InputState()
 	valueLen := len(inputState.Value)
 	if inputState.CursorPosition <= 0 || valueLen == 0 {
 		return
@@ -298,18 +189,15 @@ func (a *Application) deleteAtCursor() {
 
 // updateInputValidation updates validation message for current input
 func (a *Application) updateInputValidation() {
-	inputState := a.OperationState.GetInputState()
-	if inputState.Action == "clone_url" {
+	inputState := a.OperationState.InputState()
+	if inputState.Action == InputActionCloneURL {
 		currentValue := inputState.Value
-		if a.NavigationState.GetMode() == ModeInitializeBranches {
-			return // No validation in branch mode
-		}
-		if currentValue == "" {
-			inputState.ValidationMsg = ""
-		} else if ui.ValidateRemoteURL(currentValue) {
-			inputState.ValidationMsg = ""
-		} else {
-			inputState.ValidationMsg = "Invalid URL format"
+		if a.NavigationState.mode != ModeInitializeBranches {
+			if currentValue == "" {
+				inputState.ValidationMsg = ""
+			} else {
+				_, inputState.ValidationMsg = ui.Validators["url"](currentValue)
+			}
 		}
 	}
 }
@@ -318,9 +206,9 @@ func (a *Application) updateInputValidation() {
 
 // handleInputSubmit handles enter in generic input mode
 func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
-	inputState := app.OperationState.GetInputState()
+	inputState := app.OperationState.InputState()
 	if time.Now().Before(inputState.PasteBurstUntil) {
-		inputState.PasteBurstUntil = time.Now().Add(50 * time.Millisecond)
+		inputState.PasteBurstUntil = time.Now().Add(PasteBurstWindow)
 		return app, nil
 	}
 	// UI THREAD - Route input submission based on action type
@@ -348,7 +236,7 @@ func (a *Application) handleInputSubmit(app *Application) (tea.Model, tea.Cmd) {
 
 // handleHistoryRewind handles Ctrl+ENTER in history browser to initiate rewind
 func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd) {
-	pickerState := app.DialogManager.GetPickerState()
+	pickerState := app.DialogManager.PickerState()
 	if pickerState.History == nil || len(pickerState.History.Commits) == 0 {
 		return app, nil
 	}
@@ -358,7 +246,7 @@ func (a *Application) handleHistoryRewind(app *Application) (tea.Model, tea.Cmd)
 	}
 
 	selectedCommit := pickerState.History.Commits[pickerState.History.SelectedIdx]
-	app.OperationState.GetWorkflowState().PendingRewindCommit = selectedCommit.Hash
+	app.OperationState.WorkflowState().PendingRewindCommit = selectedCommit.Hash
 
 	return app, app.showRewindConfirmation(selectedCommit.Hash)
 }

@@ -12,40 +12,40 @@ import (
 
 // handleConfirmationLeft moves selection to Yes button
 func (a *Application) handleConfirmationLeft(app *Application) (tea.Model, tea.Cmd) {
-	if a.dialogState.GetDialog() != nil {
-		a.dialogState.GetDialog().SelectYes()
+	if a.dialogState.dialog != nil {
+		a.dialogState.dialog.SelectYes()
 	}
 	return a, nil
 }
 
 // handleConfirmationRight moves selection to No button
 func (a *Application) handleConfirmationRight(app *Application) (tea.Model, tea.Cmd) {
-	if a.dialogState.GetDialog() != nil {
-		a.dialogState.GetDialog().SelectNo()
+	if a.dialogState.dialog != nil {
+		a.dialogState.dialog.SelectNo()
 	}
 	return a, nil
 }
 
 // handleConfirmationYes selects Yes button
 func (a *Application) handleConfirmationYes(app *Application) (tea.Model, tea.Cmd) {
-	if a.dialogState.GetDialog() != nil {
-		a.dialogState.GetDialog().SelectYes()
+	if a.dialogState.dialog != nil {
+		a.dialogState.dialog.SelectYes()
 	}
 	return a, nil
 }
 
 // handleConfirmationNo selects No button
 func (a *Application) handleConfirmationNo(app *Application) (tea.Model, tea.Cmd) {
-	if a.dialogState.GetDialog() != nil {
-		a.dialogState.GetDialog().SelectNo()
+	if a.dialogState.dialog != nil {
+		a.dialogState.dialog.SelectNo()
 	}
 	return a, nil
 }
 
 // handleConfirmationEnter confirms the current selection
 func (a *Application) handleConfirmationEnter(app *Application) (tea.Model, tea.Cmd) {
-	if a.dialogState.GetDialog() != nil {
-		confirmed := a.dialogState.GetDialog().GetSelectedButton() == ui.ButtonYes
+	if a.dialogState.dialog != nil {
+		confirmed := a.dialogState.dialog.GetSelectedButton() == ui.ButtonYes
 		return a.handleConfirmationResponse(confirmed)
 	}
 	return a, nil

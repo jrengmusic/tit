@@ -68,7 +68,17 @@ const (
 	OpDirtyMergeAbort         = "dirty_merge_abort"
 	OpFinalizeDirtyMerge      = "finalize_dirty_merge"
 
+	// Rebase operations
+	OpRebase         = "rebase"
+	OpRebaseContinue = "rebase_continue"
+	OpRebaseAbort    = "rebase_abort"
+
+	// Mid-operation recovery menu actions
+	OpFinalizeMergeFromMenu = "finalize_merge"
+	OpAbortMergeFromMenu    = "abort_merge_from_menu"
+
 	// Dirty branch switch (save changes before switch) operation phases
+	OpDirtySwitch          = "dirty_switch"
 	OpDirtySwitchSnapshot      = "dirty_switch_snapshot"
 	OpDirtySwitchExecute       = "dirty_switch_execute"
 	OpDirtySwitchApplySnapshot = "dirty_switch_apply_snapshot"

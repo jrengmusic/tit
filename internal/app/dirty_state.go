@@ -1,5 +1,24 @@
 package app
 
+// DirtyPhase represents a phase in the dirty operation pipeline
+type DirtyPhase = string
+
+const (
+	DirtyPhaseSnapshot       DirtyPhase = "snapshot"
+	DirtyPhaseApplyChangeset DirtyPhase = "apply_changeset"
+	DirtyPhaseApplySnapshot  DirtyPhase = "apply_snapshot"
+	DirtyPhaseFinalizing     DirtyPhase = "finalizing"
+	DirtyPhaseFinalizeMerge  DirtyPhase = "finalize_merge"
+)
+
+// DirtyConflictPhase represents when conflicts occur during a dirty operation
+type DirtyConflictPhase = string
+
+const (
+	DirtyConflictChangeset       DirtyConflictPhase = "changeset_apply"
+	DirtyConflictSnapshotReapply DirtyConflictPhase = "snapshot_reapply"
+)
+
 // DirtyOperationState tracks the state of an active dirty pull/merge/timetravel operation
 // Used by the Application to coordinate between snapshot, apply, conflict resolution, and finalize phases
 type DirtyOperationState struct {
@@ -35,7 +54,7 @@ type DirtyOperationState struct {
 func NewDirtyOperationState(operationType string, preserveChanges bool) *DirtyOperationState {
 	return &DirtyOperationState{
 		OperationType:   operationType,
-		Phase:           "snapshot",
+		Phase:           DirtyPhaseSnapshot,
 		ConflictPhase:   "",
 		PreserveChanges: preserveChanges,
 		RemoteName:      "origin",
@@ -56,8 +75,8 @@ func (d *DirtyOperationState) String() string {
 	return status
 }
 
-// SetPhase updates the operation phase and clears conflict phase
-func (d *DirtyOperationState) SetPhase(newPhase string) {
+// AdvancePhase updates the operation phase and clears conflict phase
+func (d *DirtyOperationState) AdvancePhase(newPhase string) {
 	d.Phase = newPhase
 	d.ConflictPhase = "" // Clear conflict phase when moving to next phase
 }
@@ -70,5 +89,5 @@ func (d *DirtyOperationState) MarkConflictDetected(phase string, conflictedFiles
 
 // ShouldStashDrop returns true if we need to drop the stash after cleanup
 func (d *DirtyOperationState) ShouldStashDrop() bool {
-	return d.PreserveChanges && d.Phase == "finalizing"
+	return d.PreserveChanges && d.Phase == DirtyPhaseFinalizing
 }

@@ -54,7 +54,7 @@ func (a *Application) cmdSwitchBranch(targetBranch string) tea.Cmd {
 
 // handleNewBranchNameSubmit validates branch name and creates new branch
 func (a *Application) handleNewBranchNameSubmit() (tea.Model, tea.Cmd) {
-	inputState := a.OperationState.GetInputState()
+	inputState := a.OperationState.InputState()
 	branchName := strings.TrimSpace(inputState.Value)
 
 	if branchName == "" {
@@ -81,7 +81,7 @@ func (a *Application) handleNewBranchNameSubmit() (tea.Model, tea.Cmd) {
 	buffer.Clear()
 	buffer.Append(fmt.Sprintf("Creating branch %s...", branchName), ui.TypeStatus)
 
-	a.startAsyncOp()
+	a.StartAsyncOp()
 	a.workflowState.PreviousMode = ModeConfig
 	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeConsole

@@ -9,7 +9,7 @@ import (
 
 // dispatchPush pushes to remote
 func (a *Application) dispatchPush(app *Application) tea.Cmd {
-	a.startAsyncOp()
+	a.StartAsyncOp()
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeConsole
@@ -44,7 +44,7 @@ func (a *Application) dispatchPullMerge(app *Application) tea.Cmd {
 
 // dispatchPushAutoSync starts auto sync push flow directly (no confirmation — not destructive)
 func (a *Application) dispatchPushAutoSync(app *Application) tea.Cmd {
-	a.startAsyncOp()
+	a.StartAsyncOp()
 	a.workflowState.PreviousMode = ModeMenu
 	a.mode = ModeConsole
 	a.consoleState.Reset()
@@ -55,7 +55,7 @@ func (a *Application) dispatchPushAutoSync(app *Application) tea.Cmd {
 func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode // Track previous mode (Menu)
 	app.mode = ModeConfirmation
-	app.dialogState.SetContext(map[string]string{})
+	app.dialogState.context = map[string]string{}
 	msg := ConfirmationMessages["force_push"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -73,7 +73,7 @@ func (a *Application) dispatchForcePush(app *Application) tea.Cmd {
 func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.dialogState.SetContext(map[string]string{})
+	app.dialogState.context = map[string]string{}
 	msg := ConfirmationMessages["hard_reset"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -92,7 +92,7 @@ func (a *Application) dispatchReplaceLocal(app *Application) tea.Cmd {
 func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.dialogState.SetContext(map[string]string{})
+	app.dialogState.context = map[string]string{}
 
 	var confirmType string
 	if app.gitState.Remote == git.HasRemote {
@@ -122,11 +122,43 @@ func (a *Application) dispatchResetDiscardChanges(app *Application) tea.Cmd {
 	return nil
 }
 
+// dispatchFinalizeMerge finalizes a merge in progress (git commit --no-edit)
+func (a *Application) dispatchFinalizeMerge(app *Application) tea.Cmd {
+	a.StartAsyncOp()
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	return a.executeGitOp(OpFinalizeMergeFromMenu, "commit", "--no-edit")
+}
+
+// dispatchAbortMerge aborts a merge in progress (git merge --abort)
+func (a *Application) dispatchAbortMerge(app *Application) tea.Cmd {
+	a.StartAsyncOp()
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	return app.cmdAbortMerge()
+}
+
+// dispatchRebaseContinue continues a rebase after resolving conflicts
+func (a *Application) dispatchRebaseContinue(app *Application) tea.Cmd {
+	a.StartAsyncOp()
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	return app.cmdRebaseContinue()
+}
+
+// dispatchRebaseAbort aborts a rebase in progress
+func (a *Application) dispatchRebaseAbort(app *Application) tea.Cmd {
+	a.StartAsyncOp()
+	a.mode = ModeConsole
+	a.consoleState.Reset()
+	return app.cmdRebaseAbort()
+}
+
 // dispatchDirtyPullMerge starts the dirty pull confirmation dialog
 func (a *Application) dispatchDirtyPullMerge(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.dialogState.SetContext(map[string]string{})
+	app.dialogState.context = map[string]string{}
 	msg := ConfirmationMessages["dirty_pull"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,

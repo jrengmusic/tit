@@ -54,16 +54,6 @@ func (w *WorkflowState) RestoreMode() (AppMode, int) {
 	return w.PreviousMode, w.PreviousMenuIndex
 }
 
-// SetPendingRewind stores a commit hash for rewind operation.
-func (w *WorkflowState) SetPendingRewind(commit string) {
-	w.PendingRewindCommit = commit
-}
-
-// GetPendingRewind returns the pending rewind commit (empty if none).
-func (w *WorkflowState) GetPendingRewind() string {
-	return w.PendingRewindCommit
-}
-
 // ClearPendingRewind removes the pending rewind commit.
 func (w *WorkflowState) ClearPendingRewind() {
 	w.PendingRewindCommit = ""

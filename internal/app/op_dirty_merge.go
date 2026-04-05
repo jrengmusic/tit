@@ -11,8 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// cmdDirtyMergeSnapshot creates a git stash and saves the snapshot state
-// Phase 1: Capture original branch/HEAD, then git stash push -u
+// cmdDirtyMergeSnapshot creates a git stash and saves the snapshot state.
 func (a *Application) cmdDirtyMergeSnapshot(preserveChanges bool) tea.Cmd {
 	preserve := preserveChanges
 	ctx, cancel := context.WithCancel(context.Background())
@@ -27,7 +26,6 @@ func (a *Application) cmdDirtyMergeSnapshot(preserveChanges bool) tea.Cmd {
 			buffer.Append(OutputMessages["discarding_changes"], ui.TypeInfo)
 		}
 
-		// Get current branch name
 		branchResult := git.Execute("symbolic-ref", "--short", "HEAD")
 		if !branchResult.Success {
 			return GitOperationMsg{
@@ -38,7 +36,6 @@ func (a *Application) cmdDirtyMergeSnapshot(preserveChanges bool) tea.Cmd {
 		}
 		currentBranch := strings.TrimSpace(branchResult.Stdout)
 
-		// Get current HEAD commit hash
 		headResult := git.Execute("rev-parse", "HEAD")
 		if !headResult.Success {
 			return GitOperationMsg{
@@ -49,7 +46,6 @@ func (a *Application) cmdDirtyMergeSnapshot(preserveChanges bool) tea.Cmd {
 		}
 		currentHead := strings.TrimSpace(headResult.Stdout)
 
-		// Save snapshot to .git/TIT_DIRTY_OP
 		snapshot := &git.DirtyOperationSnapshot{}
 		if err := snapshot.Save(currentBranch, currentHead); err != nil {
 			return GitOperationMsg{
@@ -100,8 +96,7 @@ func (a *Application) cmdDirtyMergeSnapshot(preserveChanges bool) tea.Cmd {
 	}
 }
 
-// cmdDirtyMerge merges the source branch after snapshot
-// Phase 2: After stash/discard, perform the merge
+// cmdDirtyMerge merges the source branch after snapshot.
 func (a *Application) cmdDirtyMerge() tea.Cmd {
 	sourceBranch := a.dirtyOperationState.MergeBranch
 	ctx, cancel := context.WithCancel(context.Background())
@@ -132,8 +127,7 @@ func (a *Application) cmdDirtyMerge() tea.Cmd {
 	}
 }
 
-// cmdFinalizeDirtyMerge finalizes the merge commit during dirty merge
-// Called after user resolves merge conflicts in conflict resolver
+// cmdFinalizeDirtyMerge finalizes the merge commit after conflict resolution.
 func (a *Application) cmdFinalizeDirtyMerge() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancelContext = cancel
@@ -169,8 +163,7 @@ func (a *Application) cmdFinalizeDirtyMerge() tea.Cmd {
 	}
 }
 
-// cmdDirtyMergeApplySnapshot applies stashed changes back after merge
-// Phase 3: After merge succeeds, reapply saved changes
+// cmdDirtyMergeApplySnapshot applies stashed changes back after merge.
 func (a *Application) cmdDirtyMergeApplySnapshot() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancelContext = cancel
@@ -210,8 +203,7 @@ func (a *Application) cmdDirtyMergeApplySnapshot() tea.Cmd {
 	}
 }
 
-// cmdDirtyMergeFinalize drops the stash and cleans up the snapshot file
-// Phase 4: After all operations succeed, finalize
+// cmdDirtyMergeFinalize drops the stash and cleans up the snapshot file.
 func (a *Application) cmdDirtyMergeFinalize() tea.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancelContext = cancel
@@ -248,7 +240,6 @@ func (a *Application) cmdAbortDirtyMerge() tea.Cmd {
 		buffer := ui.GetBuffer()
 		buffer.Append(OutputMessages["dirty_merge_aborting"], ui.TypeWarning)
 
-		// Abort merge first if in progress
 		state, _ := git.DetectState()
 		if state != nil && state.Operation == git.Conflicted {
 			buffer.Append(OutputMessages["aborting_merge"], ui.TypeInfo)

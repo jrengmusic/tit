@@ -73,15 +73,3 @@ func (a *Application) updateFooterHintFromMenu() {
 	}
 }
 
-// GetGitState returns the current git state
-
-func (a *Application) GetGitState() interface{} {
-	return a.gitState
-}
-
-// RenderStateHeader renders the full git state header (5 rows) using lipgloss
-// Row 1: CWD (left) | OPERATION (right)
-// RenderStateHeader renders the state header per REACTIVE-LAYOUT-PLAN.md
-// 2-column layout: 80/20 split
-// LEFT (80%): CWD, Remote, WorkingTree, Timeline
-// RIGHT (20%): Operation, Branch

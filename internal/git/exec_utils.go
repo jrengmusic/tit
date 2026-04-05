@@ -41,10 +41,11 @@ func StashExists(stashHash string) bool {
 	return exists
 }
 
-// cleanStaleLocks removes stale git lock files that can occur when git operations
+// CleanStaleLocks removes stale git lock files that can occur when git operations
 // are interrupted or the git process crashes. This allows subsequent operations to proceed.
 // Silent cleanup - if lock doesn't exist, that's fine.
-func cleanStaleLocks() {
+// Call once at application startup, not before every git operation.
+func CleanStaleLocks() {
 	repoPath, err := os.Getwd()
 	if err != nil {
 		return // Can't determine repo path, skip cleanup

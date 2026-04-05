@@ -45,8 +45,6 @@ func NewCacheManager() *CacheManager {
 	}
 }
 
-// --- Status Methods ---
-
 // IsLoadingStarted returns whether cache loading has been initiated.
 func (c *CacheManager) IsLoadingStarted() bool {
 	c.historyMutex.Lock()
@@ -88,8 +86,6 @@ func (c *CacheManager) SetDiffsReady(ready bool) {
 	defer c.diffMutex.Unlock()
 	c.diffsReady = ready
 }
-
-// --- Progress Methods ---
 
 // GetMetadataProgress returns metadata loading progress.
 func (c *CacheManager) GetMetadataProgress() (progress, total int) {
@@ -136,8 +132,6 @@ func (c *CacheManager) IncrementAnimationFrame() int {
 	return c.animationFrame
 }
 
-// --- Metadata Cache Methods ---
-
 // GetMetadata returns cached commit details.
 func (c *CacheManager) GetMetadata(hash string) (*git.CommitDetails, bool) {
 	c.historyMutex.Lock()
@@ -164,8 +158,6 @@ func (c *CacheManager) GetAllMetadata() map[string]*git.CommitDetails {
 	return copy
 }
 
-// --- Diff Cache Methods ---
-
 // GetDiff returns cached diff content.
 func (c *CacheManager) GetDiff(key string) (string, bool) {
 	c.diffMutex.Lock()
@@ -180,8 +172,6 @@ func (c *CacheManager) SetDiff(key string, diff string) {
 	defer c.diffMutex.Unlock()
 	c.diffCache[key] = diff
 }
-
-// --- Files Cache Methods ---
 
 // GetFiles returns cached file list for commit.
 func (c *CacheManager) GetFiles(hash string) ([]git.FileInfo, bool) {
@@ -198,12 +188,9 @@ func (c *CacheManager) SetFiles(hash string, files []git.FileInfo) {
 	c.filesCache[hash] = files
 }
 
-// --- Invalidation ---
-
 // Invalidate clears all caches and resets state.
 // IMPORTANT: Acquires locks in correct order (history → diff).
 func (c *CacheManager) Invalidate() {
-	// Lock order: historyMutex first, then diffMutex
 	c.historyMutex.Lock()
 	c.metadataCache = make(map[string]*git.CommitDetails)
 	c.metadataReady = false
@@ -221,8 +208,6 @@ func (c *CacheManager) Invalidate() {
 	c.diffsTotal = 0
 	c.diffMutex.Unlock()
 }
-
-// --- Bulk Operations (for cache building) ---
 
 // InitMetadataLoading prepares for metadata cache building.
 func (c *CacheManager) InitMetadataLoading(total int) {

@@ -6,26 +6,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// MenuItem re-exports the app.MenuItem for UI compatibility
-// Note: The actual MenuItem is defined in app/menu.go
-// This type alias allows the ui package to use it without circular imports
-// In practice, we pass []app.MenuItem to RenderMenuWithHeight
-
 // RenderMenuWithHeight renders menu items centered with 3-column layout (KEY | EMOJI | LABEL)
-// items can be []app.MenuItem (passed as interface{})
-func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, contentHeight int, contentWidth int) string {
-	// Type assertion to handle app.MenuItem
-	var menuItems []map[string]interface{}
-
-	switch v := items.(type) {
-	case []map[string]interface{}:
-		menuItems = v
-	default:
-		// If it's another type, try reflection or return empty
-		return ""
-	}
-
-	if len(menuItems) == 0 {
+func RenderMenuWithHeight(items []MenuItem, selectedIndex int, theme Theme, contentHeight int, contentWidth int) string {
+	if len(items) == 0 {
 		return ""
 	}
 
@@ -46,9 +29,9 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 	// Build styled lines
 	var lines []string
-	for i, itemMap := range menuItems {
+	for i, item := range items {
 		// Handle separators
-		if isSep, ok := itemMap["Separator"].(bool); ok && isSep {
+		if item.Separator {
 			// Separator spans emoji + label columns only (not shortcut column)
 			keyPad := strings.Repeat(" ", keyColWidth)
 			sepLine := strings.Repeat("─", emojiColWidth+labelColWidth)
@@ -59,11 +42,11 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 			continue
 		}
 
-		emoji, _ := itemMap["Emoji"].(string)
-		shortcut, _ := itemMap["Shortcut"].(string)
-		shortcutLabel, _ := itemMap["ShortcutLabel"].(string)
-		label, _ := itemMap["Label"].(string)
-		enabled, _ := itemMap["Enabled"].(bool)
+		emoji := item.Emoji
+		shortcut := item.Shortcut
+		shortcutLabel := item.ShortcutLabel
+		label := item.Label
+		enabled := item.Enabled
 
 		// Use ShortcutLabel for display if set, otherwise use Shortcut
 		shortcutDisplay := shortcut
@@ -205,7 +188,7 @@ func RenderMenuWithHeight(items interface{}, selectedIndex int, theme Theme, con
 
 // RenderMenuWithBanner renders menu (left column) + banner (right column)
 // 50/50 split, both columns centered H/V
-func RenderMenuWithBanner(sizing DynamicSizing, items interface{}, selectedIndex int, theme Theme) string {
+func RenderMenuWithBanner(sizing DynamicSizing, items []MenuItem, selectedIndex int, theme Theme) string {
 	// 50/50 split
 	leftWidth := sizing.ContentInnerWidth / 2
 	rightWidth := sizing.ContentInnerWidth - leftWidth

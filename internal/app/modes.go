@@ -136,7 +136,7 @@ var modeDescriptions = map[AppMode]ModeMetadata{
 		IsAsync:      false,
 	},
 	ModeCloneURL: {
-		Name:         "clone_url",
+		Name:         InputActionCloneURL,
 		Description:  "Text input for git repository URL with validation",
 		AcceptsInput: true,
 		IsAsync:      false,

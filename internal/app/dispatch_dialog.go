@@ -42,7 +42,7 @@ func (a *Application) dispatchConfigSwitchRemote(app *Application) tea.Cmd {
 func (a *Application) dispatchConfigRemoveRemote(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode
 	app.mode = ModeConfirmation
-	app.dialogState.SetContext(map[string]string{})
+	app.dialogState.context = map[string]string{}
 	msg := ConfirmationMessages["remove_remote"]
 	config := ui.ConfirmationConfig{
 		Title:       msg.Title,
@@ -160,7 +160,7 @@ func (a *Application) dispatchConfigMergeBranch(app *Application) tea.Cmd {
 	}
 
 	app.workflowState.PreviousMode = app.mode
-	app.workflowState.BranchPickerPurpose = "merge"
+	app.workflowState.BranchPickerPurpose = BranchPickerPurposeMerge
 	app.mode = ModeBranchPicker
 	app.footerHint = fmt.Sprintf("Select branch to merge into %s", currentBranch)
 	return nil

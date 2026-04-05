@@ -78,7 +78,7 @@ func (a *Application) handleBranchPickerEnter(app *Application) (tea.Model, tea.
 	}
 
 	// Check if this is a merge operation
-	if app.workflowState.BranchPickerPurpose == "merge" {
+	if app.workflowState.BranchPickerPurpose == BranchPickerPurposeMerge {
 		app.workflowState.BranchPickerPurpose = "" // Reset flag
 		return app.handleMergeBranchSelection(selectedBranch.Name)
 	}

@@ -111,6 +111,136 @@
 
 ## SPRINT HISTORY
 
+## Sprint 10: LANGUAGE-BLESSED Production Quality Audit Remediation ✅
+
+**Date:** 2026-04-05
+
+### Agents Participated
+- **COUNSELOR** — Full audit planning, SPEC updates, LANGUAGE.md authoring, phase execution coordination
+- **Pathfinder** — Codebase discovery, accessor audit, call site analysis, line counts
+- **Auditor** — Initial audit (27 findings), Phase 3 verification, Phase 5 verification, implementation validation, final gate audit (3 passes)
+- **Engineer** — Phase 1-8 execution (dead code, accessors, constants, control flow, file splits, bug fixes, type safety, UI boundary)
+- **Librarian** — Bubbletea architecture research
+- **Oracle** — (not invoked)
+
+### Files Modified (87 total, 1180 insertions, 4560 deletions)
+
+**Created:**
+- `~/.carol/LANGUAGE.md` — Multi-language BLESSED compliance addendum (Go + C++ sections, bubbletea framework)
+- `internal/ui/menu_item.go` — MenuItem struct (moved from app, eliminates map[string]interface{})
+- `internal/app/handlers_git_result.go` — Extracted git operation result handlers from git_handlers.go
+- `internal/app/op_rebase.go` — Rebase conflict handling (cmdRebaseContinue/Abort, handleRebaseContinue/Abort)
+
+**Deleted:**
+- `internal/git/exec_base.go` — Dead file (TODO comment only)
+- `internal/app/operations.go` — Dead file (package declaration only)
+- `internal/app/part2.txt` — Dead pre-refactor artifact
+- `PLAN-branch-operations.md` — Stale plan from Sprint 7
+
+**Phase 1 — Dead Code:**
+- `internal/app/app_update_msg.go` — Deleted `updateCallCount` global and increment
+- `internal/app/app_init.go` — Deleted dangling `GetFooterHint` comment
+- `internal/app/app_view_header.go` — Collapsed duplicate RenderStateHeader comment
+- `internal/app/app_update_cmd.go` — Deleted duplicate comment block, deleted dead `GetGitState()` method
+
+**Phase 2 — Accessor Cleanup:**
+- `internal/app/ui_state.go` — Deleted 2 simple accessors, renamed `SetSize` → `Resize`
+- `internal/app/navigation_state.go` — Deleted 6 simple accessors, renamed: `SetSelectedIndex` → `SelectAt`, `GetSelectedItem` → `SelectedItem`, `SetMenuItems` → `ReplaceMenu`, `GetKeyHandler` → `ResolveKeyHandler`
+- `internal/app/operation_state.go` — Deleted 6 simple accessors, renamed: `SetExitAllowed` → `PermitExit`, `GetWorkflowState` → `WorkflowState`, `GetConsoleState` → `EnsureConsoleState`, `GetInputState` → `InputState`
+- `internal/app/console_state.go` — Deleted 4 simple accessors, renamed `GetStateRef` → `ViewState`. Deleted `Clear()` method. `Reset()` now deterministic (buffer + scroll + autoScroll).
+- `internal/app/dialog_manager.go` — Renamed: `GetDialogState` → `DialogState`, `GetDialogContext` → `DialogContext`, `GetPickerState` → `PickerState`
+- `internal/app/dialog_state.go` — Deleted 6 same-package accessor methods (GetDialog, IsVisible, GetContext, SetContextValue, GetContextValue, SetContext)
+- `internal/app/input_state.go` — Deleted 7 simple accessors, renamed: `SetValue` → `ReplaceValue`, `SetCursorPos` → `ClampCursorTo`, `SetPrompt` → `ConfigurePrompt`
+- `internal/app/activity_state.go` — Deleted 4 simple accessors
+- `internal/app/async_state.go` — Deleted `SetExitAllowed`
+- `internal/app/dirty_state.go` — Renamed `SetPhase` → `AdvancePhase`. Added `DirtyPhase` and `DirtyConflictPhase` type aliases with 7 constants.
+- `internal/app/environment_state.go` — Deleted 5 simple accessors
+- `internal/app/picker_state.go` — Deleted 6 simple accessors
+- `internal/app/time_travel_state.go` — Deleted 2 simple accessors
+- `internal/app/workflow_state.go` — Deleted 2 simple accessors
+- 38 call sites updated to direct field access across 16 files
+
+**Phase 3 — SSOT Consolidation:**
+- `internal/app/constants.go` — Added `PasteBurstWindow`, `PageScrollLines`, `InputActionCloneURL`, `BranchPickerPurposeMerge`
+- `internal/app/messages_error.go` — Removed dead `invalid_url_format` entry (SSOT moved to ui.Validators)
+- `internal/app/messages_state.go` — Added `aborting_rebase`
+- `internal/app/messages_menu.go` — `GetFooterMessageText` map extracted to package-level var with `init()`
+- `internal/app/app_keys.go` — Extracted `globalHandlers()` method, both callers unified
+- `internal/app/operation_steps.go` — Added `OpRebase`, `OpDirtySwitch`, `OpRebaseContinue`, `OpRebaseAbort`, `OpFinalizeMergeFromMenu`, `OpAbortMergeFromMenu`
+- `internal/app/app.go`, `internal/app/handlers_global_keys.go` — URL validation delegated to `ui.Validators["url"]` (SSOT)
+- 9 files — Console transition consolidated: 16 triple/double patterns + 12 redundant Clear calls collapsed to `Reset()`
+- 12 files — Magic strings replaced with constants (`"clone_url"`, `"merge"`, `"rebase"`, `"dirty_switch"`, etc.)
+
+**Phase 4 — Control Flow:**
+- `internal/app/handlers_global_menu.go` — Empty if-block inverted. `handleKeyESC` decomposed (144→35 line dispatcher + 6 extracted handlers: `handleEscCopyHashMode`, `handleEscAsyncAbort`, `handleEscPostAbort`, `handleEscInput`, `handleEscTimeTravelConsole`, `handleEscReturnToPrevious`). Menu nav handlers moved here from app.go.
+- `internal/app/auto_update.go` — Fixed `a.startAutoUpdate()` (discarded Cmd) → `a.activityState.StartAutoUpdate()` (sets flag)
+- `internal/app/conflict_handlers.go` — `handleConflictSpace` early return inverted. `handleConflictEnter` 11-branch if/else→switch. `handleConflictEsc` 6-branch if/else→switch. Added `"rebase"` cases for both.
+- `internal/app/app.go` — `updateInputValidation` early return inverted to positive nesting
+- `~/.carol/LANGUAGE.md` — Guard definition widened from type-based to topology-based
+
+**Phase 5 — Lean:**
+- `internal/app/app.go` — 361→252: Deleted 8 async wrapper forwarders (132 call sites updated to promoted methods via `*OperationState` embedding). Deleted dead `GetFooterHint()`.
+- `internal/app/git_handlers.go` — 352→181: Extracted inline case arm bodies to handler functions, moved to `handlers_git_result.go`. Dispatch table now lean (one-liner per case).
+- `internal/app/conflict_handlers.go` — 310→278: Trimmed redundant comments
+- `internal/app/op_dirty_merge.go` — 308→299: Trimmed
+- `internal/app/cache_manager.go` — 307→292: Trimmed
+
+**Phase 6 — Bug Fixes:**
+- `internal/app/menu.go` — `GenerateMenu()` dispatch map expanded from 3 to 8 Operation states (no more panic)
+- `internal/app/menu_items.go` — Added 4 menu items: `finalize_merge`, `abort_merge`, `rebase_continue`, `rebase_abort`
+- `internal/app/menu_render_extra.go` — Added `menuMerging()`, `menuRebasing()`, `menuConflicted()`, `menuDirtyOperation()`
+- `internal/app/handlers_conflict.go` — Added `setupConflictResolverForRebase()`
+- `internal/app/op_rebase.go` — `cmdRebaseContinue`, `cmdRebaseAbort`, `handleRebaseContinue` (conflict loop), `handleRebaseAbort`, `handleFinalizeMergeFromMenu`
+- `internal/app/dispatchers.go` — Registered 4 new action IDs
+- `internal/app/dispatch_git_basic.go` — Added 4 dispatch functions
+- `internal/app/git_handlers.go` — Added 3 cases: `OpRebaseContinue`, `OpRebaseAbort`, `OpFinalizeMergeFromMenu`
+- `internal/app/app_constructor.go` — Startup handles Merging/Rebasing states. `git.CleanStaleLocks()` moved to startup-only. `PermitExit()` replaces direct field access.
+- `internal/app/op_pull.go` — Replaced raw `exec.Command` with `git.Execute()`
+- `internal/git/execute.go` — Removed per-operation `cleanStaleLocks()` call
+- `internal/git/exec_utils.go` — Exported `CleanStaleLocks()`
+- `SPEC.md` — Section 4-5 rewritten: mid-operation recovery replaces pre-flight blocking. Added `Rebasing` to Operation table.
+
+**Phase 7 — Type Safety:**
+- `internal/app/dirty_state.go` — Added `DirtyPhase`/`DirtyConflictPhase` type aliases with 7 constants, replaced raw strings across 5 files
+- `internal/ui/menu_item.go` — `MenuItem` struct defined in ui package
+- `internal/app/menu.go` — `MenuItem` is now `type MenuItem = ui.MenuItem`
+- `internal/ui/menu.go` — `RenderMenuWithHeight`/`RenderMenuWithBanner` accept `[]MenuItem` directly (was `interface{}`)
+- `internal/app/app_view_header.go` — Deleted `menuItemsToMaps` bridge function
+- `internal/app/app_view_main.go` — All calls pass `[]MenuItem` directly
+
+**Phase 8 — Documentation:**
+- `CODEBASE-MAP.md` — 12+ stale filenames updated, new files added
+- `~/.carol/MANIFESTO.md` — LANGUAGE.md reference added
+
+### Alignment Check
+- [x] BLESSED principles followed
+- [x] LANGUAGE.md Go addendum created and applied
+- [x] NAMES.md adhered (all 17 renames follow verb-noun/semantic naming)
+- [x] MANIFESTO.md principles applied
+- [x] SPEC.md updated for mid-operation recovery
+
+### Problems Solved
+- `GenerateMenu()` panicked on 5 of 8 Operation states — all states now have generators
+- Rebase conflicts had zero handling — full resolver loop implemented
+- SPEC incorrectly blocked recoverable states at startup — rewritten to recover all
+- 48 dead same-package accessors violated LANGUAGE.md E (Encapsulation) — deleted
+- 8 async forwarding wrappers violated LANGUAGE.md E — deleted, 132 call sites promoted
+- `ConsoleState.Clear()` was shadow of `Reset()` (S/SSOT violation) — deleted, `Reset()` deterministic
+- `handleKeyESC` was 144-line cascade (L violation) — decomposed to 35-line dispatcher
+- `cleanStaleLocks` ran before every git operation (TOCTOU race) — moved to startup-only
+- `exec.Command` bypassed git infrastructure — replaced with `git.Execute()`
+- `map[string]interface{}` at UI boundary lost type safety — `MenuItem` moved to ui package
+- MANIFESTO.md had no language-specific guidance — `LANGUAGE.md` created with Go/C++ sections
+
+### Technical Debt / Follow-up
+- W5: `KeyHandler` type signature `func(a *Application) handler(app *Application)` has redundant receiver+param. Systemic across all handlers — framework convention, accepted.
+- C2: Zero test coverage. Orthogonal to this refactor. Needs separate test strategy sprint.
+- 5.8: 30-line function audit not completed across all files. Priority files done (handleKeyESC, conflict handlers). Full sweep is separate scope.
+
+**Status:** ✅ Build passes. Auditor final gate: 10/10 PASS.
+
+---
+
 ## Sprint 9: MSYS2 ARM64 Architecture Detection in build.sh ✅
 
 **Date:** 2026-04-03

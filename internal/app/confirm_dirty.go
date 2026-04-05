@@ -14,7 +14,7 @@ func (a *Application) executeConfirmDirtyPull() (tea.Model, tea.Cmd) {
 	a.dialogState.Hide()
 
 	// Create operation state - merge strategy only
-	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", true) // true = preserve changes
+	a.dirtyOperationState = NewDirtyOperationState(OpDirtyPullMerge, true) // true = preserve changes
 	a.dirtyOperationState.PullStrategy = "merge"
 
 	// Transition to console to show streaming output
@@ -30,7 +30,7 @@ func (a *Application) executeRejectDirtyPull() (tea.Model, tea.Cmd) {
 	a.dialogState.Hide()
 
 	// Create operation state - merge strategy only
-	a.dirtyOperationState = NewDirtyOperationState("dirty_pull_merge", false) // false = discard changes
+	a.dirtyOperationState = NewDirtyOperationState(OpDirtyPullMerge, false) // false = discard changes
 	a.dirtyOperationState.PullStrategy = "merge"
 
 	// Transition to console to show streaming output
@@ -50,11 +50,9 @@ func (a *Application) executeConfirmPullMerge() (tea.Model, tea.Cmd) {
 	a.dialogState.Hide()
 
 	// Transition to console to show streaming output
-	a.setExitAllowed(false) // Block Ctrl+C until operation completes or is aborted
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
+	a.PermitExit(false) // Block Ctrl+C until operation completes or is aborted
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = GetFooterMessageText(MessageOperationInProgress)
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0

@@ -11,8 +11,8 @@ type UIState struct {
 	footerHint string
 }
 
-// SetSize updates dimensions and recalculates sizing
-func (u *UIState) SetSize(width, height int) {
+// Resize updates dimensions and recalculates sizing
+func (u *UIState) Resize(width, height int) {
 	u.width = width
 	u.height = height
 	u.sizing = ui.CalculateDynamicSizing(width, height)
@@ -28,12 +28,3 @@ func (u *UIState) ContentHeight() int {
 	return u.sizing.ContentHeight
 }
 
-// SetFooterHint updates the footer message
-func (u *UIState) SetFooterHint(hint string) {
-	u.footerHint = hint
-}
-
-// GetFooterHint returns current footer message
-func (u *UIState) GetFooterHint() string {
-	return u.footerHint
-}

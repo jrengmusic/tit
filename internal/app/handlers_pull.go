@@ -16,15 +16,15 @@ func (a *Application) handlePull(msg GitOperationMsg) (tea.Model, tea.Cmd) {
 	// Reload state and return to menu
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true) // Re-enable exit on error
+		a.EndAsyncOp()
+		a.PermitExit(true) // Re-enable exit on error
 		return a, nil
 	}
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true) // Re-enable exit after successful pull
+	a.EndAsyncOp()
+	a.PermitExit(true) // Re-enable exit after successful pull
 
 	return a, nil
 }
@@ -37,8 +37,8 @@ func (a *Application) handleFinalizePullMerge(msg GitOperationMsg) (tea.Model, t
 	// User must press ESC to return to menu (ensures merge completed before menu reachable)
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true) // Re-enable exit on error
+		a.EndAsyncOp()
+		a.PermitExit(true) // Re-enable exit on error
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -46,8 +46,8 @@ func (a *Application) handleFinalizePullMerge(msg GitOperationMsg) (tea.Model, t
 	buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true) // Re-enable exit after successful merge finalization
+	a.EndAsyncOp()
+	a.PermitExit(true) // Re-enable exit after successful merge finalization
 	a.conflictResolveState = nil
 	a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 
@@ -62,8 +62,8 @@ func (a *Application) handleAbortMerge(msg GitOperationMsg) (tea.Model, tea.Cmd)
 	// User must press ESC to return to menu (ensures abort completed before menu reachable)
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true) // Re-enable exit on error
+		a.EndAsyncOp()
+		a.PermitExit(true) // Re-enable exit on error
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -71,8 +71,8 @@ func (a *Application) handleAbortMerge(msg GitOperationMsg) (tea.Model, tea.Cmd)
 	buffer.Append(OutputMessages["abort_successful"], ui.TypeStatus)
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true) // Re-enable exit after successful abort
+	a.EndAsyncOp()
+	a.PermitExit(true) // Re-enable exit after successful abort
 	a.conflictResolveState = nil
 	a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 
@@ -87,7 +87,7 @@ func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cm
 	// Reload state and return to config menu
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
@@ -98,7 +98,7 @@ func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cm
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.mode = ModeConsole // Stay in console so user sees the success message
 
 	return a, nil
@@ -110,7 +110,7 @@ func (a *Application) handleMergeBranchResult(msg GitOperationMsg) (tea.Model, t
 
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
@@ -121,7 +121,7 @@ func (a *Application) handleMergeBranchResult(msg GitOperationMsg) (tea.Model, t
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.mode = ModeConsole
 
 	return a, nil
@@ -133,8 +133,8 @@ func (a *Application) handleFinalizeBranchMerge(msg GitOperationMsg) (tea.Model,
 
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -147,8 +147,8 @@ func (a *Application) handleFinalizeBranchMerge(msg GitOperationMsg) (tea.Model,
 	buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true)
+	a.EndAsyncOp()
+	a.PermitExit(true)
 	a.conflictResolveState = nil
 	a.mode = ModeConsole
 
@@ -163,8 +163,8 @@ func (a *Application) handleFinalizeBranchSwitch(msg GitOperationMsg) (tea.Model
 	// Reload state and return to config menu
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
-		a.setExitAllowed(true)
+		a.EndAsyncOp()
+		a.PermitExit(true)
 		a.mode = ModeConsole
 		return a, nil
 	}
@@ -177,8 +177,8 @@ func (a *Application) handleFinalizeBranchSwitch(msg GitOperationMsg) (tea.Model
 	buffer.Append(OutputMessages["merge_finalized"], ui.TypeStatus)
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
-	a.setExitAllowed(true)
+	a.EndAsyncOp()
+	a.PermitExit(true)
 	a.conflictResolveState = nil
 	a.mode = ModeConsole // Stay in console, user presses ESC to return to menu
 

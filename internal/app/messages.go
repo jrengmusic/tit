@@ -106,7 +106,7 @@ type InputMessage struct {
 // InputMessages centralizes input-related messages by domain
 // Replaces old InputPrompts + InputHints maps
 var InputMessages = map[string]InputMessage{
-	"clone_url": {
+	InputActionCloneURL: {
 		Prompt: "Repository URL:",
 		Hint:   "Enter git repository URL (https or git+ssh)",
 	},

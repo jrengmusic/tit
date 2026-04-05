@@ -131,5 +131,3 @@ func (a *Application) Init() tea.Cmd {
 
 	return tea.Batch(commands...)
 }
-
-// GetFooterHint returns the footer hint text

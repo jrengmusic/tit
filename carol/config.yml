@@ -6,12 +6,12 @@ version: "1.0"
 
 project:
   name: "tit"
-  path: "/c/Users/jreng/Documents/Poems/dev/tit"
-  initialized: "2026-04-03"
+  path: "/Users/jreng/Documents/Poems/dev/tit"
+  initialized: "2026-04-05"
 
 carol:
   mode: "portable"  # or "portable"
-  version: "1.0.0"
+  version: "0.0.6"
 
 agents:
   # Track which agents are assigned to roles
@@ -26,4 +26,3 @@ agents:
   machinist: "Not Assigned"
   pathfinder: "Not Assigned"
   researcher: "Not Assigned"
-  validator: "Not Assigned"

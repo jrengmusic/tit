@@ -25,14 +25,14 @@ func (a *Application) handleFetchRemote(msg GitOperationMsg) (tea.Model, tea.Cmd
 	buffer.Append(OutputMessages["setting_upstream"], ui.TypeInfo)
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
 	// SSOT: detached HEAD cannot have upstream - skip upstream setting
 	if a.gitState.Detached {
 		buffer.Append(ErrorMessages["cannot_set_upstream_detached"], ui.TypeInfo)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 

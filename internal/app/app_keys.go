@@ -4,19 +4,24 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// buildKeyHandlers creates the complete key handler registry for all application modes
-func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
-	// Global handlers - highest priority, applied to all modes
-	globalHandlers := map[string]KeyHandler{
+// globalHandlers returns the global key handlers applied to all modes
+func (a *Application) globalHandlers() map[string]KeyHandler {
+	return map[string]KeyHandler{
 		"ctrl+c": a.handleKeyCtrlC,
 		"q":      a.handleKeyCtrlC,
 		"esc":    a.handleKeyESC,
-		"/":      a.handleKeySlash, // Open config menu
-		"ctrl+v": a.handleKeyPaste, // Linux/Windows/macOS
-		"cmd+v":  a.handleKeyPaste, // macOS cmd+v
-		"meta+v": a.handleKeyPaste, // macOS meta (cmd) - Bubble Tea may send this
-		"alt+v":  a.handleKeyPaste, // Fallback
+		"/":      a.handleKeySlash,
+		"ctrl+v": a.handleKeyPaste,
+		"cmd+v":  a.handleKeyPaste,
+		"meta+v": a.handleKeyPaste,
+		"alt+v":  a.handleKeyPaste,
 	}
+}
+
+// buildKeyHandlers creates the complete key handler registry for all application modes
+func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
+	// Global handlers - highest priority, applied to all modes
+	globalHandlers := a.globalHandlers()
 
 	cursorNavMixin := CursorNavigationMixin{}
 
@@ -202,16 +207,7 @@ func (a *Application) rebuildMenuShortcuts(mode AppMode) {
 	}
 
 	// Merge global handlers
-	globalHandlers := map[string]KeyHandler{
-		"ctrl+c": a.handleKeyCtrlC,
-		"q":      a.handleKeyCtrlC,
-		"esc":    a.handleKeyESC,
-		"/":      a.handleKeySlash, // Open config menu
-		"ctrl+v": a.handleKeyPaste,
-		"cmd+v":  a.handleKeyPaste,
-		"meta+v": a.handleKeyPaste,
-		"alt+v":  a.handleKeyPaste,
-	}
+	globalHandlers := a.globalHandlers()
 
 	// Add global handlers (base handlers take priority, no overrides)
 	for key, handler := range globalHandlers {

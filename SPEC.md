@@ -78,6 +78,7 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 | `Normal` | No operation in progress |
 | `Merging` | Merge in progress |
 | `Conflicted` | Operation stopped due to conflicts |
+| `Rebasing` | Rebase in progress (may have conflicts) |
 | `TimeTraveling` | Detached HEAD (exploring history, read-only) |
 | `DirtyOperation` | Executing dirty pull/merge with stashed work |
 
@@ -115,11 +116,14 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 
 **Note:** GitEnvironment is a separate Application field checked BEFORE git state detection. It is NOT part of the git.State tuple.
 
-**Priority 2: Pre-Flight Checks (Git Repository State)**
-- If `Conflicted` OR `Merging` OR `Rebasing` OR `DirtyOperation` → Show error screen, prevent TIT startup
-- These are pre-existing abnormal states. User must resolve externally.
+**Priority 2: Mid-Operation State Recovery**
+- `Conflicted` → Open conflict resolver (resolve or abort)
+- `Merging` → Offer commit (finalize merge) or abort
+- `Rebasing` → Open conflict resolver if conflicts, else offer continue or abort
+- `DirtyOperation` → Resume dirty operation pipeline (TIT marker file `.git/TIT_DIRTY_OP` tracks state)
+- These are recoverable states. TIT has the machinery to handle all of them.
 
-**Priority 3: Operation State** (For Valid Startups)
+**Priority 3: Operation State**
 - `Normal` → Proceed to check other axes
 - `TimeTraveling` → Time travel menu (Browse history, Merge back, Return)
   - **Entered via:**
@@ -136,33 +140,42 @@ When `Operation = TimeTraveling` or `Remote = NoRemote`, Timeline = empty (not a
 
 ---
 
-## 5. Pre-Flight Checks (Startup)
+## 5. Mid-Operation Recovery (Startup and Runtime)
 
-Before showing any menu, TIT checks if git repository is in a mid-operation state:
+TIT handles all mid-operation states — both pre-existing (detected at startup) and runtime (produced by TIT operations).
 
+### Conflicted
+- Open conflict resolver UI
+- User picks file versions, stages resolved files
+- Finalize: `git commit` (merge) or `git rebase --continue` (rebase) depending on underlying operation
+- Abort: `git merge --abort` or `git rebase --abort`
+
+### Merging (no conflicts)
+- Merge is in progress but no conflict markers exist
+- Offer: Finalize merge (commit) or abort merge
+- Menu: "Finalize merge" / "Abort merge"
+
+### Rebasing
+- If conflicts exist → Open conflict resolver
+- After resolution: `git rebase --continue`
+- If next commit also conflicts → loop back to conflict resolver
+- Loop continues until all commits replayed or user aborts
+- Abort at any step: `git rebase --abort` (restores pre-rebase state)
+- Menu: "Continue rebase" (if no conflicts) / "Abort rebase"
+
+### DirtyOperation
+- TIT-initiated dirty pull/merge/switch was interrupted
+- `.git/TIT_DIRTY_OP` marker file tracks original branch, HEAD, and operation type
+- Resume: pick up from the phase recorded in the marker
+- Abort: restore original state from marker data
+
+### State Transitions
 ```
-Conflicted ──┐
-Merging    ──┼──→ ⚠️ ERROR: Repository in mid-operation
-Rebasing   ──┤
-DirtyOperation ┘
+Conflicted ──→ Conflict Resolver ──→ Finalize/Abort ──→ Normal
+Merging    ──→ Commit/Abort menu ──→ Normal
+Rebasing   ──→ Conflict Resolver (loop) ──→ Continue/Abort ──→ Normal
+DirtyOp    ──→ Resume pipeline ──→ Normal
 ```
-
-**If detected:**
-```
-⚠️ Git repository is in the middle of a [operation] operation
-
-Your repository cannot be managed by TIT while an operation is in progress.
-Please complete or abort the operation using standard git commands:
-
-  git merge --continue  (after resolving conflicts)
-  git merge --abort     (to discard the merge)
-  git rebase --continue / --abort
-  git stash pop         (for stash operations)
-
-[Exit TIT]
-```
-
-**Why:** These are pre-existing abnormal conditions, not states TIT manages. TIT operates on clean/normal repositories only.
 
 ---
 

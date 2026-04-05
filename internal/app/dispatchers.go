@@ -26,6 +26,11 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"time_travel_files_history": a.dispatchFileHistory,
 		"time_travel_merge":         a.dispatchTimeTravelMerge,
 		"time_travel_return":        a.dispatchTimeTravelReturn,
+		// Mid-operation recovery menu actions
+		"finalize_merge":  a.dispatchFinalizeMerge,
+		"abort_merge":     a.dispatchAbortMerge,
+		"rebase_continue": a.dispatchRebaseContinue,
+		"rebase_abort":    a.dispatchRebaseAbort,
 		// Config menu actions
 		"config_new_branch":         a.dispatchConfigNewBranch,
 		"config_add_remote":         a.dispatchConfigAddRemote,

@@ -59,10 +59,8 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyCommit() (tea.Model, tea
 	timeTravelHash := strings.TrimSpace(fullHashResult.Stdout)
 
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
@@ -106,10 +104,8 @@ func (a *Application) executeConfirmTimeTravelMergeDirtyDiscard() (tea.Model, te
 	timeTravelHash := strings.TrimSpace(result.Stdout)
 
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
@@ -140,10 +136,8 @@ func (a *Application) executeConfirmTimeTravelReturnDirtyDiscard() (tea.Model, t
 
 	// Tree is now clean - proceed directly with return (no second confirmation)
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Returning to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
@@ -170,10 +164,8 @@ func (a *Application) executeConfirmStaleStashContinue() (tea.Model, tea.Cmd) {
 
 	// Proceed with time travel return (now without stash restore)
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Returning to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0
@@ -202,10 +194,8 @@ func (a *Application) executeConfirmStaleStashMergeContinue() (tea.Model, tea.Cm
 
 	// Proceed with time travel merge (now without stash restore)
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = "Merging back to main..."
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0

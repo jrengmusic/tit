@@ -74,7 +74,7 @@ func (a *Application) handleMergeBranchSelection(sourceBranch string) (tea.Model
 
 // executeConfirmMergeBranch handles YES response to merge branch confirmation (clean tree)
 func (a *Application) executeConfirmMergeBranch() (tea.Model, tea.Cmd) {
-	sourceBranch := a.dialogState.GetContext()["sourceBranch"]
+	sourceBranch := a.dialogState.context["sourceBranch"]
 	a.dialogState.Hide()
 
 	if sourceBranch == "" {
@@ -93,7 +93,7 @@ func (a *Application) executeRejectMergeBranch() (tea.Model, tea.Cmd) {
 
 // executeConfirmMergeBranchDirty handles YES response (Stash and merge via Dirty Operation Protocol)
 func (a *Application) executeConfirmMergeBranchDirty() (tea.Model, tea.Cmd) {
-	sourceBranch := a.dialogState.GetContext()["sourceBranch"]
+	sourceBranch := a.dialogState.context["sourceBranch"]
 	a.dialogState.Hide()
 
 	if sourceBranch == "" {
@@ -101,7 +101,7 @@ func (a *Application) executeConfirmMergeBranchDirty() (tea.Model, tea.Cmd) {
 	}
 
 	// Initialize dirty operation state
-	a.dirtyOperationState = NewDirtyOperationState("dirty_merge", true)
+	a.dirtyOperationState = NewDirtyOperationState(OpDirtyMerge, true)
 	a.dirtyOperationState.MergeBranch = sourceBranch
 	a.dirtyOperationState.OriginalBranch = a.gitState.CurrentBranch
 

@@ -12,7 +12,7 @@ import (
 func (a *Application) executeConfirmBranchSwitchClean() (tea.Model, tea.Cmd) {
 	a.dialogState.Hide()
 
-	targetBranch := a.dialogState.GetContext()["targetBranch"]
+	targetBranch := a.dialogState.context["targetBranch"]
 	if targetBranch == "" {
 		return a.returnToMenu()
 	}
@@ -35,7 +35,7 @@ func (a *Application) executeRejectBranchSwitch() (tea.Model, tea.Cmd) {
 
 // executeConfirmBranchSwitchDirty handles YES response (Stash changes via Dirty Operation Protocol)
 func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	targetBranch := a.dialogState.GetContext()["targetBranch"]
+	targetBranch := a.dialogState.context["targetBranch"]
 	a.dialogState.Hide()
 
 	if targetBranch == "" {
@@ -43,7 +43,7 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	}
 
 	// Initialize dirty operation state
-	a.dirtyOperationState = NewDirtyOperationState("dirty_switch", true)
+	a.dirtyOperationState = NewDirtyOperationState(OpDirtySwitch, true)
 	a.dirtyOperationState.TargetBranch = targetBranch
 	a.dirtyOperationState.OriginalBranch = a.gitState.CurrentBranch
 
@@ -53,7 +53,7 @@ func (a *Application) executeConfirmBranchSwitchDirty() (tea.Model, tea.Cmd) {
 
 // executeRejectBranchSwitchDirty handles NO response (Discard changes via Dirty Operation Protocol)
 func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
-	targetBranch := a.dialogState.GetContext()["targetBranch"]
+	targetBranch := a.dialogState.context["targetBranch"]
 	a.dialogState.Hide()
 
 	if targetBranch == "" {
@@ -61,7 +61,7 @@ func (a *Application) executeRejectBranchSwitchDirty() (tea.Model, tea.Cmd) {
 	}
 
 	// Initialize dirty operation state (discard mode)
-	a.dirtyOperationState = NewDirtyOperationState("dirty_switch", false)
+	a.dirtyOperationState = NewDirtyOperationState(OpDirtySwitch, false)
 	a.dirtyOperationState.TargetBranch = targetBranch
 	a.dirtyOperationState.OriginalBranch = a.gitState.CurrentBranch
 

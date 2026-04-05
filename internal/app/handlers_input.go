@@ -115,7 +115,7 @@ func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
 	buffer.Append(OutputMessages["initializing_repo"], ui.TypeStatus)
 
 	a.mode = ModeConsole
-	a.startAsyncOp()
+	a.StartAsyncOp()
 	a.inputState.Value = ""
 
 	return a, a.cmdInit(branchName)
@@ -127,9 +127,9 @@ func (a *Application) handleInitBranchNameSubmit() (tea.Model, tea.Cmd) {
 func (a *Application) transitionToCloneURL(action string) (tea.Model, tea.Cmd) {
 	a.transitionTo(ModeTransition{
 		Mode:        ModeCloneURL,
-		InputPrompt: InputMessages["clone_url"].Prompt,
+		InputPrompt: InputMessages[InputActionCloneURL].Prompt,
 		InputAction: action,
-		FooterHint:  InputMessages["clone_url"].Hint,
+		FooterHint:  InputMessages[InputActionCloneURL].Hint,
 		ResetFields: []string{},
 	})
 	return a, nil
@@ -141,7 +141,7 @@ func (a *Application) handleCloneURLSubmit(app *Application) (tea.Model, tea.Cmd
 		app.workflowState.CloneURL = app.inputState.Value
 
 		// Route based on how we got here
-		if app.inputState.Action == "clone_url" {
+		if app.inputState.Action == InputActionCloneURL {
 			// CWD not empty: start clone to subdir operation
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -192,7 +192,7 @@ func (a *Application) handleSelectBranchEnter(app *Application) (tea.Model, tea.
 	buffer.Append(fmt.Sprintf(OutputMessages["checking_out_branch"], selectedBranch), ui.TypeStatus)
 
 	app.mode = ModeConsole
-	app.startAsyncOp()
+	app.StartAsyncOp()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	app.cancelContext = cancel
@@ -227,7 +227,7 @@ func (a *Application) handleCommitSubmit(app *Application) (tea.Model, tea.Cmd) 
 	}
 
 	// Set up async state for console display
-	app.startAsyncOp()
+	app.StartAsyncOp()
 	app.workflowState.PreviousMode = ModeMenu
 	app.workflowState.PreviousMenuIndex = 0
 	app.mode = ModeConsole
@@ -248,7 +248,7 @@ func (a *Application) handleCommitPushSubmit(app *Application) (tea.Model, tea.C
 	}
 
 	// Set up async state for console display
-	app.startAsyncOp()
+	app.StartAsyncOp()
 	app.workflowState.PreviousMode = ModeMenu
 	app.workflowState.PreviousMenuIndex = 0
 	app.mode = ModeConsole
@@ -282,7 +282,7 @@ func (a *Application) handleAddRemoteSubmit(app *Application) (tea.Model, tea.Cm
 	}
 
 	// Set up async state for console display
-	app.startAsyncOp()
+	app.StartAsyncOp()
 	app.workflowState.PreviousMode = ModeMenu
 	app.workflowState.PreviousMenuIndex = 0
 	app.mode = ModeConsole

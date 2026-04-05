@@ -14,7 +14,7 @@ func (a *Application) cmdPush() tea.Cmd {
 	branch := a.gitState.CurrentBranch
 	hasUpstream := a.gitState.LocalBranchOnRemote
 	ctx, cancel := context.WithCancel(context.Background())
-	a.OperationState.SetCancelContext(cancel)
+	a.OperationState.cancelContext = cancel
 	return func() tea.Msg {
 		var result git.CommandResult
 		if !hasUpstream {

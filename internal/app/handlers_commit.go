@@ -15,13 +15,13 @@ func (a *Application) handleCommitPush(msg GitOperationMsg) (tea.Model, tea.Cmd)
 	// Simple operations: reload state
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
+	a.EndAsyncOp()
 
 	return a, nil
 }
@@ -34,13 +34,13 @@ func (a *Application) handleForcePush(msg GitOperationMsg) (tea.Model, tea.Cmd) 
 	// User presses ESC to return to menu
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.mode = ModeConsole
 
 	return a, nil
@@ -54,13 +54,13 @@ func (a *Application) handleHardReset(msg GitOperationMsg) (tea.Model, tea.Cmd) 
 	// User presses ESC to return to menu
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
-	a.endAsyncOp()
+	a.EndAsyncOp()
 	a.mode = ModeConsole
 
 	return a, nil

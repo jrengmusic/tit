@@ -20,7 +20,7 @@ import (
 // executeConfirmTimeTravel handles YES response to time travel confirmation
 func (a *Application) executeConfirmTimeTravel() (tea.Model, tea.Cmd) {
 	// Get commit hash from context BEFORE hiding dialog (Hide() clears context)
-	commitHash := a.dialogState.GetContext()["commit_hash"]
+	commitHash := a.dialogState.context["commit_hash"]
 
 	// User confirmed time travel - hide dialog now that we have the hash
 	a.dialogState.Hide()
@@ -109,7 +109,7 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 		LogErrorFatal("Failed to parse commit time", err)
 	}
 
-	a.timeTravelState.SetInfo(&git.TimeTravelInfo{
+	a.timeTravelState.info = &git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
 		OriginalStashID: "",
 		CurrentCommit: git.CommitInfo{
@@ -117,13 +117,11 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 			Subject: commitSubject,
 			Time:    commitTime,
 		},
-	})
+	}
 
 	// Transition to console to show streaming output
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 
 	a.workflowState.PreviousMode = ModeHistory
 	a.workflowState.PreviousMenuIndex = 0
@@ -139,10 +137,8 @@ func (a *Application) executeTimeTravelClean(originalBranch, commitHash string) 
 // executeTimeTravelWithDirtyTree handles time travel from dirty working tree
 func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash string) (tea.Model, tea.Cmd) {
 	// Transition to console to show streaming output (MUST happen BEFORE buffer operations)
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 
 	a.workflowState.PreviousMode = ModeHistory
 	a.workflowState.PreviousMenuIndex = 0
@@ -156,7 +152,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	if !stashResult.Success {
 		buffer.Append(fmt.Sprintf("Failed to stash changes: %s", stashResult.Stderr), ui.TypeStderr)
 		a.footerHint = ErrorMessages["failed_stash_changes"]
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
@@ -167,7 +163,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 	if !stashListResult.Success {
 		buffer.Append(fmt.Sprintf("Failed to get stash list: %s", stashListResult.Stderr), ui.TypeStderr)
 		a.footerHint = ErrorMessages["failed_get_stash_list"]
-		a.endAsyncOp()
+		a.EndAsyncOp()
 		return a, nil
 	}
 
@@ -184,9 +180,6 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 				break
 			}
 		}
-	}
-
-	if stashRef == "" {
 	}
 
 	// Convert stash reference to SHA hash (stable, doesn't shift like stash@{N})
@@ -234,7 +227,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 		panic(fmt.Sprintf("FATAL: Failed to parse commit time: %v", err))
 	}
 
-	a.timeTravelState.SetInfo(&git.TimeTravelInfo{
+	a.timeTravelState.info = &git.TimeTravelInfo{
 		OriginalBranch:  originalBranch,
 		OriginalStashID: stashHash,
 		CurrentCommit: git.CommitInfo{
@@ -242,7 +235,7 @@ func (a *Application) executeTimeTravelWithDirtyTree(originalBranch, commitHash 
 			Subject: commitSubject,
 			Time:    commitTime,
 		},
-	})
+	}
 
 	// Start time travel checkout operation (console already set up at function start)
 	return a, git.ExecuteTimeTravelCheckout(originalBranch, commitHash)

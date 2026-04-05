@@ -9,8 +9,8 @@ package app
 //  3. End()    — marks operation complete
 //
 // Exit control:
-//   - SetExitAllowed(true) allows quit during long operations
-//   - SetExitAllowed(false) prevents quit during critical operations
+//   - PermitExit(true) allows quit during long operations
+//   - PermitExit(false) prevents quit during critical operations
 type AsyncState struct {
 	active      bool // True while async operation running
 	aborted     bool // True if user pressed ESC to abort
@@ -53,7 +53,3 @@ func (s *AsyncState) CanExit() bool {
 	return s.exitAllowed
 }
 
-// SetExitAllowed sets whether exit is allowed during operation.
-func (s *AsyncState) SetExitAllowed(allowed bool) {
-	s.exitAllowed = allowed
-}

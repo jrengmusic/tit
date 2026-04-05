@@ -12,43 +12,43 @@ func (a *Application) View() string {
 	// Render based on current mode
 	switch a.mode {
 	case ModeMenu:
-		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
+		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItems, a.selectedIndex, a.theme)
 
 	case ModeConsole, ModeClone:
 		// Console output (full-screen mode, footer handled by GetFooterContent)
 		contentText = ui.RenderConsoleOutputFullScreen(
-			a.consoleState.GetStateRef(),
-			a.consoleState.GetBuffer(),
+			a.consoleState.ViewState(),
+			ui.GetBuffer(),
 			a.theme,
 			a.sizing.TerminalWidth,
 			a.sizing.TerminalHeight,
-			a.isAsyncActive() && !a.isAsyncAborted(),
-			a.isAsyncAborted(),
+			a.IsAsyncActive() && !a.IsAsyncAborted(),
+			a.IsAsyncAborted(),
 			a.consoleState.IsAutoScroll(),
 		)
 
 	case ModeConfirmation:
 		// Confirmation dialog (centered in content area)
-		if a.dialogState.GetDialog() != nil {
-			contentText = a.dialogState.GetDialog().Render(a.sizing.ContentHeight)
+		if a.dialogState.dialog != nil {
+			contentText = a.dialogState.dialog.Render(a.sizing.ContentHeight)
 		} else {
 			// Fallback if no dialog - return to menu
 			a.mode = ModeMenu
-			contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
+			contentText = ui.RenderMenuWithHeight(a.menuItems, a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 		}
 
 	case ModeSelectBranch:
 		// Dynamic menu from cloneBranches
-		items := make([]map[string]interface{}, len(a.workflowState.CloneBranches))
+		items := make([]MenuItem, len(a.workflowState.CloneBranches))
 		for i, branch := range a.workflowState.CloneBranches {
-			items[i] = map[string]interface{}{
-				"ID":        branch,
-				"Shortcut":  "",
-				"Emoji":     "🌿",
-				"Label":     branch,
-				"Hint":      fmt.Sprintf("Set %s as canon branch", branch),
-				"Enabled":   true,
-				"Separator": false,
+			items[i] = MenuItem{
+				ID:        branch,
+				Shortcut:  "",
+				Emoji:     "🌿",
+				Label:     branch,
+				Hint:      fmt.Sprintf("Set %s as canon branch", branch),
+				Enabled:   true,
+				Separator: false,
 			}
 		}
 		contentText = ui.RenderMenuWithHeight(items, a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
@@ -83,9 +83,9 @@ func (a *Application) View() string {
 			footer,
 		)
 	case ModeCloneLocation:
-		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuCloneLocation()), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
+		contentText = ui.RenderMenuWithHeight(a.menuCloneLocation(), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 	case ModeInitializeLocation:
-		contentText = ui.RenderMenuWithHeight(a.menuItemsToMaps(a.menuInitializeLocation()), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
+		contentText = ui.RenderMenuWithHeight(a.menuInitializeLocation(), a.selectedIndex, a.theme, a.sizing.ContentHeight, a.sizing.ContentInnerWidth)
 
 	case ModeHistory:
 		// Render history split-pane view (footer handled by GetFooterContent)
@@ -138,7 +138,7 @@ func (a *Application) View() string {
 		contentText = a.renderSetupWizard()
 
 	case ModeConfig:
-		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItemsToMaps(a.menuItems), a.selectedIndex, a.theme)
+		contentText = ui.RenderMenuWithBanner(a.sizing, a.menuItems, a.selectedIndex, a.theme)
 
 	case ModeBranchPicker:
 		if a.pickerState.BranchPicker == nil {

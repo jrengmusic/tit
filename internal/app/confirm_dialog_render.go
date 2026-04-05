@@ -26,11 +26,9 @@ func (a *Application) showConfirmation(config ui.ConfirmationConfig) {
 // prepareAsyncOperation consolidates the common async operation setup pattern
 // Reduces 10+ lines of duplicate code across confirmation handlers
 func (a *Application) prepareAsyncOperation(hint string) {
-	a.startAsyncOp()
-	a.consoleState.SetAutoScroll(true)
-	a.mode = ModeConsole
-	a.consoleState.Clear()
+	a.StartAsyncOp()
 	a.consoleState.Reset()
+	a.mode = ModeConsole
 	a.footerHint = hint
 	a.workflowState.PreviousMode = ModeMenu
 	a.workflowState.PreviousMenuIndex = 0

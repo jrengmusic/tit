@@ -46,7 +46,7 @@ func (a *Application) GetFooterContent() string {
 
 // computeConsoleScrollStatus returns the right-side scroll status for console mode
 func (a *Application) computeConsoleScrollStatus() string {
-	state := a.consoleState.GetState()
+	state := a.consoleState.state
 	atBottom := state.ScrollOffset >= state.MaxScroll
 	remainingLines := state.MaxScroll - state.ScrollOffset
 
@@ -78,7 +78,7 @@ func (a *Application) getFooterHintKey() string {
 		return a.getFileHistoryHintKey()
 
 	case ModeConsole, ModeClone:
-		if a.isAsyncActive() {
+		if a.IsAsyncActive() {
 			return "console_running"
 		}
 		return "console_complete"
