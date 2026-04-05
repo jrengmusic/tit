@@ -111,6 +111,78 @@
 
 ## SPRINT HISTORY
 
+## Sprint 11: Release Infrastructure + Final Audit Remediation ✅
+
+**Date:** 2026-04-05
+
+### Agents Participated
+- **COUNSELOR** — Release planning, audit coordination, SPEC/ARCHITECTURE fixes
+- **Pathfinder** — Codebase discovery, call site analysis, CAKE reference files
+- **Auditor** — Final BLESSED-LANGUAGE audit (3 passes: implementation, docs/godocs, final gate)
+- **Engineer** — Module migration, release files, version injection, ShortenHash SSOT, godocs, stale doc fixes
+- **Librarian** — goreleaser v2 deprecation research
+
+### Files Modified
+
+**Release infrastructure (created):**
+- `.goreleaser.yaml` — goreleaser v2 config, 6 targets, macOS signing, ldflags version injection
+- `entitlements.plist` — macOS codesign entitlements
+- `scripts/post-build.sh` — macOS sign + notarize hook
+- `release.sh` — One-command release: commit, tag, push, goreleaser. Deletes existing release+tag if re-releasing.
+- `RELEASE_NOTES.md` — GitHub release description
+
+**Module path migration (97 files):**
+- `go.mod` — `tit` -> `github.com/jrengmusic/tit`
+- 96 `.go` files — all imports updated
+
+**Version injection:**
+- `internal/constants.go` — `AppVersion` from `const "v1.3.1"` to `var "dev"` (injected via ldflags)
+- `build.sh` — Added `git describe --tags` version detection + ldflags injection
+
+**Final audit remediation:**
+- `SPEC.md` — Added `Rewinding` to Operation table, version placeholder in UI mockup
+- `ARCHITECTURE.md` — Rewrote pre-flight blocker sections (2 CRITICAL), updated Application struct, fixed stale file references, updated method listings, fixed menu generator documentation
+- `CODEBASE-MAP.md` — Removed 4 stale file references (`statusbar.go`, `input.go`, `textpane.go`)
+- `internal/ui/formatters.go` — Deleted duplicate `ShortenHash` (SSOT: `git.ShortenHash` is canonical)
+- `internal/ui/history.go` — Migrated to `git.ShortenHash`
+- `internal/app/confirm_dialog_render.go`, `handlers_history_cache.go`, `handlers_history_copyhash.go` — Migrated to `git.ShortenHash`
+- `internal/git/types.go` — Added doc comments to 4 exported types (WorkingTree, Timeline, Operation, Remote)
+- `internal/ui/header.go` — Added doc comment to HeaderState
+- `internal/git/init.go` — Fixed 3 non-godoc-compliant comments
+- `internal/git/state.go`, `branch.go`, `app_constructor.go` — Annotated 5 silent error discards
+- `.goreleaser.yaml` — Fixed `format` -> `formats` deprecation
+
+**Deleted:**
+- `PLAN-refactor-blessed.md` — Completed plan
+- `RFC.md` — Consumed RFC
+
+### Alignment Check
+- [x] BLESSED principles followed
+- [x] LANGUAGE.md Go addendum applied
+- [x] NAMES.md adhered
+- [x] MANIFESTO.md principles applied
+- [x] SPEC.md updated (Rewinding, version placeholder)
+- [x] ARCHITECTURE.md updated (pre-flight myth removed, struct updated)
+
+### Problems Solved
+- `ShortenHash` duplicated in `git/types.go` and `ui/formatters.go` — deleted ui copy, all callers migrated to `git.ShortenHash`
+- ARCHITECTURE.md falsely claimed Conflicted/Merging/Rebasing/DirtyOperation block startup — rewritten to document actual recovery behavior
+- ARCHITECTURE.md showed flat Application struct from pre-refactor era — updated to embedded state clusters
+- 5 exported types missing godoc comments — added
+- 3 exported functions had non-compliant godoc format — fixed
+- 5 silent error discards violated LANGUAGE.md E — annotated
+- goreleaser `format` deprecated in v2 — changed to `formats`
+- `release.sh` didn't delete GitHub release on re-release — added `gh release delete`
+
+### Technical Debt / Follow-up
+- W5: KeyHandler dual receiver+param is systemic framework convention. Accepted.
+- ARCHITECTURE.md has additional stale sections beyond what was fixed (field counts, GitEnvironment type description, Logger interface). Full rewrite recommended in a dedicated docs sprint.
+- No tests for `internal/config/` and `internal/banner/` packages.
+
+**Status:** ✅ Build passes. 56 tests pass. Vet clean. Released as v0.0.1.
+
+---
+
 ## Sprint 10: LANGUAGE-BLESSED Production Quality Audit Remediation ✅
 
 **Date:** 2026-04-05
