@@ -29,7 +29,7 @@ builds:
             - HOOK_PATH={{ .Path }}
 
 archives:
-  - format: binary
+  - formats: [binary]
     name_template: "{{ .Binary }}"
 
 checksum:
