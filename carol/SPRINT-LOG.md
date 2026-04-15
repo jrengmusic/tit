@@ -111,6 +111,47 @@
 
 ## SPRINT HISTORY
 
+## Sprint 13: Version Fallback + Startup Remote Gate ✅
+
+**Date:** 2026-04-15
+**Duration:** ~01:30
+
+### Agents Participated
+- **COUNSELOR** — Problem framing, Go module proxy/immutability reasoning, CONTRACT re-verification (BLESSED, JRENG-CODING-STANDARD, NAMES), direct edits on approved plan
+- **Librarian** — Go `debug.ReadBuildInfo()` semantics under `go install @version`, `-X` ldflags constant-initializer constraint (Go issue #64246), canonical dual-path pattern; Go module proxy immutability ground truth (`proxy.golang.org` no author-removal mechanism, `retract` signals only, `sum.golang.org` append-only)
+- **Pathfinder** — Remote-status flow survey (`detectTimeline` `state_detection.go:52`, `cmdFetchRemote` `handlers_console_ui.go:63`, async fetch fired from `Init`), mode system survey (17 modes, `NavigationState.mode`, dispatch via switch + key handler map)
+- **Engineer** — Local build/ldflags verification on TIT (`v0.0.3-test` injection) and CAKE (same), post-ModeStartup `go vet` + `go build` pass confirmation
+
+### Files Modified (6 total, TIT + 1 on CAKE)
+- `internal/constants.go:12-28` — replaced `var AppVersion = getVersion()` (function-call initializer that silently disabled `-X` ldflags per Go #64246) with `var AppVersion = "dev"` + `init()` fallback using `debug.ReadBuildInfo`; unified goreleaser and `go install @version` paths
+- `internal/app/modes.go:39,186-191` — added `ModeStartup` enum constant and `modeDescriptions` entry (`AcceptsInput:false`, `IsAsync:true`); noun-form name per NAMES Rule 1, ARCHITECT-approved per Rule -1
+- `internal/app/app_keys.go:147-149` — registered empty handler map for `ModeStartup`; existing global-merge loop wires `q`/`ctrl+c`/`esc`, no action dispatch surface
+- `internal/app/app_view_main.go:165-168` — added `case ModeStartup:` rendering inline "Checking remote..." placeholder
+- `internal/app/app_constructor.go:202-225` — introduced `shouldGateStartup := isRepo && app.gitState != nil && app.gitState.Remote == git.HasRemote`; on true, set `mode = ModeStartup`, footer hint "Checking remote...", skip menu gen/ReplaceMenu/rebuildMenuShortcuts; cache loading start preserved independently
+- `internal/app/app_update_msg.go:206-230` — rewrote `RemoteFetchMsg` handler: on `mode == ModeStartup`, transition to `ModeMenu` regardless of `msg.Success` (never stranded), build menu from fresh timeline, rebuild shortcuts, set first-item footer hint; on failure, override footer with "Remote unreachable — showing cached state"
+- `../cake/internal/constants.go:1-23` (cross-project) — same version-fallback pattern applied to CAKE (sibling Go CLI with identical goreleaser + `go install` release path)
+
+### Alignment Check
+- [x] BLESSED — Stateless (typed mode state, not a manual boolean flag), Encapsulation (mode orchestrates dispatch gating — "tell, don't ask"), Explicit (semantic `ModeStartup` name, constant string initializer for AppVersion), SSOT (single `modeDescriptions` registry extended, no shadow startup flag)
+- [x] NAMES — Rule -1 (ARCHITECT approved `ModeStartup`), Rule 1 (noun form), Rule 3 (semantic — name describes role, not mechanism), Rule 5 (consistent `Mode*` prefix)
+- [x] JRENG-CODING-STANDARD — positive nested checks in new init() (`if AppVersion == "dev" { if ok && ... { ... } }`), no early returns added; existing file patterns preserved
+- [x] Never-Stranded invariant — `ModeStartup` always transitions on `RemoteFetchMsg` receipt (success OR failure)
+
+### Problems Solved
+- **`go install @latest` reports "dev"** — root cause identified as Go module proxy immutability (v0.0.2 SHA locked at first publish, tag retag ineffective) compounded by `var AppVersion = getVersion()` function-call initializer silently disabling `-X` ldflags; new pattern restores both goreleaser injection and `go install @version` reporting for future tags
+- **Remote status check too late** — menu was generated from stale local refs at construction; user could dispatch push/pull before `git fetch` returned. `ModeStartup` gates menu construction behind fetch completion; failure mode degrades gracefully with cached state + footer warning instead of stranding user
+- **Pre-existing `var AppVersion = getVersion()` latent bug** — ldflags path was broken for all future goreleaser builds on HEAD; fixed alongside
+
+### Debts Paid
+- None (no `DEBT.md` present at project root)
+
+### Debts Deferred
+- `GOROOT` misconfiguration on ARCHITECT's dev machine (`/mingw64/lib/go` unix-style breaks Windows `go` binary when invoked from bash without explicit override) — environment issue flagged by Engineer during TIT/CAKE verification, not a code concern
+- Local builds now display Go-synthesized pseudo-version (`vX.Y.Z-0.TIMESTAMP-HASH+dirty`) instead of bare `"dev"` during in-tree `go build` — functional, carries debug info; ARCHITECT may tighten the init() fallback to reject pseudo-versions if bare "dev" is preferred for local builds (cosmetic only)
+- `v0.0.3` tag not yet cut — fixes will not reach users via `go install @latest` until ARCHITECT runs `bash release.sh v0.0.3` (v0.0.2 proxy cache cannot be invalidated)
+
+---
+
 ## Sprint 12: Config Menu Collapse + Branch Picker Actions ✅
 
 **Date:** 2026-04-15
