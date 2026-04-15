@@ -36,6 +36,7 @@ const (
 	ModeConfig             // Configuration menu (remote, auto-update, branch, preferences)
 	ModeBranchPicker       // Branch selection with details pane
 	ModePreferences        // Preferences editor (auto-update, theme)
+	ModeStartup            // Blocking startup state: remote fetch in flight, menu not yet actionable
 )
 
 // SetupWizardStep represents the current step in the setup wizard
@@ -182,6 +183,12 @@ var modeDescriptions = map[AppMode]ModeMetadata{
 		Description:  "Preferences editor: auto-update settings, theme selection",
 		AcceptsInput: true,
 		IsAsync:      false,
+	},
+	ModeStartup: {
+		Name:         "startup",
+		Description:  "Blocking startup state while remote fetch is in flight; menu not yet actionable",
+		AcceptsInput: false,
+		IsAsync:      true,
 	},
 }
 

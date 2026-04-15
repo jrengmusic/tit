@@ -204,16 +204,29 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleRewind(msg)
 
 	case RemoteFetchMsg:
-		// Background fetch completed - refresh state to update timeline
+		// Background fetch completed - refresh state to update timeline.
+		// On success, recompute timeline from now-fresh refs.
+		// When gated in ModeStartup, always transition to ModeMenu afterwards —
+		// even on fetch failure — so the user is never stranded in the startup gate.
 		if msg.Success {
 			if newState, err := git.DetectState(); err == nil {
 				a.gitState = newState
-				// Only regenerate menu if we're in ModeMenu (don't interfere with other modes)
-				if a.mode == ModeMenu {
-					a.menuItems = a.GenerateMenu()
-					a.rebuildMenuShortcuts(ModeMenu)
-					a.updateFooterHintFromMenu()
-				}
+			}
+		}
+		if a.mode == ModeStartup {
+			a.mode = ModeMenu
+			a.NavigationState.ReplaceMenu(a.GenerateMenu())
+			a.rebuildMenuShortcuts(ModeMenu)
+			a.updateFooterHintFromMenu()
+			if !msg.Success {
+				a.footerHint = "Remote unreachable — showing cached state"
+			}
+		} else if a.mode == ModeMenu {
+			// Already in menu (post-startup fetch, e.g. auto-update): refresh only on success
+			if msg.Success {
+				a.menuItems = a.GenerateMenu()
+				a.rebuildMenuShortcuts(ModeMenu)
+				a.updateFooterHintFromMenu()
 			}
 		}
 		return a, nil

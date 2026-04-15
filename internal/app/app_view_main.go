@@ -163,6 +163,11 @@ func (a *Application) View() string {
 		// Render preferences with banner (reads values directly from config)
 		contentText = ui.RenderPreferencesWithBanner(a.appConfig, a.selectedIndex, a.theme, a.sizing)
 
+	case ModeStartup:
+		// Blocking startup while remote fetch is in flight.
+		// No menu rendered — actions are gated until RemoteFetchMsg transitions to ModeMenu.
+		contentText = "Checking remote..."
+
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))
 	}

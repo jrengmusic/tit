@@ -199,19 +199,30 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 		app.NavigationState.mode = ModeMenu
 	}
 
-	// Generate initial menu (Phase 1 of initialization)
-	menu := app.GenerateMenu()
-	app.NavigationState.ReplaceMenu(menu)
+	// Startup gating: defer menu generation when HasRemote so the menu is built
+	// from fresh timeline after `git fetch` completes. Prevents user from acting
+	// on stale local refs (push/pull dispatched against wrong premise).
+	// Menu construction is performed in the RemoteFetchMsg handler on transition.
+	shouldGateStartup := isRepo && app.gitState != nil && app.gitState.Remote == git.HasRemote
 
-	// Set footer hint from first menu item (default)
-	if len(menu) > 0 && !shouldRestore {
-		app.UIState.footerHint = menu[0].Hint
+	if shouldGateStartup {
+		app.NavigationState.mode = ModeStartup
+		app.UIState.footerHint = "Checking remote..."
+	} else {
+		// Generate initial menu (Phase 1 of initialization)
+		menu := app.GenerateMenu()
+		app.NavigationState.ReplaceMenu(menu)
+
+		// Set footer hint from first menu item (default)
+		if len(menu) > 0 && !shouldRestore {
+			app.UIState.footerHint = menu[0].Hint
+		}
+
+		// Set up key handlers for current mode (refreshes shortcuts)
+		app.rebuildMenuShortcuts(app.NavigationState.mode)
 	}
 
-	// Set up key handlers for current mode (refreshes shortcuts)
-	app.rebuildMenuShortcuts(app.NavigationState.mode)
-
-	// Start cache loading if not restoring
+	// Start cache loading if not restoring (independent of remote fetch)
 	if !shouldRestore {
 		app.cacheManager.SetLoadingStarted(true)
 	}

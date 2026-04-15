@@ -144,6 +144,9 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("+", a.handlePreferencesIncrement10).
 			On("_", a.handlePreferencesDecrement10).
 			Build(),
+		// ModeStartup accepts only global quit/esc handlers (merged below);
+		// no menu or action dispatch until RemoteFetchMsg transitions to ModeMenu.
+		ModeStartup: NewModeHandlers().Build(),
 	}
 
 	// Input modes where character keys must not be intercepted by global handlers
