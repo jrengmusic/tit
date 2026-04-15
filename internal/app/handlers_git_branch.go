@@ -82,7 +82,6 @@ func (a *Application) handleNewBranchNameSubmit() (tea.Model, tea.Cmd) {
 	buffer.Append(fmt.Sprintf("Creating branch %s...", branchName), ui.TypeStatus)
 
 	a.StartAsyncOp()
-	a.workflowState.PreviousMode = ModeConfig
 	a.workflowState.PreviousMenuIndex = 0
 	a.mode = ModeConsole
 	a.consoleState.Reset()

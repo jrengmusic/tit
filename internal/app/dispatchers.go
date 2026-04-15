@@ -37,8 +37,7 @@ func (a *Application) dispatchAction(actionID string) tea.Cmd {
 		"config_switch_remote":      a.dispatchConfigSwitchRemote,
 		"config_remove_remote":      a.dispatchConfigRemoveRemote,
 		"config_toggle_auto_update": a.dispatchConfigToggleAutoUpdate,
-		"config_switch_branch":      a.dispatchConfigSwitchBranch,
-		"config_merge_branch":       a.dispatchConfigMergeBranch,
+		"config_branch":             a.dispatchConfigSwitchBranch,
 		"config_preferences":        a.dispatchConfigPreferences,
 		// Preferences menu actions
 		"preferences_auto_update": a.dispatchPreferencesToggleAutoUpdate,

@@ -148,9 +148,19 @@ var FooterHintShortcuts = map[string][]ui.FooterShortcut{
 		{Key: "Esc", Desc: "cancel"},
 	},
 
-	// Branch Picker
-	"branch_picker": {
+	// Branch Picker — current branch selected (no merge/delete for current branch)
+	"branch_picker_current": {
 		{Key: "↑↓", Desc: "navigate"},
+		{Key: "a", Desc: "add"},
+		{Key: "Enter", Desc: "switch"},
+		{Key: "Esc", Desc: "cancel"},
+	},
+	// Branch Picker — non-current branch selected
+	"branch_picker_other": {
+		{Key: "↑↓", Desc: "navigate"},
+		{Key: "a", Desc: "add"},
+		{Key: "m", Desc: "merge from"},
+		{Key: "x", Desc: "delete"},
 		{Key: "Enter", Desc: "switch"},
 		{Key: "Esc", Desc: "cancel"},
 	},

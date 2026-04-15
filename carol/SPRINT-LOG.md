@@ -111,6 +111,55 @@
 
 ## SPRINT HISTORY
 
+## Sprint 12: Config Menu Collapse + Branch Picker Actions ✅
+
+**Date:** 2026-04-15
+**Duration:** ~00:45
+
+### Agents Participated
+- **COUNSELOR** — Problem framing, config/branch menu reorg planning, footer hint dynamic design, early-return cleanup directive
+- **Pathfinder** — Codebase discovery of config menu, branch picker, workflow state, dispatcher wiring, tag origin trace
+- **Engineer** — Menu SSOT addition, dispatcher rewiring, picker handlers, confirmation handlers, workflow state extension, footer hint keys, single-return refactor of all picker handlers
+
+### Files Modified (9 total)
+- `internal/app/menu_items.go` — added `config_branch` SSOT entry (shortcut `b`, emoji 🌿, label "Branch", hint "Open branch picker"); retired `config_new_branch`/`config_switch_branch`/`config_merge_branch` from menu path (definitions retained as unused SSOT)
+- `internal/app/menu_render_extra.go:166-195` — collapsed `GenerateConfigMenu`: removed inner separator between switch-remote and remove-remote; replaced 3 branch items with single `config_branch` entry
+- `internal/app/dispatchers.go:35-42` — removed `config_switch_branch` and `config_merge_branch` from dispatcher map; added `config_branch → dispatchConfigSwitchBranch`; kept `config_new_branch` entry
+- `internal/app/app_keys.go:128-137` — registered `a`, `m`, `x` key bindings on `ModeBranchPicker`
+- `internal/app/handlers_config_branch.go` — added `handleBranchPickerAdd`, `handleBranchPickerMerge`, `handleBranchPickerDelete`, `refreshBranchPicker(selectName string) error` helper; refactored all 7 functions in file to single-return, positive-check control flow (CAROL contract)
+- `internal/app/confirm_dialog_handlers.go` — added `"branch_delete"` confirmation pair; implemented `executeConfirmBranchDelete` (runs `git branch -D`, refreshes picker, stays in `ModeBranchPicker`) and `executeRejectBranchDelete` (hides dialog, returns to picker)
+- `internal/app/workflow_state.go` — added `BranchPickerReturnAfterCreate bool` field to `WorkflowState`
+- `internal/app/dispatch_dialog.go:64-73,108-115` — moved `PreviousMode = ModeConfig` assignment into `dispatchConfigNewBranch` so picker caller can override with `ModeBranchPicker`; removed hardcoded footer hint string from `dispatchConfigSwitchBranch` (footer now state-driven)
+- `internal/app/handlers_git_branch.go:56-92` — removed hardcoded `PreviousMode = ModeConfig` from `handleNewBranchNameSubmit` (caller owns that field now)
+- `internal/app/handlers_pull.go:83-105` — `handleBranchSwitch` now branches on `BranchPickerReturnAfterCreate`: on successful `OpBranchCreate` from picker path, refreshes picker with cursor on new branch and returns to `ModeBranchPicker` instead of `ModeConsole`
+- `internal/app/footer.go:98-106` — dynamic footer hint key for `ModeBranchPicker`: `branch_picker_current` when selected row is current branch, `branch_picker_other` otherwise
+- `internal/app/messages_menu.go:151-168` — replaced single `branch_picker` hint entry with two variants: current row shows `↑↓ / a / Enter / Esc`; other rows show `↑↓ / a / m / x / Enter / Esc`
+
+### Alignment Check
+- [x] BLESSED / LIFESTAR principles followed
+- [x] NAMES.md adhered (shortcut `b` for Branch, `a`/`m`/`x` for add/merge/delete; identifiers semantic)
+- [x] MANIFESTO principles applied (Menu = Contract preserved: `m`/`x` disabled + hidden on current branch row, no-op handlers; Explicit Encapsulation maintained)
+- [x] Control flow contract: zero early returns across all 7 functions in `handlers_config_branch.go`; positive checks only; single terminal return per function
+
+### Problems Solved
+- **Config menu clutter:** three separate branch entries (`New Branch`, `Switch Branch`, `Merge from...`) consolidated into single `Branch` entry that opens the picker. Config menu now reads: remote ops / branch / preferences / back — three logical groups separated by two separators.
+- **Branch picker was read-only + single-purpose:** added full CRUD surface (add/switch/merge-from/delete) with contract-aware gating — merge and delete hidden + shortcut-disabled on current-branch row.
+- **Dialog return path:** new-branch creation from picker previously exited to main menu. Added `BranchPickerReturnAfterCreate` flag; on success the picker rebuilds and cursor lands on the newly created branch.
+- **Static footer hint:** branch picker hint was a single fixed string. Now state-driven through the existing `FooterHintShortcuts` SSOT with two variants selected by `IsCurrent`.
+- **Delete safety:** new confirmation dialog (`"Delete branch <name>?"`, YES=Delete, NO=Cancel, default=Cancel) gates the `git branch -D` call; rejection returns to picker without side effects.
+- **CAROL contract compliance:** all seven branch picker handlers (including three pre-existing ones with guard-style early returns) refactored to single-return form.
+
+### Technical Debt / Follow-up
+- None. Sprint closed clean. `config_new_branch`/`config_switch_branch`/`config_merge_branch` SSOT entries and dispatcher function bodies are retained intentionally (still reachable from picker-`a` via direct `transitionTo` and from picker selection handler via `handleMergeBranchSelection`).
+
+### Debts Paid
+- None
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 11: Release Infrastructure + Final Audit Remediation ✅
 
 **Date:** 2026-04-05

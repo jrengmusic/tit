@@ -24,6 +24,9 @@ type WorkflowState struct {
 
 	// Branch picker purpose (disambiguates switch vs merge)
 	BranchPickerPurpose string
+
+	// BranchPickerReturnAfterCreate — when true, successful branch create returns to branch picker
+	BranchPickerReturnAfterCreate bool
 }
 
 // NewWorkflowState creates a new WorkflowState with defaults.

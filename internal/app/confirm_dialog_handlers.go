@@ -1,6 +1,10 @@
 package app
 
 import (
+	"fmt"
+
+	"github.com/jrengmusic/tit/internal/git"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -98,6 +102,10 @@ var confirmationHandlers = map[string]ConfirmationActionPair{
 	string(ConfirmMergeBranchDirty): {
 		Confirm: (*Application).executeConfirmMergeBranchDirty,
 		Reject:  (*Application).executeRejectMergeBranchDirty,
+	},
+	"branch_delete": {
+		Confirm: (*Application).executeConfirmBranchDelete,
+		Reject:  (*Application).executeRejectBranchDelete,
 	},
 }
 
@@ -211,4 +219,29 @@ func (a *Application) executeAlert() (tea.Model, tea.Cmd) {
 	// Alert dialogs are dismissed with any key press
 	a.dialogState.Hide()
 	return a.returnToMenu()
+}
+
+// executeConfirmBranchDelete handles YES response to branch delete confirmation
+func (a *Application) executeConfirmBranchDelete() (tea.Model, tea.Cmd) {
+	targetBranch := a.dialogState.context["targetBranch"]
+	a.dialogState.Hide()
+	result := git.Execute("branch", "-D", targetBranch)
+	if result.Success {
+		if err := a.refreshBranchPicker(""); err != nil {
+			a.footerHint = fmt.Sprintf("Deleted branch %s (failed to refresh list: %v)", targetBranch, err)
+		} else {
+			a.footerHint = fmt.Sprintf("Deleted branch %s", targetBranch)
+		}
+	} else {
+		a.footerHint = result.Stderr
+	}
+	a.mode = ModeBranchPicker
+	return a, nil
+}
+
+// executeRejectBranchDelete handles NO response to branch delete confirmation
+func (a *Application) executeRejectBranchDelete() (tea.Model, tea.Cmd) {
+	a.dialogState.Hide()
+	a.mode = ModeBranchPicker
+	return a, nil
 }

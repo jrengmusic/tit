@@ -83,15 +83,25 @@ func (a *Application) handleAbortMerge(msg GitOperationMsg) (tea.Model, tea.Cmd)
 func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cmd) {
 	buffer := ui.GetBuffer()
 
-	// Branch switch completed successfully (no conflicts or conflicts resolved)
-	// Reload state and return to config menu
+	// Reload state first regardless of path
 	if err := a.reloadGitState(); err != nil {
 		buffer.Append(fmt.Sprintf(ErrorMessages["failed_detect_state"], err), ui.TypeStderr)
 		a.EndAsyncOp()
 		return a, nil
 	}
 
-	// Regenerate menu with new branch state
+	// Return to branch picker after create when flag is set
+	if a.workflowState.BranchPickerReturnAfterCreate && msg.Step == OpBranchCreate && msg.Success {
+		a.workflowState.BranchPickerReturnAfterCreate = false
+		if err := a.refreshBranchPicker(msg.BranchName); err != nil {
+			a.footerHint = fmt.Sprintf("Failed to refresh branches: %v", err)
+		}
+		a.mode = ModeBranchPicker
+		a.EndAsyncOp()
+		return a, nil
+	}
+
+	// Default path: regenerate menu and stay in console
 	menu := a.GenerateMenu()
 	a.menuItems = menu
 	a.selectedIndex = 0
@@ -99,7 +109,7 @@ func (a *Application) handleBranchSwitch(msg GitOperationMsg) (tea.Model, tea.Cm
 	buffer.Append(GetFooterMessageText(MessageOperationComplete), ui.TypeInfo)
 	a.footerHint = GetFooterMessageText(MessageOperationComplete)
 	a.EndAsyncOp()
-	a.mode = ModeConsole // Stay in console so user sees the success message
+	a.mode = ModeConsole
 
 	return a, nil
 }

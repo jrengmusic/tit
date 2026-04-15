@@ -131,6 +131,9 @@ func (a *Application) buildKeyHandlers() map[AppMode]map[string]KeyHandler {
 			On("down", a.handleBranchPickerDown).
 			On("j", a.handleBranchPickerDown).
 			On("enter", a.handleBranchPickerEnter).
+			On("a", a.handleBranchPickerAdd).
+			On("m", a.handleBranchPickerMerge).
+			On("x", a.handleBranchPickerDelete).
 			Build(),
 		ModePreferences: NewModeHandlers().
 			WithMenuNav(a).

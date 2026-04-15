@@ -63,6 +63,7 @@ func (a *Application) dispatchConfigToggleAutoUpdate(app *Application) tea.Cmd {
 
 // dispatchConfigNewBranch starts new branch creation workflow
 func (a *Application) dispatchConfigNewBranch(app *Application) tea.Cmd {
+	app.workflowState.PreviousMode = ModeConfig
 	app.transitionTo(ModeTransition{
 		Mode:        ModeInput,
 		InputPrompt: "New branch name:",
@@ -111,7 +112,6 @@ func (a *Application) dispatchConfigSwitchBranch(app *Application) tea.Cmd {
 	app.workflowState.PreviousMode = app.mode // Track previous mode (Config)
 	app.workflowState.BranchPickerPurpose = "" // Explicit: this is a switch, not merge
 	app.mode = ModeBranchPicker
-	app.footerHint = "↑/↓ Navigate • Tab: Switch panes • Enter: Switch branch • ESC: Cancel"
 	return nil
 }
 

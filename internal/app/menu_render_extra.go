@@ -173,23 +173,15 @@ func (a *Application) GenerateConfigMenu() []MenuItem {
 		items = append(items, GetMenuItem("config_switch_remote"))
 	}
 
-	items = append(items, Item("").Separator().Build())
-
-	// Remove remote (only when remote exists)
+	// Remove remote (only when remote exists) — no separator between switch and remove
 	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
 		items = append(items, GetMenuItem("config_remove_remote"))
-		items = append(items, Item("").Separator().Build())
 	}
 
-	// Branch operations (always available)
-	items = append(items, GetMenuItem("config_new_branch"))
-	items = append(items, GetMenuItem("config_switch_branch"))
+	items = append(items, Item("").Separator().Build())
 
-	// Merge (only when 2+ branches exist)
-	branches, branchErr := git.ListBranches()
-	if branchErr == nil && len(branches) >= 2 {
-		items = append(items, GetMenuItem("config_merge_branch"))
-	}
+	// Branch picker (replaces individual new/switch/merge branch items)
+	items = append(items, GetMenuItem("config_branch"))
 
 	// Preferences (always available)
 	items = append(items, GetMenuItem("config_preferences"))

@@ -96,7 +96,12 @@ func (a *Application) getFooterHintKey() string {
 		return "confirmation"
 
 	case ModeBranchPicker:
-		return "branch_picker"
+		if a.pickerState.BranchPicker != nil && a.pickerState.BranchPicker.SelectedIdx >= 0 && a.pickerState.BranchPicker.SelectedIdx < len(a.pickerState.BranchPicker.Branches) {
+			if a.pickerState.BranchPicker.Branches[a.pickerState.BranchPicker.SelectedIdx].IsCurrent {
+				return "branch_picker_current"
+			}
+		}
+		return "branch_picker_other"
 
 	case ModePreferences:
 		return "preferences"

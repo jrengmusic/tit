@@ -278,6 +278,14 @@ var MenuItems = map[string]MenuItem{
 		Hint:     "Enable/disable background timeline sync",
 		Enabled:  true,
 	},
+	"config_branch": {
+		ID:       "config_branch",
+		Shortcut: "b",
+		Emoji:    "🌿",
+		Label:    "Branch",
+		Hint:     "Open branch picker",
+		Enabled:  true,
+	},
 	"config_new_branch": {
 		ID:       "config_new_branch",
 		Shortcut: "n",
