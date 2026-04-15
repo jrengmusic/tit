@@ -121,7 +121,7 @@ func (a *Application) Init() tea.Cmd {
 	// CONTRACT: Only start timeline sync if HasRemote AND AutoUpdate.Enabled
 	// Fetch remote if available
 	if a.gitState != nil && a.gitState.Remote == git.HasRemote {
-		commands = append(commands, cmdFetchRemote())
+		commands = append(commands, cmdFetchRemote(), a.scheduleStartupSpinner())
 	}
 
 	// Start auto-update (Phase 2)

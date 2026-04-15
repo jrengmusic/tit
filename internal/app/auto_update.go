@@ -144,3 +144,24 @@ func (a *Application) handleAutoUpdateAnimation() (tea.Model, tea.Cmd) {
 
 	return a, nil
 }
+
+// scheduleStartupSpinner schedules the next startup spinner animation frame
+func (a *Application) scheduleStartupSpinner() tea.Cmd {
+	return tea.Tick(CacheRefreshInterval, func(time.Time) tea.Msg {
+		return StartupSpinnerMsg{}
+	})
+}
+
+// handleStartupSpinner advances the spinner animation frame during startup remote check
+func (a *Application) handleStartupSpinner() (tea.Model, tea.Cmd) {
+	// Stop ticking once ModeStartup is over (RemoteFetchMsg already flipped mode to ModeMenu)
+	if a.mode != ModeStartup {
+		return a, nil
+	}
+
+	// Advance animation frame
+	a.activityState.IncrementFrame()
+
+	// Reschedule while still in startup mode
+	return a, a.scheduleStartupSpinner()
+}

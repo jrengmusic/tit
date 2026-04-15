@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jrengmusic/tit/internal/ui"
 )
 
@@ -166,7 +167,10 @@ func (a *Application) View() string {
 	case ModeStartup:
 		// Blocking startup while remote fetch is in flight.
 		// No menu rendered — actions are gated until RemoteFetchMsg transitions to ModeMenu.
-		contentText = "Checking remote..."
+		spinner := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(a.theme.SpinnerColor)).
+			Render(ui.GetSpinnerFrame(a.activityState.autoUpdateFrame))
+		contentText = spinner + " Checking Remote..."
 
 	default:
 		panic(fmt.Sprintf("Unknown app mode: %v", a.mode))

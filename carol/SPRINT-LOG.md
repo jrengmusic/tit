@@ -111,6 +111,44 @@
 
 ## SPRINT HISTORY
 
+## Sprint 14: Startup Spinner Animation + GOBIN Install ✅
+
+**Date:** 2026-04-15
+**Duration:** ~00:45
+
+### Agents Participated
+- **COUNSELOR** — Plan, CONTRACT re-verification (BLESSED, JRENG-CODING-STANDARD, NAMES), SSOT mapping (reuse activityState frame / theme.SpinnerColor / CacheRefreshInterval / ui.GetSpinnerFrame), direct edit on build.sh, git-repo diagnostic (local-behind-origin investigation)
+- **Pathfinder** — Startup remote-gate locus (`app_init.go:123-124`, `app_constructor.go:206-210`, `app_view_main.go:169`, `app_update_msg.go:206-223`), tea.Tick pattern survey (auto_update.go animation pump as template), Theme.SpinnerColor + menu.go usage sites, cake/`internal/ui/console.go:272-275` reference for themed spinner rendering, read-only git inspection of tit repo (`rev-list --count HEAD...@{upstream}` = 0/1)
+- **Engineer** — Implemented StartupSpinnerMsg + schedule/handle pair mirroring AutoUpdateAnimationMsg pattern; clean `go build ./...`
+
+### Files Modified (7 total)
+- `build.sh` — rewrote: `go install` to `$(go env GOBIN)` with `$(go env GOPATH)/bin` fallback; dropped ARCH_SUFFIX detection, `$HOME/.tit/bin` install root, and `$HOME/.local/bin` symlink. Version stamping via `-ldflags -X` preserved
+- `internal/app/messages.go:70-71` — added `StartupSpinnerMsg struct{}` (noun form per NAMES Rule 1, consistent with `AutoUpdateAnimationMsg`)
+- `internal/app/auto_update.go:148-168` — added `scheduleStartupSpinner() tea.Cmd` (100ms `tea.Tick` → `StartupSpinnerMsg`) and `handleStartupSpinner()` (if `mode == ModeStartup`: `IncrementFrame` + reschedule; else stop). Direct clone of `scheduleAutoUpdateAnimation`/`handleAutoUpdateAnimation`
+- `internal/app/app_update_msg.go:242-244` — added `case StartupSpinnerMsg` dispatching to `handleStartupSpinner()`, placed adjacent to `AutoUpdateAnimationMsg` case
+- `internal/app/app_init.go:124` — batch `a.scheduleStartupSpinner()` alongside `cmdFetchRemote()` inside existing `HasRemote` gate
+- `internal/app/app_view_main.go:166-174` — replaced static `"Checking remote..."` with `lipgloss`-styled braille frame (`theme.SpinnerColor`) + `" Checking Remote..."`; added `lipgloss` import
+- `internal/app/app_constructor.go:210` — footer hint casing `"Checking remote..."` → `"Checking Remote..."` for consistency with content text
+
+### Alignment Check
+- [x] BLESSED — SSOT (reused `activityState.autoUpdateFrame` — ModeStartup and auto-update spinner mutually exclusive in time, single frame counter is correct), Stateless (no new state, no shadow flag), Explicit (typed message, semantic names), Encapsulation (handler mirrors established pattern — no new primitive), Bound (pump stops naturally when `RemoteFetchMsg` transitions mode out of ModeStartup)
+- [x] NAMES — Rule 1 (noun `StartupSpinnerMsg`, verbs `scheduleStartupSpinner`/`handleStartupSpinner`), Rule 3 (semantic — "startup" describes role, "spinner" describes mechanism), Rule 5 (consistent with `AutoUpdateAnimationMsg`/`scheduleAutoUpdateAnimation`/`handleAutoUpdateAnimation` sibling pattern)
+- [x] JRENG-CODING-STANDARD — positive nested check in handler, no early returns added; established `tea.Tick` / reschedule pattern preserved
+- [x] No-Reinvention — used existing `ui.GetSpinnerFrame`, `theme.SpinnerColor`, `CacheRefreshInterval`, `activityState.IncrementFrame`; zero new helpers or constants
+
+### Problems Solved
+- **Static "Checking remote..." string during startup gate felt dead** — replaced with animated braille spinner colored from theme, matching cake's spinner pattern (`internal/ui/console.go:272-275`) and tit's own cache-build spinner (`internal/ui/menu.go:97,111,127`)
+- **build.sh arch-suffix + symlink indirection redundant under Go toolchain** — `go install` already writes to `$(go env GOBIN)` and produces an arch-native binary named from the package path; removed bespoke install root, symlink, and arch detection
+
+### Debts Paid
+- None (no `DEBT.md` present at project root)
+
+### Debts Deferred
+- Local `main` is 1 commit behind `origin/main` (`a858327 v0.0.3` — mass doc-deletion from cross-machine sync). ARCHITECT to rebase manually before committing this sprint's changes
+- Engineer noted spec referenced `a.activityState.Frame` but actual field is lowercase `autoUpdateFrame` (same package, unexported access valid); field naming is auto-update-specific even though now used by startup spinner too — cosmetic only, no functional impact
+
+---
+
 ## Sprint 13: Version Fallback + Startup Remote Gate ✅
 
 **Date:** 2026-04-15

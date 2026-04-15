@@ -239,6 +239,10 @@ func (a *Application) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Auto-update spinner animation frame
 		return a.handleAutoUpdateAnimation()
 
+	case StartupSpinnerMsg:
+		// Startup remote-check spinner animation frame
+		return a.handleStartupSpinner()
+
 	case AutoUpdateCompleteMsg:
 		// Background state detection completed
 		return a.handleAutoUpdateComplete(msg.State)

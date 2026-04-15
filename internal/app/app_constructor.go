@@ -207,7 +207,7 @@ func NewApplication(sizing ui.DynamicSizing, theme ui.Theme, cfg *config.Config)
 
 	if shouldGateStartup {
 		app.NavigationState.mode = ModeStartup
-		app.UIState.footerHint = "Checking remote..."
+		app.UIState.footerHint = "Checking Remote..."
 	} else {
 		// Generate initial menu (Phase 1 of initialization)
 		menu := app.GenerateMenu()

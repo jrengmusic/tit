@@ -67,6 +67,9 @@ type AutoUpdateTickMsg struct{}
 // AutoUpdateAnimationMsg triggers spinner animation during auto-update
 type AutoUpdateAnimationMsg struct{}
 
+// StartupSpinnerMsg triggers spinner animation during startup remote check
+type StartupSpinnerMsg struct{}
+
 // AutoUpdateCompleteMsg signals completion of background state detection
 type AutoUpdateCompleteMsg struct {
 	State *git.State
