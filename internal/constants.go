@@ -4,13 +4,27 @@ package internal
 // This provides single source of truth (SSOT) for magic values,
 // making code more maintainable and self-documenting.
 
-import "time"
+import (
+	"runtime/debug"
+	"time"
+)
 
 // Version information (SSOT)
 const AppName = "TIT" // Application name
 
-// AppVersion is injected at build time via ldflags. Default "dev" for local builds.
-var AppVersion = "dev"
+// AppVersion is injected at build time via ldflags.
+// Falls back to module version (populated by go install module@version),
+// then "dev" for local builds.
+var AppVersion = getVersion()
+
+func getVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if ok && info.Main.Version != "(devel)" && info.Main.Version != "" {
+		return info.Main.Version
+	}
+	return "dev"
+}
+
 
 // Bit sizes for strconv parsing functions
 const (
