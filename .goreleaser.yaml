@@ -22,7 +22,7 @@ builds:
       - -X github.com/jrengmusic/tit/internal.AppVersion={{.Version}}
     hooks:
       post:
-        - cmd: ./scripts/post-build.sh
+        - cmd: bash ./scripts/post-build.sh
           output: true
           env:
             - HOOK_TARGET={{ .Target }}
