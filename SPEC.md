@@ -208,8 +208,13 @@ When "Clone repository" is selected, TIT prompts:
 
 **Show ONLY:**
 - 🕒 Browse history (view other commits while time traveling)
-- 📦 Merge changes back to [branch]
-- ⬅️ Return to [branch] (discard changes)
+- 📄 File(s) history (view file changes and diffs)
+- 🔙 Return to [branch]
+
+**"Return to [branch]" dual path:**
+- **TIT-initiated time travel** (`.git/TIT_TIME_TRAVEL` marker present): opens confirmation dialog with Yes=merge-back / Discard=return-no-merge / Cancel. Target branch is read from the marker.
+- **Manual detached HEAD** (no marker, multi-branch repo): opens **Branch Picker** — user selects target branch; then if WorkingTree = Dirty, prompts Stash/Discard before checkout. See §8 for picker behavior.
+- **Manual detached HEAD, single-branch repo**: auto-selects the sole branch, proceeds as above.
 
 **Note:** Both TIT time travel and manual detached HEAD show the same menu items. The difference is in the return workflow:
 - **TIT time travel:** Uses TIT marker file and config stash tracking
@@ -240,41 +245,82 @@ When "Clone repository" is selected, TIT prompts:
 
 ### When Operation = Normal
 
+Menu composition in order: **Working Tree → Timeline → separator (if any items above) → History → separator + Add Remote (if NoRemote)**.
+
 #### Working Tree Actions
 | State | Menu Items |
 |-------|------------|
-| `Clean` | *(no working tree actions)* |
-| `Dirty` | ✅ Commit changes<br>🚀 Commit and push<br>💥 Discard all changes |
+| `Clean` | *(no working tree actions — section hidden)* |
+| `Dirty` | 📝 Commit changes<br>🚀 Commit and push *(only if HasRemote)*<br>💥 Discard all changes (ctrl+r) |
 
 #### Timeline Sync Actions
 
-**When Remote = NoRemote:**
+Timeline section is hidden entirely when `Remote = NoRemote` (timeline is N/A without a remote).
+
+**Timeline = InSync:** *(no items — repo is in sync, no sync action needed)*
+
+**Timeline = Ahead:**
+| WorkingTree | Menu Items |
+|-------------|------------|
+| `Clean` | 📤 Push to remote<br>💥 Force push (shift+]) |
+| `Dirty`  | *(no items — must commit first)* |
+
+**Timeline = Behind:**
+| WorkingTree | Menu Items |
+|-------------|------------|
+| `Clean` | 📥 Pull (fetch + merge)<br>💥 Replace local (discard local commits) |
+| `Dirty`  | 🔺 Pull (save changes) *(dirty-op protocol)*<br>💥 Replace local |
+
+**Timeline = Diverged:**
+| WorkingTree | Menu Items |
+|-------------|------------|
+| `Clean` | 📤 Push (auto sync)<br>📥 Pull (merge diverged)<br>💥 Force push (shift+])<br>💥 Replace local |
+| `Dirty`  | 🔺 Pull (save changes) *(dirty-op protocol)*<br>💥 Force push (shift+])<br>💥 Replace local |
+
+#### History Actions (always shown in Normal)
+- 🕒 History
+- 📄 File(s) history
+
+#### Remote Setup (only when `Remote = NoRemote`)
 - 🌐 Add remote
 
-**When Remote = HasRemote and Timeline = InSync:**
-- 📥 Pull from remote (refresh)
+#### Branch Management / Config access
 
-**When Timeline = Ahead:**
-- 📤 Push to remote
-- ⚠️ Force push (overwrite remote)
+Branch operations (switch / add / delete / merge-from) are NOT direct menu items — they live inside the **Branch Picker**, reached from the **Config menu**. Press `/` in Main Menu to enter Config mode. See §8 (Branch Picker) and §6.3 (Config Menu).
 
-**When Timeline = Behind:**
-- 📥 Pull (merge)
-- ⚠️ Replace local with remote (discard local commits)
+### When Mode = Config
 
-**When Timeline = Diverged:**
-- 🔀 Sync: Merge remote into local
-- ⬇️ Keep remote (discard local commits)
-- ⬆️ Keep local (overwrite remote)
+Entered via `/` keybinding from Main Menu. Exit via `Esc` or "Back" item.
 
-#### Branch Operations (always available)
-- 🔀 Switch branch (shows list of local branches)
-- ➕ Create new branch
-- 🔗 Merge another branch into current
+**Items (order + conditional logic):**
 
-#### History Actions (always available)
-- 🕒 Browse commit history (optional: time travel to old commit)
-- 📁 Browse file history (view file changes over time)
+| Item | Label | Shortcut | Condition |
+|------|-------|----------|-----------|
+| `config_add_remote` | 🔗 Add Remote | `r` | `Remote = NoRemote` |
+| `config_switch_remote` | 🔗 Switch Remote | `s` | `Remote = HasRemote` |
+| `config_remove_remote` | 🗑️ Remove Remote | `r` | `Remote = HasRemote` |
+| *(separator)* | | | |
+| `config_branch` | 🌿 Branch | `b` | always |
+| `config_preferences` | ⚙️ Preferences | `p` | always |
+| *(separator)* | | | |
+| `config_back` | 🔙 Back | *(none)* | always |
+
+- `config_add_remote` / `config_switch_remote` are **mutually exclusive** — only one shows based on Remote axis.
+- `config_remove_remote` shows ONLY when `HasRemote`.
+- `config_branch` opens the **Branch Picker** (§8).
+- `config_preferences` enters **ModePreferences**.
+
+### When Mode = Preferences
+
+Navigation-only menu (no shortcut letters — `↑/↓` + `Enter`).
+
+**Items:**
+
+| Item | Label | Action |
+|------|-------|--------|
+| `preferences_auto_update` | 🔄 Auto-update | Toggle background state refresh ON/OFF |
+| `preferences_interval` | ⏱️ Update Interval | Adjust via `+`/`-` keys (±1 min) or `Shift +/-` (±10 min) |
+| `preferences_theme` | 🎨 Theme | Cycle through discovered themes in `~/.config/tit/themes/*.xml` |
 
 ---
 
@@ -347,116 +393,79 @@ rm .git/TIT_DIRTY_OP
 
 ---
 
-## 8. Branch Switching
+## 8. Branch Picker
 
-**Available from Normal state.**
+**Single surface for all branch management.** Add / Switch / Merge-from / Delete — all four CRUD actions live in one picker view. No separate menus for create / switch / merge.
 
-### Switch to Existing Branch
+### Entry points
 
-**Pre-condition:** Working tree must be clean
+- **From Config menu:** Select 🌿 **Branch** item → enters picker in default purpose (switch/manage).
+- **From TimeTraveling "Return to [branch]"** on manual detached HEAD with multiple branches → enters picker with `IsReturnToBranch=true`.
+- **From post-create completion** (`BranchPickerReturnAfterCreate`): after a picker-`a`-initiated branch creation finishes, returns to picker with cursor on the newly created branch.
 
-**If WorkingTree = Modified:**
+### Layout (2-pane split)
+
 ```
-⚠️ Cannot switch branches
-
-You have uncommitted changes.
-
-Options:
-[Commit changes] [Stash changes] [Cancel]
-```
-
-**If WorkingTree = Clean:**
-- Show list of all local branches
-- Highlight current branch
-- User selects target branch
-- Execute: `git checkout <branch>`
-
-After switch:
-- Menu regenerates based on new branch state
-- Header shows new branch name
-
-### Create New Branch
-
-**Pre-condition:** Working tree must be clean
-
-**Prompt:**
-```
-Create new branch
-
-New branch will be created from current HEAD.
-
-Branch name: [_____________]
-
-[Create and switch] [Cancel]
+┌────────────────────────┬────────────────────────┐
+│ Branches               │ Details                │
+│                        │                        │
+│ > ● main (current)     │ main ↑0 ↓0 synced      │
+│   dev                  │ Last commit: abc123    │
+│   feature/auth         │ Author: …              │
+│   experimental         │ Date:   …              │
+│                        │ Message: …             │
+└────────────────────────┴────────────────────────┘
 ```
 
-**Validates:**
-- Branch name not empty
-- Branch name doesn't already exist
-- Valid git ref name
+Left pane: branch list. Current branch marked `●`, bold. Right pane: details for the cursor branch (hash, author, date, message, tracking status: `↑N ↓N` / `synced` / `local`).
 
-**Execute:**
-```bash
-git checkout -b <new-branch>
-```
+### Keybindings
+
+| Key | Action | Visibility |
+|-----|--------|-----------|
+| `↑` / `k` | Move cursor up | always |
+| `↓` / `j` | Move cursor down | always |
+| `Tab` | Toggle focus between list pane and details pane | always |
+| `Enter` | Primary action (context-dependent — see below) | always |
+| `a` | **Add branch** — open new-branch input, create from current HEAD, switch to it, return to picker with cursor on new branch | always |
+| `m` | **Merge selected branch into current** — runs merge flow; dirty-op protocol if WorkingTree = Dirty | hidden on current-branch row |
+| `x` | **Delete selected branch** — confirm dialog → `git branch -D <branch>` → refresh picker | hidden on current-branch row |
+| `Esc` | Return to previous mode (Menu or Config) | always |
+
+### Enter behavior (context-dependent)
+
+| Context | Cursor on current | Cursor on other branch |
+|---------|-------------------|------------------------|
+| **Default** (from Config → Branch) | Return to Config menu | **Switch branch.** If Dirty → dirty-switch dialog (Stash/Discard/Cancel). Else direct checkout. |
+| **Merge purpose** (`BranchPickerPurpose="merge"`) | Return to Config | Merge selected into current (dirty-op if Dirty). |
+| **Return-to-branch** (`IsReturnToBranch=true`, manual detached) | *(current is detached, no such row)* | Exit manual detached — checkout target branch. If Dirty → Stash/Discard dialog first. |
+
+### Footer hints
+
+Two state-driven variants via `FooterHintShortcuts` SSOT:
+- **`branch_picker_current`** — cursor on current branch: only navigation/ESC hints (no `a`/`m`/`x`).
+- **`branch_picker_other`** — cursor on other branch: full navigation + `a` add / `m` merge / `x` delete / `Enter` switch.
+
+### Implementation
+
+- `git branch -D <name>` for delete (force — Go uses `-D` not `-d`).
+- `git checkout -b <new>` for add.
+- `git merge <selected>` for merge-from; follows dirty-op protocol when dirty.
+- `git checkout <name>` for switch.
 
 ---
 
-## 9. Merge Branch Assistance
+## 9. Merge Branch
 
-**Purpose:** Merge another branch into current branch with safety and clarity.
+**Not a standalone flow.** Merge-from-another-branch is the `m` keybinding of the Branch Picker (§8). When the merged branch produces conflicts, Operation transitions to `Conflicted` and the conflict resolver (§5) takes over. Abort via `git merge --abort` returns to Normal with no change.
 
-**Pre-conditions:**
-- Operation = Normal
-- Working tree must be clean (uses dirty protocol if Modified)
-
-**User sees:**
-```
-🔀 MERGE BRANCH
-
-Select branch to merge into current branch (main):
-
-  > dev
-    feature/auth
-    experimental
-
-This will merge the selected branch into main.
-Conflicts will be handled if they occur.
-
-[Select] [Cancel]
-```
-
-**After selection:**
-```
-Merge: dev → main
-
-This will:
-✓ Merge dev into main
-✓ Handle conflicts if any
-✓ Keep both branches intact
-
-[Proceed] [Cancel]
-```
-
-**Implementation:**
-```bash
-git merge <selected-branch>
-```
-- If conflicts → Operation = Conflicted
-- User resolves → Continue merge
-- If success → Back to Normal state
-
-**Abort (if conflicts):**
-```bash
-git merge --abort
-```
-→ Current branch unchanged
+When WorkingTree = Dirty at the time of picker `m`: the dirty operation protocol (§7) runs — snapshot → merge → reapply → finalize — preserving the uncommitted work across the merge.
 
 ---
 
 ## 10. Time Travel Specification
 
-### 9.1 Entering Time Travel
+### 10.1 Entering Time Travel
 
 **Available from:** Commit History browser, press Enter on a commit.
 
@@ -493,7 +502,7 @@ git checkout <commit-hash>
 
 **New state:** Operation = TimeTraveling
 
-### 9.2 While Time Traveling
+### 10.2 While Time Traveling
 
 **Status display:**
 ```
@@ -507,10 +516,9 @@ Timeline: ●━━━━━━━◉━━━━━━━◉━━━━━━�
 ```
 
 **Available actions:**
-- 🕒 Jump to different commit
+- 🕒 History (jump to different commit)
 - 📄 File(s) history (view file changes and diffs)
-- 📦 Merge changes back to main
-- 🔙 Return to main (discard changes)
+- 🔙 Return to [branch] — dual path per §6 "Return to [branch] dual path" (dialog when TIT-marker present, branch picker when manual detached multi-branch)
 
 **Behavior:**
 - Working tree changes allowed (tracked as Modified)
@@ -518,7 +526,7 @@ Timeline: ●━━━━━━━◉━━━━━━━◉━━━━━━�
 - Can build, test, experiment freely
 - Changes stay local until merge-back or discard
 
-### 9.3 Merge Changes Back to Branch
+### 10.3 Merge Changes Back to Branch (Return → Yes path)
 
 **Purpose:** Keep changes made during time travel by merging them into original branch.
 
@@ -597,7 +605,7 @@ rm .git/TIT_TIME_TRAVEL
 
 **New state:** Operation = Normal (back on original branch)
 
-### 9.4 Return to Branch (Discard Changes)
+### 10.4 Return to Branch (Discard Changes path)
 
 **Simple return:**
 ```bash
@@ -743,12 +751,21 @@ TIT checks machine readiness BEFORE git state detection:
 4. If all checks pass → GitEnvironmentReady → Proceed to git state detection
 ```
 
-**ModeSetupWizard:** Guided SSH key generation and configuration
-- User prompted for email (key comment)
-- SSH key generated: `ssh-keygen -t ed25519 -C "<email>"`
-- SSH agent started and key added
-- Public key displayed for user to add to GitHub/GitLab/Gitea
-- Wizard exits on completion, TIT proceeds to normal startup
+**ModeSetupWizard:** Guided SSH key generation and configuration.
+
+**Seven phases (`SetupWizardStep`):**
+
+| Phase | Purpose |
+|-------|---------|
+| `SetupStepWelcome` | Intro message — explain what the wizard will do |
+| `SetupStepPrerequisites` | Verify git + ssh installed; abort on `MissingGit` / `MissingSSH` |
+| `SetupStepEmail` | Text input for SSH key comment (user's email) |
+| `SetupStepGenerate` | Run `ssh-keygen -t ed25519 -C "<email>"`, start `ssh-agent`, add key |
+| `SetupStepDisplayKey` | Show public key + provider registration URLs (GitHub / GitLab / Gitea) |
+| `SetupStepComplete` | Success message — user acknowledges, GitEnvironment transitions to `Ready` |
+| `SetupStepError` | Display error, allow retry or exit |
+
+Wizard exits on `SetupStepComplete` acknowledgement, TIT proceeds to git state detection.
 
 ### 13.2 Check Git Configuration
 ```bash
@@ -946,25 +963,54 @@ Manual Detached (dirty)
 **↑/k:** Move selection up
 **↓/j:** Move selection down
 **Enter:** Execute selected action
-**Letter keys:** Jump to action (shortcuts)
+**Letter keys:** Jump to action (shortcut on current menu item, per §6 tables)
+**Space:** Alias for Enter (in ModeMenu / ModeConfig / ModePreferences)
+
+### 14.3 Mode Entry Keys
+
+**`/` (Main Menu only):** Enter Config mode (§6.3)
+
+### 14.4 Branch Picker Keys (§8)
+
+**`↑/k` / `↓/j`:** Navigate branch list
+**`Tab`:** Toggle focus between branch list pane and details pane
+**`Enter`:** Context-dependent action (switch / merge / return — see §8 table)
+**`a`:** Add new branch
+**`m`:** Merge selected branch into current (hidden on current row)
+**`x`:** Delete selected branch (hidden on current row)
+**`Esc`:** Return to previous mode
+
+### 14.5 History Browser Keys (§11)
+
+**`↑/k` / `↓/j`:** Navigate commits
+**`Tab`:** Switch between Commits list and Details pane
+**`Enter`:** Enter time travel mode at selected commit (safe, reversible)
+**`Ctrl+R`:** REWIND to selected commit — destructive `git reset --hard` (confirmation required)
+**`y`:** Copy Hash mode — show hash for copy (any mode)
+**`Y`:** Copy Full Hash (in Copy Hash mode)
+**`Esc`:** Exit to main menu (or exit Copy Hash mode if active)
+
+### 14.6 Preferences Mode Keys (§6.4)
+
+**`↑/k` / `↓/j`:** Navigate items
+**`Enter`:** Execute item
+**`+` / `-`:** Adjust interval by ±1 min (on interval item)
+**`Shift + / -`:** Adjust interval by ±10 min (on interval item)
+**`Esc`:** Return to Config menu
 
 ---
 
 ## 16. Color Theme
 
-**Theme file:** `~/.config/tit/themes/default.toml`
+**Theme file:** `~/.config/tit/themes/default.xml`
 
-```toml
-[colors]
-status_clean = "#2ECC71"
-status_modified = "#F39C12"
-status_conflict = "#E74C3C"
-timeline_sync = "#2ECC71"
-timeline_ahead = "#3498DB"
-timeline_diverged = "#E74C3C"
-menu_selected = "#3498DB"
-border = "#34495E"
-```
+**Hierarchy:** `THEME > LOOK_AND_FEEL > [component family nodes] > color attributes`. XML format, loaded via `juce::XmlDocument::parse` + `juce::ValueTree::fromXml`. Hot-reload via `jam::File::Watcher` (200 ms coalesce).
+
+**Component families:** `SCREEN`, `TEXT`, `BORDER`, `DIALOG`, `CONFLICT_RESOLVER`, `STATUS`, `TIMELINE`, `OPERATION`, `MENU`, `SPINNER`, `DIFF`, `COPY_HASH_LABEL`, `CONSOLE_STREAM` (13 families, 44 color fields total).
+
+**Attribute naming:** matches Go `theme_gfx.go` TOML keys 1:1 (e.g., `mainBackgroundColor`, `timelineSynchronized`, `conflictPaneFocusedBorder`) for full feature parity with Go TIT reference theme.
+
+**Canonical default:** `themes/default.xml` at project root, installed to `~/.config/tit/themes/default.xml` on first run. Five shipped themes: `gfx` (default), `spring`, `summer`, `autumn`, `winter`.
 
 ---
 
@@ -992,34 +1038,3 @@ See `IMPLEMENTATION_PLAN.md` for step-by-step porting strategy from old TIT to n
 ---
 
 **End of Specification**
-
-## Commit History Browser — Rewind Option
-
-**When in commit history browser (ModeHistoryBrowser):**
-
-- **ENTER:** Enter time travel mode at selected commit (read-only exploration)
-- **Ctrl+R:** REWIND to selected commit (destructive, reset --hard)
-
-**REWIND (Ctrl+R) behavior:**
-- Available on ANY commit, regardless of current Operation state
-- Shows confirmation: "This will discard all commits after [HASH]. Any uncommitted changes will be lost."
-- Executes `git reset --hard <commit>`
-- Discards ALL commits after selected commit
-- Discards ALL uncommitted changes
-- Returns to main menu on success
-
-**Example:**
-```
-Commits on main:
-  abc1234 Feature X (current HEAD)
-  def5678 Fix bug Y
-  ghi9012 Initial commit ← User selects, presses Ctrl+R
-
-Result: Branch resets to ghi9012, abc1234 and def5678 discarded
-```
-
-**Why Ctrl+R:**
-- R for "Rewind" (semantic clarity)
-- Distinguishes destructive reset from read-only time travel
-- Ctrl modifier indicates dangerous operation
-- ENTER remains bound to time travel (safe, reversible)

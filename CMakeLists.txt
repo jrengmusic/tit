@@ -3,8 +3,8 @@
 # State-aware git TUI using JUCE (console application)
 #
 # Usage:
-#   cmake -B build -G Ninja
-#   cmake --build build
+#   cmake -S . -B Builds/Ninja -G Ninja
+#   cmake --build Builds/Ninja
 #
 # Directory Structure:
 #   dev/
@@ -129,16 +129,18 @@ message(STATUS "Target type: ${TARGET_TYPE}")
 message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 # ============================================================================
-# JRENG MODULE REGISTRATION
+# JAM MODULE REGISTRATION
 # ============================================================================
 
-juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/jreng_core")
-juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/jreng_data_structures")
-juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/jreng_markdown")
-juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/jreng_tui")
-juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/jreng_subprocess")
+set(JAM_ROOT "$ENV{HOME}/Documents/Poems/dev/jam" CACHE PATH "Path to jam modules")
 
-message(STATUS "JRENG modules registered: jreng_core, jreng_data_structures, jreng_markdown, jreng_tui, jreng_subprocess")
+juce_add_module("${JAM_ROOT}/jam_core")
+juce_add_module("${JAM_ROOT}/jam_data_structures")
+juce_add_module("${JAM_ROOT}/jam_markdown")
+juce_add_module("${JAM_ROOT}/jam_tui")
+juce_add_module("${JAM_ROOT}/jam_subprocess")
+
+message(STATUS "JAM modules registered: jam_core, jam_data_structures, jam_markdown, jam_tui, jam_subprocess")
 message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 # ============================================================================
@@ -224,66 +226,63 @@ endforeach()
 
 function(_tit_pre_generate_juce_header target)
     get_target_property(juce_library_code ${target} JUCE_GENERATED_SOURCES_DIRECTORY)
-    if(NOT juce_library_code)
-        return()
-    endif()
+    if(juce_library_code)
+        file(MAKE_DIRECTORY "${juce_library_code}")
 
-    file(MAKE_DIRECTORY "${juce_library_code}")
+        if(TARGET juce::juceaide)
+            get_target_property(juceaide_exe juce::juceaide IMPORTED_LOCATION)
 
-    if(NOT TARGET juce::juceaide)
-        message(WARNING "juce::juceaide not found")
-        return()
-    endif()
-
-    get_target_property(juceaide_exe juce::juceaide IMPORTED_LOCATION)
-
-    if(NOT juceaide_exe)
-        foreach(config Release Debug RelWithDebInfo MinSizeRel)
-            get_target_property(juceaide_exe juce::juceaide IMPORTED_LOCATION_${config})
-            if(juceaide_exe)
-                break()
+            if(NOT juceaide_exe)
+                foreach(config Release Debug RelWithDebInfo MinSizeRel)
+                    get_target_property(juceaide_exe juce::juceaide IMPORTED_LOCATION_${config})
+                    if(juceaide_exe)
+                        break()
+                    endif()
+                endforeach()
             endif()
-        endforeach()
-    endif()
 
-    if(NOT juceaide_exe)
-        set(juceaide_exe $<TARGET_FILE:juce::juceaide>)
-    endif()
-
-    get_target_property(compile_defs ${target} COMPILE_DEFINITIONS)
-    set(module_defs "")
-    if(compile_defs)
-        foreach(def ${compile_defs})
-            if(def MATCHES "^JUCE_MODULE_AVAILABLE_" OR def MATCHES "^DONT_SET_USING_JUCE_NAMESPACE")
-                list(APPEND module_defs "${def}")
+            if(NOT juceaide_exe)
+                set(juceaide_exe $<TARGET_FILE:juce::juceaide>)
             endif()
-        endforeach()
-    endif()
 
-    string(ASCII 30 RS)
-    string(ASCII 31 US)
+            get_target_property(compile_defs ${target} COMPILE_DEFINITIONS)
+            set(module_defs "")
+            if(compile_defs)
+                foreach(def ${compile_defs})
+                    if(def MATCHES "^JUCE_MODULE_AVAILABLE_" OR def MATCHES "^DONT_SET_USING_JUCE_NAMESPACE")
+                        list(APPEND module_defs "${def}")
+                    endif()
+                endforeach()
+            endif()
 
-    set(defs_file "${juce_library_code}/Defs.txt")
-    set(defs_content "MODULE_DEFINITIONS${US}")
-    foreach(def ${module_defs})
-        string(APPEND defs_content "${def};")
-    endforeach()
-    string(APPEND defs_content "${RS}")
-    file(WRITE "${defs_file}" "${defs_content}")
+            string(ASCII 30 RS)
+            string(ASCII 31 US)
 
-    set(juce_header "${juce_library_code}/JuceHeader.h")
-    if(NOT EXISTS "${juce_header}")
-        execute_process(
-            COMMAND "${juceaide_exe}" header "${defs_file}" "${juce_header}"
-            RESULT_VARIABLE result
-            ERROR_VARIABLE error
-            OUTPUT_QUIET
-        )
+            set(defs_file "${juce_library_code}/Defs.txt")
+            set(defs_content "MODULE_DEFINITIONS${US}")
+            foreach(def ${module_defs})
+                string(APPEND defs_content "${def};")
+            endforeach()
+            string(APPEND defs_content "${RS}")
+            file(WRITE "${defs_file}" "${defs_content}")
 
-        if(result EQUAL 0)
-            message(STATUS "Pre-generated JuceHeader.h")
+            set(juce_header "${juce_library_code}/JuceHeader.h")
+            if(NOT EXISTS "${juce_header}")
+                execute_process(
+                    COMMAND "${juceaide_exe}" header "${defs_file}" "${juce_header}"
+                    RESULT_VARIABLE result
+                    ERROR_VARIABLE error
+                    OUTPUT_QUIET
+                )
+
+                if(result EQUAL 0)
+                    message(STATUS "Pre-generated JuceHeader.h")
+                else()
+                    message(WARNING "Failed to pre-generate JuceHeader.h: ${error}")
+                endif()
+            endif()
         else()
-            message(WARNING "Failed to pre-generate JuceHeader.h: ${error}")
+            message(WARNING "juce::juceaide not found")
         endif()
     endif()
 endfunction()
@@ -308,16 +307,16 @@ foreach(MODULE ${JUCE_MODULES})
     endif()
 endforeach()
 
-target_link_libraries(${TARGET_NAME} PRIVATE jreng_core)
-target_link_libraries(${TARGET_NAME} PRIVATE jreng_data_structures)
-target_link_libraries(${TARGET_NAME} PRIVATE jreng_markdown)
-target_link_libraries(${TARGET_NAME} PRIVATE jreng_tui)
-target_link_libraries(${TARGET_NAME} PRIVATE jreng_subprocess)
-message(STATUS "  jreng_core")
-message(STATUS "  jreng_data_structures")
-message(STATUS "  jreng_markdown")
-message(STATUS "  jreng_tui")
-message(STATUS "  jreng_subprocess")
+target_link_libraries(${TARGET_NAME} PRIVATE jam_core)
+target_link_libraries(${TARGET_NAME} PRIVATE jam_data_structures)
+target_link_libraries(${TARGET_NAME} PRIVATE jam_markdown)
+target_link_libraries(${TARGET_NAME} PRIVATE jam_tui)
+target_link_libraries(${TARGET_NAME} PRIVATE jam_subprocess)
+message(STATUS "  jam_core")
+message(STATUS "  jam_data_structures")
+message(STATUS "  jam_markdown")
+message(STATUS "  jam_tui")
+message(STATUS "  jam_subprocess")
 
 target_compile_definitions(${TARGET_NAME} PRIVATE
     JUCE_WEB_BROWSER=0
@@ -331,6 +330,91 @@ if(COMMAND _juce_fixup_module_source_groups)
     _juce_fixup_module_source_groups()
 endif()
 
+message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+# ============================================================================
+# TEST TARGET
+# ============================================================================
+
+set(TEST_TARGET_NAME "titc_tests")
+
+juce_add_console_app(${TEST_TARGET_NAME}
+    PRODUCT_NAME "titc_tests"
+    VERSION "${PROJECT_VERSION}"
+    COMPANY_NAME "${PROJECT_COMPANY}"
+    COMPANY_WEBSITE "${PROJECT_WEBSITE}"
+    BUNDLE_ID "${BUNDLE_ID_PREFIX}.titc_tests"
+)
+
+target_sources(${TEST_TARGET_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TestRunner.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/MenuTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ListPaneTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/SplitPaneTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/DialogTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ConsoleStreamTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TextPaneTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/SpinnerTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ThemeResolverTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TitStateTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/MenuBuilderTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/RootViewsTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/BrowserViewsTests.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/state/TitAxis.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/state/TitState.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/state/TitState_flush.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/menu/MenuBuilder.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/Banner.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/Header.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/Footer.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/MenuView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/TitScreen.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/HistoryView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/FileHistoryView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/ConflictResolverView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/ConsoleView.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/ConfirmDialog.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/SetupWizardView.cpp"
+)
+
+target_include_directories(${TEST_TARGET_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source"
+)
+
+foreach(MODULE ${JUCE_MODULES})
+    if(TARGET juce::${MODULE})
+        target_link_libraries(${TEST_TARGET_NAME} PRIVATE juce::${MODULE})
+    else()
+        message(FATAL_ERROR "JUCE module not found: ${MODULE}")
+    endif()
+endforeach()
+
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_core)
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_data_structures)
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_markdown)
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_tui)
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_subprocess)
+
+target_compile_definitions(${TEST_TARGET_NAME} PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    DONT_SET_USING_JUCE_NAMESPACE=1
+    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:${TEST_TARGET_NAME},JUCE_PRODUCT_NAME>"
+    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:${TEST_TARGET_NAME},JUCE_VERSION>"
+)
+
+_tit_pre_generate_juce_header(${TEST_TARGET_NAME})
+juce_generate_juce_header(${TEST_TARGET_NAME})
+
+if(APPLE OR UNIX)
+    target_compile_options(${TEST_TARGET_NAME} PRIVATE
+        -Wno-unused-parameter
+        -Wno-sign-conversion
+        -Wno-shadow
+    )
+endif()
+
+message(STATUS "Test target created: ${TEST_TARGET_NAME}")
 message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 # ============================================================================
@@ -369,7 +453,7 @@ endif()
 # ============================================================================
 
 set(CLANGD_CONFIG "${CMAKE_CURRENT_SOURCE_DIR}/.clangd")
-set(CLANGD_CONTENT "CompileFlags:\n  CompilationDatabase: ${CMAKE_CURRENT_SOURCE_DIR}/build/\n  Add:\n")
+set(CLANGD_CONTENT "CompileFlags:\n  CompilationDatabase: ${CMAKE_CURRENT_SOURCE_DIR}/Builds/Ninja/\n  Add:\n")
 
 if(APPLE)
     string(APPEND CLANGD_CONTENT "    - -D__APPLE__=1\n")

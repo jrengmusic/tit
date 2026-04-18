@@ -111,6 +111,120 @@
 
 ## SPRINT HISTORY
 
+## Sprint 16: Phases 1–3 + UI Bootstrap + jam Migration ✅
+
+**Date:** 2026-04-18 / 2026-04-19
+**Duration:** ~1 day (multi-session)
+
+### Agents Participated
+- COUNSELOR: Claude Sonnet — Planning, SPEC/PLAN edits, delegation
+- Engineer: Multiple — Phase 1–3 implementations, bug fixes, file rename, migration, bootstrap wire
+- Auditor: Multiple — Per-step BLESSED/NAMES/STANDARD validation (Sprint 2.2/2.3/2.4, Sprint 3.2/3.3/3.4/3.6)
+- Pathfinder: Multiple — Codebase inventory, jam vs TIT diff, commit message extraction
+- Explore: Deep Go ground-truth survey (shipping behavior for SPEC alignment)
+
+### Files Modified
+**Phase 1 — jam_tui primitives (Sprint 2):**
+- `modules/jam_tui/primitives/jam_tui_menu.{h,cpp}` — Menu (VT-driven, MENU/ITEM[] schema, listener)
+- `modules/jam_tui/primitives/jam_tui_listpane.{h,cpp}` — ListPane (scrollable, attribute+content columns, selectedIndex SSOT)
+- `modules/jam_tui/primitives/jam_tui_splitpane.{h,cpp}` — SplitPane (2-pane, Tab focus cycling)
+- `modules/jam_tui/primitives/jam_tui_dialog.{h,cpp}` — Dialog (public Prop* statics, context substitution, variant-count overload)
+- `modules/jam_tui/primitives/jam_tui_consolestream.{h,cpp}` — ConsoleStream (callAsync atomic writer, autoscroll)
+- `modules/jam_tui/primitives/jam_tui_textpane.{h,cpp}` + `_diff.cpp` + `_paint.cpp` — TextPane (split across 3 TUs per L; DiffLineType enum SSOT; lookup-map dispatch)
+- `modules/jam_tui/primitives/jam_tui_spinner.{h,cpp}` — Spinner (10 braille frames, juce::Timer)
+- `modules/jam_tui/primitives/jam_tui_theme_resolver.{h,cpp}` — pure accessor, fail-loud `getInt` (isInt guard)
+- `tests/TestRunner.cpp` — `juce::UnitTestRunner` driver (`titc_tests` target)
+- `tests/MenuTests.cpp`, `ListPaneTests.cpp`, `SplitPaneTests.cpp`, `DialogTests.cpp`, `ConsoleStreamTests.cpp`, `TextPaneTests.cpp`, `SpinnerTests.cpp`, `ThemeResolverTests.cpp`
+
+**Phase 2 — TitState + state:**
+- `Source/TitIdentifier.h` (155 LOC, 67 `juce::Identifier` — SSOT for RFC §4.6 VT schema + themes/default.xml attributes)
+- `Source/state/TitAxis.{h,cpp}` (36 + 155 LOC — 6 enum axes + 12 bridge functions, `.at()` + jassert on parse)
+- `Source/state/TitState.{h,cpp}` + `TitState_flush.cpp` — APVTS-mirror (atoms + Timer, skip-unchanged, `writeIfChanged<T>` template)
+- `tests/TitStateTests.cpp` — 4 tests (shape, message-thread, cross-thread, skip-unchanged)
+
+**Phase 2 — Menu:**
+- `Source/menu/MenuItems.h` — 27 `inline constexpr MenuItemDef` (verbatim from Go `menu_items.go`)
+- `Source/menu/MenuBuilder.{h,cpp}` — 8 generators, `generators.at(op)` dispatch
+- `tests/MenuBuilderTests.cpp` — 10 tests (determinism, coverage, per-Operation shapes)
+
+**Phase 3 — Views:**
+- `Source/view/TitScreen.{h,cpp}` — root composition
+- `Source/view/Banner.{h,cpp}` — braille SVG banner
+- `Source/view/Header.{h,cpp}` — REPO-observing
+- `Source/view/Footer.{h,cpp}` — operation-state-observing
+- `Source/view/MenuView.{h,cpp}` — MenuBuilder + MENU subtree write
+- `Source/view/HistoryView.{h,cpp}`, `FileHistoryView.{h,cpp}`, `ConflictResolverView.{h,cpp}`, `ConsoleView.{h,cpp}`, `ConfirmDialog.{h,cpp}` (7 variants), `SetupWizardView.{h,cpp}` (6 phases)
+- `tests/RootViewsTests.cpp`, `tests/BrowserViewsTests.cpp`
+
+**UI bootstrap:**
+- `Source/TitApp.{h,cpp}` — full bootstrap: TitState, ThemeResolver, TitScreen, `jam::tui::Screen`, `jam::tui::Input`. Theme file-first load, hardcoded fallback. Shutdown reverses construction.
+
+**Bug fixes (framework-level, land in jam):**
+- `jam::tui::Screen::renderChildren` — replaced with recursive `renderComponentTree` (was only iterating direct children)
+- `Source/view/TitScreen.cpp` — CtrlC/CtrlD → `systemRequestedQuit()`
+
+**Theme:**
+- `themes/default.xml` — 13 component families × 44 color attributes (GFX default, mirrors Go `theme_gfx.go`)
+
+**SPEC.md:**
+- §6 Normal menu: Timeline tables corrected (InSync empty; Clean/Dirty variants; branch ops removed from Normal)
+- §6.3 + §6.4 new (Config Menu, Preferences Menu)
+- §6 TimeTraveling: dual-path Return
+- §8 rewritten (Branch Picker CRUD)
+- §9 compressed
+- §10 subsection numbers fixed
+- §13 Setup: 7 wizard phases enumerated
+- §14 Keyboard §14.3–14.6 added
+- §16 theme: toml → xml
+- Post-§18 duplicate deleted
+
+**File rename (pre-migration):** 16 files `jreng_ansi_*` → `jam_tui_*` (convention: filename mirrors namespace path; subdir organizational only)
+
+**Build infrastructure:**
+- `build/` → `Builds/Ninja/`
+- `build.sh` ported from END (no install; MSYS2 zsh on Windows — no .bat needed)
+
+**jam migration (2026-04-19):**
+- Deleted `modules/` entirely (97 tracked + 18 untracked)
+- `CMakeLists.txt` → `$HOME/Documents/Poems/dev/jam/jam_*/`
+- Source + tests: `jreng::*` → `jam::*` (zero jreng refs)
+- `SPEC.md`, `PLAN-tit-cpp-port.md`, `RFC.md` swept
+
+**PLAN amendments:**
+- Sprint 2 file placement corrected (`primitives/` subdir, both .h + .cpp co-located)
+- Sprint 3 demo milestone → COMPONENT+STATE (dispatch deferred to Sprint 4)
+- Addendum 2026-04-19 at top (jam migration note)
+- Title + forward-looking text → `jam::tui`
+
+### Alignment Check
+- [x] BLESSED principles followed (multiple audit rounds per step; every early-return, shadow-state, magic-value, 30/3 violation surfaced and closed)
+- [x] NAMES.md adhered (Rule -1: every new name traces to SPEC / RFC / Go source / ARCHITECT approval; SCREAMING_SNAKE for file-scope constants; PascalCase classes; camelCase members)
+- [x] MANIFESTO.md principles applied (B thread ownership via std::unique_ptr + callAsync crossing; L 300/30/3 decomposed via TU splits; E zero early returns across all new code; S SSOT for VT keys via TitIdentifier.h + Dialog::Prop*; D determinism via pure-function MenuBuilder + VT-driven views)
+
+### Problems Solved
+- Byte-identity divergence in braille relaxed to visual parity (ARCHITECT 2026-04-18) — JUCE tessellator vs Go `approximateCubicBezier(20)` per-cell differs but shape preserved
+- `juce::FileWatcher` hallucination corrected — forked `FigBug/Gin` as `jam::File::Watcher` nested class in `jam_core`
+- `paint()` overload/shadow collision in caroline Sprint 5 masked rather than resolved — closed via RFC §6.1 explicit nullify (`override final {}`) on ansi Component
+- SPEC vs shipping Go drift identified through deep codebase survey (Explore agent); corrected across 10 areas
+- UI launch bugs: recursive renderComponentTree + CtrlC interception
+- SSOT violation in Dialog VT keys (4 duplicated sites) → public `jam::tui::Dialog::Prop*` statics
+- 5 early returns in paint methods (Sprint 2.2), 3 in keyboard dispatchers (Sprint 2.3) — all rewritten positive-nested
+- TextPane 505 LOC over L → split across 3 TUs, each ≤300
+- TitAxis.cpp silent-fail `.find()` fallback → `.at()` + `jassert` (fail-loud)
+- Early-return in CMake `_tit_pre_generate_juce_header` closed via positive-nested rewrite
+- Anonymous-namespace sweep across 8 test files (Sprint 2.3 audit) — `static` linkage replacement
+- `ConfirmDialog` unused `ThemeResolver` field + unused `isSelected` shadow on `ListItem` (Sprint 2.2 + 3.6 audit)
+- Stale `TIME_TRAVEL_MERGE` comment in MenuBuilder corrected against verified Go source (menu_render_extra.go)
+- SPEC TIME_TRAVEL_MERGE misread corrected: Go HAS time_travel_merge as confirmation dialog type, not as menu-emitted item — comment updated, SPEC left consistent with shipping behavior
+
+### Debts Paid
+- None (all in-scope items resolved before log; no `DEBT.md` entries this session)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 15: C++/JUCE Port Scaffold (Phase 0) ✅
 
 **Date:** 2026-04-18

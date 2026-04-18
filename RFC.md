@@ -1,4 +1,4 @@
-# RFC — TIT-cpp Port to C++/JUCE via `jreng::tui`
+# RFC — TIT-cpp Port to C++/JUCE via `jam::tui`
 
 **Date:** 2026-04-17
 **Status:** Ready for COUNSELOR handoff
@@ -10,21 +10,21 @@
 
 ## 1. Problem Statement
 
-Go TIT ships and works. It is also a **stack fracture** in ARCHITECT's otherwise-unified `jreng_*` ecosystem:
+Go TIT ships and works. It is also a **stack fracture** in ARCHITECT's otherwise-unified `jam_*` ecosystem:
 
 - Go toolchain friction (proxy cache garbage on every release)
 - Not BLESSED-auditable in ARCHITECT's native language
-- Cannot share `jreng_*` substrate consumed by END, CAROLINE, Kuassa plugin, whatdbg
-- Cannot consume `jreng_subprocess` streaming pattern that TIT would forge for the ecosystem
+- Cannot share `jam_*` substrate consumed by END, CAROLINE, Kuassa plugin, whatdbg
+- Cannot consume `jam_subprocess` streaming pattern that TIT would forge for the ecosystem
 - bubbletea/Elm pure-update model is a worse fit than `juce::ValueTree` listener-driven observable state
 
-**Port target:** full feature parity with Go TIT, rewritten in C++17/JUCE8 against the `jreng::tui` TUI framework forged in the same sprint. Go sources preserved under `___legacy___/` for reference and continued availability on platforms where the C++ port doesn't yet ship.
+**Port target:** full feature parity with Go TIT, rewritten in C++17/JUCE8 against the `jam::tui` TUI framework forged in the same sprint. Go sources preserved under `___legacy___/` for reference and continued availability on platforms where the C++ port doesn't yet ship.
 
 **Strategic value:**
 
-1. **Vertical integration:** TIT-cpp converges the last daily-driver tool into the `jreng_*` substrate. One terminal, one debugger, one code editor, one substrate, native binary everywhere.
-2. **Framework forge:** `jreng::tui` needs composition-level primitives (menu, list, split-pane, dialog, console, textpane, spinner, theme-resolver) that don't exist yet. TIT-cpp's feature set exercises every primitive against a shipped reference implementation (Go TIT). Caroline inherits a proven framework instead of co-developing it.
-3. **Ecosystem contribution:** `jreng_subprocess` and `jreng_svg_braille` modules exist as declaration stubs only in caroline. TIT-cpp implements both, ships them back to the ecosystem first.
+1. **Vertical integration:** TIT-cpp converges the last daily-driver tool into the `jam_*` substrate. One terminal, one debugger, one code editor, one substrate, native binary everywhere.
+2. **Framework forge:** `jam::tui` needs composition-level primitives (menu, list, split-pane, dialog, console, textpane, spinner, theme-resolver) that don't exist yet. TIT-cpp's feature set exercises every primitive against a shipped reference implementation (Go TIT). Caroline inherits a proven framework instead of co-developing it.
+3. **Ecosystem contribution:** `jam_subprocess` and `jam_svg_braille` modules exist as declaration stubs only in caroline. TIT-cpp implements both, ships them back to the ecosystem first.
 4. **Pre-CAROL debt paid:** Go TIT carries pre-formalization architectural artifacts (God-object `Application` struct with 21 fields + 10 extracted sub-structs). Port is the clean-origin pass under BLESSED from day zero.
 
 ---
@@ -35,18 +35,18 @@ Go TIT ships and works. It is also a **stack fracture** in ARCHITECT's otherwise
 
 - **Go TIT** (`~/Documents/Poems/dev/tit/`, ~23k LOC, 183 files) — requirements are fully specified in existing `SPEC.md` (1,025 lines) and `ARCHITECTURE.md`. Zero design decisions left; port is pure translation.
 - **END** (`~/Documents/Poems/dev/end/`) — battle-tested architectural template. `Source/terminal/data/State.h` (APVTS-style `std::atomic<float>` + `juce::ValueTree` SSOT + timer flush), `Source/terminal/logic/Parser.h` (reader-thread byte-stream state machine with O(1) DispatchTable). Runs in production at VT520 byte rate on GPU terminal emulator.
-- **CAROLINE** (`~/Documents/Poems/dev/caroline/`) — `jreng_tui` primitives forged here first (3,384 LOC implemented). Naming formalization pending (see §6 Handoff Notes).
+- **CAROLINE** (`~/Documents/Poems/dev/caroline/`) — `jam_tui` primitives forged here first (3,384 LOC implemented). Naming formalization pending (see §6 Handoff Notes).
 
 ### 2.2 Caroline module ground truth (verified 2026-04-17)
 
 | Module | LOC | Status |
 |---|---|---|
-| `jreng_core` | 15,550 | **Implemented** (END verbatim fork) — utilities, concurrency (mailbox + snapshot_buffer), xml (incl. svg parser), identifier, file, string, text, value, image, context, debug, map, project_info, function_map, fuzzy_search, binary_data |
-| `jreng_data_structures` | 895 | **Implemented** — `value_tree/` (ValueTree wrapper, taproot, walker) + `value_tree_json/` (JSON ↔ VT) |
-| `jreng_tui` | 3,384 | **Implemented** — `ansi/` (ANSIComponent, ANSIGraphics, ANSIScreen, ANSIWriter, TextBox, color, cell, escapes), `graphics/` (Rectangle), `input/` (TerminalInput, KeyEvent), `markdown/` (AnsiMarkdownRenderer — unused by TIT), `metrics/` (TerminalMetrics) |
-| `jreng_markdown` | 1,048 | Implemented (unused by TIT) |
-| `jreng_subprocess` | 16 | **Stub only** — module declaration, zero implementation |
-| `jreng_svg_braille` | 17 | **Stub only** — module declaration, zero implementation |
+| `jam_core` | 15,550 | **Implemented** (END verbatim fork) — utilities, concurrency (mailbox + snapshot_buffer), xml (incl. svg parser), identifier, file, string, text, value, image, context, debug, map, project_info, function_map, fuzzy_search, binary_data |
+| `jam_data_structures` | 895 | **Implemented** — `value_tree/` (ValueTree wrapper, taproot, walker) + `value_tree_json/` (JSON ↔ VT) |
+| `jam_tui` | 3,384 | **Implemented** — `ansi/` (ANSIComponent, ANSIGraphics, ANSIScreen, ANSIWriter, TextBox, color, cell, escapes), `graphics/` (Rectangle), `input/` (TerminalInput, KeyEvent), `markdown/` (AnsiMarkdownRenderer — unused by TIT), `metrics/` (TerminalMetrics) |
+| `jam_markdown` | 1,048 | Implemented (unused by TIT) |
+| `jam_subprocess` | 16 | **Stub only** — module declaration, zero implementation |
+| `jam_svg_braille` | 17 | **Stub only** — module declaration, zero implementation |
 
 ### 2.3 Non-novelty
 
@@ -54,8 +54,8 @@ TIT-cpp is pure translation:
 
 - **Requirements:** locked by Go `SPEC.md` (5-axis state model, 27 menu items, 4 protocol FSMs, conflict resolver, history browser, file-history 3-pane, setup wizard, dirty-op protocol, time-travel round-trip, manual-detached-HEAD support)
 - **Architecture pattern:** locked by `Terminal::State` / `Parser` template
-- **Framework base:** locked by caroline's `jreng_tui` (post-rename)
-- **Naming contract:** locked by ARCHITECT's `jreng::tui` decision (see §3.2)
+- **Framework base:** locked by caroline's `jam_tui` (post-rename)
+- **Naming contract:** locked by ARCHITECT's `jam::tui` decision (see §3.2)
 - **Config format:** locked — XML → `juce::ValueTree` native
 
 Zero architectural invention required.
@@ -68,19 +68,19 @@ Zero architectural invention required.
 
 TIT-cpp shares substrate with END, CAROLINE, Kuassa audio plugin, whatdbg, CAKE (future port). Bugs in shared modules surface against the strictest consumer first (Kuassa real-time audio thread, END GPU text-rendering hot path) and are fixed before reaching TIT's comparatively lenient UI-thread path. Infrastructure cost amortizes across 5+ consumers.
 
-### 3.2 `jreng::tui` namespace contract (ARCHITECT decision 2026-04-17)
+### 3.2 `jam::tui` namespace contract (ARCHITECT decision 2026-04-17)
 
-- **Namespace:** `jreng::tui` (supersedes caroline's pre-formal `jreng::Terminal`)
+- **Namespace:** `jam::tui` (supersedes caroline's pre-formal `jam::Terminal`)
 - **Base class:** `tui::Component : public juce::Component` — Path A per RFC-CAROLINE-00 §22 (inherits JUCE focus, mouse, keyboard, modal, bounds infrastructure)
 - **JUCE lingua preserved:** `resized()`, `setBounds()`, `getBounds()`, `addChildComponent()`, `toFront()`, focus traversal — all inherited unchanged
 - **JUCE native types consumed wholesale:** `juce::Colour`, `juce::Font`, `juce::Rectangle<int>`, `juce::AttributedString`, `juce::Justification`, `juce::Point<int>`, `juce::MouseEvent`, `juce::KeyPress`. No custom geometry primitives.
 - **Single semantic shift:** `juce::Rectangle<int>` represents **cell coordinates** (col/row) inside `tui::Component` context; pixel coordinates outside. Same type, context-dependent meaning.
 
-### 3.3 Layering — `jreng_tui` is View+Input only (per BLESSED E, Encapsulation)
+### 3.3 Layering — `jam_tui` is View+Input only (per BLESSED E, Encapsulation)
 
-`jreng_tui` must **not** own a Model primitive. That would force every consumer to adopt its state shape — a View framework reaching up into application architecture. END's `Terminal::State` lives in `Source/terminal/data/` for exactly this reason. TIT-cpp's `TitState` lives in `Source/state/` — domain-specific application code consuming primitives from `jreng_core` (mailbox, snapshot_buffer) and `jreng_data_structures` (ValueTree wrapper).
+`jam_tui` must **not** own a Model primitive. That would force every consumer to adopt its state shape — a View framework reaching up into application architecture. END's `Terminal::State` lives in `Source/terminal/data/` for exactly this reason. TIT-cpp's `TitState` lives in `Source/state/` — domain-specific application code consuming primitives from `jam_core` (mailbox, snapshot_buffer) and `jam_data_structures` (ValueTree wrapper).
 
-When a second consumer (CAROLINE's Runtime/Session/Conversation trees) demands the APVTS-style atomic-flush pattern, extract the machinery into `jreng_data_structures::ParamStore`. **YAGNI until second consumer. First consumer inlines.**
+When a second consumer (CAROLINE's Runtime/Session/Conversation trees) demands the APVTS-style atomic-flush pattern, extract the machinery into `jam_data_structures::ParamStore`. **YAGNI until second consumer. First consumer inlines.**
 
 ### 3.4 Dogfood build order (per BLESSED S — Stateless, D — Deterministic)
 
@@ -95,7 +95,7 @@ Build the UI layer against **synthetic fixture ValueTrees first, wire git last**
 
 - JUCE-native: `juce::XmlDocument::parse()` + `juce::ValueTree::fromXml()` both first-class in `juce_core`
 - Zero new module dependencies (no TOML parser, no YAML detour)
-- `jreng_data_structures` already owns VT-XML round-trip (END fork inheritance)
+- `jam_data_structures` already owns VT-XML round-trip (END fork inheritance)
 - Theme literally becomes a ValueTree. Any future TIT config file (keybindings, preferences, forbidden-ops, setup wizard prompts) follows the same pattern. Hot reload is `FileWatcher → parse → VT::copyPropertiesAndChildrenFrom → Listeners fire` — the exact pipeline already proven by `Terminal::State::flush`.
 - SPEC §16 path updates: `~/.config/tit/themes/default.toml` → `default.xml`. Text-only SPEC edit.
 
@@ -107,7 +107,7 @@ Full structural analogy to END:
 |---|---|
 | PTY reader thread | `juce::ChildProcess` on `juce::Thread` (git subprocess worker) |
 | `Parser::process(bytes)` | `GitStateDetector::ingest(bytes)` — parses `git status --porcelain=v2 --branch`, `git rev-list --count`, `MERGE_HEAD`/`REBASE_HEAD`/`.git/TIT_DIRTY_OP`/`.git/TIT_TIME_TRAVEL` markers |
-| `Grid` cell buffer | *n/a* — no Model-level grid (ANSI cells are View-layer inside `jreng_tui::ANSIGraphics`) |
+| `Grid` cell buffer | *n/a* — no Model-level grid (ANSI cells are View-layer inside `jam_tui::ANSIGraphics`) |
 | `Terminal::State` (atomic map + VT) | `TitState` — atoms for `workingTree`, `timeline`, `operation`, `remote`, `isTitTimeTravel`, `branch`, `aheadCount`, `behindCount`, `detachedAt` |
 | `DispatchTable[state, byte] → action` | `MenuGeneratorMap[operation] → std::function<juce::Array<MenuItem>(const juce::ValueTree&)>` |
 | `juce::Timer::flush()` | identical — timer polls `needsFlush`, copies atoms → VT in one pass |
@@ -156,24 +156,24 @@ Full structural analogy to END:
 │   │   └── MenuItems.h                  # SSOT for all 27 menu item definitions (data, not code)
 │   ├── view/
 │   │   ├── TitScreen.h/.cpp             # root tui::Component, owns layout
-│   │   ├── Banner.h/.cpp                # jreng_svg_braille consumer, version overlay
+│   │   ├── Banner.h/.cpp                # jam_svg_braille consumer, version overlay
 │   │   ├── Header.h/.cpp                # branch + state indicator
 │   │   ├── Footer.h/.cpp                # context hints
-│   │   ├── MenuView.h/.cpp              # composed from jreng_tui::Menu primitive
-│   │   ├── HistoryView.h/.cpp           # 2-col split: commits / details (jreng_tui::SplitPane)
+│   │   ├── MenuView.h/.cpp              # composed from jam_tui::Menu primitive
+│   │   ├── HistoryView.h/.cpp           # 2-col split: commits / details (jam_tui::SplitPane)
 │   │   ├── FileHistoryView.h/.cpp       # 3-pane: commits / files / diff
 │   │   ├── ConflictResolverView.h/.cpp  # N-column conflict pane with focus cycling
-│   │   ├── ConsoleView.h/.cpp           # streaming git stdout (jreng_tui::ConsoleStream)
+│   │   ├── ConsoleView.h/.cpp           # streaming git stdout (jam_tui::ConsoleStream)
 │   │   ├── ConfirmDialog.h/.cpp         # 7 variants (rewind, time-travel, dirty, merge, push, branch, time-travel-return)
 │   │   └── SetupWizardView.h/.cpp       # SSH key gen flow UI
 │   └── theme/
 │       └── ThemeLoader.h/.cpp           # `~/.config/tit/themes/*.xml` → ValueTree
 ├── modules/                             # TIT-cpp's forked + implemented modules (per caroline §22 — forked, portable, isolated)
-│   ├── jreng_core/                      # FORK verbatim from caroline
-│   ├── jreng_data_structures/           # FORK verbatim from caroline
-│   ├── jreng_tui/                       # FORK from caroline (post-rename) + EXTEND (8 new primitives)
-│   ├── jreng_subprocess/                # IMPLEMENT (caroline has stub only)
-│   └── jreng_svg_braille/               # IMPLEMENT (caroline has stub only; port from ___legacy___/internal/banner/)
+│   ├── jam_core/                        # consumed from ~/Documents/Poems/dev/jam/jam_core/
+│   ├── jam_data_structures/             # consumed from ~/Documents/Poems/dev/jam/jam_data_structures/
+│   ├── jam_tui/                         # consumed from ~/Documents/Poems/dev/jam/jam_tui/ + EXTEND (8 new primitives)
+│   ├── jam_subprocess/                  # consumed from ~/Documents/Poems/dev/jam/jam_subprocess/
+│   └── jam_svg_braille/                 # consumed from ~/Documents/Poems/dev/jam/jam_svg_braille/
 ├── tests/
 │   └── fixtures/                        # canned ValueTree snapshots for every state tuple
 ├── RFC.md                               # this document
@@ -186,17 +186,17 @@ Full structural analogy to END:
 
 | Module | Action | Effort |
 |---|---|---|
-| `jreng_core` | Fork verbatim from caroline | Mechanical |
-| `jreng_data_structures` | Fork verbatim from caroline | Mechanical |
-| `jreng_tui` | Fork from caroline (post-rename per handoff.md) + add 8 composition primitives | 2–3 days |
-| `jreng_subprocess` | **Implement** from RFC-CAROLINE-00 §4.5 spec + add streaming stdout callbacks | 1–2 days |
-| `jreng_svg_braille` | **Implement** by porting `___legacy___/internal/banner/` (649 Go LOC). May reuse `jreng_core/xml/jreng_svg` for path parsing — COUNSELOR to assess | 1–2 days |
+| `jam_core` | Fork verbatim from caroline | Mechanical |
+| `jam_data_structures` | Fork verbatim from caroline | Mechanical |
+| `jam_tui` | Fork from caroline (post-rename per handoff.md) + add 8 composition primitives | 2–3 days |
+| `jam_subprocess` | **Implement** from RFC-CAROLINE-00 §4.5 spec + add streaming stdout callbacks | 1–2 days |
+| `jam_svg_braille` | **Implement** by porting `___legacy___/internal/banner/` (649 Go LOC). May reuse `jam_core/xml/jam_svg` for path parsing — COUNSELOR to assess | 1–2 days |
 
-**Ecosystem contribution:** TIT-cpp ships `jreng_subprocess` and `jreng_svg_braille` first. CAROLINE inherits completed implementations when its sprint reaches those modules.
+**Ecosystem contribution:** TIT-cpp ships `jam_subprocess` and `jam_svg_braille` first. CAROLINE inherits completed implementations when its sprint reaches those modules.
 
-### 4.3 `jreng_tui` extensions needed (8 primitives)
+### 4.3 `jam_tui` extensions needed (8 primitives)
 
-All follow the `jreng::tui::Component` base class pattern, compose with existing ANSIGraphics/ANSIScreen/TextBox infrastructure, consume JUCE native types:
+All follow the `jam::tui::Component` base class pattern, compose with existing ANSIGraphics/ANSIScreen/TextBox infrastructure, consume JUCE native types:
 
 | Primitive | Responsibility | Reference |
 |---|---|---|
@@ -213,8 +213,8 @@ All follow the `jreng::tui::Component` base class pattern, compose with existing
 
 | Phase | Deliverable | Days |
 |---|---|---|
-| **0** | Scaffold — `___legacy___/` archive, CMake, fork real modules, implement `jreng_subprocess` + `jreng_svg_braille`, skeleton Main.cpp builds green | 2–3 |
-| **1** | `jreng_tui` extensions (8 primitives) against synthetic ValueTree fixtures | 2–3 |
+| **0** | Scaffold — `___legacy___/` archive, CMake, fork real modules, implement `jam_subprocess` + `jam_svg_braille`, skeleton Main.cpp builds green | 2–3 |
+| **1** | `jam_tui` extensions (8 primitives) against synthetic ValueTree fixtures | 2–3 |
 | **2** | `TitState` (APVTS-mirror), `TitIdentifier`, `MenuBuilder` dispatch, fixture framework | 1–2 |
 | **3** | View composition — **demo-quality TIT with zero git installed** (milestone) | 1–2 |
 | **4** | Git layer — `GitRunner`, `GitStateDetector`, parsers, commands | 1–2 |
@@ -222,15 +222,15 @@ All follow the `jreng::tui::Component` base class pattern, compose with existing
 | **6** | Integration — real flows, error paths, macOS release binary | 1 |
 | **Total MVP** | Feature parity with Go TIT on macOS | **7–11 days CAROL walltime** |
 
-**Windows MSYS2 parity post-MVP** — estimated +3–5 days (ConPTY byte handling, `CreateProcess` in jreng_subprocess Windows impl, path normalization).
+**Windows MSYS2 parity post-MVP** — estimated +3–5 days (ConPTY byte handling, `CreateProcess` in jam_subprocess Windows impl, path normalization).
 
 ### 4.5 Threading model (mirror END)
 
 | Thread | Owns | Crossing |
 |---|---|---|
 | Message (JUCE main) | `TitState` ValueTree, `TitScreen`, `MenuBuilder`, all `tui::Component` | — |
-| Subprocess worker (`juce::Thread` pool via `jreng_subprocess`) | `juce::ChildProcess`, stdout/stderr capture | atomic writes to `TitState` + `callAsync` for event notifications |
-| Terminal input (`jreng_tui::TerminalInput`) | stdin raw-mode, escape parser, bracketed paste | `callAsync` → message thread |
+| Subprocess worker (`juce::Thread` pool via `jam_subprocess`) | `juce::ChildProcess`, stdout/stderr capture | atomic writes to `TitState` + `callAsync` for event notifications |
+| Terminal input (`jam_tui::TerminalInput`) | stdin raw-mode, escape parser, bracketed paste | `callAsync` → message thread |
 | Timer (`juce::Timer`) | `TitState::flush()` | inherited — `juce::Timer` runs on message thread |
 
 Zero locks on hot path. `callAsync` only crossing primitive. Identical discipline to END.
@@ -288,7 +288,7 @@ Every Component attaches `ValueTree::Listener` to its relevant subtree. `TitStat
 - [x] **Explicit** — zero early returns; every parameter visible in signature; magic values → named constants in `TitIdentifier.h`; `jassert` on invariant violations; no silent fails — every error path writes `Console::LINE{stream:stderr}` or raises setup wizard
 - [x] **Single Source of Truth** — `TitState` ValueTree is SSOT for all application state; theme XML is SSOT for colors; `MenuItems.h` is SSOT for menu definitions; marker files are SSOT for protocol progress
 - [x] **Stateless** — `tui::Component` subclasses hold transient render state only (scroll offset, focus); all persistent state lives in `TitState`; orchestrator tells, never asks
-- [x] **Encapsulation** — `jreng_tui` does not import any TIT application header; `Source/git/` does not import `Source/view/`; unidirectional layer flow strictly preserved
+- [x] **Encapsulation** — `jam_tui` does not import any TIT application header; `Source/git/` does not import `Source/view/`; unidirectional layer flow strictly preserved
 - [x] **Deterministic** — same `TitState` + same menu generator fn = bit-identical menu output; same git command input + same cwd = same parser output; emergent D from BLESSE adherence
 
 **Known risks to monitor:**
@@ -296,7 +296,7 @@ Every Component attaches `ValueTree::Listener` to its relevant subtree. `TitStat
 - `ANSIComponent`'s inheritance of `juce::Component` bounds (already noted in caroline RFC-00 §17) — cell bounds must not shadow pixel bounds
 - `TitState` and `Transcript`-equivalent do not exist in TIT (TIT is stateless across runs — no session persistence) — one less risk vector than CAROLINE
 - `MenuBuilder` must be pure — given same `TitState` VT, same `Array<MenuItem>` output, always. No timing dependencies.
-- `jreng_subprocess` streaming callbacks must deliver chunks on the subprocess thread, NOT on message thread — `ConsoleStream`'s atomic writer handles the cross-thread delivery on flush
+- `jam_subprocess` streaming callbacks must deliver chunks on the subprocess thread, NOT on message thread — `ConsoleStream`'s atomic writer handles the cross-thread delivery on flush
 
 ---
 
@@ -306,16 +306,16 @@ Every Component attaches `ValueTree::Listener` to its relevant subtree. `TitStat
 
 Resolved in caroline's rename sprint. Three options (A / B / C) surfaced in `handoff.md`; ARCHITECT direction favors A (JUCE-lingua overload). COUNSELOR + Auditor in caroline's sprint validate against `-Woverloaded-virtual`. TIT-cpp inherits whatever decision caroline ships.
 
-### 6.2 `jreng_svg_braille` — reuse `jreng_core/xml/jreng_svg` or port-from-Go directly?
+### 6.2 `jam_svg_braille` — reuse `jam_core/xml/jam_svg` or port-from-Go directly?
 
-Caroline's `jreng_core` already contains `xml/jreng_svg.h/.cpp` — SVG path parsing likely present. The Go TIT port target (`internal/banner/svg_paths.go` — 351 LOC) may be partially solved upstream. COUNSELOR assesses during `jreng_svg_braille` implementation planning:
+Caroline's `jam_core` already contains `xml/jam_svg.h/.cpp` — SVG path parsing likely present. The Go TIT port target (`internal/banner/svg_paths.go` — 351 LOC) may be partially solved upstream. COUNSELOR assesses during `jam_svg_braille` implementation planning:
 
-- **Option A:** Use `jreng_core::xml::svg` for path parsing; implement only `rasterizer/` + `braille/` in `jreng_svg_braille`. Likely saves 30–40% of port effort.
+- **Option A:** Use `jam_core::xml::svg` for path parsing; implement only `rasterizer/` + `braille/` in `jam_svg_braille`. Likely saves 30–40% of port effort.
 - **Option B:** Port all 4 Go files verbatim for clean isolation. Simpler but potentially redundant.
 
-### 6.3 File renaming in `jreng_tui` post-rename
+### 6.3 File renaming in `jam_tui` post-rename
 
-Caroline's current file names (`jreng_terminal_metrics.*`, `jreng_terminal_input.*`, `jreng_terminal_rectangle.*`, `jreng_ansi_*`) use "terminal" and "ansi" as **domain terms**, not namespace references. File renames are optional — namespace/method rename (`Terminal` → `tui`, `render()` → `paint()`) is the load-bearing change. Caroline's COUNSELOR decides file-rename scope during their sprint.
+Caroline's current file names (`jam_terminal_metrics.*`, `jam_terminal_input.*`, `jam_terminal_rectangle.*`, `jam_ansi_*`) use "terminal" and "ansi" as **domain terms**, not namespace references. File renames are optional — namespace/method rename (`Terminal` → `tui`, `render()` → `paint()`) is the load-bearing change. Caroline's COUNSELOR decides file-rename scope during their sprint.
 
 ### 6.4 Theme XML schema
 
@@ -331,7 +331,7 @@ Hot reload via `juce::FileWatcher` is desired but not required for MVP.
 
 ### 6.5 Windows MSYS2 parity — MVP or post-MVP?
 
-**Proposed:** macOS-first MVP. Windows parity as a named post-MVP sprint. Rationale: caroline is also macOS-first (RFC-CAROLINE-00 targets macOS primary, MSYS2 secondary). `jreng_subprocess` Windows-native `CreateProcess` + anonymous pipe path is designed in RFC-CAROLINE-00 §4.5 but unbuilt. Adding Windows to TIT-cpp MVP means forging both POSIX and Windows `jreng_subprocess` paths simultaneously. Splitting into two sprints (macOS-first, then Windows) matches caroline's precedent and keeps MVP timeline realistic.
+**Proposed:** macOS-first MVP. Windows parity as a named post-MVP sprint. Rationale: caroline is also macOS-first (RFC-CAROLINE-00 targets macOS primary, MSYS2 secondary). `jam_subprocess` Windows-native `CreateProcess` + anonymous pipe path is designed in RFC-CAROLINE-00 §4.5 but unbuilt. Adding Windows to TIT-cpp MVP means forging both POSIX and Windows `jam_subprocess` paths simultaneously. Splitting into two sprints (macOS-first, then Windows) matches caroline's precedent and keeps MVP timeline realistic.
 
 **ARCHITECT to confirm.**
 
@@ -347,13 +347,13 @@ Hot reload via `juce::FileWatcher` is desired but not required for MVP.
 
 `handoff.md` written to `~/Documents/Poems/dev/caroline/handoff.md` (103 lines). Caroline's COUNSELOR owns that sprint:
 
-1. Rename `namespace jreng::Terminal` → `namespace jreng::tui` across `modules/jreng_tui/`
+1. Rename `namespace jam::Terminal` → `namespace jam::tui` across `modules/jam_tui/`
 2. Rename `render(Graphics&)` → `paint(...)` (A/B/C decision resolved in-sprint)
 3. Update RFC-CAROLINE-00 §4.7 text references
 4. Caroline builds green
 5. Sprint logged
 
-After caroline's rename sprint ships, TIT-cpp Phase 0 forks the clean `jreng_tui` module. Zero drift at fork boundary.
+After caroline's rename sprint ships, TIT-cpp Phase 0 forks the clean `jam_tui` module. Zero drift at fork boundary.
 
 ### 7.2 Go TIT remains shippable via `___legacy___/`
 
@@ -371,7 +371,7 @@ After port begins:
 4. `___legacy___/CODEBASE-MAP.md` — Go code topology, reference only
 5. `~/Documents/Poems/dev/end/Source/terminal/data/State.h` — `TitState` template
 6. `~/Documents/Poems/dev/end/Source/terminal/logic/Parser.h` — `GitStateDetector` template
-7. `~/Documents/Poems/dev/caroline/RFC-CAROLINE-00.md` — `jreng_subprocess` spec (§4.5), `jreng_svg_braille` spec (§4.8)
+7. `~/Documents/Poems/dev/caroline/RFC-CAROLINE-00.md` — `jam_subprocess` spec (§4.5), `jam_svg_braille` spec (§4.8)
 
 ### 7.4 Estimate confidence
 
@@ -381,27 +381,27 @@ After port begins:
 - Full reference implementation in Go
 - Architectural template in END (proven at VT520 byte rate)
 - Framework base in caroline (3,384 LOC primitive infrastructure implemented)
-- Two new modules (`_subprocess`, `_svg_braille`) have spec + port source pre-specified
+- Two new modules (`jam_subprocess`, `jam_svg_braille`) have spec + port source pre-specified
 - CAROL parallelism — primitive forge, state layer, git layer, protocols can overlap across concurrent sprints once Phase 0 scaffolds
 
-**Estimate floor** (7 days) assumes sustained CAROL cadence + zero Windows parity work + macOS-only subprocess impl + jreng_svg_braille reusing `jreng_core::xml::svg`.
+**Estimate floor** (7 days) assumes sustained CAROL cadence + zero Windows parity work + macOS-only subprocess impl + jam_svg_braille reusing `jam_core::xml::svg`.
 
-**Estimate ceiling** (11 days) assumes full Go-port fidelity for `jreng_svg_braille` + first-primitive (`Menu` or `ListPane`) design iteration once + one conflict resolver view redesign pass.
+**Estimate ceiling** (11 days) assumes full Go-port fidelity for `jam_svg_braille` + first-primitive (`Menu` or `ListPane`) design iteration once + one conflict resolver view redesign pass.
 
 ### 7.5 Post-MVP queue
 
 - Windows MSYS2 parity sprint (+3–5 days)
 - Theme hot-reload
 - Homebrew tap + CI/CD release pipeline
-- `jreng_subprocess` enhancements (stdin write for rare passphrase case)
-- Potential `jreng_git` extraction if CAKE-cpp / whatdbg-TUI consume similar subprocess+parser patterns
+- `jam_subprocess` enhancements (stdin write for rare passphrase case)
+- Potential `jam_git` extraction if CAKE-cpp / whatdbg-TUI consume similar subprocess+parser patterns
 
 ### 7.6 Sprint ownership
 
 COUNSELOR owns PLAN.md generation from this RFC. Suggested sprint breakdown:
 
-- **Sprint 1:** Phase 0 (scaffold + forks + implement `jreng_subprocess` + port `jreng_svg_braille`)
-- **Sprint 2:** Phase 1 (`jreng_tui` extensions — 8 primitives against fixtures)
+- **Sprint 1:** Phase 0 (scaffold + forks + implement `jam_subprocess` + port `jam_svg_braille`)
+- **Sprint 2:** Phase 1 (`jam_tui` extensions — 8 primitives against fixtures)
 - **Sprint 3:** Phase 2 + Phase 3 (`TitState` + views — demo milestone)
 - **Sprint 4:** Phase 4 + Phase 5 (git layer + protocol FSMs)
 - **Sprint 5:** Phase 6 (integration + polish + release)
@@ -412,9 +412,9 @@ Each sprint ends with `log sprint` + `carol debt clear` per protocol.
 
 ## 8. Closing
 
-TIT-cpp is the last daily-driver tool converging into the `jreng_*` vertical-integration stack. Shares substrate with END (daily-driver terminal), whatdbg (daily-driver debugger), CAROLINE (CAROL-native client), Kuassa (commercial audio plugin). One terminal, one debugger, one code editor, one substrate, native binary everywhere.
+TIT-cpp is the last daily-driver tool converging into the `jam_*` vertical-integration stack. Shares substrate with END (daily-driver terminal), whatdbg (daily-driver debugger), CAROLINE (CAROL-native client), Kuassa (commercial audio plugin). One terminal, one debugger, one code editor, one substrate, native binary everywhere.
 
-The port isn't "rewrite TIT." It's **use TIT's battle-tested spec as the forge for `jreng::tui`'s composition-level primitives, ship `jreng_subprocess` + `jreng_svg_braille` back to the ecosystem, and harvest a cleaner TIT in the process.**
+The port isn't "rewrite TIT." It's **use TIT's battle-tested spec as the forge for `jam::tui`'s composition-level primitives, ship `jam_subprocess` + `jam_svg_braille` back to the ecosystem, and harvest a cleaner TIT in the process.**
 
 Ready for COUNSELOR.
 

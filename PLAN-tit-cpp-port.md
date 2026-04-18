@@ -1,4 +1,4 @@
-# PLAN: TIT-cpp Port to C++/JUCE via `jreng::tui`
+# PLAN: TIT-cpp Port to C++/JUCE via `jam::tui`
 
 **RFC:** RFC.md
 **Date:** 2026-04-18
@@ -7,12 +7,16 @@
 
 ## Overview
 
-Full-feature port of Go TIT to C++17/JUCE8 against the `jreng::tui` framework. Go sources archived under `___legacy___/` for reference and continued Windows/Linux shipping. Port executes as a six-sprint arc: scaffold → primitives → state+views (demo milestone) → git → integration (macOS MVP) → Windows MSYS2 parity. No architectural invention — `SPEC.md` is the locked requirements contract, END is the architectural template, caroline provides the framework base.
+Full-feature port of Go TIT to C++17/JUCE8 against the `jam::tui` framework. Go sources archived under `___legacy___/` for reference and continued Windows/Linux shipping. Port executes as a six-sprint arc: scaffold → primitives → state+views (demo milestone) → git → integration (macOS MVP) → Windows MSYS2 parity. No architectural invention — `SPEC.md` is the locked requirements contract, END is the architectural template, caroline provides the framework base.
+
+## Addendum 2026-04-19
+
+TIT migrated from local `modules/jreng_*` forks to external consumption of `~/Documents/Poems/dev/jam/jam_*/`. Zero behavioral delta (verified). Namespace: `jreng::*` → `jam::*`. Historical Sprint descriptions below preserve original `jreng::` names where they describe in-session forge work.
 
 ## Language / Framework Constraints
 
 - **C++17, JUCE 8** — MANIFESTO.md enforced as written; no overrides.
-- **`jreng::tui` namespace** — `tui::Component : public juce::Component` (Path A). JUCE lingua preserved (`resized()`, `setBounds()`, `paint()`). Native JUCE types consumed wholesale (`juce::Colour`, `juce::Font`, `juce::Rectangle<int>`, `juce::AttributedString`, `juce::KeyPress`).
+- **`jam::tui` namespace** — `tui::Component : public juce::Component` (Path A). JUCE lingua preserved (`resized()`, `setBounds()`, `paint()`). Native JUCE types consumed wholesale (`juce::Colour`, `juce::Font`, `juce::Rectangle<int>`, `juce::AttributedString`, `juce::KeyPress`).
 - **Cell vs pixel coordinates** — `juce::Rectangle<int>` means cells inside `tui::Component` context, pixels outside. Single semantic shift, same type.
 - **Threading model** — message thread owns `TitState` VT + views; subprocess worker owns `juce::ChildProcess`; `callAsync` is the only cross-thread primitive. Zero locks on hot path. Mirror END.
 - **Config format** — XML → `juce::ValueTree` native. Zero new parser dependencies.
@@ -26,7 +30,7 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 - carol/JRENG-CODING-STANDARD.md (C++ coding standards)
 - The locked PLAN decisions (no deviation, no scope drift)
 
-**Test framework:** `juce::UnitTest` (JUCE-native, zero external dep, aligns with CONTRACT "use JUCE/jreng as much as we can"). Fixture-based assertions for parsers, state transitions, menu generation, theme round-trip, braille output byte-identity. Test runner wired into `CMakeLists.txt` as a separate target. Coverage expectations scoped per step under the step's Validation clause.
+**Test framework:** `juce::UnitTest` (JUCE-native, zero external dep, aligns with CONTRACT "use JUCE/jam as much as we can"). Fixture-based assertions for parsers, state transitions, menu generation, theme round-trip, braille output byte-identity. Test runner wired into `CMakeLists.txt` as a separate target. Coverage expectations scoped per step under the step's Validation clause.
 
 ## Steps
 
@@ -43,34 +47,34 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 **Action:** `@Engineer` writes minimal JUCE `juce_add_console_app` target. Executable name: **`titc`** (ARCHITECT decision 2026-04-18 — avoids PATH collision with Go `tit` binary during port; rename to `tit` deferred until Sprint 6 Windows parity closes and Go legacy is retired). `Main.cpp` = `JUCEApplication` entry. `TitApp` = empty shell class. Build green on macOS (Apple Silicon + Intel).
 **Validation:** `@Auditor` — `cmake --build` produces `titc` executable; zero warnings at END's suppression-only flag set (`-Wno-unused-parameter -Wno-sign-conversion -Wno-shadow`, no `-Wall -Wextra`) — mirrors END's proven pattern per RFC §2.1; file topology matches RFC §4.1.
 
-#### Step 1.3: Fork `jreng_core` and `jreng_data_structures` verbatim from caroline
+#### Step 1.3: Fork `jam_core` and `jam_data_structures` verbatim from caroline
 **Scope:** `modules/jreng_core/`, `modules/jreng_data_structures/`
 **Action:** `@Engineer` copies both modules verbatim from `~/Documents/Poems/dev/caroline/modules/`. Wire into `CMakeLists.txt`. Zero source edits.
 **Validation:** `@Auditor` — diff against caroline source = zero delta; builds green as JUCE module dependencies of TitApp.
 
-#### Step 1.3b: Extend `jreng_core` with `jreng::File::Watcher`
-**Scope:** `modules/jreng_core/file/` — new nested class `jreng::File::Watcher` inside existing `struct File` in `jreng_file.h`
-**Action:** `@Engineer` forks `FigBug/Gin`'s `modules/gin/utilities/gin_filesystemwatcher.{h,cpp}` (BSD, deps: `juce_core` + `juce_data_structures`) into `jreng_core/file/`. Rewrap `class gin::FileSystemWatcher` as `struct File::Watcher` nested inside `jreng::File`. Rewrap `FileSystemEvent` enum as `File::Watcher::Event` nested enum. Platform backends preserved verbatim: macOS FSEvents, Windows `ReadDirectoryChangesW`, Linux inotify. API: `addFolder(File)`, `removeFolder(File)`, `addListener(Listener*)`, `removeListener(Listener*)`; `Listener::folderChanged(File&)` + `Listener::fileChanged(File&, Event)`. Replace upstream JUCE include with jreng_core's own aggregation header.
-**Validation:** `@Auditor` — BLESSED per file (B: Watcher owns its thread/RAII; E: no early returns; S: nested under existing `jreng::File` SSOT, no new top-level namespace); attribution preserved (BSD notice + Roland Rabien copyright in header); `folderChanged` and `fileChanged` callbacks proven on fixture dir mutation across all three platforms (macOS now, Win/Linux re-verified in Sprint 6).
+#### Step 1.3b: Extend `jam_core` with `jam::File::Watcher`
+**Scope:** `modules/jreng_core/file/` — new nested class `jam::File::Watcher` inside existing `struct File` in `jreng_file.h`
+**Action:** `@Engineer` forks `FigBug/Gin`'s `modules/gin/utilities/gin_filesystemwatcher.{h,cpp}` (BSD, deps: `juce_core` + `juce_data_structures`) into `jreng_core/file/`. Rewrap `class gin::FileSystemWatcher` as `struct File::Watcher` nested inside `jam::File`. Rewrap `FileSystemEvent` enum as `File::Watcher::Event` nested enum. Platform backends preserved verbatim: macOS FSEvents, Windows `ReadDirectoryChangesW`, Linux inotify. API: `addFolder(File)`, `removeFolder(File)`, `addListener(Listener*)`, `removeListener(Listener*)`; `Listener::folderChanged(File&)` + `Listener::fileChanged(File&, Event)`. Replace upstream JUCE include with jam_core's own aggregation header.
+**Validation:** `@Auditor` — BLESSED per file (B: Watcher owns its thread/RAII; E: no early returns; S: nested under existing `jam::File` SSOT, no new top-level namespace); attribution preserved (BSD notice + Roland Rabien copyright in header); `folderChanged` and `fileChanged` callbacks proven on fixture dir mutation across all three platforms (macOS now, Win/Linux re-verified in Sprint 6).
 
-#### Step 1.4: Fork `jreng_tui` + `jreng_markdown` from caroline (post-rename state)
+#### Step 1.4: Fork `jam_tui` + `jam_markdown` from caroline (post-rename state)
 **Scope:** `modules/jreng_tui/`, `modules/jreng_markdown/`
-**Action:** `@Engineer` copies both modules verbatim from caroline (namespace already `jreng::tui`, method already `paint()` per caroline Sprint 5). `jreng_markdown` is forked alongside `jreng_tui` because `jreng_tui.h` declares `jreng_markdown` as a JUCE-module dependency (markdown renderer lives in `jreng_tui/markdown/AnsiMarkdownRenderer` consuming `jreng_markdown`) — unused by TIT per RFC §2.2 but enforced at CMake configure time. Omission discovered 2026-04-18 during Step 1.4 execution; RFC §2.2 ground truth and RFC §4.1 scaffold missed the transitive dep. Wire both modules into `CMakeLists.txt` in dependency order: `jreng_markdown` before `jreng_tui`.
-**Validation:** `@Auditor` — diff against caroline source = zero delta (both modules); builds green; `-Woverloaded-virtual` clean; TIT application code never imports from `jreng_markdown` (verified at Sprint 5 integration).
+**Action:** `@Engineer` copies both modules verbatim from caroline (namespace already `jam::tui`, method already `paint()` per caroline Sprint 5). `jam_markdown` is forked alongside `jam_tui` because `jam_tui.h` declares `jam_markdown` as a JUCE-module dependency (markdown renderer lives in `jam_tui/markdown/AnsiMarkdownRenderer` consuming `jam_markdown`) — unused by TIT per RFC §2.2 but enforced at CMake configure time. Omission discovered 2026-04-18 during Step 1.4 execution; RFC §2.2 ground truth and RFC §4.1 scaffold missed the transitive dep. Wire both modules into `CMakeLists.txt` in dependency order: `jam_markdown` before `jam_tui`.
+**Validation:** `@Auditor` — diff against caroline source = zero delta (both modules); builds green; `-Woverloaded-virtual` clean; TIT application code never imports from `jam_markdown` (verified at Sprint 5 integration).
 
-#### Step 1.5: Implement `jreng_subprocess` (caroline has stub only)
+#### Step 1.5: Implement `jam_subprocess` (caroline has stub only)
 **Scope:** `modules/jreng_subprocess/`
 **Action:** `@Engineer` implements per RFC-CAROLINE-00 §4.5 spec. macOS-only first (`fork`/`exec` via `juce::ChildProcess`). Streaming stdout/stderr callbacks deliver chunks on subprocess thread (not message thread). Windows impl deferred to Sprint 6.
 **Validation:** `@Auditor` — BLESSED compliance (B: subprocess RAII via `std::unique_ptr<juce::ChildProcess>`; E: no early returns; S: single-writer/single-reader channel); contribution back to caroline noted for future sync.
 
-#### Step 1.6: Implement braille renderer inside `jreng_tui`
-**Scope:** `modules/jreng_tui/braille/` — new subsystem inside existing jreng_tui module. **No `jreng_svg_braille` module.** ARCHITECT decision 2026-04-18: braille is TUI rendering, belongs inside jreng_tui. Parsers (text→AST) stay generic (`jreng_markdown` remains separate); renderers (AST/data→display) live inside jreng_tui.
-**Action:** `@Engineer` ports rasterization + braille encoding from `___legacy___/internal/banner/svg_render.go` (150 LOC) + `braille.go` (138 LOC). **Path `d` command-stream parsing delegated to `juce::Drawable::parseSVGPath()`** per CONTRACT (use JUCE/jreng SSOT, don't fight the framework). `svg_paths.go` (351 LOC) is NOT ported — rasterizer rewritten to consume `juce::Path` via `juce::Path::Iterator` instead of Go's `[][]Point` subpath slices. Return type is `jreng::tui::Cell` (natural fit — braille IS a TUI rendering output, no cross-module layer issue).
-**Validation:** `@Auditor` — braille output **visually equivalent** to Go version against reference SVG fixture (TIT startup banner) — banner shape recognizable, colors preserved per-path (ARCHITECT decision 2026-04-18: JUCE tessellation is SSOT; byte-identity with Go's fixed `approximateCubicBezier(20)` is not a requirement — per-pixel scanline differs at cell boundaries, visual identity holds); BLESSED-S (JUCE path parser + tessellator is SSOT); no duplicate SVG parsing code; no new module in `modules/` (braille subsystem lives under `jreng_tui/`).
+#### Step 1.6: Implement braille renderer inside `jam_tui`
+**Scope:** `modules/jreng_tui/braille/` — new subsystem inside existing jam_tui module. **No `jam_svg_braille` module.** ARCHITECT decision 2026-04-18: braille is TUI rendering, belongs inside jam_tui. Parsers (text→AST) stay generic (`jam_markdown` remains separate); renderers (AST/data→display) live inside jam_tui.
+**Action:** `@Engineer` ports rasterization + braille encoding from `___legacy___/internal/banner/svg_render.go` (150 LOC) + `braille.go` (138 LOC). **Path `d` command-stream parsing delegated to `juce::Drawable::parseSVGPath()`** per CONTRACT (use JUCE/jam SSOT, don't fight the framework). `svg_paths.go` (351 LOC) is NOT ported — rasterizer rewritten to consume `juce::Path` via `juce::Path::Iterator` instead of Go's `[][]Point` subpath slices. Return type is `jam::tui::Cell` (natural fit — braille IS a TUI rendering output, no cross-module layer issue).
+**Validation:** `@Auditor` — braille output **visually equivalent** to Go version against reference SVG fixture (TIT startup banner) — banner shape recognizable, colors preserved per-path (ARCHITECT decision 2026-04-18: JUCE tessellation is SSOT; byte-identity with Go's fixed `approximateCubicBezier(20)` is not a requirement — per-pixel scanline differs at cell boundaries, visual identity holds); BLESSED-S (JUCE path parser + tessellator is SSOT); no duplicate SVG parsing code; no new module in `modules/` (braille subsystem lives under `jam_tui/`).
 
 ---
 
-### SPRINT 2 — Phase 1: `jreng_tui` Extensions (8 Primitives)
+### SPRINT 2 — Phase 1: `jam_tui` Extensions (8 Primitives)
 
 #### Step 2.1: Synthetic `juce::ValueTree` fixture framework
 **Scope:** `tests/fixtures/`, fixture loader utility
@@ -78,23 +82,23 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 **Validation:** `@Auditor` — fixture VT schema matches RFC §4.6; loader round-trips XML cleanly.
 
 #### Step 2.2: Implement `Menu`, `ListPane`, `SplitPane`
-**Scope:** `modules/jreng_tui/jreng_tui_menu.*`, `..._listpane.*`, `..._splitpane.*`
+**Scope:** `modules/jreng_tui/primitives/jreng_tui_menu.*`, `..._listpane.*`, `..._splitpane.*` — primitives live in `primitives/` subdirectory per existing `jam_tui` convention (both `.h` and `.cpp` co-located; see `ansi/`, `braille/`, etc.). Amended 2026-04-18 post-audit.
 **Action:** `@Engineer` implements three primitives per RFC §4.3. Reference Go sources in `___legacy___/internal/ui/menu.go`, `listpane.go`, `layout.go`+`history.go`. All inherit `tui::Component`, consume JUCE native types.
 **Validation:** `@Auditor` — BLESSED per-file (300/30/3); renders cleanly against fixtures; keyboard navigation matches Go behavior.
 
 #### Step 2.3: Implement `Dialog`, `ConsoleStream`, `TextPane`
-**Scope:** `modules/jreng_tui/jreng_tui_dialog.*`, `..._consolestream.*`, `..._textpane.*`
+**Scope:** `modules/jreng_tui/primitives/jreng_tui_dialog.*`, `..._consolestream.*`, `..._textpane.*`
 **Action:** `@Engineer` implements three primitives per RFC §4.3. References `___legacy___/internal/ui/confirmation.go`, `console.go`+`buffer.go`, `textpane_render.go`+`textpane_input.go`.
 **Validation:** `@Auditor` — same criteria; `ConsoleStream` atomic-writer cross-thread pattern matches END's proven template.
 
 #### Step 2.4: Implement `Spinner`, `ThemeResolver`
-**Scope:** `modules/jreng_tui/jreng_tui_spinner.*`, `..._theme_resolver.*`
+**Scope:** `modules/jreng_tui/primitives/jreng_tui_spinner.*`, `..._theme_resolver.*`
 **Action:** `@Engineer` implements final two primitives per RFC §4.3. `ThemeResolver` reads `juce::ValueTree` node via `juce::Identifier` keys.
 **Validation:** `@Auditor` — same criteria; ThemeResolver contract round-trips with Step 3.2 theme XML schema.
 
 #### Step 2.5: Contribute back to caroline
-**Scope:** cross-project — `~/Documents/Poems/dev/caroline/modules/jreng_tui/`, `~/Documents/Poems/dev/caroline/modules/jreng_core/file/`
-**Action:** COUNSELOR files handoff.md to caroline's COUNSELOR documenting (a) the 8 new `jreng_tui` primitives, (b) `jreng::File::Watcher` addition to `jreng_core`, (c) `jreng_subprocess` implementation (Step 1.5), (d) `jreng_svg_braille` implementation (Step 1.6). All for inheritance in caroline's next sync sprint. Not a TIT build step. Coordination only.
+**Scope:** cross-project — `~/Documents/Poems/dev/caroline/modules/jam_tui/`, `~/Documents/Poems/dev/caroline/modules/jam_core/file/`
+**Action:** COUNSELOR files handoff.md to caroline's COUNSELOR documenting (a) the 8 new `jam_tui` primitives, (b) `jam::File::Watcher` addition to `jam_core`, (c) `jam_subprocess` implementation (Step 1.5), (d) `jam_svg_braille` implementation (Step 1.6). All for inheritance in caroline's next sync sprint. Not a TIT build step. Coordination only.
 **Validation:** `@Auditor` — handoff documented; no TIT build impact.
 
 ---
@@ -103,8 +107,8 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 
 #### Step 3.1: Draft theme XML schema + update SPEC.md
 **Scope:** COUNSELOR writes theme schema. SPEC.md §16 path edit: `default.toml` → `default.xml`.
-**Action:** COUNSELOR drafts XML schema with **three-level hierarchy: `Theme > LookAndFeel > Component`** (ARCHITECT decision 2026-04-18). Theme is top-level palette. LookAndFeel groups Component-family styles (JUCE `juce::LookAndFeel` pattern). Component nodes bind leaf properties (colors, paddings). Covers all 10 theme fields (RFC §6.4) as Component-level leaves. **Hot-reload is MVP** via `jreng::File::Watcher` (forked in Step 1.3b) — watches `~/.config/tit/themes/` folder. On `folderChanged` callback, re-parse active theme XML → `ValueTree::copyPropertiesAndChildrenFrom` on `THEME` subtree → `ValueTree::Listener` on `THEME` repaints views. `ThemeLoader` owns the `Watcher` instance and the change handler (200 ms debounce to swallow multi-write sequences).
-**Validation:** `@Auditor` — schema round-trips via `juce::XmlDocument::parse` + `juce::ValueTree::fromXml`; hierarchy matches locked Theme > LookAndFeel > Component; `jreng::File::Watcher` → VT → repaint proven against fixture theme swap; debounce prevents mid-write reload; SPEC edit is text-only, no semantic change beyond file extension.
+**Action:** COUNSELOR drafts XML schema with **three-level hierarchy: `Theme > LookAndFeel > Component`** (ARCHITECT decision 2026-04-18). Theme is top-level palette. LookAndFeel groups Component-family styles (JUCE `juce::LookAndFeel` pattern). Component nodes bind leaf properties (colors, paddings). Covers all 10 theme fields (RFC §6.4) as Component-level leaves. **Hot-reload is MVP** via `jam::File::Watcher` (forked in Step 1.3b) — watches `~/.config/tit/themes/` folder. On `folderChanged` callback, re-parse active theme XML → `ValueTree::copyPropertiesAndChildrenFrom` on `THEME` subtree → `ValueTree::Listener` on `THEME` repaints views. `ThemeLoader` owns the `Watcher` instance and the change handler (200 ms debounce to swallow multi-write sequences).
+**Validation:** `@Auditor` — schema round-trips via `juce::XmlDocument::parse` + `juce::ValueTree::fromXml`; hierarchy matches locked Theme > LookAndFeel > Component; `jam::File::Watcher` → VT → repaint proven against fixture theme swap; debounce prevents mid-write reload; SPEC edit is text-only, no semantic change beyond file extension.
 
 #### Step 3.2: Implement `TitIdentifier.h` + `TitAxis.h`
 **Scope:** `Source/TitIdentifier.h`, `Source/state/TitAxis.h`
@@ -131,7 +135,7 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 **Action:** `@Engineer` implements remaining views per SPEC §9, §10, §11, §12.
 **Validation:** `@Auditor` — BLESSED per file; `ConfirmDialog` 7 variants (rewind, time-travel, dirty, merge, push, branch, time-travel-return) all render against fixtures.
 
-**DEMO MILESTONE** — At Sprint 3 close, `tit` launches with zero git installed and navigates every view from fixture data. Phase 3 defendable architectural milestone per RFC §3.4.
+**COMPONENT+STATE MILESTONE** — At Sprint 3 close: all 11 view components built and individually tested against `juce::ValueTree` fixtures; `TitState` APVTS-mirror machine live (atoms → VT via `juce::Timer::flush`); `MenuBuilder` dispatch covering 8 Operation states × 27 items. View-to-view navigation/dispatch (e.g., `Operation==TimeTraveling` → `HistoryView` active) is Sprint 4 scope — couples with Operation FSMs + git layer. Amended 2026-04-18 (corrected from earlier "navigates every view" overclaim).
 
 ---
 
@@ -144,7 +148,7 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 
 #### Step 4.2: Implement `GitRunner`
 **Scope:** `Source/git/GitRunner.h/.cpp`
-**Action:** `@Engineer` implements subprocess orchestrator consuming `jreng_subprocess`. Worker thread runs commands, streams stdout/stderr back via `callAsync` to message thread. Owns marker-file protocol surface.
+**Action:** `@Engineer` implements subprocess orchestrator consuming `jam_subprocess`. Worker thread runs commands, streams stdout/stderr back via `callAsync` to message thread. Owns marker-file protocol surface.
 **Validation:** `@Auditor` — BLESSED-B (thread ownership clean, `callAsync` only crossing primitive); streaming delivers progress to `ConsoleStream` without locks on hot path.
 
 #### Step 4.3: Implement parsers
@@ -192,7 +196,7 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 
 ### SPRINT 6 — Windows MSYS2 Parity
 
-#### Step 6.1: `jreng_subprocess` Windows implementation
+#### Step 6.1: `jam_subprocess` Windows implementation
 **Scope:** `modules/jreng_subprocess/` Windows platform guard
 **Action:** `@Engineer` adds `CreateProcess` + Windows pipe handling. ConPTY byte handling for color/cursor sequences. Windows streams via `juce::ChildProcess` Windows path.
 **Validation:** `@Auditor` — parity with macOS implementation; BLESSED per file; `#ifdef JUCE_WINDOWS` scope minimal.
@@ -217,16 +221,16 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 ## BLESSED Alignment
 
 - **B — Bound** — `TitApp` owns `TitState`, `TitScreen`, `GitRunner` via `std::unique_ptr`. `GitRunner` owns thread pool. Each `juce::ChildProcess` owned by its worker thread. Marker files owned by Protocol FSMs via RAII. Threads bound: message thread owns VT+views, subprocess workers own ChildProcess.
-- **L — Lean** — 300/30/3 per file enforced file-wide. Menu dispatch is `std::unordered_map` lookup, not switch chain. State detection is atom writes, not conditional ladders. YAGNI: no `jreng_git` extraction until second consumer (post-MVP).
+- **L — Lean** — 300/30/3 per file enforced file-wide. Menu dispatch is `std::unordered_map` lookup, not switch chain. State detection is atom writes, not conditional ladders. YAGNI: no `jam_git` extraction until second consumer (post-MVP).
 - **E — Explicit** — Zero early returns. All parameters visible. Magic values → named constants in `TitIdentifier.h` (SSOT). `jassert` on invariants. No silent fails — every error path writes `Console::LINE{stream:stderr}` or raises setup wizard.
 - **S — SSOT** — `TitState` ValueTree is SSOT for application state. `MenuItems.h` is SSOT for menu definitions. `TitIdentifier.h` is SSOT for all `juce::Identifier` keys. Theme XML is SSOT for colors. Marker files are SSOT for protocol progress.
 - **S — Stateless** — `tui::Component` subclasses hold transient render state only (scroll, focus). All persistent state lives in `TitState`. Orchestrator tells, never asks.
-- **E — Encapsulation** — `jreng_tui` imports no TIT application header (lower-layer discipline). `Source/git/` imports no `Source/view/`. Unidirectional layer flow. Views observe VT via listeners — never poke git layer.
+- **E — Encapsulation** — `jam_tui` imports no TIT application header (lower-layer discipline). `Source/git/` imports no `Source/view/`. Unidirectional layer flow. Views observe VT via listeners — never poke git layer.
 - **D — Deterministic** — Same VT + same generator → bit-identical menu output. Same git command + same cwd → same parser output. Emergent from BLESSE discipline.
 
 ## Contract Additions (ARCHITECT 2026-04-18)
 
-- **Use JUCE/jreng as much as possible. Don't fight the framework.** SVG path parsing delegates to `juce::Drawable::parseSVGPath` (Step 1.6). Theme uses `juce::LookAndFeel` pattern (Step 3.1). Config uses `juce::ValueTree` + `juce::XmlDocument` (no new parser deps). Subprocess uses `juce::ChildProcess` (Step 1.5). Timer flush uses `juce::Timer` (Step 3.3). This rule applies across every step — when a JUCE or jreng primitive solves it, use it.
+- **Use JUCE/jam as much as possible. Don't fight the framework.** SVG path parsing delegates to `juce::Drawable::parseSVGPath` (Step 1.6). Theme uses `juce::LookAndFeel` pattern (Step 3.1). Config uses `juce::ValueTree` + `juce::XmlDocument` (no new parser deps). Subprocess uses `juce::ChildProcess` (Step 1.5). Timer flush uses `juce::Timer` (Step 3.3). This rule applies across every step — when a JUCE or jam primitive solves it, use it.
 
 ## Risks / Open Questions
 
@@ -238,7 +242,7 @@ Validation = `@Auditor` confirms step output complies with ALL documented contra
 
 - **2026-04-18 — Scope:** Master PLAN covering all 6 sprints (Phase 0 through Windows parity). Windows MSYS2 = dedicated Sprint 6.
 - **2026-04-18 — SVG (RFC §6.2):** Use `juce::Drawable::parseSVGPath` for `d` attribute parsing. Port only `svg_render.go` + `braille.go`. Rasterizer rewritten against `juce::Path::Iterator`.
-- **2026-04-18 — Theme (RFC §6.4):** Hierarchy `Theme > LookAndFeel > Component`. Hot-reload MVP via `jreng::File::Watcher` — forked from `FigBug/Gin` `modules/gin/utilities/gin_filesystemwatcher.{h,cpp}` (BSD) into `jreng_core/file/` as nested class of existing `struct jreng::File` (Step 1.3b). Native backends: FSEvents / `ReadDirectoryChangesW` / inotify. Listener API provides both `folderChanged(File&)` and `fileChanged(File&, Event)` with event type (created/deleted/updated/renamed).
+- **2026-04-18 — Theme (RFC §6.4):** Hierarchy `Theme > LookAndFeel > Component`. Hot-reload MVP via `jam::File::Watcher` — forked from `FigBug/Gin` `modules/gin/utilities/gin_filesystemwatcher.{h,cpp}` (BSD) into `jreng_core/file/` as nested class of existing `struct jam::File` (Step 1.3b). Native backends: FSEvents / `ReadDirectoryChangesW` / inotify. Listener API provides both `folderChanged(File&)` and `fileChanged(File&, Event)` with event type (created/deleted/updated/renamed).
 - **2026-04-18 — Binary name:** `titc` during port (Sprint 1–5). Rename to `tit` deferred to Sprint 6 close when Go legacy retires.
 - **2026-04-18 — Fork mechanism:** Copy-verbatim of source files. No git submodule, no git subtree. Drift managed manually via handoff.md documentation at contribution points.
 - **2026-04-18 — Test framework:** `juce::UnitTest` (JUCE-native, zero external dep).

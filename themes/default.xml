@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TIT default theme (GFX) — C++/JUCE port reference.
+  Mirrors ___legacy___/internal/ui/theme_gfx.go verbatim.
+
+  Hierarchy: THEME > LOOK_AND_FEEL > [Component family nodes] > (color attributes).
+
+  Attribute names match Go TOML keys 1:1 (traceability, NAMES Rule -1).
+  Loaded via juce::XmlDocument::parse + juce::ValueTree::fromXml.
+  Hot-reload via jreng::File::Watcher on ~/.config/tit/themes/ (200 ms coalesce window).
+-->
+<THEME name="GFX" description="TIT default theme — reference for all other themes" version="1">
+  <LOOK_AND_FEEL>
+
+    <SCREEN
+      mainBackgroundColor="#090D12"
+      inlineBackgroundColor="#1B2A31"
+      selectionBackgroundColor="#0D141C"/>
+
+    <TEXT
+      contentTextColor="#4E8C93"
+      labelTextColor="#8CC9D9"
+      dimmedTextColor="#33535B"
+      accentTextColor="#01C2D2"
+      highlightTextColor="#D1D5DA"
+      terminalTextColor="#999999"
+      cwdTextColor="#67DFEF"
+      footerTextColor="#519299"/>
+
+    <BORDER
+      boxBorderColor="#8CC9D9"
+      separatorColor="#1B2A31"/>
+
+    <DIALOG
+      confirmationDialogBackground="#112130"
+      buttonSelectedTextColor="#0D1418"/>
+
+    <CONFLICT_RESOLVER
+      conflictPaneUnfocusedBorder="#2C4144"
+      conflictPaneFocusedBorder="#8CC9D9"
+      conflictSelectionForeground="#090D12"
+      conflictSelectionBackground="#7EB8C5"
+      conflictPaneTitleColor="#8CC9D9"/>
+
+    <STATUS
+      statusClean="#01C2D2"
+      statusDirty="#FC704C"/>
+
+    <TIMELINE
+      timelineSynchronized="#01C2D2"
+      timelineLocalAhead="#00C8D8"
+      timelineLocalBehind="#F2AB53"/>
+
+    <OPERATION
+      operationReady="#4ECB71"
+      operationNotRepo="#FC704C"
+      operationTimeTravel="#F2AB53"
+      operationConflicted="#FC704C"
+      operationMerging="#00C8D8"
+      operationRebasing="#00C8D8"
+      operationDirtyOp="#FC704C"/>
+
+    <MENU
+      menuSelectionBackground="#7EB8C5"/>
+
+    <SPINNER
+      spinnerColor="#00FFFF"/>
+
+    <DIFF
+      diffAddedLineColor="#5A9C7A"
+      diffRemovedLineColor="#B07070"/>
+
+    <COPY_HASH_LABEL
+      copyHashLabelForeground="#090D12"
+      copyHashLabelBackground="#01C2D2"/>
+
+    <CONSOLE_STREAM
+      outputStdoutColor="#999999"
+      outputStderrColor="#FC704C"
+      outputStatusColor="#01C2D2"
+      outputWarningColor="#F2AB53"
+      outputDebugColor="#33535B"
+      outputInfoColor="#01C2D2"/>
+
+  </LOOK_AND_FEEL>
+</THEME>
