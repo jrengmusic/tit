@@ -1,45 +1,31 @@
-# Binaries
-/tit
-/tit.exe
-/tit_x64
-/tit_arm64
-/tit_test
+# Build trees
+build/
+build-*/
+cmake-build-*/
 
-# Build directories
-/dist
-/build
-/titties 
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+.clangd
 
-# Go modules
-go.sum
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.claude/
-*~
+# Xcode / MSVC artifacts
+*.xcodeproj/
+*.xcworkspace/
+.vs/
+Debug/
+Release/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Testing
-*.out
-*.test
+# Editor
+*.swp
+*.swo
+*~
 
-# Debug
-debug.log
-*.pprof
-ties/
-
-# TIT runtime data
-.tit/
-
-# CAROL agent framework
-carol/
-
-# Cache (OpenAI)
-.opencode/**/
+# Harness
+.claude/
 

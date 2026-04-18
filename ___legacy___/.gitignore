@@ -1,0 +1,45 @@
+# Binaries
+/tit
+/tit.exe
+/tit_x64
+/tit_arm64
+/tit_test
+
+# Build directories
+/dist
+/build
+/titties 
+
+# Go modules
+go.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+*.out
+*.test
+
+# Debug
+debug.log
+*.pprof
+ties/
+
+# TIT runtime data
+.tit/
+
+# CAROL agent framework
+carol/
+
+# Cache (OpenAI)
+.opencode/**/
+

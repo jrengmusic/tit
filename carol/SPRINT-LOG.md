@@ -111,6 +111,96 @@
 
 ## SPRINT HISTORY
 
+## Sprint 15: C++/JUCE Port Scaffold (Phase 0) ✅
+
+**Date:** 2026-04-18
+**Duration:** ~1 day (multi-session)
+
+### Agents Participated
+- **COUNSELOR** — `/goplan` against RFC.md (BRAINSTORMER handoff), PLAN-tit-cpp-port.md authoring, 6-step Sprint 1 orchestration, mid-sprint PLAN amendments (13+ decisions locked), NAMES Rule -1 gating, CONTRACT-vs-PLAN reconciliation (byte-identity → visual parity, -Wall drop to END precedent, SCREAMING_SNAKE constant convention, jreng_markdown-stays/jreng_svg_braille-absorbed module topology, paint-nullify for RFC §6.1)
+- **Pathfinder** — caroline rename Sprint 5 verification (confirmed `jreng::Terminal` → `jreng::tui` shipped; prereq cleared); jreng_core SVG capability audit; jreng_tui dependency graph; tit project root enumeration; END CMake pattern extraction; FigBug/FileSystemWatcher vs Gin scope probes
+- **Librarian** — JUCE 8 file-watch primitive research (no `juce::FileWatcher`; canonical is Timer + mtime poll); FigBug/Gin `FileSystemWatcher` verification (`ReadDirectoryChangesW` + per-file callback); `juce::JUCEApplicationBase` vs `juce::JUCEApplication` module boundary; `juce::Drawable::parseSVGPath` + `juce::Path::Iterator` as SVG path SSOT
+- **Engineer** — all code writes across 6 steps + 2 resolution passes (Step 1.2 `-Wall` revert + juce_gui_basics addition; Step 1.4 five-point TIT-side fixes; Step 1.5 four-finding resolution + SCREAMING_SNAKE rename sweep; Step 1.6 F1/F2/F3 + sampleBraillePixelAt decomposition)
+- **Auditor** — validation pass after every step (1.1 / 1.2 / 1.2-redo / 1.3 / 1.3b / 1.4 / 1.5 / 1.5-redo / 1.6 / 1.6-redo); flagged four audit findings on jreng_subprocess (L, E, workingDir silent-drop, jassert absence); flagged three findings on jreng_braille (L, E, SSOT); verified BLESSED with MANIFESTO L "smell-detector" framing on 2×4 braille cell natural shape
+
+### Files Modified
+
+**Project-level (authored this sprint):**
+- `PLAN-tit-cpp-port.md` — new 400+ LOC master plan covering 6 sprints (Phase 0 through Windows parity). Amended repeatedly with locked decisions section + resolved-decisions audit trail
+- `.gitignore` — new root C++/CMake ignore set; later fixed to remove `carol/` exclusion (SPRINT-LOG/DEBT now tracked across dev machines)
+- `CMakeLists.txt` — ~360 LOC JUCE CMake scaffold; 4-probe JUCE discovery mirroring END; `juce_add_console_app` for `titc`; universal x86_64+arm64; C++17; END suppression-only flags (`-Wno-unused-parameter -Wno-sign-conversion -Wno-shadow`); modules wired in dep order: jreng_core → jreng_data_structures → jreng_markdown → jreng_tui → jreng_subprocess
+- `Source/Main.cpp` — 3 LOC, `START_JUCE_APPLICATION (TitApp)`
+- `Source/TitApp.h` — 19 LOC empty-shell `JUCEApplication` subclass
+- `Source/TitApp.cpp` — 30 LOC, `initialise` → `quit()` stub (removed Sprint 3)
+
+**Archived to `___legacy___/` (Step 1.1, 16 entries):**
+- `cmd/`, `internal/`, `scripts/`, `screenshot/`, `dist/`, `go.mod`, `go.sum`, `build.sh`, `release.sh`, `.goreleaser.yaml`, `entitlements.plist`, `ARCHITECTURE.md`, `CODEBASE-MAP.md`, `RELEASE_NOTES.md`, `README.md`, `LICENSE`, `.gitignore` (legacy Go)
+- Go TIT still builds via `cd ___legacy___ && go build ./cmd/tit`
+
+**Forks from caroline (Step 1.3 / 1.4 — byte-identical at fork point):**
+- `modules/jreng_core/` (62 files)
+- `modules/jreng_data_structures/` (7 files)
+- `modules/jreng_tui/` (full module post-rename; namespace `jreng::tui`, `paint()` method)
+- `modules/jreng_markdown/` (co-forked; jreng_tui declares it as dep)
+
+**TIT-forge extensions to forked modules (Step 1.3b + 1.4 fixes + 1.6):**
+- `modules/jreng_core/file/jreng_file_watcher.h` — 220 LOC; `struct jreng::File::Watcher` nested; BSD attribution to Roland Rabien/FigBug/Gin preserved
+- `modules/jreng_core/file/jreng_file_watcher.cpp` — 413 LOC; FSEvents/inotify/ReadDirectoryChangesW backends; `std::map::contains` → C++17-compatible `find() == end()`
+- `modules/jreng_core/file/LICENSE_Gin.txt` — 29 LOC BSD attribution
+- `modules/jreng_core/jreng_core.mm` — 1 LOC ObjC++ shim for FSEvents unit
+- `modules/jreng_core/jreng_core.h` — `OSXFrameworks: CoreServices` added; `jreng_file_watcher.h` aggregated
+- `modules/jreng_core/jreng_core.cpp` — aggregates `jreng_file_watcher.cpp` via unity include
+- `modules/jreng_core/file/jreng_file.h` — `struct Watcher;` forward decl inside `struct File`
+- `modules/jreng_tui/jreng_tui.h` — include order fix (`jreng_key_event.h` before `jreng_textbox.h`); added `braille/jreng_braille_grid.h` aggregation
+- `modules/jreng_tui/jreng_tui.cpp` — added `braille/jreng_braille_grid.cpp` unity include
+- `modules/jreng_tui/graphics/jreng_tui_rectangle.h:69,77` — removed `constexpr` from methods calling non-`constexpr` JUCE API
+- `modules/jreng_tui/ansi/jreng_ansi_screen.cpp:197-199,206-209` — `juce::Graphics` rvalue → named local `clipped` binding fix
+- `modules/jreng_tui/ansi/jreng_ansi_graphics.h:86` — `juce::Font` → `juce::Font { juce::FontOptions{} }` (JUCE 8 deprecation migration)
+- `modules/jreng_tui/markdown/jreng_ansi_markdown_renderer.cpp:94` — same deprecation migration with `withHeight(14.0f)`
+- `modules/jreng_tui/ansi/jreng_ansi_component.h:24` — explicit `void paint (juce::Graphics&) override final {}` nullify (closes RFC §6.1 concern that caroline's Sprint 5 rename only masked)
+- `modules/jreng_tui/braille/jreng_braille_grid.h` — 199 LOC; `namespace jreng::braille` flat sibling to `jreng::tui`
+- `modules/jreng_tui/braille/jreng_braille_grid.cpp` — 512 LOC after full decomposition pass; 14 functions including approved helpers `appendEdgeIntersection`, `collectSubpathStartPoints`, `paintScanlineRanges`, `processSvgDrawablePath`, `encodeBrailleCellAt`, `sampleBraillePixelAt`; `BraillePixelSample` POD; `computeSubpathBounds` SSOT-called (no inline duplicate)
+
+**TIT-authored from scratch (Step 1.5):**
+- `modules/jreng_subprocess/jreng_subprocess.h` — 19 LOC JUCE module declaration
+- `modules/jreng_subprocess/jreng_subprocess.cpp` — 2 LOC unity include
+- `modules/jreng_subprocess/subprocess/jreng_subprocess_subprocess.h` — 128 LOC `Subprocess` class + nested `Handler::Completion` / `Handler::Chunk` typedefs; SCREAMING_SNAKE constants (`BYTE_CAP`, `TRUNCATION_NOTICE`, `ENV_TERMINAL_PROMPT`, `ENV_PROGRESS_DELAY`)
+- `modules/jreng_subprocess/subprocess/jreng_subprocess_subprocess.cpp` — 239 LOC post-decomposition; `Worker` private thread class owning `juce::ChildProcess`; `buildCommand` prepends `env -C <workingDir>` to argv (POSIX substitute for juce::ChildProcess's missing cwd arg); `readStream`/`appendWithCap`/`computeIsReplace`/`processChunk` helpers; `jassert` on invariants
+
+**Fixture generator (not project code):**
+- `___legacy___/braille_ref/main.go` — 42 LOC Go reference driver for visual-parity spot-check
+
+### Alignment Check
+- [x] BLESSED — MANIFESTO fully applied; L treated as smell-detector per MANIFESTO text ("natural shape" of 2×4 braille cell iteration in `encodeBrailleCellAt`); all early returns eliminated; SSOT preserved across module forks; thread ownership clean (worker owns ChildProcess; main owns Worker; main owns Subprocess)
+- [x] NAMES — Rule -1 honored; all new identifiers ARCHITECT-approved pre-write (~35 names across sprint); SCREAMING_SNAKE locked as project constant convention mid-sprint
+- [x] JRENG-CODING-STANDARD — braces on new line; `override` without `virtual`; brace init; `nullptr`; alternative tokens `not`/`and`/`or`; `.at()` for container access; no anonymous namespaces; no `namespace detail`; pass-by-value for small types
+- [x] MANIFESTO Core Mantra ("NEVER OVERDO IT") + Contract Addition ("use JUCE/jreng as much as we can") — JUCE primitives (`Drawable::parseSVGPath`, `Path::Iterator`, `ChildProcess`, `Thread`, `Font`+`FontOptions`) consumed maximally; Gin fork reused for file-watching instead of hand-rolling; visual-parity locked over manual bezier(20) reimplementation
+- [x] RFC §4.1 scaffold layout matches project tree; RFC §3.2 `tui::Component : public juce::Component` Path A locked; RFC §6.1 paint-collision resolved (not just renamed)
+
+### Problems Solved
+- **Go toolchain stack fracture** (RFC §1) — C++/JUCE scaffold stands up alongside preserved Go build; `titc` binary is the forward artifact
+- **Caroline never had a downstream consumer** — TIT-cpp is the forge; 5 latent caroline bugs surfaced and fixed on first real consumption (include ordering, non-constexpr JUCE calls, rvalue binding, Font deprecation, paint-overload-shadow vs true override)
+- **RFC §6.1 paint() collision** — caroline Sprint 5 rename was incomplete; explicit `override final {}` nullify closes the hide
+- **`-Wall -Wextra` vs END precedent** — PLAN initially required `-Wall -Wextra`; END uses suppression-only; PLAN amended to inherit END's proven flag set
+- **jreng_svg_braille module boundary** — PLAN proposed separate module; ARCHITECT clarified "renderers live inside jreng_tui, parsers stay outside"; braille absorbed into `modules/jreng_tui/braille/` with `namespace jreng::braille` flat at `jreng::` (file placement ≠ namespace hierarchy)
+- **`juce::ChildProcess` missing cwd arg** — `env -C <workingDir>` POSIX prefix is the minimal CONTRACT-aligned fix (no shell escaping, no juce fork, no fork/exec bypass)
+- **SVG tessellation engine mismatch** — JUCE's `Path::Iterator` yields different pixels than Go's `approximateCubicBezier(20)`; byte-identity requirement retired in favor of visual parity; JUCE becomes path-raster SSOT per CONTRACT
+- **SCREAMING_SNAKE vs camelCase constant convention** — one locked project-wide; Subprocess constants retroactively renamed (`byteCap` → `BYTE_CAP`, etc., + `READ_CHUNK_SIZE`)
+- **carol/ gitignored from legacy policy** — fixed mid-sprint; CAROL sprint-log + debt ledger now travel with the repo
+- **jreng_markdown as jreng_tui dep** — RFC/PLAN omission discovered at Step 1.4; co-forked alongside jreng_tui (markdown parser stays separate module per parser-vs-renderer architectural rule)
+
+### Debts Paid
+- None (no `DEBT.md` entries paid this sprint — none existed at sprint start)
+
+### Debts Deferred
+- Windows parity (`CreateProcess` in `jreng_subprocess`, `ReadDirectoryChangesW` in `jreng::File::Watcher`, path normalization) — PLAN-locked to dedicated Sprint 6
+- stdout/stderr stream separation in `jreng_subprocess` — JUCE `ChildProcess` merges both streams; `Handler::Completion::stderrCapture` signature reserved; platform-native pipe impl deferred to Step 4.2 (`GitRunner`) if required
+- Caroline drift — all 5 TIT-forge jreng_tui fixes + extensions (Watcher, braille, Subprocess, svg_braille→absorbed, Font migration) eventually contribute back per PLAN Step 2.5 handoff pattern; caroline is downstream now, no urgency
+- Apple Developer ID code-signing + notarization for `titc` — PLAN Step 5.3 scope (rewrite from scratch, not port `___legacy___/scripts/post-build.sh`)
+- `jreng_ansi_markdown_renderer.cpp:94` magic `14.0f` font height — flagged pre-existing (forked from caroline), low-priority; scoped to unused-by-TIT markdown renderer
+
+---
+
 ## Sprint 14: Startup Spinner Animation + GOBIN Install ✅
 
 **Date:** 2026-04-15
