@@ -16,7 +16,7 @@
 //                 char; display logic in the view layer)
 //   destructive — true for items whose hint begins with "DESTRUCTIVE"
 
-namespace tit::menu
+namespace menu
 {
 
 struct MenuItemDef
@@ -94,4 +94,4 @@ inline constexpr MenuItemDef ABORT_MERGE     { "abort_merge",     "Abort merge",
 inline constexpr MenuItemDef REBASE_CONTINUE { "rebase_continue", "Continue rebase", 'c', false };
 inline constexpr MenuItemDef REBASE_ABORT    { "rebase_abort",    "Abort rebase",    'a', false };
 
-} // namespace tit::menu
+} // namespace menu

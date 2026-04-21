@@ -1,8 +1,5 @@
 #include "TitState.h"
 
-namespace tit
-{
-
 // ============================================================================
 // writeIfChanged — compare / write / snapshot
 // ============================================================================
@@ -114,5 +111,3 @@ bool TitState::flushStrings() noexcept
 
     return changed;
 }
-
-} // namespace tit

@@ -1,7 +1,7 @@
 #pragma once
 #include <juce_core/juce_core.h>
 
-namespace tit::ID
+namespace ID
 {
     // ---- A. VT root + top-level nodes (RFC §4.6) ----
     const juce::Identifier TIT          { "TIT" };
@@ -173,4 +173,4 @@ namespace tit::ID
     const juce::Identifier description                 { "description" };
     const juce::Identifier version                     { "version" };
 
-} // namespace tit::ID
+} // namespace ID

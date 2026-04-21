@@ -3,7 +3,6 @@
 #include "view/Header.h"
 #include "view/Footer.h"
 #include "view/MenuView.h"
-#include "view/TitScreen.h"
 #include "state/TitAxis.h"
 #include "TitIdentifier.h"
 

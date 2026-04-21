@@ -1,8 +1,5 @@
 #include "TitState.h"
 
-namespace tit
-{
-
 // ============================================================================
 // Construction / Destruction
 // ============================================================================
@@ -273,5 +270,3 @@ bool TitState::flush() noexcept
     }
     return changed;
 }
-
-} // namespace tit

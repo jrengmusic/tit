@@ -133,14 +133,8 @@ message(STATUS "━━━━━━━━━━━━━━━━━━━━━�
 # ============================================================================
 
 set(JAM_ROOT "$ENV{HOME}/Documents/Poems/dev/jam" CACHE PATH "Path to jam modules")
-
-juce_add_module("${JAM_ROOT}/jam_core")
-juce_add_module("${JAM_ROOT}/jam_data_structures")
-juce_add_module("${JAM_ROOT}/jam_markdown")
-juce_add_module("${JAM_ROOT}/jam_tui")
-juce_add_module("${JAM_ROOT}/jam_subprocess")
-
-message(STATUS "JAM modules registered: jam_core, jam_data_structures, jam_markdown, jam_tui, jam_subprocess")
+add_subdirectory("${JAM_ROOT}" "${CMAKE_BINARY_DIR}/jam")
+message(STATUS "JAM modules registered via ${JAM_ROOT}/CMakeLists.txt")
 message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 # ============================================================================
@@ -197,6 +191,12 @@ juce_add_console_app(${TARGET_NAME}
 )
 
 target_sources(${TARGET_NAME} PRIVATE ${SOURCES})
+
+juce_add_binary_data(titc_assets
+    SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/Assets/tit_logo.svg"
+)
+
+target_link_libraries(${TARGET_NAME} PRIVATE titc_assets)
 
 target_include_directories(${TARGET_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Source"
@@ -330,91 +330,6 @@ if(COMMAND _juce_fixup_module_source_groups)
     _juce_fixup_module_source_groups()
 endif()
 
-message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
-# ============================================================================
-# TEST TARGET
-# ============================================================================
-
-set(TEST_TARGET_NAME "titc_tests")
-
-juce_add_console_app(${TEST_TARGET_NAME}
-    PRODUCT_NAME "titc_tests"
-    VERSION "${PROJECT_VERSION}"
-    COMPANY_NAME "${PROJECT_COMPANY}"
-    COMPANY_WEBSITE "${PROJECT_WEBSITE}"
-    BUNDLE_ID "${BUNDLE_ID_PREFIX}.titc_tests"
-)
-
-target_sources(${TEST_TARGET_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TestRunner.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/MenuTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ListPaneTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/SplitPaneTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/DialogTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ConsoleStreamTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TextPaneTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/SpinnerTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/ThemeResolverTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/TitStateTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/MenuBuilderTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/RootViewsTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tests/BrowserViewsTests.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/state/TitAxis.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/state/TitState.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/state/TitState_flush.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/menu/MenuBuilder.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/Banner.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/Header.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/Footer.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/MenuView.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/TitScreen.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/HistoryView.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/FileHistoryView.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/ConflictResolverView.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/ConsoleView.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/ConfirmDialog.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/view/SetupWizardView.cpp"
-)
-
-target_include_directories(${TEST_TARGET_NAME} PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source"
-)
-
-foreach(MODULE ${JUCE_MODULES})
-    if(TARGET juce::${MODULE})
-        target_link_libraries(${TEST_TARGET_NAME} PRIVATE juce::${MODULE})
-    else()
-        message(FATAL_ERROR "JUCE module not found: ${MODULE}")
-    endif()
-endforeach()
-
-target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_core)
-target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_data_structures)
-target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_markdown)
-target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_tui)
-target_link_libraries(${TEST_TARGET_NAME} PRIVATE jam_subprocess)
-
-target_compile_definitions(${TEST_TARGET_NAME} PRIVATE
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    DONT_SET_USING_JUCE_NAMESPACE=1
-    JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:${TEST_TARGET_NAME},JUCE_PRODUCT_NAME>"
-    JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:${TEST_TARGET_NAME},JUCE_VERSION>"
-)
-
-_tit_pre_generate_juce_header(${TEST_TARGET_NAME})
-juce_generate_juce_header(${TEST_TARGET_NAME})
-
-if(APPLE OR UNIX)
-    target_compile_options(${TEST_TARGET_NAME} PRIVATE
-        -Wno-unused-parameter
-        -Wno-sign-conversion
-        -Wno-shadow
-    )
-endif()
-
-message(STATUS "Test target created: ${TEST_TARGET_NAME}")
 message(STATUS "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 # ============================================================================

@@ -8,7 +8,7 @@
 // Each function is a pure function of the REPO ValueTree subtree.
 // No member access, no side effects, no early returns.
 
-namespace tit::menu
+namespace menu
 {
 
 // ---------------------------------------------------------------------------
@@ -249,4 +249,4 @@ juce::Array<MenuItemDef> MenuBuilder::build (const juce::ValueTree& repoSubtree)
     return generators.at (op) (repoSubtree);
 }
 
-} // namespace tit::menu
+} // namespace menu

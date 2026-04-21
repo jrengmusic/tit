@@ -13,6 +13,8 @@ detect_cpu_count() {
     esac
 }
 
+clear
+
 echo "Cleaning..."
 rm -rf Builds/Ninja
 

@@ -1,9 +1,7 @@
 #include "TitAxis.h"
 #include <unordered_map>
 
-namespace tit
-{
-    juce::String toString (GitEnvironment v) noexcept
+juce::String toString (GitEnvironment v) noexcept
     {
         static const std::unordered_map<GitEnvironment, juce::String> table
         {
@@ -160,5 +158,3 @@ namespace tit
         jassert (table.count (s) > 0);
         return table.at (s);
     }
-
-} // namespace tit

@@ -4,9 +4,6 @@
 #include "TitAxis.h"
 #include "TitIdentifier.h"
 
-namespace tit
-{
-
 // ============================================================================
 // TitState
 // ============================================================================
@@ -206,5 +203,3 @@ private:
 
     FlushSnapshot lastFlushed;
 };
-
-} // namespace tit

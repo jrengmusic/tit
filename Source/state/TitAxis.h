@@ -1,9 +1,7 @@
 #pragma once
 #include <juce_core/juce_core.h>
 
-namespace tit
-{
-    // SPEC §3 — five state axes
+// SPEC §3 — five state axes
 
     enum class GitEnvironment { Ready, NeedsSetup, MissingGit, MissingSSH };
     enum class WorkingTree    { Clean, Dirty };
@@ -29,5 +27,3 @@ namespace tit
     Operation      parseOperation      (const juce::String&) noexcept;
     Remote         parseRemote         (const juce::String&) noexcept;
     SetupPhase     parseSetupPhase     (const juce::String&) noexcept;
-
-} // namespace tit

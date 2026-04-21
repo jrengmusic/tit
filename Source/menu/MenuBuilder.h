@@ -20,7 +20,7 @@
 // BLESSED S — no side effects; no member mutation; builder is const.
 // BLESSED E — caller commits VT; builder returns data only.
 
-namespace tit::menu
+namespace menu
 {
 
 class MenuBuilder
@@ -41,4 +41,4 @@ private:
     std::unordered_map<Operation, Generator> generators;
 };
 
-} // namespace tit::menu
+} // namespace menu
