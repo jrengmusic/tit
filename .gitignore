@@ -29,6 +29,3 @@ Thumbs.db
 # Harness
 .claude/
 
-.clangd
-compile_commands.json
-.cache/
