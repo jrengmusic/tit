@@ -259,12 +259,12 @@ the whole sprint — never per step.
    | `historyCount` | `` `100` `` | The count of the commits that the history cache holds. |
    | `historyLog` | `` `git OPTIONS log --no-renames --numstat FORMAT -n` `` | The commits of HEAD with the count lines of their files; the count follows. |
    | `rangeLog` | `` `git OPTIONS log --no-renames --numstat FORMAT` `` | The commits of a range with the count lines of their files; the range follows. |
-   | `functionLog` | `` `git OPTIONS log FORMAT -L` `` | The commits that changed one function; the function and the file follow as one argument. |
+   | `functionLog` | `` `git OPTIONS log --no-patch FORMAT -L` `` | The commits that changed one function, with no patch; the function and the file follow as one argument. |
    | `showPatch` | `` `git OPTIONS show --no-renames COLOUR HEADFORMAT` `` | Prints the head text and the patch of a commit; the hash follows, then `--` and a path for one file. |
    | `functionPatch` | `` `git OPTIONS log COLOUR HEADFORMAT -n 1 -L` `` | Prints the head text and the patch of one function in one commit; the function and the file follow as one argument, then the hash. |
    | `changes` | `` `git OPTIONS diff --no-renames COLOUR HEAD` `` | Prints the patch of the working tree; `--` and a path follow for one file. |
    | `changesCounts` | `` `git OPTIONS diff --no-renames --numstat HEAD` `` | The count lines of the changed files of the working tree. |
-   | `untrackedPatch` | `` `git OPTIONS diff COLOUR --no-index -- /dev/null` `` | Prints a file that is not tracked as an added file; the path follows. |
+   | `untrackedPatch` | `` `git OPTIONS diff COLOUR --no-index --` `` | Compares two paths of the file system; the empty file of titc and the path of a file that is not tracked follow. |
    | `pathOption` | `` `--` `` | The option before a path. |
    | `untrackedFiles` | `` `git -c core.quotePath=false ls-files --others --exclude-standard` `` | The files that are not tracked and not ignored. |
    | `searchOption` | `` `-S` `` | The option of a search text; the text follows with no space. |
@@ -277,10 +277,12 @@ the whole sprint — never per step.
    | `headSeparator` | `` `1d` `` | The byte that ends the fields of a commit record. |
 
    - The fields of a record, in order: the hash, the author date in strict ISO 8601 (`%aI`), and the short hash with the subject. The head text (author, date, message) is not a field: `HEADFORMAT` prints it at the start of each patch.
-   - `--no-index`: "to compare the given two paths on the filesystem" (`git-diff.adoc`). With `/dev/null` as the first path, the file shows as an added file. Step 13 measures it on macOS, and Step 14 on Windows.
+   - `--no-index`: "This form is to compare the given two paths on the filesystem" (the manual page of this machine, `git-diff.1:54-59`). The first path is the empty file of titc (item 5), so each line of the file shows as an added line. No path of the line is a device name of one platform.
    - The three separator rows hold the number of a byte as two hexadecimal digits: the bytes of `%x1e`, `%x1f`, and `%x1d` of the format. `getSeparator` of Step 7 reads each with `juce::String::getHexValue32`.
    - `text::Git::upstream` of Part 8 is the command line `rev-parse @{u}`. `upstreamName` is the name alone.
-   - `functionLog` has no `--numstat`: with `-L`, "Diff stat formats (`--stat`, `--numstat`, `--shortstat`, `--dirstat`) are not currently implemented" (`git-log.adoc`). Its argument is `:<funcname>:<file>`, the function name form of `-L`.
+   - `-L`: "you may only give zero or one positive revision arguments"; "Implies `--patch`. Patch output can be suppressed using `--no-patch`, but other diff formats (namely `--raw`, `--numstat`, …) are not currently implemented" (the manual page of this machine, `git-log.1:196-214`). So `functionLog` has `--no-patch` and no `--numstat`, and its records hold the head fields only. Its argument is `:<funcname>:<file>`, the function name form of `-L`. `functionPatch` gives one positive revision, the hash of the record, and `-n 1`: it prints the newest change of the function at that commit.
+
+5. `cast/files.md`, table `## files`: after the last row of Part 10 Step 5, add one row of type `@string`: `emptyFile`, value `` `TIT_EMPTY` ``, description `An empty file in the repository data folder, the first path of the comparison that prints a file that is not tracked.` Add `tit/cast/files.md` to the scope of this step.
 
 **Validation:**
 - Each placeholder is in `pretty-formats.adoc`: `%H`, `%h`, `%s`, `%an`, `%aI`, `%aD`, `%B`, `%n`, `%xNN`.
@@ -613,7 +615,7 @@ void TITGitProcessor::addFiles (std::string_view counts, const juce::String& pat
    - `recordsCapacity` is 1 MiB. The cache of `jam/` is 4214 lines (Measured in this session), about a quarter of that. The message thread drains the lane at each flush of the count row, while the job writes. A record that finds no room is not written, as in EVE; Step 13 measures the largest feed.
    - `getRecords` gives the records of the tool: each one starts at the record separator. `getFields` gives the fields of the head of a record: the hash, the date, and the short hash with the subject. `getBody` gives the text after the head: the count lines, each with added, a tab, deleted, a tab, and the path (inventory, the sample). The three are views and texts of one output, made at creation.
    - The row `patch` of a record is the command line that prints its patch. For a commit it is the patch line of the feed and the hash. For a file it adds `--` and the path. The path is in double quotes, because the TTY of the chain keeps a quoted group as one argument (`jam_terminal/tty/native/jam_TerminalTTY_posix.cpp:253-256`).
-   - The function feed gives a path: each record then has that one file, and the body of the record, which is a patch, is not read (Step 2, item 4: `-L` gives no count lines).
+   - The function feed gives a path: each record then has that one file. Its records have no body (Step 2, item 4: `functionLog` has `--no-patch`, and `-L` gives no count lines).
    - `juce::StringArray::operator[]` returns the empty text for an index out of range (doxygen `classjuce_1_1StringArray`). So a record with a missing field gives empty rows, and no test is needed.
 
 4. Source: the reader of the lane. The reader is the message thread: `TITView` calls `applyRecords` at the event of `numRecords` (Step 11, item 4). Copy the static function `applyNames` of `eve/Source/EVETerminalProcessor.cpp:31-58` to the top of the file, verbatim.
@@ -764,12 +766,14 @@ void TITGitProcessor::readChanges()
     pool.addJob ([this, directory = juce::File { model.state[Id::directory].toString() }]
     {
         const auto space { juce::String::charToString (Chars::space) };
+        const auto emptyFile { directory.getChildFile (files::gitDirectory).getChildFile (files::emptyFile) };
 
+        emptyFile.create();
         addRecord (recordLevel, jam::Format::toType (Id::commit), { { Id::value, text::Header::dirtyDescription }, { Id::patch, text::Git::changes }, { Id::selectedIndex, 0 } });
         addFiles (getOutputText (directory, jam::ChildProcess::getArguments (text::Git::changesCounts)), text::Git::changes);
 
         for (const auto& path : juce::StringArray::fromLines (juce::String { getOutputText (directory, jam::ChildProcess::getArguments (text::Git::untrackedFiles)) }.trim()))
-            addRecord (childLevel, jam::Format::toType (Id::file), { { Id::id, path }, { Id::attribute, text::Reading::addedMark }, { Id::value, path }, { Id::patch, text::Git::untrackedPatch + space + path.quoted() } });
+            addRecord (childLevel, jam::Format::toType (Id::file), { { Id::id, path }, { Id::attribute, text::Reading::addedMark }, { Id::value, path }, { Id::patch, juce::StringArray { text::Git::untrackedPatch, emptyFile.getRelativePathFrom (directory).quoted(), path.quoted() }.joinIntoString (space) } });
 
         addRecord (recordLevel, jam::Format::toType (Id::reading), {});
     });
@@ -806,6 +810,7 @@ juce::StringArray TITGitProcessor::getRewindLines (const juce::ValueTree& git, c
    - Each feed writes its records, then the record of its tree. The tree keeps its old records until the new feed is complete.
    - `readPatch` shows the patch of one record: it empties the `patch` chain and runs the `patch` line of the record on it. The decoder reads the colours and the word marks of the tool, and the swap holds the lines (ruling 58). The text pane of the browser reads that swap (Step 10). A record with no command line gives an empty pane.
    - The patch of a commit record is the whole commit. The patch of a file record is that file. Both start with the head text: the author, the date, and the message (Step 2, item 4, `showPatch`).
+   - `readChanges` makes the empty file of titc in the repository data folder: `juce::File::create` makes an empty file when none exists (doxygen `classjuce_1_1File`). The patch line of a file that is not tracked compares that file with it (Step 2, item 4).
    - The working tree changes are one record with no hash. Its text in the menu is `Local changes present`, the header text of a dirty tree (Part 10 Step 6). Its files are the changed files, and each untracked file with the mark `+`.
    - `getUpstream` gives the name of the upstream for the incoming and outgoing feed. `getRewindLines` gives the legacy lines of a rewind (inventory). `currentHash` is the short hash of HEAD (Part 8 Step 7), so the test is `startsWith`. Both are static members of the processor, as `getPushLine` is (Part 9 Step 5).
    - `argument` is one argument of the child, whole: a search text or a file path can hold a space (Part 8 Step 7, item 9, `getArguments`).
@@ -845,7 +850,7 @@ class HistoryView : public juce::Component,
                     private juce::ValueTree::Listener
 {
 public:
-    HistoryView (juce::ValueTree stateToUse, jam::Registry::Getters& getters);
+    HistoryView (juce::ValueTree stateToUse, jam::Registry::Getters& getters, jam::Registry::Events& events);
     ~HistoryView() override = default;
 
     void resized() override;
@@ -877,7 +882,7 @@ private:
 };
 ```
 
-2. The constructor: the form of Part 10 Step 11, item 2, with `textPane (stateToUse.getChildWithName (jam::Format::toType (Id::patch)), getters)` in the initializer list. Then `setWantsKeyboardFocus (true);`, `addAndMakeVisible (textPane);`, `addChildComponent (searchInput);`, and `registerEvents();`. The state is the root of the Model, as for `HeaderView`. `getters` are the getters of the `patch` chain (Step 11, item 2).
+2. The constructor: the form of Part 10 Step 11, item 2, with `textPane (stateToUse.getChildWithName (jam::Format::toType (Id::patch)), getters, events)` in the initializer list. Then `textPane.setMode (map::EditorMode::reader);`, `setWantsKeyboardFocus (true);`, `addAndMakeVisible (textPane);`, `addChildComponent (searchInput);`, and `registerEvents();`. The state is the root of the Model, as for `HeaderView`. `getters` and `events` are those of the `patch` chain (Step 11, item 2). The pane is in `reader` mode: it stays at the top of a new patch, and its keys go to the editor, the viewport, and the parent (Part 10 Step 14, item 7).
 3. The layout and the focus:
 
 ```cpp
@@ -1008,7 +1013,7 @@ void HistoryView::valueTreePropertyChanged (juce::ValueTree& tree, const juce::I
    - Constants, after `confirmMilliseconds`: `static constexpr int shortHashLength { 7 };`, `static constexpr int firstItemId { 1 };`.
    - Members, after `commitMessage`: `HistoryView history;`. After `events`: `jam::Function::Map<int, jam::Function::pointerCapacity, void ()> cancellations;`, `jam::Function::Map<int, jam::Function::pointerCapacity, juce::ValueTree ()> records;`, and `jam::Function::Map<int, jam::Function::pointerCapacity, void (const juce::ValueTree&)> selections;`.
 
-2. The constructor: in the initializer list, after `console`, add `, history (modelToUse.state, gitProcessorToUse.patch.userInterfaceGetters)`. After `addChildComponent (commitMessage);`, add `addChildComponent (history);`. After `registerActions();`, add `registerCancellations();`, `registerRecords();`, and `registerSelections();`. In `registerActions()`, add at its end `registerHistoryActions();`, `registerBrowserActions();`, and `registerSearchActions();`.
+2. The constructor: in the initializer list, after `console`, add `, history (modelToUse.state, gitProcessorToUse.patch.userInterfaceGetters, gitProcessorToUse.patch.chainEvents)`. After `addChildComponent (commitMessage);`, add `addChildComponent (history);`. After `registerActions();`, add `registerCancellations();`, `registerRecords();`, and `registerSelections();`. In `registerActions()`, add at its end `registerHistoryActions();`, `registerBrowserActions();`, and `registerSearchActions();`.
 
 3. The view of a mode. Replace `isMenuMode` and `setFocus`. In `resized`, after `commitMessage.setBounds (content);`, add `history.setBounds (content);`. In `setView`, after the `commitMessage.setVisible` line, add `history.setVisible (isLarge and HistoryView::isHistoryMode (mode));`.
 
@@ -1520,7 +1525,7 @@ juce::String FooterView::getHint() const
 
 **Validation:**
 - Each build ends with exit code 0. Each row gives its expected result.
-- These facts of this part are measured in the program: the records of Step 7 equal the output of the cache command (the session measured the output alone); a path with a space as one argument of `jam::ChildProcess`, and as one quoted argument of a patch line; the colours of the detail; the patch line of a function record, `functionPatch`, prints one commit; the patch line of an untracked file, `untrackedPatch`, prints the file as added; the cache of `jam/` fits the lane of the records with no assert.
+- These facts of this part are measured in the program: the records of Step 7 equal the output of the cache command (the session measured the output alone); a path with a space as one argument of `jam::ChildProcess`, and as one quoted argument of a patch line; the colours of the detail; the cache of `jam/` fits the lane of the records with no assert.
 - The time from a new selection to the patch on the screen is below one frame of wait for the user in `jam/` (ruling 37: the detail is instant).
 - The time of the cache job in `jam/` is below two seconds (measured in this session: 0.94 s for the process alone).
 - ARCHITECT sets the layout of the browser at this run (ruling 7): the place of the menu of the records, and the form of the diff.

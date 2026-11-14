@@ -1194,12 +1194,12 @@ private:
 };
 ```
 
-3. The constructor: the form of Part 10 Step 11, item 2, with this initializer of `versions`. Then `setWantsKeyboardFocus (true);` and `addAndMakeVisible` for each element of `labels` and of `versions` in two range-fors. The state is the root of the Model.
+3. The constructor: the form of Part 10 Step 11, item 2, with this initializer of `versions`. Then `setWantsKeyboardFocus (true);`, `addAndMakeVisible` for each element of `labels` and of `versions` in two range-fors, and `setMode (map::EditorMode::reader)` on each element of `versions` (Part 10 Step 14, item 7). The state is the root of the Model.
 
 ```cpp
-    , versions { { { stateToUse.getChildWithName (jam::Format::toType (Id::base)), chains.at (0).userInterfaceGetters },
-                   { stateToUse.getChildWithName (jam::Format::toType (Id::ours)), chains.at (1).userInterfaceGetters },
-                   { stateToUse.getChildWithName (jam::Format::toType (Id::theirs)), chains.at (2).userInterfaceGetters } } }
+    , versions { { { stateToUse.getChildWithName (jam::Format::toType (Id::base)), chains.at (0).userInterfaceGetters, chains.at (0).chainEvents },
+                   { stateToUse.getChildWithName (jam::Format::toType (Id::ours)), chains.at (1).userInterfaceGetters, chains.at (1).chainEvents },
+                   { stateToUse.getChildWithName (jam::Format::toType (Id::theirs)), chains.at (2).userInterfaceGetters, chains.at (2).chainEvents } } }
 ```
 
 4. The bodies:

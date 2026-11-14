@@ -88,6 +88,9 @@ Paths are relative to `~/Documents/Poems/dev/` unless the row says otherwise. JU
 | The chain of EVE: the tick decodes the TTY into the buffer and the swap; the async update moves the history rows into the swap; the editor getter gives the swap | `eve/Source/EVETerminalProcessor.cpp:256-273,329-345,554-564` |
 | `TextEditor::bindToProcessor (getters, type, parameterID)` sets the source of the editor to the getter and pulls at each vblank | `jam_gui/widgets/jam_TextEditor.h:134-144`; `jam_TextEditor.cpp:82-100` |
 | `jam::Function::Map::get` throws `std::out_of_range` for an absent key | `jam_core/function_map/jam_Function.h:311` |
+| The editor takes a key by its mode. In `terminal` mode: the key sheet first, then the bytes of the key go to the input callback. In `reader` mode: the commands, then the viewport, then the parent. | `jam_gui/widgets/jam_TextEditor.cpp:604-645` |
+| `addBlocks()` pulls the swap at each vblank with no test of the mode or of read-only. The view follows the end only in `terminal` mode. | `jam_TextEditor.cpp:1056-1091` |
+| `jam::CpuGraphicsEngine::getRefreshRateHz()` is in `jam_graphics`, a module of TIT | `jam_graphics/engine/jam_CpuGraphicsEngine.h:71`; `PLAN-tit-1-project.md:171` |
 | Legacy reads byte by byte and flushes a line at each `\r` and each `\n`; a `\r` line replaces the last line | `legacy/git/execute.go:143-186`; Part 2, "What the shipped code has", row "Progress lines" |
 | `AnsiDocument::addLines (data, size)`: "Each newline in the bytes adds an `Id::line` element. The text after the last newline stays in the pen". It applies the SGR colours. Its control branch tests the newline only, so a carriage return adds nothing. | `jam_terminal/document/jam_AnsiDocument.h:43-53`; `jam_AnsiDocument.cpp:5-9,638-644,967-1044` |
 | `TextEditor::setLiveBlock (std::unique_ptr<Document>)` replaces the live block. It sets the cursor and the anchor to 0, the default mode and the mode to `reader`, read-only to `true`, and the view position to the top. It is public after Part 6. | `jam_gui/widgets/jam_TextEditor.cpp:1130-1155`; Part 6 Step 6 (ruling 32) |
@@ -235,7 +238,7 @@ TerminalUnixTTY::TerminalUnixTTY (bool newShouldUseLoginShell)
 int TerminalUnixTTY::close()
 {
     int status { 0 };
-    const auto reaped { childProcess > 0 ? waitpid (childProcess, &status, WNOHANG) : -1 };
+    auto reaped { childProcess > 0 ? waitpid (childProcess, &status, WNOHANG) : -1 };
     const auto isChildRunning { reaped == 0 };
 
     if (isChildRunning)
@@ -261,7 +264,7 @@ int TerminalUnixTTY::close()
     }
 
     if (isChildRunning)
-        waitpid (childProcess, nullptr, 0);
+        reaped = waitpid (childProcess, &status, 0);
 
     childProcess = -1;
 
@@ -275,18 +278,14 @@ int TerminalUnixTTY::close()
    - Replace the statement of `:775-779` with:
 
 ```cpp
-            if (GetExitCodeProcess (process.get(), &exitCode))
+            if (GetExitCodeProcess (process.get(), &exitCode) and exitCode == STILL_ACTIVE)
             {
-                if (exitCode == STILL_ACTIVE)
-                {
-                    TerminateProcess (process.get(), 0);
-                    WaitForSingleObject (process.get(), instantKillChildWaitMs);
-                }
-                else
-                {
-                    result = static_cast<int> (exitCode);
-                }
+                TerminateProcess (process.get(), EXIT_FAILURE);
+                WaitForSingleObject (process.get(), instantKillChildWaitMs);
             }
+
+            if (GetExitCodeProcess (process.get(), &exitCode) and exitCode != STILL_ACTIVE)
+                result = static_cast<int> (exitCode);
 ```
 
    - After `writePending = false;` (`:807`), add `return result;`.
@@ -294,7 +293,8 @@ int TerminalUnixTTY::close()
 
 - The login wrapper hides the exit status. Measured on macOS, session 2026-11-14 (ruling 59): `/usr/bin/login -fqlp <user> /bin/bash --noprofile --norc -c "exec -l /bin/sh -c 'echo ran; exit 7'"` prints `ran` and returns 0; the same child with no `login` returns 7.
 - With `shouldUseLoginShell` false, the child is `execvp (shell, argv)` (`:167`). Windows has no wrapper: `CreateProcessW` runs `"shell" args` (`jam_TerminalTTY_windows.cpp:576-603`).
-- `close()` gives the status that each backend already asks the OS for. A child that `close()` ends is a failure: on POSIX `reaped` is 0, and on Windows the code is `STILL_ACTIVE`. A second `close()` of one session is a failure too: `childProcess` is -1, and `process` is null.
+- `close()` gives the status of the call that reaps the child. The existing body already makes both calls: `waitpid` with `WNOHANG`, then the kill and the blocking `waitpid` (`jam_TerminalTTY_posix.cpp:288-313`). A child that ended by itself gives `WIFEXITED` and its own status, in the first call or in the second. A child that the signal ended is not `WIFEXITED`, so it is a failure. On Windows the code after the wait is the code of the child, or `EXIT_FAILURE` when `TerminateProcess` ended it. A second `close()` of one session is a failure too: `childProcess` is -1, and `process` is null.
+- A read of a TTY with no session gives -1: `close()` sets `master` to -1 (`jam_TerminalTTY_posix.cpp:308-309`), and `read` returns -1 for the end of the stream and for each error that is not `EAGAIN` (`:318-339`).
 - `close()` waits on the `cancelled` semaphore of the read source (`:296-304`). So no caller calls it inside the tick of `onBytesReady` (Step 10).
 - Windows needs no sidecar file: "If the directory does not contain conpty.dll, the TerminalTTY falls back to the inbox kernel32 ConPTY" (`jam_TerminalTTY_windows.h:50-51`).
 
@@ -497,7 +497,7 @@ void TextEditor::setDefaultMode (int newDefaultMode)
    | `force push` | `string` | `}` | `menuNormal` | Force push. |
    | `replace local` | `string` | `x` | `menuNormal` | Replace local. |
    | `pull merge` | `string` | `[` | `menuNormal` | Pull. |
-   | `cancel` | `string` | `escape` | `console input` | Stop, close, or go back. |
+   | `cancel` | `string` | `escape` | `console input terminal` | Stop, close, or go back. |
    | `input submit` | `string` | `return` | `input` | Submit the text. |
    | `default mode` | `string` | `escape` | `visual open` | Leave visual mode. |
    | `insert before` | `string` | `i` | `normal` | Insert before the cursor. |
@@ -521,7 +521,7 @@ void TextEditor::setDefaultMode (int newDefaultMode)
    - The thirteen edit rows are the tested keys of EVE's sheet (Part 6, inventory, last row of "The old bodies"; Part 6, closed item 2).
    - The sheet holds the thirteen edit rows only while the mode of TIT shows an editable editor (Step 16, item 6). A read-only editor can enter its visual mode with `v` (`jam/cast/terminal.md:1913-2063`), and the rows `d`, `c`, `x`, `p`, `P` apply in `visual`. With no edit row in the sheet, no key of a read-only view reaches an edit command (Part 6, closed item 3).
    - `menuNormal` and `normal` are two modes of two states. `c` in the menu reaches `TITView` with the Model root. `c` in the commit box reaches the editor with its `terminal` tree (inventory, key sheet facts).
-   - Escape in the normal mode of the commit box, and in the reader mode of the console, has no editor row. It goes to `TITView`, which runs `cancel`.
+   - Escape in the normal mode of the commit box, and in the reader mode of the console, has no editor row. It goes to `TITView`, which runs `cancel`. While a run runs, the console editor is in `terminal` mode: it gives the key to the key sheet with its own mode, `terminal`, before it sends bytes to the tool (`jam_gui/widgets/jam_TextEditor.cpp:634-637`). So the `cancel` row names `terminal` too, and Escape stops the run.
 
 **Validation:**
 - Each menu text equals its legacy text. Each default key equals its legacy key (`legacy/app/menu_items.go`; `legacy/app/app_keys.go:8-19,37-77`).
@@ -635,6 +635,7 @@ public:
     int close();
 
     jam::Registry::Getters userInterfaceGetters;
+    jam::Registry::Events chainEvents;
 
 private:
     bool writePendingData();
@@ -646,6 +647,9 @@ private:
     void handleAsyncUpdate() override;
     void registerEvents();
     void registerUserInterfaceGetters();
+    void registerChainEvents();
+    void addInput (const char* bytes, int size);
+    void applyPendingInput();
     void prepare (jam::TerminalWinsize winsize);
     jam::TerminalWinsize getWinsize() const;
 
@@ -655,6 +659,8 @@ private:
     const juce::Identifier tag;
     std::unique_ptr<jam::Model::ParameterAttachment> winsizeAttachment;
     jam::TerminalProcessor::Events events;
+    std::string pendingInput;
+    jam::TerminalFIFO input;
     jam::VirtualDevice device { jam::VirtualDeviceType::virtualDeviceTypeName, jam::VirtualDeviceType::virtualDeviceTypeName };
     std::unique_ptr<jam::TerminalTTY> tty { createTTY() };
     jam::TerminalProcessor terminalProcessor;
@@ -679,6 +685,7 @@ TITRunProcessor::TITRunProcessor (TITModel& modelToUse, const juce::Identifier& 
                                                                           [this] (const juce::var&) { restart(); });
     registerEvents();
     registerUserInterfaceGetters();
+    registerChainEvents();
     tty->onBytesReady = [this] (int numSamples) { device.clock (numSamples); };
 }
 
@@ -698,6 +705,7 @@ std::unique_ptr<jam::TerminalTTY> TITRunProcessor::createTTY()
 
 void TITRunProcessor::audioDeviceAboutToStart (juce::AudioIODevice*)
 {
+    input.prepare (virtualBlockSize);
     terminalProcessor.prepare (virtualBlockSize);
 
     if (const auto winsize { getWinsize() }; winsize.isValid())
@@ -729,6 +737,8 @@ void TITRunProcessor::prepare (jam::TerminalWinsize winsize)
 
 void TITRunProcessor::process() noexcept
 {
+    input.writePendingData (*tty);
+
     while (terminalProcessor.process (*tty, terminalBuffer, swap, *jam::Colours::getInstance(), 0, events)) {}
 }
 
@@ -739,11 +749,11 @@ void TITRunProcessor::handleAsyncUpdate()
 }
 ```
 
-   These functions take the bodies of EVE, verbatim: the public `prepare()` (`EVETerminalProcessor.cpp:365-385`, without the profiler zones), `start()` (`:387-391`), `releaseResources()` (`:393-397`), `audioDeviceIOCallbackWithContext` (`:399-402`), `restart()` (`:404-407`), `audioDeviceStopped()` (`:425`), `writePendingData()` (`:329-335`), and `clearHistory()` (`:566-573`).
+   These functions take the bodies of EVE, verbatim: the public `prepare()` (`EVETerminalProcessor.cpp:365-385`, without the profiler zones), `start()` (`:387-391`), `releaseResources()` (`:393-397`), `audioDeviceIOCallbackWithContext` (`:399-402`), `restart()` (`:404-407`), `audioDeviceStopped()` (`:425`), `writePendingData()` (`:329-335`), `clearHistory()` (`:566-573`), `registerChainEvents()` (`:278-281`), `addInput` (`:283-287`), and `applyPendingInput()` (`:289-301`).
 
    - `createTTY` makes the POSIX TTY with no login wrapper (Step 1; ruling 59). On Windows the folder has no `conpty.dll`, so the TTY takes the ConPTY of the system (Step 1, the last note).
    - `prepare (winsize)` is the body of `EVETerminalProcessor.cpp:515-552` without its profiler zones and without `openTTY`: `run` opens the TTY (item 4). The history capacity is `jam::TerminalSwap::linesPerIndex`, the count of lines of one index file (`jam_terminal/document/jam_TerminalSwap.h:29`). The test of `isOpen()` names its threat: between two runs no session exists.
-   - `process()` is the decode loop of `EVETerminalProcessor.cpp:554-564`. TIT has no input lane and no bypass. The background argument is 0, the start value of EVE's `background` row (`eve/Source/layout/parameters.md:73`).
+   - `process()` is the body of `EVETerminalProcessor.cpp:554-564` without the bypass: it writes the input lane to the TTY, then it decodes. The input lane carries the keys of the console editor to the tool, as in EVE (`EVETerminalProcessor.h:262-269,351-352`). The editor in `terminal` mode gives the bytes of each key to its input callback (inventory, console facts), so the chain must take them. The user can then answer a prompt of the tool in the console. The background argument is 0, the start value of EVE's `background` row (`eve/Source/layout/parameters.md:73`).
    - `handleAsyncUpdate()` moves the history rows of the buffer into the swap, on the serial context of the updater (`EVETerminalProcessor.cpp:337-345`; `jam_core/concurrency/jam_AsyncUpdater.h:16-36`).
    - `clearHistory()` erases the grid inside a restart. The next write of the swap then moves its first line behind the erased lines (`jam_TerminalSwap.h:231-235`), so the pane starts empty.
    - The winsize of the chain is the row `winsize` of its child. The view of the pane writes it (Step 14), the Model carries the tree write to the parameter, and the attachment calls `restart()`, as in EVE (`EVETerminalProcessor.cpp:68-72`). The chain then prepares again for the new grid.
@@ -779,13 +789,14 @@ void TITRunProcessor::registerUserInterfaceGetters()
     {
         triggerAsyncUpdate();
         output = &swap;
+        applyPendingInput();
     });
 }
 ```
 
    - The decoder fires `shellExited` at the end of each drained pass, with 1 when the read of the TTY gave -1: the child ended, or no session exists (`jam_terminal/processor/jam_TerminalProcessor.cpp:78-88`; `jam_terminal/tty/jam_TerminalTTY.h:116-125`). The setter stores the row, as EVE does (`EVETerminalProcessor.cpp:143-144`). At the change from 0 to 1 it raises `numShellExits`, in the `numCommands` form (`:157`). A Model row keeps only the last value before a flush (`EVETerminalProcessor.h:241`), so the count carries each exit, and the row gives the edge. The setter runs on the tick: it reads two atomics and stores two.
    - Each other event of the decoder gets an empty setter. `jam::Function::Map::get` throws `std::out_of_range` for a key that is absent (`jam_core/function_map/jam_Function.h:311`), and the decoder and the swap call each event of EVE's lists (`EVETerminalProcessor.cpp:143-193`). TIT has no row for them.
-   - The getter is the text editor getter of EVE without the flush and the input (`EVETerminalProcessor.cpp:256-273`): `TITModel` keeps its flush timer (Part 7 Step 2), and TIT has no input lane. `jam::TextEditor::bindToProcessor` reads it at each vblank (`jam_gui/widgets/jam_TextEditor.cpp:82-100`). The trigger moves the new history rows into the swap.
+   - The getter is the text editor getter of EVE without the flush (`EVETerminalProcessor.cpp:256-273`): `TITModel` keeps its flush timer (Part 7 Step 2). `jam::TextEditor::bindToProcessor` reads it at each vblank (`jam_gui/widgets/jam_TextEditor.cpp:82-100`). The trigger moves the new history rows into the swap.
 
 4. `TITRunProcessor.cpp`, one session:
 
@@ -907,7 +918,7 @@ juce::StringArray TITGitProcessor::getReplaceLocalLines (const juce::ValueTree& 
 **Validation:**
 - No bail-out guard. No function body is longer than 30 lines.
 - No processor writes a tree or sends a byte to a view: no `setProperty`, no `sendPropertyChangeMessage`, no `juce::MessageManager::callAsync`, no `jam::Subprocess`, and no lane of output bytes (rulings 57 and 58). Each one writes the Model only with `storeValue`.
-- The tick stores atomics and decodes. It does not allocate, lock, wait, or make a blocking call (ruling 52; MANIFESTO, Deadline threads).
+- The tick writes the input lane to the TTY, stores atomics, and decodes. It does not allocate, lock, wait, or make a blocking call (ruling 52; MANIFESTO, Deadline threads).
 - No view makes a command line or writes a file.
 - New names and their families: `TITRunProcessor` (`EVETerminalProcessor`, `TITTerminalProcessor`; the verb `run` of Part 9 Step 5); its members and functions are EVE's, verbatim (`EVETerminalProcessor.h:30-369`); `run`, `close` (`run`, Part 9; `jam::TerminalTTY::close`); `tag`, `typeToUse` (`terminalTag`, `EVETerminalProcessor.h:346`; `jam::Format::toType`); `applyShellExit` (`applyCommands`, `applyGridEvents`, `EVETerminalProcessor.h:118,126`; the row `shellExited`); `applyPendingCommandLine`, `pendingCommandLines`, `pendingFallbackCommandLines` (`applyPendingInput`, `pendingInput`, `EVETerminalProcessor.h:269,351`; `commandLines`, `fallbackCommandLines`, Part 9 Step 5); `numShellExits` (`numCommands`, `numGridEvents`, `eve/Source/layout/parameters.md:45,47`); `cancel` (the command of Step 5); `console` (the row and the mode `console`); `hasExited`, `tokens`, `vblankMilliseconds`, `blocksPerVblank`, `exitCode`, `commandLine` (`EVETerminalProcessor.cpp:451,521,549`; Part 8 Step 7); `setCommitMessage` (NAMES.md Rule 1, `set`: it replaces the text of the file `files::commitMessage`); `getForcePushLine`, `getReplaceLocalLines` (`getPushLine`, Part 9 Step 5; the commands `forcePush` and `replaceLocal`).
 
@@ -1224,11 +1235,13 @@ class ConsoleView : public juce::Component,
                     public jam::Model::Component<ConsoleView>
 {
 public:
-    ConsoleView (juce::ValueTree stateToUse, jam::Registry::Getters& getters);
+    ConsoleView (juce::ValueTree stateToUse, jam::Registry::Getters& getters, jam::Registry::Events& events);
     ~ConsoleView() override = default;
 
     void resized() override;
     void focusGained (FocusChangeType cause) override;
+
+    void setMode (int mode);
 
 private:
     jam::TextEditor editor;
@@ -1237,7 +1250,8 @@ private:
 };
 ```
 
-   - The constructor: the form of Step 11, item 2, without the listener. Then `setWantsKeyboardFocus (true);`, `addAndMakeVisible (editor);`, `editor.bindToProcessor (getters, Id::textEditor, jam::Format::toType (Id::winsize));`, and `editor.setReadOnly (true);`. The state is the `console` child of the Model.
+   - The constructor: the form of Step 11, item 2, without the listener. Then `setWantsKeyboardFocus (true);`, `addAndMakeVisible (editor);`, `editor.bindToProcessor (getters, Id::textEditor, jam::Format::toType (Id::winsize));`, and `editor.bindToEvents (events[Id::terminalInput]);`. The state is the child of the Model that holds the rows of the chain: the `console` child for the console.
+   - `setMode`: `editor.setDefaultMode (mode);` then `editor.setMode (mode);`, the pair of `InputView::setDocument` (item 8; Step 3).
    - `resized()`:
 
 ```cpp
@@ -1250,7 +1264,8 @@ void ConsoleView::resized()
 
    - `focusGained`: `editor.grabKeyboardFocus();`. The view gives its focus to its editor, as EVE's view gives its focus to its default component (`eve/Source/EVEView.cpp:74-79`).
    - The editor reads the swap of the run chain (ruling 58): `bindToProcessor` sets the source of the editor to the getter of the processor and pulls at each vblank of the peer (`jam_gui/widgets/jam_TextEditor.h:134-144`; `jam_TextEditor.cpp:82-100`; Step 10, item 3). The keys of the getter are EVE's: the map `Id::textEditor` and the getter of the `winsize` type (`eve/Source/EVETerminalProcessor.cpp:258`). The view holds no text, makes no document, and has no listener.
-   - `bindToProcessor` sets the editor to not read-only (`jam_TextEditor.cpp:84`), because the editor of EVE sends keys to its shell. The console sends no key to a child, so the view sets it read-only again. A key then goes to the key sheet and to the parent, as before (inventory, console facts).
+   - The owner tells the view its mode. In `terminal` mode the view follows the end of the output, and a key goes to the key sheet first and then, as bytes, to the tool. In `reader` mode the view stays where the user put it, and a key goes to the commands of the editor, to the viewport, and then to the parent (inventory, console facts). The console is in `terminal` mode while a run runs, and in `reader` mode after it (Step 16). A pane of Parts 11 and 12 is in `reader` mode.
+   - `bindToEvents` gives the bytes of a key to the `write` event of the chain, in the form of the window of Part 7 Step 7 (`window->bindToEvents (processor->chainEvents[Id::terminalInput])`).
    - The view writes the size of its grid to the `winsize` row of its state. One unit is one cell (Step 11, item 4), so the width and the height are the columns and the rows. The fields are those of `jam::TerminalWinsize`, and the row holds its packed form (`jam_terminal/video/jam_TerminalWinsize.h:34-48`). The chain reacts to the row (Step 10, item 2).
 
 8. `InputView`, in `InputView.h` and `InputView.cpp`, with the includes of Step 11:
@@ -1413,7 +1428,7 @@ TITView::TITView (TITModel& modelToUse, TITGitProcessor& gitProcessorToUse, juce
     , gitProcessor (gitProcessorToUse)
     , header (modelToUse.state)
     , footer (modelToUse.state)
-    , console (modelToUse.state.getChildWithName (jam::Format::toType (Id::console)), gitProcessorToUse.console.userInterfaceGetters)
+    , console (modelToUse.state.getChildWithName (jam::Format::toType (Id::console)), gitProcessorToUse.console.userInterfaceGetters, gitProcessorToUse.console.chainEvents)
 {
     setLookAndFeel (&lookAndFeelToUse);
     setWantsKeyboardFocus (true);
@@ -1547,7 +1562,11 @@ void TITView::registerEvents()
 
     events.add (Id::isRunning, [this] (const juce::Identifier&, juce::ValueTree& root)
     {
-        if (static_cast<bool> (root.getProperty (Id::isRunning)))
+        const auto isRunning { static_cast<bool> (root.getProperty (Id::isRunning)) };
+
+        console.setMode (isRunning ? map::EditorMode::terminal : map::EditorMode::reader);
+
+        if (isRunning)
             state.setProperty (Id::mode, static_cast<int> (map::EditorMode::console), nullptr);
     });
 
@@ -1584,7 +1603,7 @@ void TITView::timerCallback()
 }
 ```
 
-   - The console has no row and no event here: its editor reads the swap of the run chain (Step 14).
+   - The console has no text row here: its editor reads the swap of the run chain (Step 14). The `isRunning` event tells the console its mode: `terminal` while a run runs, so the view follows the output, and `reader` after it, so the user scrolls with `j` and `k`.
    - The `numShellExits` event tells the processor that a session of the console chain ended (Step 10, item 6). The event of another chain has another tree, and no run waits for it. `TITView` is the object of this layer that stands on both axes, the processor and the views (`end/ARCHITECTURE.md:907-909`), so it carries the event across, as EVE's view does for the `numCommands` row (`eve/Source/EVEView.cpp:138-144`).
    - The state builds what the user can reach (ruling 56). Each row that a rule of item 6 reads has an event, and the event builds the key sheet: the four axis rows of the `git` child, and the `mode` row. The loop over the three axis rows is the form of `end/Source/ui/ENDView.cpp:408-412`. A `git` event also builds the menu, in `valueTreePropertyChanged`.
    - Delete first: the `valueTreePropertyChanged` of Part 9 Step 7, item 3, goes. The one below takes its place.
@@ -1948,7 +1967,6 @@ void TITView::setInput (const juce::StringArray& commandLines)
 - Each build ends with exit code 0. `ling --help` is byte-identical to its output before this part, and a `ling` build gives the same record (Step 1). EVE keeps the behaviour of Part 6 Step 9 (Steps 2 and 3).
 - Each row gives its expected result.
 - These facts of the tracker list "Facts that execution measures first" are measured: a live, editable `jam::TextEditor` on a terminal.
-- These facts of the run chain are measured: a line of a tool that returns 0 gives the status 0 from `close()` in each of 20 runs (Step 1: `waitpid` with `WNOHANG` after the end of the stream); a read of a TTY with no session gives -1; a read-only editor that is bound to the swap shows the new lines and scrolls with `j` and `k`; `jam::CpuGraphicsEngine::getRefreshRateHz()` links in `titc`.
 - These facts of this part are measured: the cast emits `\n` of a value as a newline (Step 6); two rows with the key `quit` give two children of the key tree (Step 7); `.git/COMMIT_EDITMSG` gives the typed message (Closed by a read, item 13); a custom of a TIT view reaches its colour id (Step 8).
 - ARCHITECT sets the layout of each view at this run (ruling 7). A change of a geometry constant is a change of its value only.
 - The second `cast` run changes no generated file.
