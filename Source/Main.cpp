@@ -40,7 +40,7 @@ public:
         screen = std::make_unique<jam::tui::Screen> (writer);
 
         // Size Screen and MainComponent to the current terminal dimensions
-        const juce::Rectangle<int> termBounds { jam::tui::getBounds().toJuce() };
+        const juce::Rectangle<int> termBounds { jam::tui::Metrics::getBounds().toJuce() };
         screen->setBounds (termBounds);
         mainComponent->setBounds (termBounds.withPosition (0, 0));
 
@@ -63,7 +63,7 @@ public:
             {
                 juce::MessageManager::callAsync ([this]
                 {
-                    const juce::Rectangle<int> newBounds { jam::tui::getBounds().toJuce() };
+                    const juce::Rectangle<int> newBounds { jam::tui::Metrics::getBounds().toJuce() };
                     screen->setBounds (newBounds);
                     mainComponent->setBounds (newBounds.withPosition (0, 0));
                     screen->onTerminalResized();

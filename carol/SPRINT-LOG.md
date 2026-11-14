@@ -111,6 +111,82 @@
 
 ## SPRINT HISTORY
 
+## Sprint 17: Foundation Reset — Cell Unit Type + LookAndFeel + View Stubs ✅
+
+**Date:** 2026-04-22
+**Duration:** ~2 hours
+
+### Agents Participated
+- COUNSELOR: Claude Opus — Planning, CONTRACT enforcement, delegation, namespace/naming violation discovery
+- Engineer: Multiple — Cell migration across jam_tui (26+ call sites), LookAndFeel stub, view stub rewrites, MainComponent rewrite, Main.cpp simplification, Banner SVG asset extraction, namespace tit removal
+- Pathfinder: Multiple — jam_tui theming survey, juce::LookAndFeel API surface extraction, module structure survey, bare-int Rectangle call-site audit, git/sprint-log state
+- Auditor: Not invoked (mechanical migration, no complex logic)
+
+### Files Modified
+
+**jam_tui framework (17 files across ~/Documents/Poems/dev/jam/jam_tui/):**
+- `graphics/jam_tui_rectangle.h` — `jam::literals::Cell` strong unit type (struct + arithmetic + comparison + `_cell` UDL); all Rectangle constructors, accessors, fluent builders, slicing methods take/return `literals::Cell`; `getCellWidth()`/`getCellHeight()` convenience accessors; namespace cleanup (`jam::literals::Cell` → `literals::Cell` inside `namespace jam::tui`); parameter name cleanup (`x_`/`y_` → `x`/`y`)
+- `ansi/jam_tui_component.h` — `getCellBounds()`/`setCellBounds()` inline wrappers; `setLookAndFeel()`/`getLookAndFeel()` with parent-chain walk + `lookAndFeelChanged()` override
+- `lookandfeel/jam_tui_look_and_feel.h` — NEW: `jam::tui::LookAndFeel` stub mirroring juce::LookAndFeel surface API (`findColour`/`setColour`/`isColourSpecified` + static default instance)
+- `lookandfeel/jam_tui_look_and_feel.cpp` — NEW: implementation
+- `jam_tui.h` — LookAndFeel include (before component.h for dependency order)
+- `jam_tui.cpp` — LookAndFeel cpp include
+- `ansi/jam_tui_graphics.cpp` — Cell migration (`.value` extraction where raw int needed)
+- `ansi/jam_tui_screen.cpp` — Removed spurious `.value` on juce::Rectangle accessors
+- `ansi/jam_tui_textbox.cpp` — Same
+- `metrics/jam_tui_metrics.h` — Cell wrapping on `getBounds()` return
+- `markdown/jam_tui_markdown_renderer.cpp:79,96,142,161` — Cell wrapping on 4 Rectangle constructions
+- `primitives/jam_tui_menu.cpp:177,193,194` — Cell wrapping
+- `primitives/jam_tui_listpane.cpp:155,168,193,205,222` — Cell wrapping
+- `primitives/jam_tui_consolestream.cpp:239,250,265` — Cell wrapping
+- `primitives/jam_tui_textpane_paint.cpp:28,76,92,106,112,126,164,174,186` — Cell wrapping (9 sites)
+- `primitives/jam_tui_dialog.cpp:156,172,196,213,216` — Cell wrapping
+- `primitives/jam_tui_splitpane.cpp:61,67` — Cell wrapping
+
+**tit project (30+ files):**
+- `Source/Main.cpp` — ThemeResolver removed, MainComponent construction simplified to single `juce::ValueTree` arg
+- `Source/MainComponent.h` — Stub: owns `juce::ValueTree stateTree` + `jam::tui::LookAndFeel lookAndFeel`, no child components
+- `Source/MainComponent.cpp` — Stub: constructor stores VT + calls `setLookAndFeel()`
+- `Source/component/` — NEW directory (renamed from `Source/view/`)
+- `Source/component/Banner.h` + `.cpp` — Blank stub
+- `Source/component/Header.h` + `.cpp` — Blank stub
+- `Source/component/Footer.h` + `.cpp` — Blank stub
+- `Source/component/ConfirmDialog.h` + `.cpp` — Blank stub
+- `Source/component/Menu.h` + `.cpp` — NEW (renamed from MenuView, NAMES.md Rule 2)
+- `Source/component/Console.h` + `.cpp` — NEW (renamed from ConsoleView)
+- `Source/component/History.h` + `.cpp` — NEW (renamed from HistoryView)
+- `Source/component/FileHistory.h` + `.cpp` — NEW (renamed from FileHistoryView)
+- `Source/component/ConflictResolver.h` + `.cpp` — NEW (renamed from ConflictResolverView)
+- `Source/component/SetupWizard.h` + `.cpp` — NEW (renamed from SetupWizardView)
+- `Assets/tit_logo.svg` — NEW (extracted from Banner.cpp inline string)
+- `CMakeLists.txt` — `juce_add_binary_data(titc_assets)` for SVG asset
+- 28 Source files — `namespace tit {}` wrappers and `tit::` qualifications removed
+
+**Deleted:**
+- `Source/view/` — entire directory (MenuView, ConsoleView, HistoryView, FileHistoryView, ConflictResolverView, SetupWizardView old files)
+
+### Alignment Check
+- [x] BLESSED principles followed (B: MainComponent owns VT+LAF, clear lifecycle; L: stubs are minimal; E: Cell type prevents bare-int/cell mixing at compile time, no magic values; S: LookAndFeel is SSOT for colours via parent-chain walk; E: Component LAF mirrors juce pattern — tell don't ask)
+- [x] NAMES.md adhered (Rule -1: Cell, LookAndFeel, all renames ARCHITECT-approved; Rule 2: "View" suffix dropped from 6 components — type information in name)
+- [x] MANIFESTO.md principles applied (JUCE-native thinking replaces ELM port patterns; ThemeResolver eliminated in favor of LookAndFeel mirroring juce::LookAndFeel; callback `std::function<void(MenuItem&)>` identified as architecture violation — removed with stub reset)
+
+### Problems Solved
+- `jam::literals::Cell` strong unit type eliminates bare-int leaking at Rectangle call sites — compile-time enforcement, no runtime cost
+- `jam::tui::LookAndFeel` stub establishes JUCE-native theming pattern (set on root, children inherit) replacing ELM-ported ThemeResolver (passed by reference through every constructor)
+- `namespace tit` removed — unnecessary wrapper around classes already scoped by project
+- "View" suffix on 6 component names violated NAMES.md Rule 2 (type information in name)
+- `Source/view/` → `Source/component/` — directory name matches what the files contain
+- All view components stripped to blank stubs so ARCHITECT can rebuild foundation by hand with correct JUCE-native patterns
+- `onItemSelected` callback on MainComponent identified as BLESSED violation (bypasses ValueTree) — removed with stub reset
+
+### Debts Paid
+- None (no DEBT.md at project root)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 16: Phases 1–3 + UI Bootstrap + jam Migration ✅
 
 **Date:** 2026-04-18 / 2026-04-19
