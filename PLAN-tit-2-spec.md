@@ -32,7 +32,7 @@ Each row is corrected in the step that the last column names.
 | SPEC line | The code | Step |
 |---|---|---|
 | "Target: Go + Bubble Tea + Lip Gloss" (`tit/SPEC.md:4,11-14`) | the target is C++17 / JUCE 8 / JAM, built with cast (tracker, The project side) | 1 |
-| Invariant 7: "No manual abort in menu"; invariant 11: "Merge/Rebase/DirtyOperation has no abort menu option" (`tit/SPEC.md:1025,1029`) | `menuMerging` shows `abort_merge`; `menuRebasing` shows `rebase_abort`; `menuConflicted` and `menuDirtyOperation` show `abort_merge` (`legacy/app/menu_render_extra.go:117-147`). SPEC §5 itself gives "Finalize merge" / "Abort merge" (`tit/SPEC.md:154-157`). §5 is the later text (`tit/carol/SPRINT-LOG.md`, Sprint 10: "Section 4-5 rewritten"). | 2 |
+| Invariant 7: "No manual abort in menu"; invariant 11: "Merge/Rebase/DirtyOperation has no abort menu option" (`tit/SPEC.md:1025,1029`) | `menuMerging` shows `abort_merge`; `menuRebasing` shows `rebase_abort`; `menuConflicted` and `menuDirtyOperation` show `abort_merge` (`legacy/app/menu_render_extra.go:117-147`). SPEC §5 itself gives "Finalize merge" / "Abort merge" (`tit/SPEC.md:154-157`). | 2 |
 | Invariant 8: "Lip Gloss rendering" (`tit/SPEC.md:1026`) | no Lip Gloss in the C++ TIT | 2 |
 | Invariant 10: "No Configuration" (`tit/SPEC.md:1028`) | a config file and a Preferences menu exist (`legacy/config/config.go:14-22,48`; `tit/SPEC.md:313-323`) | 2 |
 | `ssh-keygen -t ed25519` (`tit/SPEC.md:763`) | `ssh-keygen -t rsa -b 4096` (`legacy/git/ssh.go:37`) | 5 |
@@ -47,13 +47,13 @@ Each row is corrected in the step that the last column names.
 | The startup gate: with a remote, the menu waits for the first fetch. Text `Checking Remote...` with a spinner; on failure the footer shows `Remote unreachable — showing cached state`. | `legacy/app/app_constructor.go:209-210`; `legacy/app/app_view_main.go:167-173`; `legacy/app/app_update_msg.go:209-222` | 5 |
 | History items are disabled while the history cache builds. Labels `History...`, `History <n>/<total>`, `Files...`, `Files <n>/<total>`, with a spinner frame. | `legacy/app/menu_render_extra.go:18-59` | 4 |
 | `Conflicted` and `DirtyOperation` menus | `legacy/app/menu_render_extra.go:133-147` | 4 |
-| LFS: detection, filter setup at startup, `lfs fetch` after a fetch, `lfs checkout` after a hard reset, an `LFS` or `LFS ⚠` badge in the header | `legacy/git/lfs.go:23-47`; `legacy/ui/header.go:33-34,130-133`; `tit/carol/SPRINT-LOG.md`, Sprint 2 | 5 |
+| LFS: detection, filter setup at startup, `lfs fetch` after a fetch, `lfs checkout` after a hard reset, an `LFS` or `LFS ⚠` badge in the header | `legacy/git/lfs.go:10-47`; `legacy/git/state.go:50`; `legacy/app/app_constructor.go:78-90`; `legacy/app/op_remote.go:66`; `legacy/app/op_pull.go:89-95`; `legacy/app/app_view_header.go:113-124`; `legacy/ui/header.go:33-34,130-133` | 5 |
 | The stash tracking list | `legacy/config/stash.go:16-17,41` | 6 |
-| Progress lines replace the last console line: `\r` replaces, `\n` appends | `tit/carol/SPRINT-LOG.md`, Sprint 3; `legacy/git/execute.go:138-244` | 5 |
-| `--progress` on each streaming command | `tit/carol/SPRINT-LOG.md`, Sprint 2 | 5 |
-| The conflict resolver labels name the branches: `main (current)` / `dev (incoming)` | `tit/carol/SPRINT-LOG.md`, Sprint 8; `legacy/app/handlers_conflict.go` | 6 |
+| Progress lines replace the last console line: `\r` replaces, `\n` appends | `legacy/git/execute.go:141-214` | 5 |
+| `--progress` on each streaming command | `legacy/app/handlers_git_pull.go:20,51`; `legacy/app/op_push.go:21-45`; `legacy/app/op_clone.go:26`; `legacy/app/op_pull.go:22,68` | 5 |
+| The conflict resolver labels name the branches: `main (current)` / `dev (incoming)` | `legacy/app/handlers_conflict.go:157-218` | 6 |
 | The nested repository dialog, the alert dialog, the stale stash dialog | `legacy/app/confirm_dialog_render.go:119-159`; `legacy/app/confirm_time_travel_return.go:38-42,97-101` | 8 |
-| The stale marker rule: a time travel marker with HEAD on a branch is removed | `tit/carol/SPRINT-LOG.md`, Sprint 5; `legacy/git/state_detection.go:188-199` | 3 |
+| The stale marker rule: a time travel marker with HEAD on a branch is removed | `legacy/git/state_detection.go:188-199` | 3 |
 
 ### The exact strings that SPEC carries
 
@@ -142,7 +142,7 @@ In this part, COUNSELOR writes the document. No @Engineer delegation exists, bec
 
 5. Stale markers: carry the rule of `legacy/git/state_detection.go:188-199` for the time travel marker. The pin marker is stale when HEAD is not on the marker's branch, or HEAD is not the pinned hash. TIT removes a stale marker at state detection.
 6. Timeline while `Pinned`: empty (not applicable), as for `TimeTraveling` (`tit/SPEC.md:72`).
-7. Add the LFS fields of the state: the repository uses LFS; the LFS filters are ready (`tit/carol/SPRINT-LOG.md`, Sprint 2: `LFS, LFSReady`).
+7. Add the LFS fields of the state: the repository uses LFS; the LFS filters are ready (`legacy/git/types.go:88`; `legacy/git/state.go:50`).
 
 **Validation:** The Operation table has nine rows. Each marker row matches its cited SPEC lines. No state lives outside these tables.
 
@@ -156,8 +156,8 @@ In this part, COUNSELOR writes the document. No @Engineer delegation exists, bec
    |---|---|---|
    | `Merging` | `finalize_merge`, `abort_merge` | `legacy/app/menu_render_extra.go:117-123` |
    | `Rebasing` | `rebase_continue`, `rebase_abort` | `:125-131` |
-   | `Conflicted` | `abort_merge` | `:133-139` |
-   | `DirtyOperation` | `abort_merge` | `:141-147` |
+   | `Conflicted` | no menu: the conflict resolver opens, and Escape aborts | `PLAN-tit-12-protocols.md`, Closed by a read, items 6 and 8; legacy `:133-139` |
+   | `DirtyOperation` | `dirty_continue` (Reapply changes), `dirty_abort` (Abort and restore) | ruling 41; `PLAN-tit-12-protocols.md`, Closed by a read, item 4; legacy `:141-147` showed `abort_merge` only (Part 12, legacy fault 1) |
 
 3. History items while the cache builds: carry the four labels and the disabled state (`legacy/app/menu_render_extra.go:18-59`): `History...` and `Files...` before a count exists, then `History 12/100` and `Files 12/100`.
 4. Timeline tables: add `pull_rebase` to `Behind` + `Clean` after `pull_merge`, and to `Diverged` + `Clean` after `pull_merge_diverged` (ruling 2). It is absent when `Dirty`.
@@ -218,7 +218,7 @@ In this part, COUNSELOR writes the document. No @Engineer delegation exists, bec
 1. Entry: a command of the History view on a selected commit, beside time travel and rewind (`tit/SPEC.md:647-652`).
 2. `Clean` tree: write `.git/TIT_PIN` (branch, original HEAD, pinned hash), then `reset --hard <hash>`. The marker is written first, as time travel writes its marker first (`tit/SPEC.md:497-501`).
 3. `Dirty` tree: the Dirty Operation Protocol with the reset as its change-set (`tit/SPEC.md:329-334,359`).
-4. With LFS: `lfs checkout` follows the reset, as it follows each hard reset (`tit/carol/SPRINT-LOG.md`, Sprint 2).
+4. With LFS: `lfs checkout` follows the reset, as it follows each hard reset (`legacy/app/op_pull.go:89-95`).
 5. While `Pinned`: the menu of Step 4. The header shows the branch and the pinned hash. Changes in the tree are allowed. No commit (ruling 8).
 6. Pin again from History while `Pinned`: the marker keeps its original HEAD and takes the new pinned hash, as time travel jumps to another commit (`tit/SPEC.md:239`).
 7. Unpin: `reset --hard <original HEAD>`, then remove the marker. `Dirty` tree: the Dirty Operation Protocol.

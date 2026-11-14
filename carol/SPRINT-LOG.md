@@ -111,6 +111,50 @@
 
 ## SPRINT HISTORY
 
+## Sprint 19: TIT Part 2 — SPEC.md Rewritten as the Contract of the C++ TIT ✅
+
+**Date:** 2026-11-15
+**Duration:** not recorded
+
+### Agents Participated
+- COUNSELOR: Claude Opus — Read the tracker canon, the old SPEC, and Parts 10 to 13. Wrote `SPEC.md` (Plan Steps 1 to 9). Validated and applied the Auditor findings. Fixed the contradictions between SPEC, Part 2, and Part 13.
+- Pathfinder: Haiku — Verbatim reads of the legacy string maps, key handlers, dispatchers, menus, dialogs, LFS, header, config, and state detection.
+- Auditor: Opus — One sweep, 30 findings (23 accepted and fixed, 7 rejected with citations).
+
+### Files Modified (4 total)
+- `SPEC.md` — rewritten whole. C++17 / JUCE 8 / JAM / cast stack. Nine sections, each numbered once. Invariants 7, 8, 10, 11 corrected and invariant 13 added (ruling 9). Nine Operation rows with `Pinned`. Marker table with stale rules and ruling 54. Every legacy menu item with emoji, label, shortcut, hint. Pinned, DirtyOperation (ruling 41), Conflicted (resolver, no menu) menus. Startup gate, auto-update, LFS, console, text inputs (`jam::TextEditor`). Dirty Operation Protocol with one stash label. Time travel return with two stashes in order. One history browser with five feeds (rulings 19, 39, 40). Conflict resolver labels. Pin, pull with rebase, rebase onto, interactive rebase. Header texts. Error handling table. Banner and `--help` (rulings 23, 24, 33). Command table, key table, owner-key table, dialogs, footer, error, output, and console texts. User files `user.md`, `keys.md`, `themes/<name>/theme.md` (rulings 17, 38, 43, 45 to 47). No layout drawing (ruling 7).
+- `PLAN-tit-2-spec.md` — the citations of `carol/SPRINT-LOG.md` Sprints 2, 3, 5, 8, 10 replaced with legacy code lines (that log holds Sprints 14 to 18 only). Step 4 table: Conflicted and DirtyOperation rows follow ruling 41 and Part 12 items 4, 6, 8.
+- `PLAN-tit-13-setup.md` — Closed by a read, item 19: the narration lines of a chain show in the footer (ruling 3; the console holds only the bytes of the tool, ruling 58). Item 22: `TimelineSyncMessages` listed in SPEC 6.6 as never shown. Step 3 item 6: eight narration rows added to `## footer`.
+- `PLAN-tit-0-tracker.md` — Status row 2.
+
+### Alignment Check
+- [x] BLESSED principles followed — SPEC states behavior and data, no layout and no class (Encapsulation). One table for commands, keys, markers, dialogs (SSOT).
+- [x] NAMES.md adhered — new dialog key `time_travel_return_dirty_stash` takes the family of Part 12 `timeTravelReturnDirtyStash`. No `kind`.
+- [x] MANIFESTO.md principles applied — every string traced to a legacy literal, a ruling, or a part text.
+- [x] ASD-STE100 — the Auditor's over-long and passive sentences rewritten.
+
+### Problems Solved
+- SPEC named Go, Bubble Tea, Lip Gloss, XML themes, and `IMPLEMENTATION_PLAN.md`. Replaced by the C++ stack and the markdown config files.
+- SPEC said "no abort in menu" while its own Section 5 and the code gave aborts. Invariants corrected.
+- SPEC said `ssh-keygen -t ed25519`; the code runs `rsa -b 4096` (`legacy/git/ssh.go:37`). SPEC follows the code.
+- Stashes had three labels in the first draft. One label, `TIT DIRTY-OP SNAPSHOT` (Part 12 item 2).
+- A dirty time travel would detect as `DirtyOperation`. `DirtyOperation` now needs HEAD on a branch (Part 12 item 3).
+- Interactive rebase while pinned contradicted ruling 8. It is inactive while `Pinned`. Rewind or time travel while pinned ends the pin; SPEC states it.
+- Part 2 Step 8 carried the output texts; Part 13 item 19 dropped them. Legacy reads them (78 reads in 14 files), so ruling 3 keeps them; they show in the footer.
+
+### State for Continuation
+- Part 2 changes no code. No build.
+- Six SPEC choices that differ from the Part 2 plan text are recorded in that plan's Step 4 table and in this entry: DirtyOperation and Conflicted menus; dirty time travel stashes with no second question (`SPEC.md` old lines 677-681); quit timeout 2s and floor 70×20 (`PLAN-tit-10-views.md:438,443`); output texts in the footer.
+- Parts 10 to 13 cite old `SPEC.md` line numbers (for example `tit/SPEC.md:350-357`). Those lines now hold the new text. Each part that executes reads its cited SPEC section by name, not by line.
+
+### Debts Paid
+- None (no DEBT.md at project root)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 18: Archetype Repair + TIT Part 1 (titc Cast Project) ✅
 
 **Date:** 2026-11-15
@@ -460,44 +504,6 @@
 - Caroline drift — all 5 TIT-forge jreng_tui fixes + extensions (Watcher, braille, Subprocess, svg_braille→absorbed, Font migration) eventually contribute back per PLAN Step 2.5 handoff pattern; caroline is downstream now, no urgency
 - Apple Developer ID code-signing + notarization for `titc` — PLAN Step 5.3 scope (rewrite from scratch, not port `___legacy___/scripts/post-build.sh`)
 - `jreng_ansi_markdown_renderer.cpp:94` magic `14.0f` font height — flagged pre-existing (forked from caroline), low-priority; scoped to unused-by-TIT markdown renderer
-
----
-
-## Sprint 14: Startup Spinner Animation + GOBIN Install ✅
-
-**Date:** 2026-04-15
-**Duration:** ~00:45
-
-### Agents Participated
-- **COUNSELOR** — Plan, CONTRACT re-verification (BLESSED, JRENG-CODING-STANDARD, NAMES), SSOT mapping (reuse activityState frame / theme.SpinnerColor / CacheRefreshInterval / ui.GetSpinnerFrame), direct edit on build.sh, git-repo diagnostic (local-behind-origin investigation)
-- **Pathfinder** — Startup remote-gate locus (`app_init.go:123-124`, `app_constructor.go:206-210`, `app_view_main.go:169`, `app_update_msg.go:206-223`), tea.Tick pattern survey (auto_update.go animation pump as template), Theme.SpinnerColor + menu.go usage sites, cake/`internal/ui/console.go:272-275` reference for themed spinner rendering, read-only git inspection of tit repo (`rev-list --count HEAD...@{upstream}` = 0/1)
-- **Engineer** — Implemented StartupSpinnerMsg + schedule/handle pair mirroring AutoUpdateAnimationMsg pattern; clean `go build ./...`
-
-### Files Modified (7 total)
-- `build.sh` — rewrote: `go install` to `$(go env GOBIN)` with `$(go env GOPATH)/bin` fallback; dropped ARCH_SUFFIX detection, `$HOME/.tit/bin` install root, and `$HOME/.local/bin` symlink. Version stamping via `-ldflags -X` preserved
-- `internal/app/messages.go:70-71` — added `StartupSpinnerMsg struct{}` (noun form per NAMES Rule 1, consistent with `AutoUpdateAnimationMsg`)
-- `internal/app/auto_update.go:148-168` — added `scheduleStartupSpinner() tea.Cmd` (100ms `tea.Tick` → `StartupSpinnerMsg`) and `handleStartupSpinner()` (if `mode == ModeStartup`: `IncrementFrame` + reschedule; else stop). Direct clone of `scheduleAutoUpdateAnimation`/`handleAutoUpdateAnimation`
-- `internal/app/app_update_msg.go:242-244` — added `case StartupSpinnerMsg` dispatching to `handleStartupSpinner()`, placed adjacent to `AutoUpdateAnimationMsg` case
-- `internal/app/app_init.go:124` — batch `a.scheduleStartupSpinner()` alongside `cmdFetchRemote()` inside existing `HasRemote` gate
-- `internal/app/app_view_main.go:166-174` — replaced static `"Checking remote..."` with `lipgloss`-styled braille frame (`theme.SpinnerColor`) + `" Checking Remote..."`; added `lipgloss` import
-- `internal/app/app_constructor.go:210` — footer hint casing `"Checking remote..."` → `"Checking Remote..."` for consistency with content text
-
-### Alignment Check
-- [x] BLESSED — SSOT (reused `activityState.autoUpdateFrame` — ModeStartup and auto-update spinner mutually exclusive in time, single frame counter is correct), Stateless (no new state, no shadow flag), Explicit (typed message, semantic names), Encapsulation (handler mirrors established pattern — no new primitive), Bound (pump stops naturally when `RemoteFetchMsg` transitions mode out of ModeStartup)
-- [x] NAMES — Rule 1 (noun `StartupSpinnerMsg`, verbs `scheduleStartupSpinner`/`handleStartupSpinner`), Rule 3 (semantic — "startup" describes role, "spinner" describes mechanism), Rule 5 (consistent with `AutoUpdateAnimationMsg`/`scheduleAutoUpdateAnimation`/`handleAutoUpdateAnimation` sibling pattern)
-- [x] JRENG-CODING-STANDARD — positive nested check in handler, no early returns added; established `tea.Tick` / reschedule pattern preserved
-- [x] No-Reinvention — used existing `ui.GetSpinnerFrame`, `theme.SpinnerColor`, `CacheRefreshInterval`, `activityState.IncrementFrame`; zero new helpers or constants
-
-### Problems Solved
-- **Static "Checking remote..." string during startup gate felt dead** — replaced with animated braille spinner colored from theme, matching cake's spinner pattern (`internal/ui/console.go:272-275`) and tit's own cache-build spinner (`internal/ui/menu.go:97,111,127`)
-- **build.sh arch-suffix + symlink indirection redundant under Go toolchain** — `go install` already writes to `$(go env GOBIN)` and produces an arch-native binary named from the package path; removed bespoke install root, symlink, and arch detection
-
-### Debts Paid
-- None (no `DEBT.md` present at project root)
-
-### Debts Deferred
-- Local `main` is 1 commit behind `origin/main` (`a858327 v0.0.3` — mass doc-deletion from cross-machine sync). ARCHITECT to rebase manually before committing this sprint's changes
-- Engineer noted spec referenced `a.activityState.Frame` but actual field is lowercase `autoUpdateFrame` (same package, unexported access valid); field naming is auto-update-specific even though now used by startup spinner too — cosmetic only, no functional impact
 
 ---
 

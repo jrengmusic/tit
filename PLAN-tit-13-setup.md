@@ -176,10 +176,10 @@ ARCHITECT can reverse each one.
 16. **The startup gate is the mode `startup`,** the legacy `ModeStartup` (`legacy/app/app_keys.go:148-150`). Its menu has one inactive row, `Checking Remote...`, with the spinner, when the repository has a remote.
 17. **The auto-update needs 30 s with no key,** as legacy. The time of the last key is the root row `lastActivity`, written by `TITView::keyPressed`. A key that an editor takes does not reach it, and the auto-update runs only in an operation menu.
 18. **`lfs checkout` follows each hard reset when LFS is ready,** as Part 2 Step 7 writes. One function, `getResetLines`, gives the reset line and the checkout line. Each hard reset of Parts 9 to 12 uses it (Step 12).
-19. **The legacy narration lines of a chain are not carried:** `Initializing repository...`, `Querying remote default branch...`, `Fetching from remote...`, `Setting upstream tracking...`, `Remote added`, `Remote URL updated successfully`, `Remote removed successfully`, `Repository initialized with branch '%s'`, and the step lines of the key generation. The console shows the output of each command line (Part 10 Step 10).
+19. **The legacy narration lines of a chain show in the footer, not in the console:** `Initializing repository...`, `Querying remote default branch...`, `Fetching from remote...`, `Setting upstream tracking...`, `Remote added`, `Remote URL updated successfully`, `Remote removed successfully`, `Repository initialized with branch '%s'`, and the step lines of the key generation. Legacy shows them (78 reads of `OutputMessages` in 14 files of `legacy/app/`), so ruling 3 keeps them. The console holds only the bytes of the tool (Part 10 Step 10; ruling 58), and the text of a run that is not the tool's shows in the footer, as the command line and the abort text do (tracker, Status row 10). `tit/SPEC.md` Section 6.8 holds the texts and this rule. Step 3 item 6 adds them to `## footer`.
 20. **Checks that an inactive command replaces:** `Remote 'origin' already exists` and `No remote configured to switch`. `addRemote` adds only with no remote. `switchRemote` is active only with a remote (tracker, "Command availability").
 21. **`URL cannot be empty` of Switch Remote is `Remote URL cannot be empty`:** one prompt, one check, one text.
-22. **Not carried:** `TimelineSyncMessages` (`legacy/app/messages_menu.go:179-185`) has no reader in legacy. The nested repository dialog has no opener (Part 2 inventory). The Config items `config_toggle_auto_update`, `config_new_branch`, `config_switch_branch`, `config_merge_branch` are in no menu (`legacy/app/menu_render_extra.go:165-195`); the branch picker of Part 12 does their work.
+22. **Not shown:** `TimelineSyncMessages` (`legacy/app/messages_menu.go:179-185`) has no reader in legacy; `tit/SPEC.md` Section 6.6 lists them as texts that legacy never shows. The nested repository dialog has no opener (Part 2 inventory). The Config items `config_toggle_auto_update`, `config_new_branch`, `config_switch_branch`, `config_merge_branch` are in no menu (`legacy/app/menu_render_extra.go:165-195`); the branch picker of Part 12 does their work.
 23. **The input prompts are footer messages,** as `New branch name:` of Part 12 Step 12. The legacy input hints are not carried, as in Part 12.
 24. **Not built: `tit/SPEC.md:770-776`, the check of `user.name` and `user.email`, and `tit/SPEC.md:825-832`, the bare repository.** Legacy has no code for either (search of `legacy/`, this session), so ruling 3 carries no feature. A check of the user name needs a wizard step that sets it, and a bare dialog needs a dialog button that runs a command id: each is a new mechanism with no reader in the legacy tool (MANIFESTO L, YAGNI; MANIFESTO E, "A new pattern where one already exists is always wrong"). Neither case is silent. A commit with no `user.name` fails, and the console shows the text of the tool ("Please tell me who you are"). In a bare folder, `checkout -b` of init fails with the text of the tool ("must be run in a work tree"), and the console shows it (MANIFESTO E, "invalid state is loud").
 
@@ -377,6 +377,16 @@ the whole sprint — never per step.
    | `lfsInstalled` | `LFS filters installed automatically` | `legacy/app/app_constructor.go:86` |
    | `lfsMissing` | `This project uses LFS. Install git-lfs for full functionality.` | `legacy/app/app_constructor.go:92` |
    | `preferences` | `↑↓ navigate  │  Space toggle  │  =/- ±1min  │  +/_ ±10min  │  Esc back` | `legacy/app/messages_menu.go:169-175` |
+   | `initializingRepo` | `Initializing repository...` | `legacy/app/messages_state.go:9` |
+   | `queryingDefaultBranch` | `Querying remote default branch...` | `legacy/app/handlers_git_workflow.go:61` |
+   | `fetchingRemote` | `Fetching from remote...` | `legacy/app/messages_state.go:10` |
+   | `settingUpstream` | `Setting upstream tracking...` | `legacy/app/messages_state.go:11` |
+   | `remoteAdded` | `Remote added` | `legacy/app/messages_state.go:5` |
+   | `remoteUrlUpdated` | `Remote URL updated successfully` | `legacy/app/handlers_config_remote.go:113` |
+   | `remoteRemoved` | `Remote removed successfully` | `legacy/app/handlers_config_remote.go:135` |
+   | `repositoryInitialized` | `Repository initialized with branch '%s'` | `legacy/app/op_init.go:72` |
+
+   These rows are the narration lines of item 19 of "Closed by a read". The step lines of the key generation take their texts from `## setup`.
 
 7. `## confirmation`: four rows for each dialog, in the form of Part 10 Step 6, item 4:
 
