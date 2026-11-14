@@ -111,6 +111,66 @@
 
 ## SPRINT HISTORY
 
+## Sprint 20: TIT Part 3 — TerminalDisplay and the Inline Image Output Lane ✅
+
+**Date:** 2026-11-15
+**Duration:** not recorded
+
+### Agents Participated
+- COUNSELOR: Claude Opus — Read the tracker and Part 3. Found the help files gone and updated the plan to `jam::TerminalPage` on ARCHITECT's instruction. Wrote each Engineer brief, validated each return, filtered the Auditor findings, and kept the plan text equal to the code.
+- Pathfinder: Haiku — Verbatim old bodies at JAM `7fbf821ba`. Help baselines of `ling`, `cast`, `scout`, `titc`. Git history of `isReadSourceSuspended`.
+- Librarian: Haiku — libdispatch and Win32 thread pool shutdown documents (quotes with URLs).
+- Engineer: Sonnet — Plan Steps 1 to 8, the audit fixes, the TTY restore, the EVE form of the display backends.
+- Auditor: Opus — One sweep, 15 findings: 6 fixed (2, 4, 5, 6, 8, 15), 9 rejected (1, 3, 7, 9, 10, 11, 12, 13, 14).
+
+### Files Modified (15 total)
+**JAM (`~/Documents/Poems/dev/jam/`):**
+- `jam_terminal/buffers/jam_TerminalBuffer.h` — `template <typename Content> struct Placement` with `ImagePlacement` and `InlineImagePlacement` aliases (`:45-58`). `explicit TerminalBuffer (bool newShouldUseInlineImages = false)`. Public `addInlineImagePlacement`. Private `shouldUseInlineImages` and `inlineImagePlacements`. `writeFrame` passes the row index and the OUTPUT list of the slot. The INPUT struct and its out-of-class `operator<` are deleted (Step 1, delete first).
+- `jam_terminal/buffers/jam_TerminalBuffer.cpp` — the constructor (`:5-8`). `inlineImagePlacements` handled in `prepare`, `prepareRows`, `clear (writer)`, `swap`, `clear (row)`. `addInlineImagePlacement` (`:212-234`): normal-screen assert, bounds assert, then the restored body inside `if (shouldUseInlineImages)`. The VT lane writes the newline between two rows and none after the last (ruling 31). `jassert (placements.isEmpty())` deleted.
+- `jam_terminal/buffers/jam_TerminalEncoder.h`, `.cpp` — `writeRow` takes the OUTPUT placements and ends with the SGR reset only. New: `writeRowSpan`, `writeInlineImage`, `writeImageArgument` (template, header), `writeCursorUp`, `writeCursorForward`, and the public `writePrivateMode`. Bodies restored from `7fbf821ba` with the `write…` verb.
+- `jam_terminal/graphics/jam_TerminalGraphicsContext.cpp:488-496` — `drawImage`: the half-block body deleted (ruling 28). It tells the buffer `addInlineImagePlacement` when the clip holds the destination, no transparency layer is open, and the fill is opaque.
+- `jam_terminal/display/jam_TerminalDisplay.h` — new abstract seam in the `TerminalTTY` form: `onBytesReady`, `open (context, bufferSize, maximumPeriodMilliseconds)`, `close`, `read`, `write`, `getWinsize`.
+- `jam_terminal/display/native/jam_TerminalDisplay_posix.h`, `.cpp` — `TerminalUnixDisplay`: raw mode that keeps the saved output flags, `VMIN` and `VTIME` 0, `std::optional<struct termios> savedMode`, `addSources` (read source on stdin, `SIGWINCH` source), the read handler of `TerminalUnixTTY` with `jam::TerminalClock`.
+- `jam_terminal/display/native/jam_TerminalDisplay_windows.h`, `.cpp` — `TerminalWindowsDisplay`: console modes as `std::optional<DWORD>`, `readWait` with `jam::TerminalClock`, `read()` re-arms the wait after it drains, surrogate pairs only with a low surrogate, file-static `getUnicodeChar`, the tested close form.
+- `jam_terminal/jam_terminal.h` — `jam_TerminalEncoder.h` after `jam_TerminalBuffer.h`; the three display headers after the TTY headers; module brief and include order note.
+- `jam_terminal/jam_terminal.cpp:38-42` — display backend sources under the platform guards.
+- `jam_tui/page/jam_TerminalPage.cpp:37` — one newline after the frame (ruling 31).
+
+**TIT:**
+- `PLAN-tit-3-terminal-display.md` — the help site is `jam::TerminalPage`; the audit corrections; Steps 5 to 7 in the EVE form; the switch has no getter.
+- `PLAN-tit-0-tracker.md` — Part 3 depends on Part 0 only; Status row 3.
+
+`jam_terminal/tty/native/jam_TerminalTTY_posix.h`, `.cpp` were changed and then restored. `git status --short -- jam_terminal/tty/native/` is empty.
+
+### Alignment Check
+- [x] BLESSED principles followed — Tell, don't ask: the buffer owns its switch, and no getter exists (MANIFESTO E rule 4). One template for both placements (CODING.md, near-duplicate structs). The display backends are the EVE / `TerminalTTY` form (ruling 53).
+- [x] NAMES.md adhered — every new name has a family in the plan's "New names" lines: `Placement`, `InlineImagePlacement`, `inlineImagePlacements`, `addInlineImagePlacement`, the `write…` writers, `addSources` (`addReadSource`), `getUnicodeChar`, `clock`, `maximumPeriodMilliseconds`.
+- [x] MANIFESTO.md principles applied — delete first; no comment and no doxygen before the doxygen pass.
+
+### Problems Solved
+- The plan named `ling/Source/Help.cpp` and `tit/Source/Help.cpp`. Neither exists; each help goes through `jam::TerminalPage`. ARCHITECT: *"update the plan. i have already told you this explicitly on previous session jam::TerminalPage"*. The newline of ruling 31 is at `jam_TerminalPage.cpp:37`.
+- `drawImage` asked the buffer `isUsingInlineImages()`. ARCHITECT: *"surface layers never acknowledged any of rendering context, must be rendering engine agnostic … what's the BLESSED compliance approach?"*. The buffer tests its own switch, and the getter is deleted.
+- Windows `read` returned 0 on a failed `ReadConsoleInputW`, and paired a high surrogate with any next record. Fixed (findings 6, 2).
+- `TerminalUnixDisplay::open` was 52 lines; the readiness sources moved to `addSources` (finding 5).
+- A restore with no saved mode would write a zero mode to the terminal. The saved modes are `std::optional`.
+- COUNSELOR failure: findings 1 and 7 (races at close) had no runtime evidence. COUNSELOR accepted them, edited the tested `TerminalUnixTTY`, and proposed changes to `jam::AsyncOutputStream` and `jam::VirtualDevice`. ARCHITECT: *"why should we reinvent new pattern? why TIT must be different? what's wrong with EVE?"*. The TTY is restored to HEAD; the suspend logic dates from JAM `9e2c77a81` (2026-10-26). Both findings are rejected.
+- The plan had the display backends re-arm with no `TerminalClock`, and the Windows callback re-armed itself. EVE's contract (`eve/SPEC.md:45-50`): the clock waits one period after each tick, and "the Windows backend's next overlapped read is the re-arm". The backends and Steps 5 to 7 now follow it.
+
+### State for Continuation
+- Plan Step 9 is not run: no consumer is built. The help baselines are in the session scratchpad `help-before/` (`ling.txt` 49508 bytes, `cast.txt` 209867, `scout.txt` 79958, `titc.txt` 5336; each ends `ESC[0m` LF). The scratchpad can be cleared; capture again from the installed binaries before the build if it is gone. Build `ling`, `cast`, `scout`, `tit` with `cast cast/spell.md --debug` and compare `--help` byte for byte. Build `ling` on Windows.
+- `TerminalDisplay` has no caller. Part 7 calls `open (context, bufferSize, maximumPeriodMilliseconds)`.
+- The doxygen pass is due. Stale blocks: `jam_TerminalBuffer.h` (constructor, VT `writeToStream` "holds no image placement (jassert)", `writeFrame` `@tparam RowWriter`), `jam_TerminalEncoder.h` (`writeRow`: "and a newline", no `@param placements`). New members and the display files have no doxygen.
+- `TerminalWindowsTTY` was rewritten outside this sprint during this session: it reads through `jam::AsyncOutputStream reader` (`jam_TerminalTTY_windows.h:319`). Its `.cpp` file note (`:56`) still names `readWait`. This sprint did not touch it.
+- The record shape of VT input under ConPTY is not measured (tracker, "Facts that execution measures first"). Part 7 measures it.
+
+### Debts Paid
+- None (no DEBT.md at project root)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 19: TIT Part 2 — SPEC.md Rewritten as the Contract of the C++ TIT ✅
 
 **Date:** 2026-11-15
@@ -414,96 +474,6 @@
 
 ### Debts Deferred
 - None
-
----
-
-## Sprint 15: C++/JUCE Port Scaffold (Phase 0) ✅
-
-**Date:** 2026-04-18
-**Duration:** ~1 day (multi-session)
-
-### Agents Participated
-- **COUNSELOR** — `/goplan` against RFC.md (BRAINSTORMER handoff), PLAN-tit-cpp-port.md authoring, 6-step Sprint 1 orchestration, mid-sprint PLAN amendments (13+ decisions locked), NAMES Rule -1 gating, CONTRACT-vs-PLAN reconciliation (byte-identity → visual parity, -Wall drop to END precedent, SCREAMING_SNAKE constant convention, jreng_markdown-stays/jreng_svg_braille-absorbed module topology, paint-nullify for RFC §6.1)
-- **Pathfinder** — caroline rename Sprint 5 verification (confirmed `jreng::Terminal` → `jreng::tui` shipped; prereq cleared); jreng_core SVG capability audit; jreng_tui dependency graph; tit project root enumeration; END CMake pattern extraction; FigBug/FileSystemWatcher vs Gin scope probes
-- **Librarian** — JUCE 8 file-watch primitive research (no `juce::FileWatcher`; canonical is Timer + mtime poll); FigBug/Gin `FileSystemWatcher` verification (`ReadDirectoryChangesW` + per-file callback); `juce::JUCEApplicationBase` vs `juce::JUCEApplication` module boundary; `juce::Drawable::parseSVGPath` + `juce::Path::Iterator` as SVG path SSOT
-- **Engineer** — all code writes across 6 steps + 2 resolution passes (Step 1.2 `-Wall` revert + juce_gui_basics addition; Step 1.4 five-point TIT-side fixes; Step 1.5 four-finding resolution + SCREAMING_SNAKE rename sweep; Step 1.6 F1/F2/F3 + sampleBraillePixelAt decomposition)
-- **Auditor** — validation pass after every step (1.1 / 1.2 / 1.2-redo / 1.3 / 1.3b / 1.4 / 1.5 / 1.5-redo / 1.6 / 1.6-redo); flagged four audit findings on jreng_subprocess (L, E, workingDir silent-drop, jassert absence); flagged three findings on jreng_braille (L, E, SSOT); verified BLESSED with MANIFESTO L "smell-detector" framing on 2×4 braille cell natural shape
-
-### Files Modified
-
-**Project-level (authored this sprint):**
-- `PLAN-tit-cpp-port.md` — new 400+ LOC master plan covering 6 sprints (Phase 0 through Windows parity). Amended repeatedly with locked decisions section + resolved-decisions audit trail
-- `.gitignore` — new root C++/CMake ignore set; later fixed to remove `carol/` exclusion (SPRINT-LOG/DEBT now tracked across dev machines)
-- `CMakeLists.txt` — ~360 LOC JUCE CMake scaffold; 4-probe JUCE discovery mirroring END; `juce_add_console_app` for `titc`; universal x86_64+arm64; C++17; END suppression-only flags (`-Wno-unused-parameter -Wno-sign-conversion -Wno-shadow`); modules wired in dep order: jreng_core → jreng_data_structures → jreng_markdown → jreng_tui → jreng_subprocess
-- `Source/Main.cpp` — 3 LOC, `START_JUCE_APPLICATION (TitApp)`
-- `Source/TitApp.h` — 19 LOC empty-shell `JUCEApplication` subclass
-- `Source/TitApp.cpp` — 30 LOC, `initialise` → `quit()` stub (removed Sprint 3)
-
-**Archived to `___legacy___/` (Step 1.1, 16 entries):**
-- `cmd/`, `internal/`, `scripts/`, `screenshot/`, `dist/`, `go.mod`, `go.sum`, `build.sh`, `release.sh`, `.goreleaser.yaml`, `entitlements.plist`, `ARCHITECTURE.md`, `CODEBASE-MAP.md`, `RELEASE_NOTES.md`, `README.md`, `LICENSE`, `.gitignore` (legacy Go)
-- Go TIT still builds via `cd ___legacy___ && go build ./cmd/tit`
-
-**Forks from caroline (Step 1.3 / 1.4 — byte-identical at fork point):**
-- `modules/jreng_core/` (62 files)
-- `modules/jreng_data_structures/` (7 files)
-- `modules/jreng_tui/` (full module post-rename; namespace `jreng::tui`, `paint()` method)
-- `modules/jreng_markdown/` (co-forked; jreng_tui declares it as dep)
-
-**TIT-forge extensions to forked modules (Step 1.3b + 1.4 fixes + 1.6):**
-- `modules/jreng_core/file/jreng_file_watcher.h` — 220 LOC; `struct jreng::File::Watcher` nested; BSD attribution to Roland Rabien/FigBug/Gin preserved
-- `modules/jreng_core/file/jreng_file_watcher.cpp` — 413 LOC; FSEvents/inotify/ReadDirectoryChangesW backends; `std::map::contains` → C++17-compatible `find() == end()`
-- `modules/jreng_core/file/LICENSE_Gin.txt` — 29 LOC BSD attribution
-- `modules/jreng_core/jreng_core.mm` — 1 LOC ObjC++ shim for FSEvents unit
-- `modules/jreng_core/jreng_core.h` — `OSXFrameworks: CoreServices` added; `jreng_file_watcher.h` aggregated
-- `modules/jreng_core/jreng_core.cpp` — aggregates `jreng_file_watcher.cpp` via unity include
-- `modules/jreng_core/file/jreng_file.h` — `struct Watcher;` forward decl inside `struct File`
-- `modules/jreng_tui/jreng_tui.h` — include order fix (`jreng_key_event.h` before `jreng_textbox.h`); added `braille/jreng_braille_grid.h` aggregation
-- `modules/jreng_tui/jreng_tui.cpp` — added `braille/jreng_braille_grid.cpp` unity include
-- `modules/jreng_tui/graphics/jreng_tui_rectangle.h:69,77` — removed `constexpr` from methods calling non-`constexpr` JUCE API
-- `modules/jreng_tui/ansi/jreng_ansi_screen.cpp:197-199,206-209` — `juce::Graphics` rvalue → named local `clipped` binding fix
-- `modules/jreng_tui/ansi/jreng_ansi_graphics.h:86` — `juce::Font` → `juce::Font { juce::FontOptions{} }` (JUCE 8 deprecation migration)
-- `modules/jreng_tui/markdown/jreng_ansi_markdown_renderer.cpp:94` — same deprecation migration with `withHeight(14.0f)`
-- `modules/jreng_tui/ansi/jreng_ansi_component.h:24` — explicit `void paint (juce::Graphics&) override final {}` nullify (closes RFC §6.1 concern that caroline's Sprint 5 rename only masked)
-- `modules/jreng_tui/braille/jreng_braille_grid.h` — 199 LOC; `namespace jreng::braille` flat sibling to `jreng::tui`
-- `modules/jreng_tui/braille/jreng_braille_grid.cpp` — 512 LOC after full decomposition pass; 14 functions including approved helpers `appendEdgeIntersection`, `collectSubpathStartPoints`, `paintScanlineRanges`, `processSvgDrawablePath`, `encodeBrailleCellAt`, `sampleBraillePixelAt`; `BraillePixelSample` POD; `computeSubpathBounds` SSOT-called (no inline duplicate)
-
-**TIT-authored from scratch (Step 1.5):**
-- `modules/jreng_subprocess/jreng_subprocess.h` — 19 LOC JUCE module declaration
-- `modules/jreng_subprocess/jreng_subprocess.cpp` — 2 LOC unity include
-- `modules/jreng_subprocess/subprocess/jreng_subprocess_subprocess.h` — 128 LOC `Subprocess` class + nested `Handler::Completion` / `Handler::Chunk` typedefs; SCREAMING_SNAKE constants (`BYTE_CAP`, `TRUNCATION_NOTICE`, `ENV_TERMINAL_PROMPT`, `ENV_PROGRESS_DELAY`)
-- `modules/jreng_subprocess/subprocess/jreng_subprocess_subprocess.cpp` — 239 LOC post-decomposition; `Worker` private thread class owning `juce::ChildProcess`; `buildCommand` prepends `env -C <workingDir>` to argv (POSIX substitute for juce::ChildProcess's missing cwd arg); `readStream`/`appendWithCap`/`computeIsReplace`/`processChunk` helpers; `jassert` on invariants
-
-**Fixture generator (not project code):**
-- `___legacy___/braille_ref/main.go` — 42 LOC Go reference driver for visual-parity spot-check
-
-### Alignment Check
-- [x] BLESSED — MANIFESTO fully applied; L treated as smell-detector per MANIFESTO text ("natural shape" of 2×4 braille cell iteration in `encodeBrailleCellAt`); all early returns eliminated; SSOT preserved across module forks; thread ownership clean (worker owns ChildProcess; main owns Worker; main owns Subprocess)
-- [x] NAMES — Rule -1 honored; all new identifiers ARCHITECT-approved pre-write (~35 names across sprint); SCREAMING_SNAKE locked as project constant convention mid-sprint
-- [x] JRENG-CODING-STANDARD — braces on new line; `override` without `virtual`; brace init; `nullptr`; alternative tokens `not`/`and`/`or`; `.at()` for container access; no anonymous namespaces; no `namespace detail`; pass-by-value for small types
-- [x] MANIFESTO Core Mantra ("NEVER OVERDO IT") + Contract Addition ("use JUCE/jreng as much as we can") — JUCE primitives (`Drawable::parseSVGPath`, `Path::Iterator`, `ChildProcess`, `Thread`, `Font`+`FontOptions`) consumed maximally; Gin fork reused for file-watching instead of hand-rolling; visual-parity locked over manual bezier(20) reimplementation
-- [x] RFC §4.1 scaffold layout matches project tree; RFC §3.2 `tui::Component : public juce::Component` Path A locked; RFC §6.1 paint-collision resolved (not just renamed)
-
-### Problems Solved
-- **Go toolchain stack fracture** (RFC §1) — C++/JUCE scaffold stands up alongside preserved Go build; `titc` binary is the forward artifact
-- **Caroline never had a downstream consumer** — TIT-cpp is the forge; 5 latent caroline bugs surfaced and fixed on first real consumption (include ordering, non-constexpr JUCE calls, rvalue binding, Font deprecation, paint-overload-shadow vs true override)
-- **RFC §6.1 paint() collision** — caroline Sprint 5 rename was incomplete; explicit `override final {}` nullify closes the hide
-- **`-Wall -Wextra` vs END precedent** — PLAN initially required `-Wall -Wextra`; END uses suppression-only; PLAN amended to inherit END's proven flag set
-- **jreng_svg_braille module boundary** — PLAN proposed separate module; ARCHITECT clarified "renderers live inside jreng_tui, parsers stay outside"; braille absorbed into `modules/jreng_tui/braille/` with `namespace jreng::braille` flat at `jreng::` (file placement ≠ namespace hierarchy)
-- **`juce::ChildProcess` missing cwd arg** — `env -C <workingDir>` POSIX prefix is the minimal CONTRACT-aligned fix (no shell escaping, no juce fork, no fork/exec bypass)
-- **SVG tessellation engine mismatch** — JUCE's `Path::Iterator` yields different pixels than Go's `approximateCubicBezier(20)`; byte-identity requirement retired in favor of visual parity; JUCE becomes path-raster SSOT per CONTRACT
-- **SCREAMING_SNAKE vs camelCase constant convention** — one locked project-wide; Subprocess constants retroactively renamed (`byteCap` → `BYTE_CAP`, etc., + `READ_CHUNK_SIZE`)
-- **carol/ gitignored from legacy policy** — fixed mid-sprint; CAROL sprint-log + debt ledger now travel with the repo
-- **jreng_markdown as jreng_tui dep** — RFC/PLAN omission discovered at Step 1.4; co-forked alongside jreng_tui (markdown parser stays separate module per parser-vs-renderer architectural rule)
-
-### Debts Paid
-- None (no `DEBT.md` entries paid this sprint — none existed at sprint start)
-
-### Debts Deferred
-- Windows parity (`CreateProcess` in `jreng_subprocess`, `ReadDirectoryChangesW` in `jreng::File::Watcher`, path normalization) — PLAN-locked to dedicated Sprint 6
-- stdout/stderr stream separation in `jreng_subprocess` — JUCE `ChildProcess` merges both streams; `Handler::Completion::stderrCapture` signature reserved; platform-native pipe impl deferred to Step 4.2 (`GitRunner`) if required
-- Caroline drift — all 5 TIT-forge jreng_tui fixes + extensions (Watcher, braille, Subprocess, svg_braille→absorbed, Font migration) eventually contribute back per PLAN Step 2.5 handoff pattern; caroline is downstream now, no urgency
-- Apple Developer ID code-signing + notarization for `titc` — PLAN Step 5.3 scope (rewrite from scratch, not port `___legacy___/scripts/post-build.sh`)
-- `jreng_ansi_markdown_renderer.cpp:94` magic `14.0f` font height — flagged pre-existing (forked from caroline), low-priority; scoped to unused-by-TIT markdown renderer
 
 ---
 

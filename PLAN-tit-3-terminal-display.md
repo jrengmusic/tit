@@ -13,9 +13,9 @@ This part changes JAM only, in the module `jam_terminal`. It has two jobs.
 2. **`TerminalDisplay` (ruling 15).** The program's own terminal: raw input mode, a read that never blocks, a write, and the window size. A size change is a readiness event, as new input is (ruling 30). Two backends: `TerminalUnixDisplay` and `TerminalWindowsDisplay`. The shape mirrors `TerminalTTY`. The part also adds `TerminalEncoder::writePrivateMode` for the four DEC modes that a full-screen program sets.
 
 The INPUT direction does not change: `TerminalProcessor`, the numbered `TerminalBuffer::ImagePlacement`, `TerminalImageRecord`, and the Preview component (ruling 29).
-Two files outside JAM change: `ling/Source/Help.cpp` and its copy `tit/Source/Help.cpp` (Part 1 Step 9) write the newline after the last row (ruling 31). Part 5 is the first user of the output lane. Part 7 is the first user of `TerminalDisplay`, through the terminal chain in the EVE form (ruling 30).
+One file of `jam_tui` changes: `TerminalPage::writeToStream` writes the newline after the last row (ruling 31). Each help of a consumer goes through it (`tit/Source/Main.cpp:37-46`). ARCHITECT, session 2026-11-15: *"update the plan. i have already told you this explicitly on previous session jam::TerminalPage"*. Part 5 is the first user of the output lane. Part 7 is the first user of `TerminalDisplay`, through the terminal chain in the EVE form (ruling 30).
 
-Tracker and canon: `PLAN-tit-0-tracker.md`. This part depends on Part 0, and on Part 1 for `tit/Source/Help.cpp` (Step 3, item 8).
+Tracker and canon: `PLAN-tit-0-tracker.md`. This part depends on Part 0.
 
 ## Language / Framework Constraints
 
@@ -79,7 +79,8 @@ What the restore does not take, and why:
 | The binary lane ignores nothing; the VT lane ignores the output block with an unnamed `juce::int64` parameter | `jam_TerminalBuffer.cpp:387-390,398` |
 | The ring members | `jam_TerminalBuffer.h:443,447-450` |
 | `TerminalGraphicsContext` takes a frame of `heightRows` slots and clears it at construction | `jam_TerminalGraphicsContext.cpp:7-14` |
-| The one external constructor call: `jam::TerminalBuffer buffer;` | `ling/Source/Help.cpp:9` (LSP references of `jam_TerminalBuffer.h:43`) |
+| The one external constructor call: `jam::TerminalBuffer buffer;` | `jam_tui/page/jam_TerminalPage.cpp:23` (LSP references of `jam_TerminalBuffer.h:43`) |
+| The one external call of the VT lane: `buffer.writeToStream (output, editor.getLookAndFeel());` | `jam_tui/page/jam_TerminalPage.cpp:36` (LSP references of `jam_TerminalBuffer.h:104`) |
 
 ### `TerminalEncoder` today
 
@@ -186,12 +187,13 @@ using InlineImagePlacement = Placement<juce::MemoryBlock>;
    `ImagePlacement` keeps its name, its fields, and its order, so the INPUT code does not change. `InlineImagePlacement` is the old placement; its PNG field takes the family field name `image`.
 2. The switch, verbatim from the old engine (`.h:41,70,406`; `.cpp:265-268,394`):
    - Replace `TerminalBuffer();` (`.h:43`) with `explicit TerminalBuffer (bool newShouldUseInlineImages = false);`. Replace `TerminalBuffer::TerminalBuffer() = default;` (`.cpp:5`) with the constructor that initializes `shouldUseInlineImages (newShouldUseInlineImages)`.
-   - Add the public `bool isUsingInlineImages() const noexcept;`, with the body `return shouldUseInlineImages;`.
-   - Add the private member `const bool shouldUseInlineImages;`.
+   - Add the private member `const bool shouldUseInlineImages;`. `addInlineImagePlacement` tests it (item 4). No getter exposes it. ARCHITECT, session 2026-11-15, on Auditor finding 4: *"surface layers never acknowledged any of rendering context, must be rendering engine agnostic … what's the BLESSED compliance approach?"*. MANIFESTO E rule 4: "the caller says 'do this'. The caller never says 'are you in state X? then I will do Y for you.'" The old `isUsingInlineImages()` is not restored.
 3. Add the private member `jam::Array<jam::Array<InlineImagePlacement>> inlineImagePlacements;` after `imagePlacements` (`.h:447`). It holds one list for each ring slot, as the old `imagePlacements` did (old `.h:422`).
 4. Add the public `void addInlineImagePlacement (jam::Cell::Rectangle destination, const juce::Image& image);` after `addImagePlacement` (`.h:141`). The body is the old `addImagePlacement` (old `.cpp:429-442`), with two conformed lines:
    - The list of a row is `inlineImagePlacements.at (getSlot (jam::Cell { row }))`, as at old `.cpp:437`.
    - Before the add, grow a short row to the right edge of the destination: the two lines of today's sibling, `jam_TerminalBuffer.cpp:191-192`.
+   - The PNG encode and the loop are nested inside `if (shouldUseInlineImages)`, after the two asserts (item 2).
+   - The first line of the body is `jassert (screen == map::Screen::normal);`. The list lives in the normal-screen ring slot, and `swap` and `clear (row)` handle it on the normal screen only (item 5). MANIFESTO D: "An assert at that single ownership boundary is verification". Auditor finding 8.
 5. Keep the ring lists together, in each place where `imagePlacements` is handled for the ring:
    - `prepare`: rotate `inlineImagePlacements` with the other lists (`.cpp:20-23`).
    - `prepareRows`: `inlineImagePlacements.resize (numSlots)`, and `ensureStorageAllocated (placementsPerRow)` for each list (`.cpp:51,55-57`).
@@ -206,11 +208,11 @@ using InlineImagePlacement = Placement<juce::MemoryBlock>;
 - `ImagePlacement` has the same fields and order as before. No INPUT call site changes (`TerminalProcessor`, `TerminalSwap`, `TerminalHistory`, the binary `writeRow`).
 - `writeToStream (output, laf)` writes one newline between two rows and none after the last row. The binary lane writes the same bytes as before.
 - Every place that handles `imagePlacements` for a ring slot also handles `inlineImagePlacements`.
-- The only external constructor call, `ling/Source/Help.cpp:9`, compiles with no change. With the default `false`, no consumer that keeps the default writes an image (ruling 28).
+- The only external constructor call, `jam_tui/page/jam_TerminalPage.cpp:23`, compiles with no change. With the default `false`, no consumer that keeps the default writes an image (ruling 28).
 - New names and their families: `Placement` (`ImagePlacement`, `placementsPerRow`, `placementHeaderBytes`, `jam_TerminalBuffer.h:46,60,63`); `InlineImagePlacement`, `inlineImagePlacements`, `addInlineImagePlacement` (`ImagePlacement`, `imagePlacements`, `addImagePlacement`, with the old words `shouldUseInlineImages`, `isUsingInlineImages`); `Content` (CODING.md: "Template parameters: Use descriptive names").
 
 ### Step 3: The writers in `TerminalEncoder`
-**Scope:** `jam_terminal/buffers/jam_TerminalEncoder.h`, `jam_terminal/buffers/jam_TerminalEncoder.cpp`, `jam_terminal/jam_terminal.h`, `~/Documents/Poems/dev/ling/Source/Help.cpp`, `~/Documents/Poems/dev/tit/Source/Help.cpp`.
+**Scope:** `jam_terminal/buffers/jam_TerminalEncoder.h`, `jam_terminal/buffers/jam_TerminalEncoder.cpp`, `jam_terminal/jam_terminal.h`, `jam_tui/page/jam_TerminalPage.cpp`.
 **Action:**
 1. In `jam_terminal.h`, move `#include "buffers/jam_TerminalEncoder.h"` (`:98`) to the line after `#include "buffers/jam_TerminalBuffer.h"` (`:99`). `writeRow` now names `TerminalBuffer::InlineImagePlacement`. `jam_TerminalBuffer.h` names no `TerminalEncoder` type.
 2. Change `writeRow` to `static void writeRow (juce::OutputStream& output, const jam::AttributedString& row, const jam::Array<TerminalBuffer::InlineImagePlacement>& placements, const juce::LookAndFeel& laf);`. The body is the old `appendFrameRow` (old `.cpp:533-559`) in today's form:
@@ -272,24 +274,23 @@ static void writeImageArgument (juce::OutputStream& output, std::string_view key
 
 6. Add the private `static void writeCursorUp (juce::OutputStream& output, int numRows);` and `static void writeCursorForward (juce::OutputStream& output, int numColumns);`. Each asserts `jassert (numRows >= 0)` or `jassert (numColumns >= 0)`, as the old `appendCsiSequence` did (old `.cpp:15`). Each writes `Chars::csiIntroducer`, the count, and `static_cast<char> (map::CSI::cursorUp)` or `map::CSI::cursorForward`, in the form of `writeEraseScreen` (`.cpp:132-137`).
 7. Add the public `static void writePrivateMode (juce::OutputStream& output, int mode, int finalByte);`. It asserts `finalByte == map::CSI::setMode or finalByte == map::CSI::resetMode`. It writes `Chars::csiIntroducer`, `static_cast<char> (Chars::question)`, `mode`, and `static_cast<char> (finalByte)`. A caller writes, for example, `writePrivateMode (output, map::DEC::alternateScreen, map::CSI::setMode)`.
-8. In `ling/Source/Help.cpp`, after `buffer.writeToStream (frame, styleMarkdown);` (`:32`), add `frame << static_cast<char> (Chars::newline);`. The help then ends with a newline, as it did before this part (ruling 31). Make the same change in `tit/Source/Help.cpp`, the copy that Part 1 Step 9 makes (`PLAN-tit-1-project.md:223`), so the two files keep their one difference, `files::titcHelp`.
+8. In `jam_tui/page/jam_TerminalPage.cpp`, after `buffer.writeToStream (output, editor.getLookAndFeel());` (`:36`), add `output << static_cast<char> (Chars::newline);`. The help of each consumer then ends with a newline, as it did before this part (ruling 31).
 
 **Validation:**
-- A row with no placement gives the same bytes as before Step 3: one span over `{ 0, row.size() }` with the style at index 0, then the SGR reset. The newline that ended each row before Step 3 is now written between rows by the VT lane, and after the last row by `printHelp`. So `ling --help` and `titc --help` give the same bytes.
+- A row with no placement gives the same bytes as before Step 3: one span over `{ 0, row.size() }` with the style at index 0, then the SGR reset. The newline that ended each row before Step 3 is now written between rows by the VT lane, and after the last row by `TerminalPage::writeToStream`. So the help of each consumer gives the same bytes.
 - Each restored body matches its old body, except the `write…` verb, the stream form of today's writers, and `std::string_view` in place of the old `std::size` of a char array.
 - New names and their families: `writeRowSpan`, `writeInlineImage`, `writeImageArgument`, `writeCursorUp`, `writeCursorForward` (the old `appendRowSpan`, `appendInlineImage`, `appendImageArgument`, `appendCursorUp`, `appendCursorForward`, with the verb of ARCHITECT's ruling, `jam/carol/SPRINT-LOG.md:672`); `writePrivateMode` (`## PrivateMode`, `## privateModes`, `jam/cast/terminal.md:1045,1316`); `numRows`, `numColumns` (`numRows` in `TerminalBuffer::scrollUp`, `jam_TerminalBuffer.h:250`).
 
 ### Step 4: The OUTPUT lane choice in `drawImage`
 **Scope:** `jam_terminal/graphics/jam_TerminalGraphicsContext.cpp`.
-**Action:** Write the body of `drawImage`. It is the old body (old `jam_TerminalGraphicsContext.cpp:490-501`), with `terminalBuffer` in place of `engine`, and with no `else` (ruling 28):
+**Action:** Write the body of `drawImage`. It is the old body (old `jam_TerminalGraphicsContext.cpp:490-501`), with `terminalBuffer` in place of `engine`, with no `else` (ruling 28), and with no test of the buffer's switch: the buffer tests its own switch (Step 2, item 2):
 
 ```cpp
 void TerminalGraphicsContext::drawImage (const juce::Image& image, const juce::AffineTransform& t)
 {
     const auto destination { getQuantizedCells (image.getBounds().toFloat().transformedBy (t)) };
 
-    if (terminalBuffer.isUsingInlineImages()
-        and currentState.deviceSpaceClipList.containsRectangle (getClipRectangle (destination))
+    if (currentState.deviceSpaceClipList.containsRectangle (getClipRectangle (destination))
         and transparencyDepth == 0
         and currentState.fillType.colour.isOpaque())
         terminalBuffer.addInlineImagePlacement (destination, image);
@@ -312,7 +313,7 @@ public:
 
     std::function<void (int)> onBytesReady;
 
-    virtual bool open (AsyncUpdater::Context context, int bufferSize) = 0;
+    virtual bool open (AsyncUpdater::Context context, int bufferSize, double maximumPeriodMilliseconds) = 0;
     virtual void close() = 0;
     virtual int read (char* buf, int maxBytes) = 0;
     virtual int write (const char* buf, int len) = 0;
@@ -322,10 +323,11 @@ public:
 
 The contract of each member:
 - `onBytesReady (numSamples)`: the backend calls it on `context` when input is ready, and with `numSamples` 0 when the size of the terminal changes. The owner sets it before `open()`. As `TerminalTTY::onBytesReady` (`jam_TerminalTTY.h:60`). In EVE's chain this callback clocks the device (`EVETerminalProcessor.cpp:76-82`); the tick then reads the bytes and the size (ruling 30).
-- `open (context, bufferSize)`: takes raw input mode, and starts the readiness and the size change sources on `context`. It returns `false` when the input or the output is not a terminal. `bufferSize` is the largest number of bytes that one `read()` returns, as in `TerminalTTY::open` (`jam_TerminalTTY.h:76-77`).
+- `open (context, bufferSize, maximumPeriodMilliseconds)`: takes raw input mode, prepares the backend's `jam::TerminalClock` with `bufferSize` and `maximumPeriodMilliseconds`, and starts the readiness and the size change sources on `context`. It returns `false` when the input or the output is not a terminal. Both parameters are as in `TerminalTTY::open` (`jam_TerminalTTY.h:76-79,95`).
+- The readiness rhythm is EVE's (`eve/SPEC.md:45-50`): "Each readiness event is one tick; its payload is the tick's numSamples … After the tick, `jam::TerminalClock` waits one period on the clock's context; the macOS backend then re-arms readiness …, and the Windows backend's next overlapped read is the re-arm." ARCHITECT, session 2026-11-15: *"why should we reinvent new pattern? why TIT must be different? what's wrong with EVE?"*. Each backend owns `jam::TerminalClock clock`, as `TerminalUnixTTY` does (`jam_TerminalTTY_posix.h:197-198`).
 - `close()`: stops the sources, waits for a running callback, and restores the mode that `open()` saved. The destructor of each backend calls it, as `TerminalUnixTTY` does (`jam_TerminalTTY_posix.h:76-82`).
 - `read (buf, maxBytes)`: never blocks. It returns the bytes read, 0 when none are ready, or -1 on an error. As `TerminalTTY::read` (`jam_TerminalTTY.h:115-125`).
-- `write (buf, len)`: writes to the terminal output, and returns when the terminal has the bytes. It returns the bytes written, or -1 on an error. The output descriptor is a blocking descriptor, so the owner calls `write` on the message thread only, never on the tick (ruling 52; MANIFESTO, Deadline threads: no blocking call). The frame is renderer output, and the message thread paints it and sends it, as `printHelp` writes its frame (`ling/Source/Help.cpp:26-34`) and as the JUCE Linux peer sends its pixels inside `performAnyPendingRepaintsNow` (`juce_Windowing_linux.cpp:495-554`). `read` and `getWinsize` are the two members that the tick calls.
+- `write (buf, len)`: writes to the terminal output, and returns when the terminal has the bytes. It returns the bytes written, or -1 on an error. The output descriptor is a blocking descriptor, so the owner calls `write` on the message thread only, never on the tick (ruling 52; MANIFESTO, Deadline threads: no blocking call). The frame is renderer output, and the message thread paints it and sends it, as `writeHelp` writes its frame (`tit/Source/Main.cpp:37-46`) and as the JUCE Linux peer sends its pixels inside `performAnyPendingRepaintsNow` (`juce_Windowing_linux.cpp:495-554`). `read` and `getWinsize` are the two members that the tick calls.
 - `getWinsize()`: returns the size now. The owner calls it for the first bounds of the window, and on each tick that `onBytesReady` starts. The owner stores the packed size into a Model row; the flush changes the row only when the value differs (`jam_Model.h:922-928`), so an equal size gives no event.
 
 **Validation:**
@@ -337,17 +339,18 @@ The contract of each member:
 **Action:**
 1. The header: guard `#if JUCE_MAC or JUCE_LINUX`. Platform includes `<termios.h>`, and `<dispatch/dispatch.h>` under `#if JUCE_MAC`, as `jam_TerminalTTY_posix.h:51-57`. Declare `class TerminalUnixDisplay final : public TerminalDisplay` with the five overrides and `~TerminalUnixDisplay() override;`.
 2. The private members:
-   - `struct termios savedMode {};` — the mode that `open()` saves.
-   - Under `#if JUCE_MAC`: `readSource`, `resizeSource`, `isReadSourceSuspended`, and `cancelled`, with the types and deleters of `jam_TerminalTTY_posix.h:189,192,195`.
+   - `std::optional<struct termios> savedMode;` — the mode that `open()` saves. `close()` restores it only when it holds a value, then resets it. The destructor calls `close()` (item 9), and a restore with no saved mode would write a zero mode to the terminal. The sibling releases only what it holds (`jam_TerminalTTY_posix.cpp:293`).
+   - Under `#if JUCE_MAC`: `readSource`, `resizeSource`, `isReadSourceSuspended`, `cancelled`, and `jam::TerminalClock clock`, with the types and deleters of `jam_TerminalTTY_posix.h:189,192,195,198`.
+   - Under `#if JUCE_MAC`: the private `void addSources (jam::AsyncUpdater::Context context);`. It creates and activates the two sources of item 4. `open` calls it, as `TerminalUnixTTY::open` calls `addReadSource` (`jam_TerminalTTY_posix.cpp:269-272`). MANIFESTO §L: "30 lines per function". Auditor finding 5.
 3. The source file: platform includes `<sys/ioctl.h>`, `<unistd.h>`, `<signal.h>`, at the place of the platform includes of `jam_TerminalTTY_posix.cpp:17-19`. That file includes `<fcntl.h>`, `<sys/ioctl.h>`, and `<sys/wait.h>` there; the display needs `<unistd.h>` for `read` and `write`, and `<signal.h>` for `SIGWINCH`.
 4. `open (context, bufferSize)`:
-   - `tcgetattr (STDIN_FILENO, &savedMode) == 0` gives the result. Each step below is nested inside that positive test.
+   - `tcgetattr (STDIN_FILENO, &mode) == 0 and isatty (STDOUT_FILENO) != 0` gives the result: Step 5 says `open()` "returns `false` when the input or the output is not a terminal". Each step below is nested inside that positive test. The first step stores `mode` in `savedMode`.
    - Copy `savedMode`. Call `cfmakeraw` on the copy. Set the output flags of the copy back to `savedMode.c_oflag`, because the VT lane writes `Chars::newline` between two rows (Step 2, item 8) and the saved output mode moves that newline to column 0. Set `c_cc[VMIN]` and `c_cc[VTIME]` to 0, so `read()` never blocks (POSIX §11.1.7). Apply it with `tcsetattr (STDIN_FILENO, TCSAFLUSH, &raw)`.
-   - Under `#if JUCE_MAC`: create `readSource` with `DISPATCH_SOURCE_TYPE_READ` on `STDIN_FILENO` and `context`. Its event handler takes `dispatch_source_get_data` as `numSamples`. When `numSamples` is 0, it suspends the source and sets `isReadSourceSuspended`, so a closed input does not spin (the rule of `jam_TerminalTTY_posix.h:35-36`). Otherwise it calls `onBytesReady (numSamples)`.
+   - Under `#if JUCE_MAC`: create `readSource` with `DISPATCH_SOURCE_TYPE_READ` on `STDIN_FILENO` and `context`. Its event handler takes `dispatch_source_get_data` as `numSamples`. The handler is the tested handler of `TerminalUnixTTY::addReadSource` (`jam_TerminalTTY_posix.cpp:210-237`): it suspends the source and sets `isReadSourceSuspended`, calls `clock.process (numSamples)`, `onBytesReady (numSamples)` and `clock.wait()`, and resumes the source only when `numSamples` is greater than 0 or the source is cancelled. Before `addSources`, `open` calls `clock.prepare (bufferSize, maximumPeriodMilliseconds)`, as `jam_TerminalTTY_posix.cpp:265-266`. So a closed input does not spin (the rule of `jam_TerminalTTY_posix.h:35-36`).
    - Under `#if JUCE_MAC`: create `resizeSource` with `DISPATCH_SOURCE_TYPE_SIGNAL`, `SIGWINCH`, and `context`. Its event handler calls `onBytesReady (0)` (ruling 30). The program changes no signal disposition: the default action of SIGWINCH is "discard signal", and a source does not "alter the behavior of signal delivery".
    - Both cancel handlers signal `cancelled`. Activate both sources. The form is `addReadSource` (`jam_TerminalTTY_posix.cpp:204-241`).
-   - `bufferSize` has no use on this backend, as the Linux note of `jam_TerminalTTY_posix.h:99` says for the TTY.
-5. `close()`: when `readSource` is not null, do the steps of `jam_TerminalTTY_posix.cpp:296-305` for each source: cancel, resume when suspended, wait on `cancelled`, reset. Then `tcsetattr (STDIN_FILENO, TCSAFLUSH, &savedMode)`.
+   - On Linux, `bufferSize` and `maximumPeriodMilliseconds` have no use, as the Linux note of `jam_TerminalTTY_posix.h:99-100` says for the TTY.
+5. `close()`: when `readSource` is not null, do the steps of `jam_TerminalTTY_posix.cpp:296-305` for each source: cancel, resume when suspended, wait on `cancelled`, reset. Then, when `savedMode` holds a value, `tcsetattr (STDIN_FILENO, TCSAFLUSH, &savedMode.value())` and reset `savedMode`.
 6. `read (buf, maxBytes)`: `::read (STDIN_FILENO, buf, maxBytes)`. A result above 0 gives the count. 0 gives 0. -1 gives -1.
 7. `write (buf, len)`: `::write (STDOUT_FILENO, buf, len)`. The result gives the count, or -1. The descriptor keeps its blocking mode. The program installs no signal handler (item 4), so no signal cuts the call short.
 8. `getWinsize()`: `ioctl (STDOUT_FILENO, TIOCGWINSZ, &size)` into a `struct winsize`. It returns `{ size.ws_col, size.ws_row, size.ws_xpixel, size.ws_ypixel }` as a `jam::TerminalWinsize`, the order of `jam_TerminalWinsize.h:36-39`.
@@ -356,15 +359,16 @@ The contract of each member:
 **Validation:**
 - After `close()`, the terminal mode equals the saved mode.
 - No `fcntl` call changes the file status flags of stdin or of stdout, so a parent shell gets its terminal back unchanged.
-- New names and their families: `TerminalUnixDisplay` (ruling 15); `readSource`, `isReadSourceSuspended`, `cancelled` (`jam_TerminalTTY_posix.h:189,192,195`); `resizeSource` (the `…Source` member of `readSource`); `savedMode` (Apple `cfmakeraw(3)`: "snapshot the current terminal state ... revert to the previous terminal state").
+- New names and their families: `TerminalUnixDisplay` (ruling 15); `readSource`, `isReadSourceSuspended`, `cancelled` (`jam_TerminalTTY_posix.h:189,192,195`); `resizeSource` (the `…Source` member of `readSource`); `addSources` (`addReadSource`, `jam_TerminalTTY_posix.h:186`); `savedMode` (Apple `cfmakeraw(3)`: "snapshot the current terminal state ... revert to the previous terminal state").
 
 ### Step 7: `TerminalWindowsDisplay`
 **Scope:** `jam_terminal/display/native/jam_TerminalDisplay_windows.h`, `jam_terminal/display/native/jam_TerminalDisplay_windows.cpp` (both new).
 **Action:**
 1. The header: guard `#ifdef JUCE_WINDOWS`, platform include `<windows.h>`, as `jam_TerminalTTY_windows.h:88-90`. Declare `class TerminalWindowsDisplay final : public TerminalDisplay` with the five overrides and `~TerminalWindowsDisplay() override;`.
 2. The private members:
-   - `readWait`, with the type and deleter of `jam_TerminalTTY_windows.h:300`.
-   - `DWORD savedInputMode { 0 };` and `DWORD savedOutputMode { 0 };`.
+   - `readWait`, with the type and deleter of the TTY's thread pool wait (`jam_TerminalTTY_windows.h:291`).
+   - `jam::TerminalClock clock`, as the TTY backends own one.
+   - `std::optional<DWORD> savedInputMode;` and `std::optional<DWORD> savedOutputMode;`. `close()` restores each only when it holds a value, then resets it, for the reason of Step 6 item 2.
    - `jam::Array<INPUT_RECORD> inputRecords;`, sized by `open()`.
    - No member holds a console handle. Each use calls `GetStdHandle (STD_INPUT_HANDLE)` or `GetStdHandle (STD_OUTPUT_HANDLE)`, because the handles are not owned (CODING.md, "No non-owning naked pointers as members").
 3. `open (context, bufferSize)`:
@@ -372,16 +376,17 @@ The contract of each member:
    - Input mode: `ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_WINDOW_INPUT`. Line input, echo, and processed input are off, so each key and Ctrl+C arrive as input.
    - Output mode: `savedOutputMode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING`. `DISABLE_NEWLINE_AUTO_RETURN` stays as saved, so the newline between two rows moves to column 0 (Step 2, item 8).
    - `inputRecords.resize (bufferSize / jam::AttributedChar::utf8MaxBytes)`. One record gives at most `utf8MaxBytes` bytes.
-   - Create `readWait` on the pool `context`, in the form that `TerminalWindowsTTY::open` creates its `readWait`: a `TP_CALLBACK_ENVIRON` bound to `context` with `SetThreadpoolCallbackPool`, then `CreateThreadpoolWait`, then `DestroyThreadpoolEnvironment` (`jam_TerminalTTY_windows.cpp:687-690,701,724`). Arm it on the console input handle with `SetThreadpoolWait`. Its callback takes the count of unread records from `GetNumberOfConsoleInputEvents`, calls `onBytesReady` with it, and then arms the wait again. The owner reads every record inside `onBytesReady`, so the handle is not signaled when the wait is armed again.
-4. `close()`: when `readWait` is not null, stop it and wait for a running callback: `SetThreadpoolWait (readWait.get(), nullptr, nullptr)`, `WaitForThreadpoolWaitCallbacks (readWait.get(), TRUE)`, `readWait.reset()`, as `TerminalWindowsTTY::close` does (`jam_TerminalTTY_windows.cpp:793-798`). Then `SetConsoleMode` with `savedInputMode` and `savedOutputMode`.
+   - Create `readWait` on the pool `context`, in the form that `TerminalWindowsTTY::open` creates its `readWait`: a `TP_CALLBACK_ENVIRON` bound to `context` with `SetThreadpoolCallbackPool`, then `CreateThreadpoolWait`, then `DestroyThreadpoolEnvironment` (`jam_TerminalTTY_windows.cpp:687-690,701,724`). Arm it on the console input handle with `SetThreadpoolWait`. Before it, `clock.prepare (bufferSize, maximumPeriodMilliseconds)`. Its callback takes the count of unread records from `GetNumberOfConsoleInputEvents` as `numSamples`, and calls `clock.process (numSamples)`, `onBytesReady (numSamples)` and `clock.wait()`, as the TTY readiness callback does. The callback does not arm the wait: `read()` arms it after it drains the records (item 5), because "the Windows backend's next overlapped read is the re-arm" (`eve/SPEC.md:49-50`).
+4. `close()`: when `readWait` is not null, stop it and wait for a running callback: `SetThreadpoolWait (readWait.get(), nullptr, nullptr)`, `WaitForThreadpoolWaitCallbacks (readWait.get(), TRUE)`, `readWait.reset()`, the tested close form of the TTY backend. Then `SetConsoleMode` with each saved mode that holds a value.
 5. `read (buf, maxBytes)`:
    - `PeekConsoleInputW` into `inputRecords`, for at most `juce::jmin (maxBytes / jam::AttributedChar::utf8MaxBytes, inputRecords.size())` records. It returns at once.
    - When the last record is a key-down record with a high surrogate, leave it unread, so a surrogate pair is read whole by the next call.
-   - `ReadConsoleInputW` for that count. It does not wait, because the records exist.
-   - A key-down record with a non-zero `uChar.UnicodeChar` gives its character as UTF-8 into `buf`. A high surrogate and the next record's low surrogate give one codepoint through `juce::CharPointer_UTF16`. The write is the body of `TerminalEncoder::writeCodepoint` (`jam_TerminalEncoder.cpp:57-63`) into `buf`.
+   - `ReadConsoleInputW` for that count. It does not wait, because the records exist. A failed peek or read returns -1 (Step 5).
+   - A file-static `getUnicodeChar (const INPUT_RECORD&)` gives `uChar.UnicodeChar` of a key-down `KEY_EVENT` record, and 0 for any other record.
+   - A key-down record with a non-zero `uChar.UnicodeChar` gives its character as UTF-8 into `buf`. A high surrogate pairs with the next record only when that record holds a low surrogate (`juce::CharacterFunctions::isLowSurrogate`); the pair gives one codepoint through `juce::CharPointer_UTF16`. One `juce::CharPointer_UTF8` writer over `buf` writes each codepoint, and its address gives the count (`juce_CharPointer_UTF8.h:75,261`). Auditor findings 2 and 6.
    - A `WINDOW_BUFFER_SIZE_EVENT` record gives no byte. The readiness callback counted it with the other records, so the owner's tick reads `getWinsize()` (ruling 30). The record's `dwSize` is the buffer size, not the window size (learn.microsoft.com `window-buffer-size-record-str`).
    - Any other record gives no byte.
-   - It returns the bytes written into `buf`.
+   - It arms the wait on the console input handle again with `SetThreadpoolWait`, then returns the bytes written into `buf`.
 6. `write (buf, len)`: `WriteFile` on the output handle. It returns the bytes written, or -1. The call is synchronous: it returns when the console has the bytes.
 7. `getWinsize()`: `GetConsoleScreenBufferInfo` on the output handle. It returns `{ srWindow.Right - srWindow.Left + 1, srWindow.Bottom - srWindow.Top + 1, 0, 0 }`. The pixel fields are 0, as on the TTY backend (`jam_TerminalTTY_windows.h:249-250`).
 8. The destructor calls `close()`.
@@ -389,7 +394,7 @@ The contract of each member:
 **Validation:**
 - After `close()`, both console modes equal the saved modes.
 - No identifier is a Windows SDK macro name (CODING.md table).
-- New names and their families: `TerminalWindowsDisplay` (ruling 15); `readWait` (`jam_TerminalTTY_windows.h:300`); `savedInputMode`, `savedOutputMode` (`savedMode` of Step 6); `inputRecords` (the Win32 type `INPUT_RECORD`, and `readBuffer`, `jam_TerminalTTY_windows.h:329`).
+- New names and their families: `TerminalWindowsDisplay` (ruling 15); `readWait` (`jam_TerminalTTY_windows.h:300`); `savedInputMode`, `savedOutputMode` (`savedMode` of Step 6); `inputRecords` (the Win32 type `INPUT_RECORD`, and `readBuffer`, `jam_TerminalTTY_windows.h:329`); `getUnicodeChar` (the `get` verb and the Win32 field `uChar.UnicodeChar`).
 
 ### Step 8: Wire the module
 **Scope:** `jam_terminal/jam_terminal.h`, `jam_terminal/jam_terminal.cpp`.

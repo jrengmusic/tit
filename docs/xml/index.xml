@@ -1,0 +1,57 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygenindex xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="index.xsd" version="1.18.0" xml:lang="en-US">
+  <compound refid="class_application" kind="class"><name>Application</name>
+    <member refid="class_application_1a03eb21681fbd7473ff2eb2c6009afa8e" kind="function"><name>Application</name></member>
+    <member refid="class_application_1a9ca4a5b1cd128bfdc90020919624f29b" kind="function"><name>getApplicationName</name></member>
+    <member refid="class_application_1a871a460a03e9a5a70544681332c409d6" kind="function"><name>getApplicationVersion</name></member>
+    <member refid="class_application_1a28f20394267183bd8faac2db9bf57b4b" kind="function"><name>moreThanOneInstanceAllowed</name></member>
+    <member refid="class_application_1a2f873a3abcc4cc7b154269b80ef7c84f" kind="function"><name>initialise</name></member>
+    <member refid="class_application_1acd050c59340807685052276fb053787a" kind="function"><name>shutdown</name></member>
+    <member refid="class_application_1a0bd3fab129fe4edb5e5b4d13cff98bf5" kind="function"><name>anotherInstanceStarted</name></member>
+    <member refid="class_application_1ab8b25a6e9fd026257798d70ce10b060d" kind="function"><name>systemRequestedQuit</name></member>
+    <member refid="class_application_1a99f9888b785fa3fe7af4f8327c63a095" kind="function"><name>suspended</name></member>
+    <member refid="class_application_1aba26cb2704157414d4f253116443ad7d" kind="function"><name>resumed</name></member>
+    <member refid="class_application_1a6b9a3c22db32ea0f531d16952c53e06d" kind="function"><name>unhandledException</name></member>
+  </compound>
+  <compound refid="structtext_1_1_diagnostics" kind="struct"><name>text::Diagnostics</name>
+    <member refid="structtext_1_1_diagnostics_1a54030ad642dee1157d22d8255503812d" kind="variable"><name>failFlagUnknown</name></member>
+  </compound>
+  <compound refid="namespace_project_info" kind="namespace"><name>ProjectInfo</name>
+    <member refid="namespace_project_info_1a50f49d766351ea9313f67b3f30aa014d" kind="variable"><name>projectName</name></member>
+    <member refid="namespace_project_info_1a9b435df60395ecec1378ecbaba7ccb75" kind="variable"><name>companyName</name></member>
+    <member refid="namespace_project_info_1a75557edf46fa8becc81d2bff04c4c24b" kind="variable"><name>legalCompanyName</name></member>
+    <member refid="namespace_project_info_1a7e092322572cc0554d2ee7e6963b22fe" kind="variable"><name>versionString</name></member>
+    <member refid="namespace_project_info_1a3dfad1d1308874f47f13297fa6e93c49" kind="variable"><name>versionNumber</name></member>
+    <member refid="namespace_project_info_1a53f184d022499b38a6958b0ea2e88ab9" kind="variable"><name>productWebsite</name></member>
+    <member refid="namespace_project_info_1a9f61dfba4aab183c0a33c730776e3227" kind="variable"><name>companyEmail</name></member>
+    <member refid="namespace_project_info_1a8bc2cb4961d15c8b81888e1dafbeca41" kind="variable"><name>presetExtension</name></member>
+    <member refid="namespace_project_info_1aa30ca45a1228a1a11b2ecb2f3177ef06" kind="variable"><name>presetDefault</name></member>
+  </compound>
+  <compound refid="namespacestd" kind="namespace"><name>std</name>
+  </compound>
+  <compound refid="_files_8h" kind="file"><name>Files.h</name>
+  </compound>
+  <compound refid="_generated_8cpp" kind="file"><name>Generated.cpp</name>
+  </compound>
+  <compound refid="_generated_8h" kind="file"><name>Generated.h</name>
+  </compound>
+  <compound refid="_identifiers_8h" kind="file"><name>Identifiers.h</name>
+  </compound>
+  <compound refid="_project_info_8h" kind="file"><name>ProjectInfo.h</name>
+  </compound>
+  <compound refid="_text_8h" kind="file"><name>Text.h</name>
+  </compound>
+  <compound refid="_main_8cpp" kind="file"><name>Main.cpp</name>
+    <member refid="_main_8cpp_1a7eacf8422a0bf113fc72a4ecc24fac25" kind="variable"><name>flagArgIndex</name></member>
+    <member refid="_main_8cpp_1ab112c8dd220252b8308c8882da65e1b1" kind="variable"><name>flagOnlyArgumentCount</name></member>
+    <member refid="_main_8cpp_1a9e829d663254bc1194b28d474a86f897" kind="function"><name>printError</name></member>
+    <member refid="_main_8cpp_1a2bbde775f6db9f0e32cf9455a2ead1b7" kind="function"><name>writeVersion</name></member>
+    <member refid="_main_8cpp_1a25aaece57190448f6fa002b2a0ee1320" kind="function"><name>writeHelp</name></member>
+    <member refid="_main_8cpp_1a6f06085b02e0ad301adcc85196bbb128" kind="function"><name>isTerminalOutput</name></member>
+    <member refid="_main_8cpp_1ae9d877f9869f83faff0544aedad5fc64" kind="function"><name>getFlags</name></member>
+    <member refid="_main_8cpp_1a1e67ae682da8e9bfbdcf6f117d1abcf3" kind="function"><name>getFlagWord</name></member>
+    <member refid="_main_8cpp_1a92f2321886f9537b6a47ade955342c57" kind="function"><name>runCommandLine</name></member>
+  </compound>
+  <compound refid="dir_84fc5dba3506812825191c0c043e3c97" kind="dir"><name>generated</name>
+  </compound>
+</doxygenindex>

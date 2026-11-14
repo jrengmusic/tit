@@ -1,0 +1,285 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<tagfile doxygen_version="1.18.0">
+  <compound kind="file">
+    <name>Files.h</name>
+    <path>generated/</path>
+    <filename>_files_8h.html</filename>
+  </compound>
+  <compound kind="file">
+    <name>Generated.cpp</name>
+    <path>generated/</path>
+    <filename>_generated_8cpp.html</filename>
+    <includes id="_generated_8h" name="Generated.h" local="yes" import="no" module="no" objc="no">Generated.h</includes>
+  </compound>
+  <compound kind="file">
+    <name>Generated.h</name>
+    <path>generated/</path>
+    <filename>_generated_8h.html</filename>
+    <includes id="_project_info_8h" name="ProjectInfo.h" local="yes" import="no" module="no" objc="no">ProjectInfo.h</includes>
+    <includes id="_identifiers_8h" name="Identifiers.h" local="yes" import="no" module="no" objc="no">Identifiers.h</includes>
+    <includes id="_text_8h" name="Text.h" local="yes" import="no" module="no" objc="no">Text.h</includes>
+    <includes id="_files_8h" name="Files.h" local="yes" import="no" module="no" objc="no">Files.h</includes>
+  </compound>
+  <compound kind="file">
+    <name>Identifiers.h</name>
+    <path>generated/</path>
+    <filename>_identifiers_8h.html</filename>
+  </compound>
+  <compound kind="file">
+    <name>ProjectInfo.h</name>
+    <path>generated/</path>
+    <filename>_project_info_8h.html</filename>
+    <namespace>ProjectInfo</namespace>
+  </compound>
+  <compound kind="file">
+    <name>Text.h</name>
+    <path>generated/</path>
+    <filename>_text_8h.html</filename>
+    <class kind="struct">text::Diagnostics</class>
+  </compound>
+  <compound kind="file">
+    <name>Main.cpp</name>
+    <path></path>
+    <filename>_main_8cpp.html</filename>
+    <includes id="_generated_8h" name="Generated.h" local="yes" import="no" module="no" objc="no">generated/Generated.h</includes>
+    <class kind="class">Application</class>
+    <member kind="function" static="yes">
+      <type>static void</type>
+      <name>printError</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a9e829d663254bc1194b28d474a86f897</anchor>
+      <arglist>(std::string_view argument, std::string_view message)</arglist>
+    </member>
+    <member kind="function" static="yes">
+      <type>static void</type>
+      <name>writeVersion</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a2bbde775f6db9f0e32cf9455a2ead1b7</anchor>
+      <arglist>()</arglist>
+    </member>
+    <member kind="function" static="yes">
+      <type>static void</type>
+      <name>writeHelp</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a25aaece57190448f6fa002b2a0ee1320</anchor>
+      <arglist>()</arglist>
+    </member>
+    <member kind="function" static="yes">
+      <type>static bool</type>
+      <name>isTerminalOutput</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a6f06085b02e0ad301adcc85196bbb128</anchor>
+      <arglist>() noexcept</arglist>
+    </member>
+    <member kind="function" static="yes">
+      <type>static const jam::Function::Map&lt; juce::Identifier, jam::Function::pointerCapacity, int()&gt; &amp;</type>
+      <name>getFlags</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>ae9d877f9869f83faff0544aedad5fc64</anchor>
+      <arglist>()</arglist>
+    </member>
+    <member kind="function" static="yes">
+      <type>static std::string_view</type>
+      <name>getFlagWord</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a1e67ae682da8e9bfbdcf6f117d1abcf3</anchor>
+      <arglist>(std::string_view argument)</arglist>
+    </member>
+    <member kind="function" static="yes">
+      <type>static int</type>
+      <name>runCommandLine</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a92f2321886f9537b6a47ade955342c57</anchor>
+      <arglist>(const juce::StringArray &amp;arguments)</arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr int</type>
+      <name>flagArgIndex</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>a7eacf8422a0bf113fc72a4ecc24fac25</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr int</type>
+      <name>flagOnlyArgumentCount</name>
+      <anchorfile>_main_8cpp.html</anchorfile>
+      <anchor>ab112c8dd220252b8308c8882da65e1b1</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="class">
+    <name>Application</name>
+    <filename>class_application.html</filename>
+    <base>juce::JUCEApplicationBase</base>
+    <member kind="function">
+      <type></type>
+      <name>Application</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a03eb21681fbd7473ff2eb2c6009afa8e</anchor>
+      <arglist>()=default</arglist>
+    </member>
+    <member kind="function">
+      <type>const juce::String</type>
+      <name>getApplicationName</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a9ca4a5b1cd128bfdc90020919624f29b</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>const juce::String</type>
+      <name>getApplicationVersion</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a871a460a03e9a5a70544681332c409d6</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>bool</type>
+      <name>moreThanOneInstanceAllowed</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a28f20394267183bd8faac2db9bf57b4b</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>initialise</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a2f873a3abcc4cc7b154269b80ef7c84f</anchor>
+      <arglist>(const juce::String &amp;) override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>shutdown</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>acd050c59340807685052276fb053787a</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>anotherInstanceStarted</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a0bd3fab129fe4edb5e5b4d13cff98bf5</anchor>
+      <arglist>(const juce::String &amp;) override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>systemRequestedQuit</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>ab8b25a6e9fd026257798d70ce10b060d</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>suspended</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a99f9888b785fa3fe7af4f8327c63a095</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>resumed</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>aba26cb2704157414d4f253116443ad7d</anchor>
+      <arglist>() override</arglist>
+    </member>
+    <member kind="function">
+      <type>void</type>
+      <name>unhandledException</name>
+      <anchorfile>class_application.html</anchorfile>
+      <anchor>a6b9a3c22db32ea0f531d16952c53e06d</anchor>
+      <arglist>(const std::exception *, const juce::String &amp;, int) override</arglist>
+    </member>
+  </compound>
+  <compound kind="struct">
+    <name>text::Diagnostics</name>
+    <filename>structtext_1_1_diagnostics.html</filename>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>failFlagUnknown</name>
+      <anchorfile>structtext_1_1_diagnostics.html</anchorfile>
+      <anchor>a54030ad642dee1157d22d8255503812d</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="namespace">
+    <name>ProjectInfo</name>
+    <filename>namespace_project_info.html</filename>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>projectName</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a50f49d766351ea9313f67b3f30aa014d</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>companyName</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a9b435df60395ecec1378ecbaba7ccb75</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>legalCompanyName</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a75557edf46fa8becc81d2bff04c4c24b</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>versionString</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a7e092322572cc0554d2ee7e6963b22fe</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr int</type>
+      <name>versionNumber</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a3dfad1d1308874f47f13297fa6e93c49</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>productWebsite</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a53f184d022499b38a6958b0ea2e88ab9</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>companyEmail</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a9f61dfba4aab183c0a33c730776e3227</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>presetExtension</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>a8bc2cb4961d15c8b81888e1dafbeca41</anchor>
+      <arglist></arglist>
+    </member>
+    <member kind="variable" static="yes">
+      <type>static constexpr const char *const</type>
+      <name>presetDefault</name>
+      <anchorfile>namespace_project_info.html</anchorfile>
+      <anchor>aa30ca45a1228a1a11b2ecb2f3177ef06</anchor>
+      <arglist></arglist>
+    </member>
+  </compound>
+  <compound kind="namespace">
+    <name>std</name>
+    <filename>namespacestd.html</filename>
+  </compound>
+  <compound kind="dir">
+    <name>generated</name>
+    <path>generated/</path>
+    <filename>dir_84fc5dba3506812825191c0c043e3c97.html</filename>
+    <file>Files.h</file>
+    <file>Generated.cpp</file>
+    <file>Generated.h</file>
+    <file>Identifiers.h</file>
+    <file>ProjectInfo.h</file>
+    <file>Text.h</file>
+  </compound>
+</tagfile>

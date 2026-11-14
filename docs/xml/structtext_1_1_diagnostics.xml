@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.18.0" xml:lang="en-US">
+  <compounddef id="structtext_1_1_diagnostics" kind="struct" language="C++" prot="public">
+    <compoundname>text::Diagnostics</compoundname>
+    <includes refid="_text_8h" local="no">Text.h</includes>
+    <sectiondef kind="public-static-attrib">
+      <memberdef kind="variable" id="structtext_1_1_diagnostics_1a54030ad642dee1157d22d8255503812d" prot="public" static="yes" constexpr="yes" mutable="no">
+        <type>const char *const</type>
+        <definition>const char* const text::Diagnostics::failFlagUnknown</definition>
+        <argsstring></argsstring>
+        <name>failFlagUnknown</name>
+        <qualifiedname>text::Diagnostics::failFlagUnknown</qualifiedname>
+        <initializer>{ &quot;unknown flag&quot; }</initializer>
+        <briefdescription>
+<para>An argument that is not <ndash/>help or <ndash/>version. </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="generated/Text.h" line="31" column="39" bodyfile="generated/Text.h" bodystart="31" bodyend="31"/>
+        <referencedby refid="_main_8cpp_1a92f2321886f9537b6a47ade955342c57" compoundref="_main_8cpp" startline="84" endline="99">runCommandLine</referencedby>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+<para>titc message texts, emitted verbatim when a run fails. </para>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <location file="generated/Text.h" line="29" column="1" bodyfile="generated/Text.h" bodystart="30" bodyend="32"/>
+    <listofallmembers>
+      <member refid="structtext_1_1_diagnostics_1a54030ad642dee1157d22d8255503812d" prot="public" virt="non-virtual"><scope>text::Diagnostics</scope><name>failFlagUnknown</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>

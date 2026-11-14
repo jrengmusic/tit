@@ -1,0 +1,251 @@
+<?xml version='1.0' encoding='UTF-8' standalone='no'?>
+<doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.18.0" xml:lang="en-US">
+  <compounddef id="class_application" kind="class" language="C++" prot="public">
+    <compoundname>Application</compoundname>
+    <basecompoundref refid="classjuce_1_1JUCEApplicationBase" prot="public" virt="non-virtual">juce::JUCEApplicationBase</basecompoundref>
+    <sectiondef kind="public-func">
+      <memberdef kind="function" id="class_application_1a03eb21681fbd7473ff2eb2c6009afa8e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type></type>
+        <definition>Application::Application</definition>
+        <argsstring>()=default</argsstring>
+        <name>Application</name>
+        <qualifiedname>Application::Application</qualifiedname>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="104" column="5"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a9ca4a5b1cd128bfdc90020919624f29b" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>const <ref refid="classjuce_1_1String" kindref="compound" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml">juce::String</ref></type>
+        <definition>const juce::String Application::getApplicationName</definition>
+        <argsstring>() override</argsstring>
+        <name>getApplicationName</name>
+        <qualifiedname>Application::getApplicationName</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1a528b678bed5bb42b91bced35d19c4665">getApplicationName</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="106" column="24" bodyfile="Main.cpp" bodystart="106" bodyend="106"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a871a460a03e9a5a70544681332c409d6" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>const <ref refid="classjuce_1_1String" kindref="compound" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml">juce::String</ref></type>
+        <definition>const juce::String Application::getApplicationVersion</definition>
+        <argsstring>() override</argsstring>
+        <name>getApplicationVersion</name>
+        <qualifiedname>Application::getApplicationVersion</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1ad7269020c06fd6772e64059ad6402522">getApplicationVersion</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="107" column="24" bodyfile="Main.cpp" bodystart="107" bodyend="107"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a28f20394267183bd8faac2db9bf57b4b" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>bool</type>
+        <definition>bool Application::moreThanOneInstanceAllowed</definition>
+        <argsstring>() override</argsstring>
+        <name>moreThanOneInstanceAllowed</name>
+        <qualifiedname>Application::moreThanOneInstanceAllowed</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1ae0c6c491b621bd548cebb36047dd1828">moreThanOneInstanceAllowed</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="108" column="10" bodyfile="Main.cpp" bodystart="108" bodyend="108"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a2f873a3abcc4cc7b154269b80ef7c84f" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::initialise</definition>
+        <argsstring>(const juce::String &amp;) override</argsstring>
+        <name>initialise</name>
+        <qualifiedname>Application::initialise</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1a2fb0e7fd4ab86c32c8e0ff663428ae1f">initialise</reimplements>
+        <param>
+          <type>const <ref refid="classjuce_1_1String" kindref="compound" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml">juce::String</ref> &amp;</type>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="110" column="10" bodyfile="Main.cpp" bodystart="110" bodyend="126"/>
+        <references refid="classjuce_1_1JUCEApplicationBase_1a8a2607a3fbc79cc10e9d0feda93c4856">juce::JUCEApplicationBase::getCommandLineParameterArray</references>
+        <references refid="classjuce_1_1MemoryOutputStream_1a050102f4ce6bec06a6e307434f467635">juce::MemoryOutputStream::getData</references>
+        <references refid="classjuce_1_1MemoryOutputStream_1a2ec3b7c88c8eba50d8a45f081dee0529">juce::MemoryOutputStream::getDataSize</references>
+        <references refid="_main_8cpp_1a6f06085b02e0ad301adcc85196bbb128" compoundref="_main_8cpp" startline="48" endline="55">isTerminalOutput</references>
+        <references refid="classjuce_1_1JUCEApplicationBase_1ae2ba9b90c02361717d997aa26861f2c4">juce::JUCEApplicationBase::quit</references>
+        <references refid="_main_8cpp_1a92f2321886f9537b6a47ade955342c57" compoundref="_main_8cpp" startline="84" endline="99">runCommandLine</references>
+        <references refid="classjuce_1_1JUCEApplicationBase_1aa718d56bbc1c7d7271aedbc378eeaffe">juce::JUCEApplicationBase::setApplicationReturnValue</references>
+        <references refid="structjam_1_1TerminalEncoder_1a4d55627117d567684bcebe251d818220">jam::TerminalEncoder::writeEraseScreen</references>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1acd050c59340807685052276fb053787a" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::shutdown</definition>
+        <argsstring>() override</argsstring>
+        <name>shutdown</name>
+        <qualifiedname>Application::shutdown</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1a506cf94ff70285f6c6f76e5e45eaafed">shutdown</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="128" column="10" bodyfile="Main.cpp" bodystart="128" bodyend="128"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a0bd3fab129fe4edb5e5b4d13cff98bf5" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::anotherInstanceStarted</definition>
+        <argsstring>(const juce::String &amp;) override</argsstring>
+        <name>anotherInstanceStarted</name>
+        <qualifiedname>Application::anotherInstanceStarted</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1aa7ec7405480684eb465c68e93d5ba0db">anotherInstanceStarted</reimplements>
+        <param>
+          <type>const <ref refid="classjuce_1_1String" kindref="compound" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml">juce::String</ref> &amp;</type>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="129" column="10" bodyfile="Main.cpp" bodystart="129" bodyend="129"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1ab8b25a6e9fd026257798d70ce10b060d" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::systemRequestedQuit</definition>
+        <argsstring>() override</argsstring>
+        <name>systemRequestedQuit</name>
+        <qualifiedname>Application::systemRequestedQuit</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1a07fe1f21a6f6226a85da12b979a8d53a">systemRequestedQuit</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="130" column="10" bodyfile="Main.cpp" bodystart="130" bodyend="130"/>
+        <references refid="classjuce_1_1JUCEApplicationBase_1ae2ba9b90c02361717d997aa26861f2c4">juce::JUCEApplicationBase::quit</references>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a99f9888b785fa3fe7af4f8327c63a095" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::suspended</definition>
+        <argsstring>() override</argsstring>
+        <name>suspended</name>
+        <qualifiedname>Application::suspended</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1a637b1117ebc82518f510384c56671288">suspended</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="131" column="10" bodyfile="Main.cpp" bodystart="131" bodyend="131"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1aba26cb2704157414d4f253116443ad7d" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::resumed</definition>
+        <argsstring>() override</argsstring>
+        <name>resumed</name>
+        <qualifiedname>Application::resumed</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1a81adcd47029b431f40718cb1204f3d41">resumed</reimplements>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="132" column="10" bodyfile="Main.cpp" bodystart="132" bodyend="132"/>
+      </memberdef>
+      <memberdef kind="function" id="class_application_1a6b9a3c22db32ea0f531d16952c53e06d" prot="public" static="no" const="no" explicit="no" inline="yes" virt="virtual">
+        <type>void</type>
+        <definition>void Application::unhandledException</definition>
+        <argsstring>(const std::exception *, const juce::String &amp;, int) override</argsstring>
+        <name>unhandledException</name>
+        <qualifiedname>Application::unhandledException</qualifiedname>
+        <reimplements refid="classjuce_1_1JUCEApplicationBase_1adda8cfe8a8023ac4019d1728c7526169">unhandledException</reimplements>
+        <param>
+          <type>const std::exception *</type>
+        </param>
+        <param>
+          <type>const <ref refid="classjuce_1_1String" kindref="compound" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml">juce::String</ref> &amp;</type>
+        </param>
+        <param>
+          <type>int</type>
+        </param>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="Main.cpp" line="134" column="10" bodyfile="Main.cpp" bodystart="134" bodyend="137"/>
+      </memberdef>
+    </sectiondef>
+    <briefdescription>
+    </briefdescription>
+    <detaileddescription>
+    </detaileddescription>
+    <inheritancegraph>
+      <node id="1">
+        <label>Application</label>
+        <link refid="class_application"/>
+        <childnode refid="2" relation="public-inheritance">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>juce::JUCEApplicationBase</label>
+        <link refid="classjuce_1_1JUCEApplicationBase" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml"/>
+      </node>
+    </inheritancegraph>
+    <collaborationgraph>
+      <node id="1">
+        <label>Application</label>
+        <link refid="class_application"/>
+        <childnode refid="2" relation="public-inheritance">
+        </childnode>
+      </node>
+      <node id="2">
+        <label>juce::JUCEApplicationBase</label>
+        <link refid="classjuce_1_1JUCEApplicationBase" external="/Users/jreng/Documents/Poems/JUCE/docs/tagfile.xml"/>
+      </node>
+    </collaborationgraph>
+    <location file="Main.cpp" line="101" column="1" bodyfile="Main.cpp" bodystart="102" bodyend="141"/>
+    <listofallmembers>
+      <member refid="class_application_1a0bd3fab129fe4edb5e5b4d13cff98bf5" prot="public" virt="virtual"><scope>Application</scope><name>anotherInstanceStarted</name></member>
+      <member refid="class_application_1a03eb21681fbd7473ff2eb2c6009afa8e" prot="public" virt="non-virtual"><scope>Application</scope><name>Application</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1ac535f3e5c5a6c783efed6e8e86b341f8" prot="public" virt="virtual"><scope>Application</scope><name>backButtonPressed</name></member>
+      <member refid="class_application_1a9ca4a5b1cd128bfdc90020919624f29b" prot="public" virt="virtual"><scope>Application</scope><name>getApplicationName</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1af331db63560821279c1e44baebe9a5e6" prot="public" virt="non-virtual"><scope>Application</scope><name>getApplicationReturnValue</name></member>
+      <member refid="class_application_1a871a460a03e9a5a70544681332c409d6" prot="public" virt="virtual"><scope>Application</scope><name>getApplicationVersion</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1a8a2607a3fbc79cc10e9d0feda93c4856" prot="public" virt="non-virtual"><scope>Application</scope><name>getCommandLineParameterArray</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1ad41006a0138c86f51f10e0391494dfbf" prot="public" virt="non-virtual"><scope>Application</scope><name>getCommandLineParameters</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1ad202ba9fc825300b11c0d768da48b52a" prot="public" virt="non-virtual"><scope>Application</scope><name>getInstance</name></member>
+      <member refid="class_application_1a2f873a3abcc4cc7b154269b80ef7c84f" prot="public" virt="virtual"><scope>Application</scope><name>initialise</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1a025180bd29ffeee88c2acf03bd48b4d8" prot="public" virt="non-virtual"><scope>Application</scope><name>isInitialising</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1ad75e84c848382d012ecc7ba0c5192960" prot="public" virt="non-virtual"><scope>Application</scope><name>isStandaloneApp</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1aa042f23227e80c180013501a027ab941" prot="protected" virt="non-virtual"><scope>Application</scope><name>JUCEApplicationBase</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1a605565242eccd51d45d6bc3e6097dc9c" prot="public" virt="virtual"><scope>Application</scope><name>memoryWarningReceived</name></member>
+      <member refid="class_application_1a28f20394267183bd8faac2db9bf57b4b" prot="public" virt="virtual"><scope>Application</scope><name>moreThanOneInstanceAllowed</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1ae2ba9b90c02361717d997aa26861f2c4" prot="public" virt="non-virtual"><scope>Application</scope><name>quit</name></member>
+      <member refid="class_application_1aba26cb2704157414d4f253116443ad7d" prot="public" virt="virtual"><scope>Application</scope><name>resumed</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1aa718d56bbc1c7d7271aedbc378eeaffe" prot="public" virt="non-virtual"><scope>Application</scope><name>setApplicationReturnValue</name></member>
+      <member refid="class_application_1acd050c59340807685052276fb053787a" prot="public" virt="virtual"><scope>Application</scope><name>shutdown</name></member>
+      <member refid="class_application_1a99f9888b785fa3fe7af4f8327c63a095" prot="public" virt="virtual"><scope>Application</scope><name>suspended</name></member>
+      <member refid="class_application_1ab8b25a6e9fd026257798d70ce10b060d" prot="public" virt="virtual"><scope>Application</scope><name>systemRequestedQuit</name></member>
+      <member refid="class_application_1a6b9a3c22db32ea0f531d16952c53e06d" prot="public" virt="virtual"><scope>Application</scope><name>unhandledException</name></member>
+      <member refid="classjuce_1_1JUCEApplicationBase_1a37106bc3cb38f2385f0c2dc0bffcd674" prot="public" virt="virtual"><scope>Application</scope><name>~JUCEApplicationBase</name></member>
+    </listofallmembers>
+  </compounddef>
+</doxygen>
