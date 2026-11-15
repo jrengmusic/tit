@@ -111,6 +111,56 @@
 
 ## SPRINT HISTORY
 
+## Sprint 21: TIT Part 4 — Input Bytes to `juce::KeyPress` ✅
+
+**Date:** 2026-11-16
+**Duration:** not recorded
+
+### Agents Participated
+- COUNSELOR: Claude Opus — Read the tracker, the Sprint 20 state, and Part 4. Read the owner APIs: `jam::Map::getKey`, `AnsiDocument::getToken` / `getCsiParameters` / `getParameterValue`, `Document::Cursor` and `Token`, `Chars`, `map::ansi`, `jam::HashMap::insert`, JUCE `CharPointer_UTF8::getDerefAndIncrement`. Corrected the plan text, wrote each Engineer brief, validated each return, filtered the Auditor findings.
+- Pathfinder: Haiku — Verbatim reads of the sprint log, the tracker, and the Part 3 and Part 4 plans. `git status`, `git log`, `git diff` of tit and jam.
+- Engineer: Sonnet — Plan Steps 1 and 2, the brace-init correction, the audit corrections, the undo of two relocations.
+- Auditor: Opus — One sweep, 17 findings. Fixed: 1, 2, 3, 5, 6, 8, 9, 10, 12, 13 (the lengths 1, 2, 3), 14, 15, 16; 4 in the plan text. Rejected: 7, 11, 17, and the bare `0` of 13.
+
+### Files Modified (4 total)
+**JAM (`~/Documents/Poems/dev/jam/`):**
+- `jam_terminal/keyboard/jam_TerminalKeyboard.h` — public template `applyKeyPresses (bytes, hasMoreInput, keyCallback, pasteCallback)` (`:119-139`), returns the bytes used; the caller keeps the cut key (MANIFESTO permitted copy 3). `modifierBits`, one table of xterm bit and JUCE flag, the meta row on macOS only (`:321-329`). `backTabFinal` at class scope (`:343`). `escapeKeyLength`, `altKeyLength`, `ss3KeyLength` (`:345-349`). `functionFinalChars`, `functionCodes` (`:415-417`). `editingFinalChars` is `jam::HashMap<int, char>` (`:588`). `getTildeKey` (`:607`). Private template `applyKeyPress` with the `map::ansi` text test (`:609-621`). Decoder declarations (`:623-637`). `finalCharKeyCodes` (`:639`).
+- `jam_terminal/keyboard/jam_TerminalKeyboard.cpp` — `functionFinalChars`, `functionCodes` (`:227-245`). `getModifierCode` reads `modifierBits` (`:247-256`). `getFunctionKey` and `getEditingKey` give `getCursorKey` for a final byte and `getTildeKey` for a code (`:334-351`, `:370-387`). `finalCharKeyCodes`: the inverses of `cursorKeys`, `editingFinalChars`, `functionFinalChars` in one map (`:359-368`). `getTildeKey` (`:389-404`). `getKeyLength` (`:406-414`), `getEscapeKeyLength` (`:416-453`), `getKeyPress`, `getTextKeyPress`, `getControlKeyPress`, `getModifierKeys`, `getEscapeKeyPress`, `getCsiKeyPress` (`:455-565`), with the function-local `tildeKeyCodes` (`:532-539`). The local `backTabFinal` of `getSimpleKey` is deleted.
+
+**TIT:**
+- `PLAN-tit-4-key-input.md` — the corrections of this sprint and the audit, the rejected findings with their reads, the round trip exclusions, Step 3 (build) deleted.
+- `PLAN-tit-0-tracker.md` — Status row 4.
+
+### Alignment Check
+- [x] BLESSED principles followed — S: each inverse map comes from the encoder's own tables (`jam::Map::getKey`); `modifierBits` holds each modifier pair once; `getTildeKey` holds the `~` form once. E: the decoder works on views of the caller's bytes; `map::ansi` is the one byte class. L: no split made to meet a count (MANIFESTO L:58, 61-65).
+- [x] NAMES.md adhered — every new name has a family in the plan's "New names" lines (`apply…`, `get…KeyPress`, `get…KeyLength`, `get…Key`, `…KeyCodes`, `…Bits`).
+- [x] MANIFESTO.md principles applied — no comment and no doxygen before the doxygen pass.
+
+### Problems Solved
+- ARCHITECT asked if the doxygen was stale. COUNSELOR had repeated the Sprint 20 claim without a read. The read showed each named block current; only `setWrapped`, `isWrapped`, `wrappedRows` (`jam_TerminalBuffer.h:371,373,486`) have none.
+- The plan's `csiKeyConstruction` had no final byte, and its rows repeated the encoder's final bytes as literals. Replaced by `finalCharKeyCodes` and `tildeKeyCodes`, built from the encoder tables.
+- ESC ESC waited for more input: `getToken` at a second ESC gives an escape token (`jam_AnsiDocument.cpp:97-105`). The byte after ESC is now one character.
+- Seven inverse maps used braces with a container initializer. Parentheses (CODING.md CRITICAL RULES).
+- Audit finding 1: `CharPointer_UTF8::operator++` reads each announced continuation byte (`JUCE/modules/juce_core/text/juce_CharPointer_UTF8.h:577-582`). COUNSELOR's plan correction had assumed it reads the lead byte only, a training prior. The length of the character after ESC now comes from a text token of `getToken`, whose last character is complete.
+- Audit findings 2 and 3: Alt+`[` gave no key, and `ESC O` with a non-final third byte lost two keys. Both follow the `hasMoreInput` rule of `ESC O` now.
+- COUNSELOR failure: MANIFESTO L counts were used as limits. `tildeKeyCodes` went to class scope and `getAltKeyLength` was carved out only to meet them. ARCHITECT: *"WHAT FUCKING LIMIT? DONT GIVE ME BULLSHIT"* and *"why the fuck you never understand the contract? and keep hacking to satisfy bullshit?"*. Both are undone; every plan reason that cited a count is deleted.
+- COUNSELOR failure: the build steps of the plans (`ling`, `cast`, `scout`) were handed to ARCHITECT. ARCHITECT: *"dont fucking give me build any project bullshit, remove from plan"*. Part 4 Step 3 is deleted. COUNSELOR also deleted the CAROL.md Build line, which the instruction did not name; it is restored (`PLAN-tit-4-key-input.md:24`).
+
+### State for Continuation
+- Nothing is compiled. On the first build that compiles `jam_terminal`, check: `static constexpr std::array modifierBits` with `std::pair` deduction and `#if JUCE_MAC` in the initializer (`jam_TerminalKeyboard.h:321-329`); the lambda initializer of `finalCharKeyCodes` (`.cpp:359-368`); the `jam::Document::Cursor` aggregate (`.cpp:411`).
+- `applyKeyPresses` has no caller. Part 7 calls it (`PLAN-tit-4-key-input.md:14`).
+- The doxygen pass is due: the new members have no doxygen, and the `getModifierCode` block (`jam_TerminalKeyboard.h:420-441`) still describes `isCommandDown()` while the body reads `modifierBits`.
+- Tracker row 3 still reads "Step 9 (build and help comparison) is not run" (`PLAN-tit-0-tracker.md:21`). ARCHITECT, this session: *"no issue with help"*.
+- The jam tree holds 14 modified files that this sprint did not change (`git -C ~/Documents/Poems/dev/jam status --short`): `cast/core.md`, `generated/jam_Core.h`, `jam_core/document/jam_Document.*`, `jam_core/jam_core.h`, `jam_core/utilities/jam_Hash.h`, `jam_core/utils/jam_HashMap.h`, six `jam_syntax_tree/document/` files, `user-modules-info.md`.
+
+### Debts Paid
+- None (no DEBT.md at project root)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 20: TIT Part 3 — TerminalDisplay and the Inline Image Output Lane ✅
 
 **Date:** 2026-11-15
@@ -357,120 +407,6 @@
 
 ### Debts Paid
 - None (no DEBT.md at project root)
-
-### Debts Deferred
-- None
-
----
-
-## Sprint 16: Phases 1–3 + UI Bootstrap + jam Migration ✅
-
-**Date:** 2026-04-18 / 2026-04-19
-**Duration:** ~1 day (multi-session)
-
-### Agents Participated
-- COUNSELOR: Claude Sonnet — Planning, SPEC/PLAN edits, delegation
-- Engineer: Multiple — Phase 1–3 implementations, bug fixes, file rename, migration, bootstrap wire
-- Auditor: Multiple — Per-step BLESSED/NAMES/STANDARD validation (Sprint 2.2/2.3/2.4, Sprint 3.2/3.3/3.4/3.6)
-- Pathfinder: Multiple — Codebase inventory, jam vs TIT diff, commit message extraction
-- Explore: Deep Go ground-truth survey (shipping behavior for SPEC alignment)
-
-### Files Modified
-**Phase 1 — jam_tui primitives (Sprint 2):**
-- `modules/jam_tui/primitives/jam_tui_menu.{h,cpp}` — Menu (VT-driven, MENU/ITEM[] schema, listener)
-- `modules/jam_tui/primitives/jam_tui_listpane.{h,cpp}` — ListPane (scrollable, attribute+content columns, selectedIndex SSOT)
-- `modules/jam_tui/primitives/jam_tui_splitpane.{h,cpp}` — SplitPane (2-pane, Tab focus cycling)
-- `modules/jam_tui/primitives/jam_tui_dialog.{h,cpp}` — Dialog (public Prop* statics, context substitution, variant-count overload)
-- `modules/jam_tui/primitives/jam_tui_consolestream.{h,cpp}` — ConsoleStream (callAsync atomic writer, autoscroll)
-- `modules/jam_tui/primitives/jam_tui_textpane.{h,cpp}` + `_diff.cpp` + `_paint.cpp` — TextPane (split across 3 TUs per L; DiffLineType enum SSOT; lookup-map dispatch)
-- `modules/jam_tui/primitives/jam_tui_spinner.{h,cpp}` — Spinner (10 braille frames, juce::Timer)
-- `modules/jam_tui/primitives/jam_tui_theme_resolver.{h,cpp}` — pure accessor, fail-loud `getInt` (isInt guard)
-- `tests/TestRunner.cpp` — `juce::UnitTestRunner` driver (`titc_tests` target)
-- `tests/MenuTests.cpp`, `ListPaneTests.cpp`, `SplitPaneTests.cpp`, `DialogTests.cpp`, `ConsoleStreamTests.cpp`, `TextPaneTests.cpp`, `SpinnerTests.cpp`, `ThemeResolverTests.cpp`
-
-**Phase 2 — TitState + state:**
-- `Source/TitIdentifier.h` (155 LOC, 67 `juce::Identifier` — SSOT for RFC §4.6 VT schema + themes/default.xml attributes)
-- `Source/state/TitAxis.{h,cpp}` (36 + 155 LOC — 6 enum axes + 12 bridge functions, `.at()` + jassert on parse)
-- `Source/state/TitState.{h,cpp}` + `TitState_flush.cpp` — APVTS-mirror (atoms + Timer, skip-unchanged, `writeIfChanged<T>` template)
-- `tests/TitStateTests.cpp` — 4 tests (shape, message-thread, cross-thread, skip-unchanged)
-
-**Phase 2 — Menu:**
-- `Source/menu/MenuItems.h` — 27 `inline constexpr MenuItemDef` (verbatim from Go `menu_items.go`)
-- `Source/menu/MenuBuilder.{h,cpp}` — 8 generators, `generators.at(op)` dispatch
-- `tests/MenuBuilderTests.cpp` — 10 tests (determinism, coverage, per-Operation shapes)
-
-**Phase 3 — Views:**
-- `Source/view/TitScreen.{h,cpp}` — root composition
-- `Source/view/Banner.{h,cpp}` — braille SVG banner
-- `Source/view/Header.{h,cpp}` — REPO-observing
-- `Source/view/Footer.{h,cpp}` — operation-state-observing
-- `Source/view/MenuView.{h,cpp}` — MenuBuilder + MENU subtree write
-- `Source/view/HistoryView.{h,cpp}`, `FileHistoryView.{h,cpp}`, `ConflictResolverView.{h,cpp}`, `ConsoleView.{h,cpp}`, `ConfirmDialog.{h,cpp}` (7 variants), `SetupWizardView.{h,cpp}` (6 phases)
-- `tests/RootViewsTests.cpp`, `tests/BrowserViewsTests.cpp`
-
-**UI bootstrap:**
-- `Source/TitApp.{h,cpp}` — full bootstrap: TitState, ThemeResolver, TitScreen, `jam::tui::Screen`, `jam::tui::Input`. Theme file-first load, hardcoded fallback. Shutdown reverses construction.
-
-**Bug fixes (framework-level, land in jam):**
-- `jam::tui::Screen::renderChildren` — replaced with recursive `renderComponentTree` (was only iterating direct children)
-- `Source/view/TitScreen.cpp` — CtrlC/CtrlD → `systemRequestedQuit()`
-
-**Theme:**
-- `themes/default.xml` — 13 component families × 44 color attributes (GFX default, mirrors Go `theme_gfx.go`)
-
-**SPEC.md:**
-- §6 Normal menu: Timeline tables corrected (InSync empty; Clean/Dirty variants; branch ops removed from Normal)
-- §6.3 + §6.4 new (Config Menu, Preferences Menu)
-- §6 TimeTraveling: dual-path Return
-- §8 rewritten (Branch Picker CRUD)
-- §9 compressed
-- §10 subsection numbers fixed
-- §13 Setup: 7 wizard phases enumerated
-- §14 Keyboard §14.3–14.6 added
-- §16 theme: toml → xml
-- Post-§18 duplicate deleted
-
-**File rename (pre-migration):** 16 files `jreng_ansi_*` → `jam_tui_*` (convention: filename mirrors namespace path; subdir organizational only)
-
-**Build infrastructure:**
-- `build/` → `Builds/Ninja/`
-- `build.sh` ported from END (no install; MSYS2 zsh on Windows — no .bat needed)
-
-**jam migration (2026-04-19):**
-- Deleted `modules/` entirely (97 tracked + 18 untracked)
-- `CMakeLists.txt` → `$HOME/Documents/Poems/dev/jam/jam_*/`
-- Source + tests: `jreng::*` → `jam::*` (zero jreng refs)
-- `SPEC.md`, `PLAN-tit-cpp-port.md`, `RFC.md` swept
-
-**PLAN amendments:**
-- Sprint 2 file placement corrected (`primitives/` subdir, both .h + .cpp co-located)
-- Sprint 3 demo milestone → COMPONENT+STATE (dispatch deferred to Sprint 4)
-- Addendum 2026-04-19 at top (jam migration note)
-- Title + forward-looking text → `jam::tui`
-
-### Alignment Check
-- [x] BLESSED principles followed (multiple audit rounds per step; every early-return, shadow-state, magic-value, 30/3 violation surfaced and closed)
-- [x] NAMES.md adhered (Rule -1: every new name traces to SPEC / RFC / Go source / ARCHITECT approval; SCREAMING_SNAKE for file-scope constants; PascalCase classes; camelCase members)
-- [x] MANIFESTO.md principles applied (B thread ownership via std::unique_ptr + callAsync crossing; L 300/30/3 decomposed via TU splits; E zero early returns across all new code; S SSOT for VT keys via TitIdentifier.h + Dialog::Prop*; D determinism via pure-function MenuBuilder + VT-driven views)
-
-### Problems Solved
-- Byte-identity divergence in braille relaxed to visual parity (ARCHITECT 2026-04-18) — JUCE tessellator vs Go `approximateCubicBezier(20)` per-cell differs but shape preserved
-- `juce::FileWatcher` hallucination corrected — forked `FigBug/Gin` as `jam::File::Watcher` nested class in `jam_core`
-- `paint()` overload/shadow collision in caroline Sprint 5 masked rather than resolved — closed via RFC §6.1 explicit nullify (`override final {}`) on ansi Component
-- SPEC vs shipping Go drift identified through deep codebase survey (Explore agent); corrected across 10 areas
-- UI launch bugs: recursive renderComponentTree + CtrlC interception
-- SSOT violation in Dialog VT keys (4 duplicated sites) → public `jam::tui::Dialog::Prop*` statics
-- 5 early returns in paint methods (Sprint 2.2), 3 in keyboard dispatchers (Sprint 2.3) — all rewritten positive-nested
-- TextPane 505 LOC over L → split across 3 TUs, each ≤300
-- TitAxis.cpp silent-fail `.find()` fallback → `.at()` + `jassert` (fail-loud)
-- Early-return in CMake `_tit_pre_generate_juce_header` closed via positive-nested rewrite
-- Anonymous-namespace sweep across 8 test files (Sprint 2.3 audit) — `static` linkage replacement
-- `ConfirmDialog` unused `ThemeResolver` field + unused `isSelected` shadow on `ListItem` (Sprint 2.2 + 3.6 audit)
-- Stale `TIME_TRAVEL_MERGE` comment in MenuBuilder corrected against verified Go source (menu_render_extra.go)
-- SPEC TIME_TRAVEL_MERGE misread corrected: Go HAS time_travel_merge as confirmation dialog type, not as menu-emitted item — comment updated, SPEC left consistent with shipping behavior
-
-### Debts Paid
-- None (all in-scope items resolved before log; no `DEBT.md` entries this session)
 
 ### Debts Deferred
 - None
