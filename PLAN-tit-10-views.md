@@ -1302,7 +1302,6 @@ void InputView::setDocument()
 
     document->addLines (text.data(), static_cast<int> (text.size()));
     editor.setLiveBlock (std::move (document));
-    editor.setReadOnly (false);
     editor.setDefaultMode (map::EditorMode::normal);
     editor.setMode (map::EditorMode::insert);
 }

@@ -111,6 +111,95 @@
 
 ## SPRINT HISTORY
 
+## Sprint 23: TIT Part 6 — Insert Mode and the Edit Operators of `jam::TextEditor` ✅
+
+**Date:** 2026-11-16
+**Duration:** not recorded
+
+### Agents Participated
+- COUNSELOR: Claude Opus — Read the tracker, Part 6, today's editor, and the owner APIs: `Document` link API, `Document::Index`, `TextBlock::setRows`, `jam::Function::Map` (`pointerCapacity`), `juce::UndoManager`, `juce::TextInputTarget`, `ComponentPeer::refreshTextInputTarget`, and JUCE `TextEditor`. Corrected the plan from the reads. Wrote each brief, validated each return, and filtered the audit. Resolved the last three audit items from MANIFESTO, CODING, and NAMES after ARCHITECT's direction. Validated the doxygen blocks.
+- Pathfinder: Haiku — Dumped the old bodies at JAM `3585cb66d` and EVE `ViewLayout.md` at `df24a978d`. Read the cast generation rules. Did the doxygen pass of `jam_TextEditor.h` and `jam_TextEditorStatusBar.h`, and two JAM XML regenerations.
+- Engineer: Sonnet — Plan Step 1 (cast tables and generation), Steps 2 and 3 (primitives, undo actions, edit actions), Steps 4 to 6 (insert input, caret, status bar, `juce::TextInputTarget`, public `setLiveBlock`), and the audit corrections.
+- Auditor: Opus — One sweep, 27 findings. Fixed: 1, 2, 4 (mode part), 5, 8, 9, 11, 19, 20; 23 in the doxygen pass; 3 by an entry assert. Rejected with reads: 4 (destructor part), 6, 7, 10, 12, 13, 14, 15, 16, 17, 18, 21, 22, 24, 25, 26, 27.
+
+### Files Modified (16 total)
+**JAM (`~/Documents/Poems/dev/jam/`):**
+- `cast/gui.md` — `## EditorMode` row `insert 6`, so the keys 0 to 4 that EVE cites stay. 16 `@id` rows for the edit commands.
+- `cast/terminal.md` — `## TextEditorCommandId` rows `0x4800022`–`0x4800031`. One row for each in `textEditorKeys mac`, `textEditorKeys windows`, `textEditorModes`, and `textEditorLayers`. A normal or visual edit command has no default key: EVE's history stays read-only, and the owner's sheet binds the edit keys. The insert keys are `escape`, `return`, and `backspace`.
+- `cast/style.md` — `textEditorStatusBarInsertColourId 0x470000b`.
+- `cast/spell.md:138-140` — the three `textEditor…` lookup tables are size 49 (33 + 16). This was a plan gap: the size equals the row count.
+- `generated/jam_Gui.h`, `generated/jam_Gui.cpp`, `generated/jam_Style.h` — regenerated with `cast cast/spell.md`. The JAM spell has no `## toolchain`, so the run built nothing.
+- `jam_gui/widgets/jam_TextEditor.h`:
+  - The `public juce::TextInputTarget` base and its 11 overrides.
+  - `struct InsertLine` and `struct RemoveLine`.
+  - `setLine`, `addLine`, `removeLine`, `addText`.
+  - The private helpers `getCharIndex` and `getCellForCharIndex`.
+  - `juce::UndoManager undoManager`, after `live`, so the actions destroy before the document they reference.
+  - `setLiveBlock (std::unique_ptr<Document>)` is public (ruling 32).
+  - Doxygen for all of these. The class, `setCursor`, `getKeyInputs`, `getCarets`, `getActions`, the swap `setLiveBlock`, and `valueTreePropertyChanged` blocks are corrected.
+- `jam_gui/widgets/jam_TextEditor.cpp`:
+  - The old helpers and the edit actions in `getActions()`, in today's form: `Id::…` keys, `getMode`/`setMode`, `getVisualMode`, `getCells`, `numRepeats`. The table `erasures` is a typed `Function::Map`.
+  - `shapes` regains `deleteAction` and `change` as line rows. Without them, `dd` and `cc` cancel.
+  - The insert key input: `invokeKey` first, then a text character of at least space.
+  - The insert caret is a bar. `caretThickness` and `getBar` moved to the outer lambda.
+  - `setCursor` lets the column reach the cell count in insert mode.
+  - The `TextInputTarget` bodies use the row offset and the content limit of the mouse path. `insertTextAtCaret` reads the text with `Strings::getView`.
+  - `isTextInputActive` tests the mode only. `setHighlightedRegion` asserts an empty range.
+  - The mode reaction calls `peer->refreshTextInputTarget()`.
+  - Both `setLiveBlock` overloads clear the undo history.
+  - The constant `newlineLength`.
+- `jam_gui/widgets/jam_TextEditorStatusBar.h:34`, `.cpp:24` — `insertColourId` and its `modeColours` row. The label `INSERT` comes from the mode name.
+- `jam_terminal/processor/jam_TerminalProcessor.h:50-56` — `reset` documents `@param events` and the final `applyEvents()` call. This was the last doxygen warning of the JAM run.
+- `docs/html`, `docs/xml` — regenerated: exit 0, zero warnings.
+
+**TIT:**
+- `PLAN-tit-6-text-editor-insert.md` — the read corrections, the audit corrections, the contract resolutions, and Step 7 (build) deleted.
+- `PLAN-tit-10-views.md:1305` — removed `editor.setReadOnly (false);` in `InputView::setDocument`. This follows the Part 6 owner contract.
+- `PLAN-tit-0-tracker.md` — Status row 6.
+
+### Alignment Check
+- [x] BLESSED principles followed:
+  - B: the editor owns the `UndoManager`, and the manager owns each action. The history clears whenever `live` is replaced.
+  - S: the mode is the one truth of "the editor takes text". `newlineLength` is named once.
+  - E: an empty-range assert at `setHighlightedRegion`, and no copy of a pasted text in transit.
+  - Materialisation: each line action replaces the full layout with `setBlocks()`.
+- [x] NAMES.md adhered — every restored name is the old name. Conformed names: `numRepeats`, `Id::…`. New names come from families: `insertColourId` (`openColourId`), `getCharIndex` and `getCellForCharIndex` (JUCE `getCharIndexForPoint`), `newlineLength` (`escapeKeyLength`), `refreshTextInputTarget` (JUCE `ComponentPeer`).
+- [x] MANIFESTO.md principles applied — no comment before the audit. The doxygen pass came after it.
+
+### Problems Solved
+- The plan grew the command tables to 49 rows. The `LookupTable` sizes in `cast/spell.md:138-140` stayed 33. Corrected.
+- The restore missed the old `shapes` rows `deleteAction` and `change` (old `.cpp:829-830`). Without them, `applyOperand` cancels `dd` and `cc`.
+- Every undo action holds a `Document::Element&` of `live.document`, and `setLiveBlock` destroyed that document. Both overloads now clear the history (MANIFESTO B).
+- The text input positions left out the row offset that `Content::paint` adds. A point above the content reached `history.at` on an empty map. Both now use the form of `applyMouse`.
+- The peer target did not follow a mode change. Now the mode reaction refreshes it (JUCE `juce_TextEditor.cpp:329-330`).
+- COUNSELOR failure: COUNSELOR asked ARCHITECT three questions that CONTRACT answers. ARCHITECT: *"design by contract. understand the contract comprehensively. design by contract"*. After a re-read of the contract:
+  - `isTextInputActive` tests the mode only (MANIFESTO S, D). The owner no longer calls `setReadOnly (false)`, because in JAM that flag selects the terminal view (no wrap, winsize writes).
+  - The full relayout on each line edit stays: "the owner replaces the full concrete object" (Materialisation).
+  - Insert mode has no selection (YAGNI). The dropped range length is now an assert (E).
+- ARCHITECT pasted the remaining doxygen warning (`jam_TerminalProcessor.h:40`, `events` not documented). Fixed. The regeneration has zero warnings.
+
+### State for Continuation
+- Nothing is compiled. On the first build that compiles `jam_gui`, check these places:
+  - The captures of the `getActions()` lambdas against `Function::pointerCapacity` of 8 bytes. `paste` captures `put` and `eraseSelection` (`jam_TextEditor.cpp:607`).
+  - `static const auto erasures (…)` inside `eraseSelection` (`:496-553`).
+  - The pointer to member `bool (juce::UndoManager::*step)()` (`:419`).
+  - The `TextInputTarget` overrides against JUCE `juce_TextInputTarget.h:61-107`.
+- Plan Steps 8 and 9 are hand checks after a build:
+  - The edit keys need an owner sheet; TIT's sheet is Part 10.
+  - In EVE, `i a I A o O` must return to TERMINAL, and `d c x p P u ctrl+r` must change no line.
+- `insertColourId` has no default colour in JAM. A consumer stylesheet must define `--TextEditorStatusBar--insertColourId` before insert mode shows (TIT Part 10).
+- The JAM tree held other uncommitted changes that this sprint did not make: `cast/core.md`, `generated/jam_Core.*`, `jam_core/jam_core.*`, `user-modules-info.md`, `jam_core/json/jam_StdioServer.*`.
+- The JAM LSP gave declaration-only results this session (Pathfinder's `findReferences` calls). Absence claims on JAM symbols need ARCHITECT to load the JAM project in nvim.
+- The scratchpad Doxyfile for the JAM docs (`…/scratchpad/Doxyfile.jam`) is session-local. `<leader>bd` in nvim is the regeneration command.
+
+### Debts Paid
+- None (no DEBT.md at project root)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 22: TIT Part 5 — `TerminalWindow` and `TerminalComponentPeer` ✅
 
 **Date:** 2026-11-16
@@ -309,78 +398,6 @@
 - Part 2 changes no code. No build.
 - Six SPEC choices that differ from the Part 2 plan text are recorded in that plan's Step 4 table and in this entry: DirtyOperation and Conflicted menus; dirty time travel stashes with no second question (`SPEC.md` old lines 677-681); quit timeout 2s and floor 70×20 (`PLAN-tit-10-views.md:438,443`); output texts in the footer.
 - Parts 10 to 13 cite old `SPEC.md` line numbers (for example `tit/SPEC.md:350-357`). Those lines now hold the new text. Each part that executes reads its cited SPEC section by name, not by line.
-
-### Debts Paid
-- None (no DEBT.md at project root)
-
-### Debts Deferred
-- None
-
----
-
-## Sprint 18: Archetype Repair + TIT Part 1 (titc Cast Project) ✅
-
-**Date:** 2026-11-15
-**Duration:** not recorded
-
-### Agents Participated
-- COUNSELOR: Claude Opus — Read the working cast projects (cast, whatdbg, scout, ling, JFS), corrected PLAN-tit-1-project.md, validated each Engineer return, filtered Auditor findings, fixed the `Application` constructor.
-- Pathfinder: Haiku — Verbatim reads of the cast, whatdbg, scout, ling, ggwp, end and JFS templates, tables and installer resources.
-- Engineer: Sonnet — Archetype template and INIT.md rewrite, bitmap lane removal across projects, ggwp self-containment, TIT Part 1 Steps 1–10, audit fixes.
-- Auditor: Opus — One sweep, 16 findings (7 accepted and fixed, 9 rejected with citations).
-
-### Files Modified (approx. 60 total, across 9 projects)
-
-**archetype (`~/Documents/Poems/dev/archetype/`):**
-- `cli/cast/cmake.cast` — replaced with `cast/cast/cmake.cast` verbatim. The archetype data was stale.
-- `cli/cast/installer.cast`, `app/cast/installer.cast` — taken from cast's `installer.cast`. Removed `MUI_HEADERIMAGE`, `MUI_HEADERIMAGE_BITMAP` and `MUI_WELCOMEFINISHPAGE_BITMAP`.
-- `cli/`, `app/` installer resources — deleted `header.bmp` and `welcome.bmp`.
-- `cli/INIT.md`, `app/INIT.md`, `plugin/INIT.md`, `plugin-only/INIT.md` — template cells are now local to the project (`cmake.cast`, `installer.cast`, `signing.cast`, `installer-mac.cast`, `installer-win.cast`). Added the `juceCastPath` and `modulesInfoPath` cells to app, plugin and plugin-only.
-- `cli/init.cast` — fences rebuilt from cast's `project-info.md`, `spell.md` and `signing.md`. `## macro` replaces `## define`. `## architecture` dropped. Dead `CMakeLists.txt` `## headers` record removed. `installerResourceDirectory` is local (`init.cast:99`).
-- `plugin/init.cast`, `plugin-only/init.cast` — `@source` row is local `source.cast`. `app`, `plugin`, `plugin-only` `init.cast` use `:::modulesInfoPath:::` and `:::juceCastPath:::`.
-- `ARCHETYPE.md:25,96-104` — artwork line and the rule that the project holds its own templates.
-
-**cast, whatdbg, scout, ling, stamp, end:**
-- `cast/installer.cast` in each — removed the three MUI bitmap lines.
-- `cast/installer/resources/` in each — deleted 14 `header.bmp` / `welcome.bmp` files in total.
-
-**ggwp:**
-- `cast/cmake.cast`, `cast/installer.cast` — own copies. Project is self-contained.
-- `cast/spell.md` — index rows local. `@CMakeLists` group equals `cast/cast/spell.md:43-82`. Dead `CMakeLists.txt` `## headers` record removed.
-- `project-info.md` — `description` → `projectDescription`, `architecture` row added, `## architecture` table removed, `## define` → `## macro`, empty `## library` added. Release-notes separators added.
-
-**tit:**
-- Deleted `CMakeLists.txt`, `build.sh`, `install.sh`, `Source/` (old tree), `tests/`, `themes/`, `Builds/Ninja/` (Step 1).
-- `project-info.md` — generated by `cast INIT.md`. Values, juce modules (scout `108-113`), 14 user modules (scout `121-134`), macro, include and binary rows set.
-- `cast/cmake.cast`, `cast/installer.cast`, `cast/installer/resources/background*.png` — project-owned templates and placeholder artwork.
-- `cast/signing.md` — six LING values. No `disable-library-validation` entitlement.
-- `cast/identifiers.md`, `cast/text.md`, `cast/files.md`, `cast/source.cast`, `cast/spell.md` — LING-pattern tables and wiring. `@string` and `@banner` absent.
-- `LICENSE` — byte-equal to ling's.
-- `Source/HELP.md` — titc help body.
-- `Source/Main.cpp` — `printError`, `writeVersion`, `writeHelp` (via `jam::TerminalPage`), `isTerminalOutput`, `getFlags`, `getFlagWord`, `runCommandLine`, `class Application`. `Main.cpp:104` — `Application() = default;` added after the build error (the deleted copy constructor suppressed the implicit default constructor).
-- `PLAN-tit-1-project.md` — inventory, template ownership, Step 2/4/5/8/9/10 line citations, BLESSED line corrected.
-
-### Alignment Check
-- [x] BLESSED principles followed — each project owns its templates (Encapsulation). The templates are SSOT copies of the working cast project.
-- [x] NAMES.md adhered — no new names. All names come from the LING family.
-- [x] MANIFESTO.md principles applied — `jam::TerminalPage` used for help output. The framework API is used and not written again.
-
-### Problems Solved
-- Archetype data was stale. Its templates did not match the working projects. Replaced from cast verbatim.
-- Archetype templates linked to the archetype directory and broke encapsulation. Every cell now names a project-local file. INIT copies nothing.
-- The MUI bitmap lane (`header.bmp`, `welcome.bmp`) was dead. Removed from the archetype and from six projects. JFS is the installer canon.
-- ggwp depended on archetype templates. It now holds its own.
-- TIT had the old jam::tui tree. Replaced with a cast project that builds `titc` with `--version`, `--help` and an unknown-flag diagnostic.
-- `START_JUCE_APPLICATION (Application)` failed: no default constructor. Fixed at `Source/Main.cpp:104`.
-
-### State for Continuation
-- Rebuild `tit` with `cast cast/spell.md --debug`. The last build failed at `Main.cpp:141`. The fix at `Main.cpp:104` is not yet compiled.
-- Then run `titc --version`, `titc --help`, `titc`, `titc --wrong`. Expect exit 0, 0, 0, 1. A second cast run must change nothing.
-- Windows: no archetype or project change is built or tested there.
-- The archetype and the six projects are not rebuilt after the installer bitmap removal.
-- The JFS custom-page NSIS port for the cli and app archetypes is not done. Only the bitmap lines are removed.
-- `PLAN-tit-0-tracker.md` Status is not updated. Its inventory row that says `jam_tui` does not exist (near line 203) is stale. `jam/jam_tui/page/jam_TerminalPage.h` exists.
-- `tit/RELEASE.md` is the INIT stub. The first cast run regenerates it.
 
 ### Debts Paid
 - None (no DEBT.md at project root)

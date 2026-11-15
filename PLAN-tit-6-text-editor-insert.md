@@ -120,7 +120,7 @@ the whole sprint — never per step.
 ## Steps
 
 ### Step 1: The cast words
-**Scope:** `cast/gui.md`, `cast/terminal.md`, `cast/style.md`; then `generated/` through `cast cast/spell.md` from the JAM root.
+**Scope:** `cast/gui.md`, `cast/terminal.md`, `cast/style.md`, `cast/spell.md`; then `generated/` through `cast cast/spell.md` from the JAM root. The JAM `cast/spell.md` has no `## toolchain` table (`## index`, `## headers`, `## output` only), so the run formats and generates, and builds nothing (`cast --help`: "format each declared markdown file, regenerate each declared output, then run the default-flow ## toolchain rows").
 **Action:**
 1. `cast/gui.md`, `## EditorMode` (`:266-275`): add the row `| insert   | 6   |` after `panel`.
 2. `cast/gui.md`: add one `@id` row for each new command, in the form of `:100`: `insertBefore`, `insertAfter`, `insertLineStart`, `insertLineEnd`, `openLineBelow`, `openLineAbove`, `leaveMode`, `deleteAction`, `change`, `deleteCharacter`, `pasteAfter`, `pasteBefore`, `splitLine`, `deleteBackward`, `undo`, `redo`. Skip a name that already has a row.
@@ -137,10 +137,12 @@ the whole sprint — never per step.
 | `undo`, `redo` | `""` | `normal` | `""` |
 
 5. `cast/style.md`: add `| textEditorStatusBarInsertColourId | 0x470000b | \`text editor status bar insert colour id\` |` after `:266`, in the column widths of that table.
-6. Run `cast cast/spell.md` from the JAM root.
+6. `cast/spell.md:138-140`: the aliases `@textEditorKey`, `@textEditorMode`, `@textEditorLayer` are `jam::LookupTable<int, const char*, 33>`, one entry for each of the 33 command rows. Each size becomes `49` (33 + 16).
+7. Run `cast cast/spell.md` from the JAM root.
 
 **Validation:**
 - `map::EditorMode::insert` is 6. The rows 0 to 5 keep their keys.
+- The size of each of the three lookup tables equals the number of `TextEditorCommandId` rows.
 - Each of the four tables has one row for each `TextEditorCommandId` row (the rule of `cast/terminal.md:1917-1920,2072-2073,2119-2120`).
 - No default key of a new command is in mode `normal` or `visual` (closed item 2).
 - New names and their families: the 16 command names (the old `map::EditorAction` names, old `.cpp:625-799`, and the old sheet names of EVE `ViewLayout.md`; `deleteAction` is the old enum name of the sheet word `delete`, a C++ keyword); `textEditorStatusBarInsertColourId` (`textEditorStatusBarNormalColourId`, `cast/style.md:262`).
@@ -148,7 +150,7 @@ the whole sprint — never per step.
 ### Step 2: The primitives and the undo actions
 **Scope:** `jam_gui/widgets/jam_TextEditor.h`, `jam_gui/widgets/jam_TextEditor.cpp`.
 **Action:**
-1. Add the private member `juce::UndoManager undoManager;` (old `.h:547`).
+1. Add the private member `juce::UndoManager undoManager;` (old `.h:547`), declared after `TextBlock live;` (`.h:1279`). Members destroy in reverse order, so the actions destroy before the document whose elements they reference (MANIFESTO B).
 2. Add the private structs `InsertLine` and `RemoveLine` at class scope, with the old declarations (old `.h:240-277`).
 3. `InsertLine::InsertLine`: the old initializer list (old `.cpp:1035-1038`), and in the body `jassert (editor.getNumHistoryLines() == 0);`. Only a document block is edited; this one constructor is on the path of every line edit.
 4. `InsertLine::perform`: the old body (old `.cpp:1040-1050`) on today's storage:
@@ -175,13 +177,16 @@ the whole sprint — never per step.
 ### Step 3: The edit actions
 **Scope:** `jam_gui/widgets/jam_TextEditor.cpp` (`getActions()`, `.cpp:375-560` today).
 **Action:** Add the old helper lambdas and the old actions of the inventory into today's `getActions()`, verbatim, with these conformed forms only:
-1. Each `actions.add<TextEditor&, int> (map::EditorAction::X, [captures] (TextEditor& editor, int count) {…})` becomes `actions.add (Id::X, [captures] (const juce::Identifier&, TextEditor& editor, int count) {…})`, the form of `.cpp:471`. `map::EditorAction::deleteAction` becomes `Id::deleteAction`.
+1. Each `actions.add<TextEditor&, int> (map::EditorAction::X, [captures] (TextEditor& editor, int count) {…})` becomes `actions.add (Id::X, [captures] (const juce::Identifier&, TextEditor& editor, int numRepeats) {…})`, the form of `.cpp:508`. The old count parameter `count` is `numRepeats` in today's family, as the old row `Id::count` is today's `Id::numRepeats` (NAMES Rule 5; `.cpp:508,539`). `map::EditorAction::deleteAction` becomes `Id::deleteAction`.
 2. Each read of the mode, `map::EditorMode::getInstance()->get (editor.state.getProperty (Id::mode).toString())`, becomes `editor.getMode()`. Each write, `editor.state.setProperty (Id::mode, …get (map::EditorMode::X), nullptr)`, becomes `editor.setMode (map::EditorMode::X)`.
 3. `editor.getOrCreateCells (n)` becomes `editor.getCells (n)`. `editor.history.index->getNumLines()` becomes `editor.getNumLines()`.
 4. `getMotions().get (map::EditorAction::right, editor, n)` becomes `getMotions().get (Id::right, editor, n)`; the same for `left`.
 5. `deleteAction` and `change` call today's `runOperator (editor, count, Id::deleteAction, …)` and `runOperator (editor, count, Id::change, …)` (`.cpp:447-461`). `eraseSelection` calls today's `getStartColumn (editor)` (`.cpp:416-420`), which has no `isChanging` parameter. The old linewise change start, `std::numeric_limits<int>::max()` (old `.cpp:445`), becomes the `startColumn` of the change branch inside `eraseSelection`.
 6. The old helper `paste` keeps its name. It is a local lambda; today's terminal action `Id::paste` (`.cpp:529-534`) is a separate entry.
 7. `perform` (`.cpp:820-856`) and `getCommandInfo` (`.cpp:755-759`) do not change. `perform` finds an edit action by its name, as it finds each other action (`.cpp:828-842`).
+8. Each read of the visual shape, `map::VisualMode::getInstance()->get (editor.state.getProperty (Id::visualMode).toString())`, becomes `editor.getVisualMode()`, the same body (`.cpp:2030-2033`).
+9. The old table `erasures` (`jam::Function::Map<int, void>`, `add<TextEditor&, juce::Range<int>, bool>`) becomes `jam::Function::Map<int, jam::Function::pointerCapacity, void (TextEditor&, juce::Range<int>, bool)>`, each entry `(const int&, TextEditor& editor, juce::Range<int> lines, bool …)`, in the form of `getVisualStarts` (`.cpp:727-731`; CODING.md, "Uniform signature in the type").
+10. The file-static table `shapes` (`.cpp:575-586`) gets the old rows `{ Id::deleteAction, map::VisualMode::line }` and `{ Id::change, map::VisualMode::line }` after `Id::yank` (old `.cpp:829-830`). Without them, `applyOperand` takes `dd` and `cc` as exclusive with `first == last`, and cancels them (`.cpp:786,792-795`).
 
 **Validation:**
 - Each restored lambda equals its old body, except the forms of items 1 to 6.
@@ -209,17 +214,21 @@ the whole sprint — never per step.
    - `int getCharIndex (juce::Point<int> cell) const;` — for each line above `cell.y`, `getCells (line).size() + 1`; then `cell.x`.
    - `juce::Point<int> getCellForCharIndex (int characterIndex) const;` — the inverse: the line where the running count passes `characterIndex`, and the column inside it.
 3. The 11 overrides, public:
-   - `isTextInputActive()`: `return not isReadOnly() and getMode() == map::EditorMode::insert;`. A peer gives text only to an active target (`juce_ComponentPeer.cpp:296-298`). EVE's editor is never in insert mode, so it never becomes a target.
-   - `insertTextAtCaret (textToInsert)`: the non-linewise branch of the old `put` (old `.cpp:577-587`) at the cursor: `numLinesBefore`, `size`, `numLastCells { addText (cursor.y, cursor.x, textToInsert.toStdString()) }`, then `setCursor (cursor.y + getNumLines() - numLinesBefore, numLastCells - (size - cursor.x))`. A pasted text with newlines arrives whole and in one undo transaction.
+   - `isTextInputActive()`: `return getMode() == map::EditorMode::insert;`. A peer gives text only to an active target (`juce_ComponentPeer.cpp:296-298`). The mode is the one truth of "this editor takes text": the typed keys of insert mode follow it too (Step 4 item 1). Only an editable editor enters insert mode, because only the owner's sheet holds an edit row (closed items 2 and 3). A second test of `isReadOnly()` would be a second truth (MANIFESTO S) and a re-check of an invariant that the owner established (MANIFESTO D; audit findings 9 and 11). EVE's editor is never in insert mode, so it never becomes a target.
+   - `insertTextAtCaret (textToInsert)`: the non-linewise branch of the old `put` (old `.cpp:577-587`) at the cursor: `numLinesBefore`, `size`, `numLastCells { addText (cursor.y, cursor.x, jam::Strings::getView (textToInsert)) }`, then `setCursor (cursor.y + getNumLines() - numLinesBefore, numLastCells - (size - cursor.x))`. A pasted text with newlines arrives whole and in one undo transaction.
    - `getCaretPosition()`: `getCharIndex (getCursor())`.
    - `getHighlightedRegion()`: `{ getCaretPosition(), getCaretPosition() }`. Insert mode has no selection.
-   - `setHighlightedRegion (newRange)`: `const auto cell { getCellForCharIndex (newRange.getStart()) }; setCursor (cell.y, cell.x);`.
+   - `setHighlightedRegion (newRange)`: `jassert (newRange.isEmpty());`, then `const auto cell { getCellForCharIndex (newRange.getStart()) }; setCursor (cell.y, cell.x);`. Insert mode has no selection (YAGNI: no consumer composes text over a selection; JUCE overwrites "the selected text region, if there is one", `juce_TextInputTarget.h:79`). The assert makes a range with a length loud at the entry (MANIFESTO E: "Prefer assert over silent fail"; audit finding 3).
+   - `getTextBounds (textRange)`: a `juce::RectangleList<int>` with `getCaretRectangleForCharIndex (index)` for each index of the range.
    - `setTemporaryUnderlining (underlinedRegions)`: an empty body. The editor paints no composition, in the form of the Linux peer's empty `textInputRequired` (`juce_Windowing_linux.cpp:372`).
    - `getTextInRange (range)`: for each line that the range covers, `AnsiDocument::getText (cells, columns)` of the covered columns, with a newline between lines.
    - `getTotalNumChars()`: `getCharIndex ({ getCells (getNumLines() - 1).size(), getNumLines() - 1 })`.
-   - `getCaretRectangleForCharIndex (characterIndex)`: the cell of the index, `getLocalArea (&content, getCellBounds (cell.y, cell.x)).getSmallestIntegerContainer()`.
-   - `getCharIndexForPoint (point)`: `getCharIndex (getCell (content.getLocalPoint (this, point).toFloat()))`.
-   - `getTextBounds (textRange)`: a `juce::RectangleList<int>` with `getCaretRectangleForCharIndex (index)` for each index of the range.
+   - `getCaretRectangleForCharIndex (characterIndex)`: the cell of the index, `getLocalArea (&content, getCellBounds (cell.y, cell.x).translated (0.0f, getRowOffset())).getSmallestIntegerContainer()`. The content paints with the row offset (`Content::paint`, `g.addTransform (juce::AffineTransform::translation (0.0f, owner.getRowOffset()))`), and JUCE gives the caret "relative to the component's origin" (`juce_TextInputTarget.h:85`). Audit finding 1.
+   - `getCharIndexForPoint (point)`: `getCharIndex (getCell (content.getLocalBounds().toFloat().getConstrainedPoint (content.getLocalPoint (this, point.toFloat()).translated (0.0f, -getRowOffset()))))`, the form of `applyMouse`. A point outside the content otherwise reaches `history.at` on an empty map. Audit findings 1 and 2.
+   - The newline of each line counts as `newlineLength { 1 }`, a file-scope constant beside `nextEntry` and `previousEntry`, used by `getCharIndex` and `getCellForCharIndex` (MANIFESTO E, no magic values; audit finding 20).
+   - `insertTextAtCaret` reads the text in place with `jam::Strings::getView` (MANIFESTO, "No copy"; audit finding 8).
+4. A change of the mode changes `isTextInputActive()`. The mode reaction in `valueTreePropertyChanged` calls `peer->refreshTextInputTarget()` through the helper `refreshTextInputTarget`, in the form of JUCE `TextEditor::setReadOnly` (`juce_TextEditor.cpp:329-330`). The peer calls `textInputRequired` only from a refresh or a focus change (`juce_ComponentPeer.cpp:278-289,625-628`). Audit finding 4.
+5. Each `InsertLine` and `RemoveLine` lays out with `setBlocks()`. Each one is a state update, and "When the Model state updates, the owner replaces the full concrete object"; "Do not build a concrete object in steps" (MANIFESTO, Materialisation). The cursor reaction after each one reads the layout (`keepCursorVisible`, `getCellBounds`). Audit finding 12 is rejected on this clause.
 
 **Validation:**
 - The class implements each pure virtual of `juce_TextInputTarget.h:61-107`.
@@ -228,23 +237,24 @@ the whole sprint — never per step.
 
 ### Step 6: The public entry of an editable document
 **Scope:** `jam_gui/widgets/jam_TextEditor.h`.
-**Action:** Move the declaration `void setLiveBlock (std::unique_ptr<Document> document);` (`.h:484`) to the public section, next to `setDocument` (`.h:196-202`). The body does not change (ruling 32).
+**Scope:** also `jam_gui/widgets/jam_TextEditor.cpp` (`setLiveBlock`, `.cpp:1144-1169`).
+**Action:**
+1. Move the declaration `void setLiveBlock (std::unique_ptr<Document> document);` (`.h:484`) to the public section, next to `setDocument` (`.h:196-202`) (ruling 32).
+2. In its body, add `undoManager.clearUndoHistory();` before `live = std::move (block);`. Each action holds a `Document::Element&` of `live.document` (old `.h:258`), and the assignment destroys that document (`.cpp:1156`). A later undo would reach a destroyed element (MANIFESTO B: "No object outlives its owner"). The undo history belongs to the document that it edits.
+3. `setLiveBlock (TerminalSwap&)` replaces `live` too, so it also calls `undoManager.clearUndoHistory();` before `live = std::move (block);` (audit finding 5).
 
 The owner contract of an editable editor, for Parts 9 and 10:
 1. Build `auto document { std::make_unique<AnsiDocument>() };`. Call `document->addLines (text.data(), size)` with the text and one final newline: the text after the last newline stays in the pen and is not a line (`jam_AnsiDocument.h:46-48`).
 2. Call `editor.setLiveBlock (std::move (document))`. It sets the mode to `reader` and read-only to `true` (`.cpp:1148-1150`).
-3. Call `editor.setReadOnly (false)`, then `editor.setDefaultMode (map::EditorMode::normal)` (Part 10 Step 3), then `editor.setMode (map::EditorMode::insert)` or `normal`.
+3. Call `editor.setDefaultMode (map::EditorMode::normal)` (Part 10 Step 3), then `editor.setMode (map::EditorMode::insert)` or `normal`. The owner does not call `setReadOnly (false)`. No edit path tests the flag (`perform`, `getCommandInfo`, `isTextInputActive`). In JAM the flag selects the terminal view: no soft wrap (`setBlock (live, isReadOnly())`), winsize writes (`setWinsize`), the row offset (`getRowOffset`), the terminal layout (`resized`), and links (`applyLink`). An editable document keeps the document view.
 4. Read the text with `getTextInRange ({ 0, getTotalNumChars() })` (Step 5).
 5. The key sheet of the owner binds the normal-mode and visual-mode edit keys (closed item 2). It also names the `default mode` row with the key `escape` in the modes `visual open`. That row takes the place of the JAM default row, whose keys `escape i a I A o O` would run `defaultMode` in normal mode before an insert command (`cast/terminal.md:1963,2099`; Part 10 Step 7). The JAM default sheet registers only when the manager has no command (`.cpp:1132-1136`).
 6. An owner that also shows a read-only editor builds its sheet from its state: the edit rows are in the sheet only while an editable editor shows (closed item 3). A read-only editor can enter its visual mode, and an edit row of the mode `visual` would apply there.
 
 **Validation:** `setDocument<>` is unchanged. `printHelp` builds as before (`ling/Source/Help.cpp:19`).
 
-### Step 7: Regenerate and build JAM
-**Scope:** JAM through `ling`.
-**Owner:** ARCHITECT builds, or COUNSELOR on ARCHITECT's explicit request (CAROL.md Build).
-**Action:** Build `ling` with `cast cast/spell.md --debug`. Run `ling --help`.
-**Validation:** The build ends with exit code 0. The help output is byte-identical to its output before this part.
+### Step 7: Deleted
+The build step is deleted. ARCHITECT, Sprint 21: *"dont fucking give me build any project bullshit, remove from plan"*.
 
 ### Step 8: Check the edit machinery by hand
 **Scope:** a run that ARCHITECT chooses. Part 10 is the first TIT user (the commit message box).
@@ -253,8 +263,7 @@ The owner contract of an editable editor, for Parts 9 and 10:
 
 ### Step 9: Check EVE
 **Scope:** `~/Documents/Poems/dev/eve`.
-**Owner:** ARCHITECT builds, or COUNSELOR on ARCHITECT's explicit request (CAROL.md Build).
-**Action:** Build EVE. In NORMAL, press `i a I A o O`, `d c x p P u`, and `ctrl+r`.
+**Action:** In NORMAL, press `i a I A o O`, `d c x p P u`, and `ctrl+r`.
 **Validation:**
 - `i a I A o O` return to TERMINAL (`eve/SPEC.md:349-351`): `defaultMode` is the first matching row (`jam_CommandManager.cpp:96-109`), and the new insert commands have no default key.
 - `d c x p P u ctrl+r` change no history line (`eve/SPEC.md:736-737`): no default sheet row binds them.
