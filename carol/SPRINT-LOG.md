@@ -111,6 +111,59 @@
 
 ## SPRINT HISTORY
 
+## Sprint 22: TIT Part 5 — `TerminalWindow` and `TerminalComponentPeer` ✅
+
+**Date:** 2026-11-16
+**Duration:** not recorded
+
+### Agents Participated
+- COUNSELOR: Claude Opus — Read the tracker, the Sprint 21 state, and Part 5. Read the owner APIs: JUCE `ComponentPeer` (the 26 pure virtuals, `OptionalBorderSize`, the protected `component`), `Component::addToDesktop`, `setBounds`, `takeKeyboardFocus`, the peer re-creation paths, `TimedCallback`; JAM `TerminalBuffer` (`prepare`, `process`, `read`, the ring size), `TerminalEncoder`, `Colours`, `StyleManager`, `Registry`, `Function::Map`. Corrected the plan from the reads, wrote each brief, validated each return, filtered the audit, and validated each doxygen block against the code.
+- Pathfinder: Haiku — Verbatim reads of JAM, JUCE, and EVE. The doxygen pass of the three headers, two correction rounds, and the JAM XML regeneration (exit 0, zero warnings).
+- Engineer: Sonnet — Plan Steps 1 to 5, the audit corrections, and `Registry::getTerminalInput`.
+- Auditor: Opus — One sweep, 16 findings. Fixed: 1, 2, 8, 9, 10, 12, 13, 14, 16, and 15 for `frame`. Rejected: 3, 4, 5, 6, 7, 11, and 15 for `terminalInput` and `history`.
+
+### Files Modified (11 total)
+**JAM (`~/Documents/Poems/dev/jam/`):**
+- `jam_gui/windows/jam_TerminalComponentPeer.h`, `.cpp` — new. A `juce::ComponentPeer` that is not an OS window: one unit is one cell. The constructor writes alternate screen on, cursor hidden, bracketed paste on, and starts `vBlankManager` at `CpuGraphicsEngine::getRefreshRateHz()`; the destructor writes the reverse (`.cpp:4-23`). `onVBlank` calls the vblank listeners, then `performAnyPendingRepaintsNow`: the whole component through `handlePaint` into a `TerminalGraphicsContext`, then sync on, erase screen, every row, sync off, then the scoped `read()` that frees the ring (`.cpp:129-172`). `getBounds` reads `component` (`.cpp:44-47`). `isFocused` is true and `grabFocus` is empty (`.cpp:115-122`). One `write (output)` path (`.cpp:174-177`). `shouldUseInlineImages` names the buffer switch (`.h:189-192`). Doxygen in the header.
+- `jam_gui/windows/jam_TerminalWindow.h`, `.cpp` — new. A `juce::Component` that owns its content. `createNewPeer` returns a `TerminalComponentPeer` with `make_unique` and `release` (`.cpp:23-28`). `bindToEvents` stores the callable (`.cpp:13-16`). Doxygen in the header.
+- `jam_gui/registry/jam_Registry.h:281-284`, `.cpp:92-98` — `static getTerminalInput (callbacks)`: the one body of the `Id::write` callable (audit finding 2, MANIFESTO S "Logic duplicated across two files").
+- `jam_gui/widgets/jam_TextEditor.cpp:102-105` — `bindToEvents` calls `Registry::getTerminalInput`.
+- `jam_gui/jam_gui.h:125-126`, `jam_gui/jam_gui.cpp:22-23` — the two headers and the two sources, after `jam_Window`.
+- `docs/xml/` — regenerated (XML only).
+
+**TIT:**
+- `PLAN-tit-5-terminal-window.md` — the read corrections, the audit corrections, finding 2 in Step 4 item 4, the owner contract line on `Colours`; Step 6 (build) deleted.
+- `PLAN-tit-0-tracker.md` — Status row 5; the JAM change list names `jam::Registry` and `TextEditor::bindToEvents`.
+
+### Alignment Check
+- [x] BLESSED principles followed — S: `getBounds` reads the component, and the peer holds no size; one `write` path; one `getTerminalInput` body. B: JUCE owns the peer (`removeFromDesktop` deletes it), and `vBlankManager` is the last member. E: modes from `map::DEC` and `map::CSI`, the rate from `CpuGraphicsEngine`, `shouldUseInlineImages` named.
+- [x] NAMES.md adhered — every new name has a family in the plan: the JUCE override names, `newComponent` and `newStyleFlags` (CODING.md, a distinct constructor parameter name), `write` (`TerminalDisplay::write`, `Id::write`), `privateModes` (`writePrivateMode`), `getTerminalInput` (the `static get…` family of `Registry`, NAMES Rule 7).
+- [x] MANIFESTO.md principles applied — no comment before the audit; the doxygen pass after it.
+
+### Problems Solved
+- The plan's `grabFocus(): handleFocusGain();` recursed with no end: `takeKeyboardFocus` calls `peer->grabFocus()` before it records the focus (`juce_Component.cpp:2951-2968`), and `handleFocusGain` calls `grabKeyboardFocus()` (`juce_ComponentPeer.cpp:372-375`). `grabFocus` is empty; `isFocused` is true.
+- `getBounds() const` cannot call `getComponent()`: no `const` overload (`juce_ComponentPeer.h:151`). It reads the protected `component` (`:683`).
+- The base names the `toFront` parameter `takeKeyboardFocus` (`:361`). The constructor parameters had the names of the base members `component` and `styleFlags` (`:683-684`).
+- `ling/Source/Help.cpp` no longer exists; the frame citations point to `jam_tui/page/jam_TerminalPage.cpp:21-38`.
+- Step 6 (build) is deleted. ARCHITECT, Sprint 21: *"dont fucking give me build any project bullshit, remove from plan"*.
+- The audit rejections, each with its read: 3, the member is a `std::function` and owner contract step 7 bounds the reference; 4, MANIFESTO "Creation can use multiple passes"; 5, `StyleManager` owns `Colours` (`jam_StyleManager.h:334`), so an assert in the peer is MANIFESTO D defensive code; 6, JUCE builds a new peer from the window's callable on a style change (`juce_Component.cpp:641-665,805-809,1022-1026`); 7, the JUCE peer form (`juce_Windowing_linux.cpp:490-501`); 11, no caller sets a scale or a transform; 15, NAMES Rule 5.
+- Doxygen: six blocks stated what the code does not do (paint on each vblank, paint the pending regions, the parent of `screenPosition`, the contract of `textInputRequired`). Each was rejected with the contradicting file:line and rewritten.
+
+### State for Continuation
+- Nothing is compiled. On the first build that compiles `jam_gui`, check: the `noexcept` overrides of the `ComponentPeer` pure virtuals (`jam_TerminalComponentPeer.h`); `OptionalBorderSize { juce::BorderSize<int> {} }` (`.cpp:93`); `std::make_unique<TerminalComponentPeer> (…).release()` (`jam_TerminalWindow.cpp:27`).
+- No consumer constructs a `TerminalWindow`. Part 7 does, in the order of the owner contract (`PLAN-tit-5-terminal-window.md`, "The contract with the owner").
+- The tracker list "Facts that execution measures first" holds the first run of `addToDesktop` with this peer. Part 7 Step 8 measures it.
+- The JAM LSP gave namespace-only results this session (the `.clangd` points at the project nvim loaded last). The references of `getTerminalInput` are confirmed by Read: `jam_TextEditor.cpp:104`, `jam_TerminalWindow.cpp:15`.
+- The Sprint 21 doxygen debt is open and outside this sprint: `TerminalKeyboard` new members, the `getModifierCode` block (`jam_TerminalKeyboard.h:420-441`).
+
+### Debts Paid
+- None (no DEBT.md at project root)
+
+### Debts Deferred
+- None
+
+---
+
 ## Sprint 21: TIT Part 4 — Input Bytes to `juce::KeyPress` ✅
 
 **Date:** 2026-11-16
@@ -328,82 +381,6 @@
 - The JFS custom-page NSIS port for the cli and app archetypes is not done. Only the bitmap lines are removed.
 - `PLAN-tit-0-tracker.md` Status is not updated. Its inventory row that says `jam_tui` does not exist (near line 203) is stale. `jam/jam_tui/page/jam_TerminalPage.h` exists.
 - `tit/RELEASE.md` is the INIT stub. The first cast run regenerates it.
-
-### Debts Paid
-- None (no DEBT.md at project root)
-
-### Debts Deferred
-- None
-
----
-
-## Sprint 17: Foundation Reset — Cell Unit Type + LookAndFeel + View Stubs ✅
-
-**Date:** 2026-04-22
-**Duration:** ~2 hours
-
-### Agents Participated
-- COUNSELOR: Claude Opus — Planning, CONTRACT enforcement, delegation, namespace/naming violation discovery
-- Engineer: Multiple — Cell migration across jam_tui (26+ call sites), LookAndFeel stub, view stub rewrites, MainComponent rewrite, Main.cpp simplification, Banner SVG asset extraction, namespace tit removal
-- Pathfinder: Multiple — jam_tui theming survey, juce::LookAndFeel API surface extraction, module structure survey, bare-int Rectangle call-site audit, git/sprint-log state
-- Auditor: Not invoked (mechanical migration, no complex logic)
-
-### Files Modified
-
-**jam_tui framework (17 files across ~/Documents/Poems/dev/jam/jam_tui/):**
-- `graphics/jam_tui_rectangle.h` — `jam::literals::Cell` strong unit type (struct + arithmetic + comparison + `_cell` UDL); all Rectangle constructors, accessors, fluent builders, slicing methods take/return `literals::Cell`; `getCellWidth()`/`getCellHeight()` convenience accessors; namespace cleanup (`jam::literals::Cell` → `literals::Cell` inside `namespace jam::tui`); parameter name cleanup (`x_`/`y_` → `x`/`y`)
-- `ansi/jam_tui_component.h` — `getCellBounds()`/`setCellBounds()` inline wrappers; `setLookAndFeel()`/`getLookAndFeel()` with parent-chain walk + `lookAndFeelChanged()` override
-- `lookandfeel/jam_tui_look_and_feel.h` — NEW: `jam::tui::LookAndFeel` stub mirroring juce::LookAndFeel surface API (`findColour`/`setColour`/`isColourSpecified` + static default instance)
-- `lookandfeel/jam_tui_look_and_feel.cpp` — NEW: implementation
-- `jam_tui.h` — LookAndFeel include (before component.h for dependency order)
-- `jam_tui.cpp` — LookAndFeel cpp include
-- `ansi/jam_tui_graphics.cpp` — Cell migration (`.value` extraction where raw int needed)
-- `ansi/jam_tui_screen.cpp` — Removed spurious `.value` on juce::Rectangle accessors
-- `ansi/jam_tui_textbox.cpp` — Same
-- `metrics/jam_tui_metrics.h` — Cell wrapping on `getBounds()` return
-- `markdown/jam_tui_markdown_renderer.cpp:79,96,142,161` — Cell wrapping on 4 Rectangle constructions
-- `primitives/jam_tui_menu.cpp:177,193,194` — Cell wrapping
-- `primitives/jam_tui_listpane.cpp:155,168,193,205,222` — Cell wrapping
-- `primitives/jam_tui_consolestream.cpp:239,250,265` — Cell wrapping
-- `primitives/jam_tui_textpane_paint.cpp:28,76,92,106,112,126,164,174,186` — Cell wrapping (9 sites)
-- `primitives/jam_tui_dialog.cpp:156,172,196,213,216` — Cell wrapping
-- `primitives/jam_tui_splitpane.cpp:61,67` — Cell wrapping
-
-**tit project (30+ files):**
-- `Source/Main.cpp` — ThemeResolver removed, MainComponent construction simplified to single `juce::ValueTree` arg
-- `Source/MainComponent.h` — Stub: owns `juce::ValueTree stateTree` + `jam::tui::LookAndFeel lookAndFeel`, no child components
-- `Source/MainComponent.cpp` — Stub: constructor stores VT + calls `setLookAndFeel()`
-- `Source/component/` — NEW directory (renamed from `Source/view/`)
-- `Source/component/Banner.h` + `.cpp` — Blank stub
-- `Source/component/Header.h` + `.cpp` — Blank stub
-- `Source/component/Footer.h` + `.cpp` — Blank stub
-- `Source/component/ConfirmDialog.h` + `.cpp` — Blank stub
-- `Source/component/Menu.h` + `.cpp` — NEW (renamed from MenuView, NAMES.md Rule 2)
-- `Source/component/Console.h` + `.cpp` — NEW (renamed from ConsoleView)
-- `Source/component/History.h` + `.cpp` — NEW (renamed from HistoryView)
-- `Source/component/FileHistory.h` + `.cpp` — NEW (renamed from FileHistoryView)
-- `Source/component/ConflictResolver.h` + `.cpp` — NEW (renamed from ConflictResolverView)
-- `Source/component/SetupWizard.h` + `.cpp` — NEW (renamed from SetupWizardView)
-- `Assets/tit_logo.svg` — NEW (extracted from Banner.cpp inline string)
-- `CMakeLists.txt` — `juce_add_binary_data(titc_assets)` for SVG asset
-- 28 Source files — `namespace tit {}` wrappers and `tit::` qualifications removed
-
-**Deleted:**
-- `Source/view/` — entire directory (MenuView, ConsoleView, HistoryView, FileHistoryView, ConflictResolverView, SetupWizardView old files)
-
-### Alignment Check
-- [x] BLESSED principles followed (B: MainComponent owns VT+LAF, clear lifecycle; L: stubs are minimal; E: Cell type prevents bare-int/cell mixing at compile time, no magic values; S: LookAndFeel is SSOT for colours via parent-chain walk; E: Component LAF mirrors juce pattern — tell don't ask)
-- [x] NAMES.md adhered (Rule -1: Cell, LookAndFeel, all renames ARCHITECT-approved; Rule 2: "View" suffix dropped from 6 components — type information in name)
-- [x] MANIFESTO.md principles applied (JUCE-native thinking replaces ELM port patterns; ThemeResolver eliminated in favor of LookAndFeel mirroring juce::LookAndFeel; callback `std::function<void(MenuItem&)>` identified as architecture violation — removed with stub reset)
-
-### Problems Solved
-- `jam::literals::Cell` strong unit type eliminates bare-int leaking at Rectangle call sites — compile-time enforcement, no runtime cost
-- `jam::tui::LookAndFeel` stub establishes JUCE-native theming pattern (set on root, children inherit) replacing ELM-ported ThemeResolver (passed by reference through every constructor)
-- `namespace tit` removed — unnecessary wrapper around classes already scoped by project
-- "View" suffix on 6 component names violated NAMES.md Rule 2 (type information in name)
-- `Source/view/` → `Source/component/` — directory name matches what the files contain
-- All view components stripped to blank stubs so ARCHITECT can rebuild foundation by hand with correct JUCE-native patterns
-- `onItemSelected` callback on MainComponent identified as BLESSED violation (bypasses ValueTree) — removed with stub reset
 
 ### Debts Paid
 - None (no DEBT.md at project root)

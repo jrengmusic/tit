@@ -3,7 +3,7 @@ return {
     debug = {
       database = "/Users/jreng/Documents/Poems/dev/tit/Builds/Debug/compile_commands.json",
       flags = {
-        "-DCAST_COMMIT=\\\"408d1a1\\\"",
+        "-DCAST_COMMIT=\\\"e8944cc\\\"",
         "-DDEBUG=1",
         "-DDONT_SET_USING_JUCE_NAMESPACE=1",
         "-DHAVE_FREETYPE",

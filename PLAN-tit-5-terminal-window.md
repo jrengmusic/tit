@@ -74,7 +74,11 @@ JUCE paths are relative to `~/Documents/Poems/JUCE/modules/`. JAM paths are rela
 | `jam_gui` depends on `jam_terminal`; `jam_terminal` does not depend on `jam_gui` | `jam_gui/jam_gui.h:17,83`; `jam_terminal/jam_terminal.h:10-17` |
 | The window headers and sources of `jam_gui` | `jam_gui.h:123-127`; `jam_gui/jam_gui.cpp:20-27` |
 | `explicit TerminalGraphicsContext (TerminalBuffer& terminalBufferToUse, Colours& trueColoursToUse);` It takes a write handle of `heightRows` slots and clears them in its constructor, and it holds no handle after | `jam_terminal/graphics/jam_TerminalGraphicsContext.h:84-87`; `.cpp:7-20` |
-| One frame to a stream: `prepare (cols, rows, rows)`, the context, the paint, `process()`, `writeToStream (frame, laf)`; `*jam::Colours::getInstance()` | `ling/Source/Help.cpp:8-34` |
+| One frame to a stream: `prepare (columnWidth, rows, rows)`, the context, the paint, `process()`, `writeToStream (output, editor.getLookAndFeel())`; `*jam::Colours::getInstance()`. `ling/Source/Help.cpp` no longer exists: each help goes through `jam::TerminalPage` (Sprint 20) | `jam_tui/page/jam_TerminalPage.cpp:21-38` |
+| `Colours::getInstance()` is inherited: `class Colours : public jam::Instance<Colours>`; `static ObjectType* getInstance() noexcept` | `jam_graphics/colours/jam_Colours.h:27`; `jam_core/utils/jam_Instance.h:113` |
+| `TerminalBuffer::process()`: "Advances the frame. The next `writeToStream()` call writes the frame." So each paint writes its frame, and the `bool` of `writeToStream` needs no test | `jam_terminal/buffers/jam_TerminalBuffer.h:405-406,111-122` |
+| The ring holds two frames: `numSlots { newRows + transitRows + reservedSlot }`, and `prepare` writes `newRows` slots | `jam_terminal/buffers/jam_TerminalBuffer.cpp:16,37-38` |
+| `map::DEC` and `map::CSI` members are `enum value : int` values; `writePrivateMode (juce::OutputStream& output, int mode, int finalByte)` | `generated/jam_Terminal.h:201,228,981,1022`; `jam_terminal/buffers/jam_TerminalEncoder.h:66` |
 | `TerminalBuffer::prepare (newCols, newRows, transitRows)` asserts `transitRows > 0` | `jam_terminal/buffers/jam_TerminalBuffer.h:143-161`; `.cpp:7-11` |
 | `TerminalBuffer::read()` takes every ready slot except the frame; the slots become free when the handle goes out of scope | `jam_TerminalBuffer.h:277-284` |
 | `TerminalBuffer::writeToStream (output, laf)`: the VT lane, a newline between rows and none after the last row | `jam_TerminalBuffer.h:94-104`; Part 3 Step 2, item 8 (ruling 31) |
@@ -89,8 +93,9 @@ JUCE paths are relative to `~/Documents/Poems/JUCE/modules/`. JAM paths are rela
 The owner does these steps, in this order. Each step uses an API that exists today or that this part adds.
 
 1. Construct `TerminalWindow (std::move (mainComponent), name)`.
-2. Call `setLookAndFeel` on the window with a LookAndFeel that resolves the colour ids of the cells, as `printHelp` passes `styleMarkdown` (`ling/Source/Help.cpp:12,32`).
-3. Call `bindToEvents (callbacks)`. The `Id::write` entry of `callbacks` receives the bytes of each frame on the message thread. The entry writes them to the terminal with `TerminalDisplay::write` (Part 3 Step 5), in the same call. This is the frame path of `printHelp`: paint, the terminal graphics context, the VT lane, stdout (`ling/Source/Help.cpp:26-34`). The entry is registered in the form of EVE's chain event (`EVETerminalProcessor.cpp:278-281`).
+2. Call `setLookAndFeel` on the window with a LookAndFeel that resolves the colour ids of the cells, as `TerminalPage` sets `styleMarkdown` and passes it to `writeToStream` (`jam_tui/page/jam_TerminalPage.cpp:11,36`).
+3. Call `bindToEvents (callbacks)`. The `Id::write` entry of `callbacks` receives the bytes of each frame on the message thread. The entry writes them to the terminal with `TerminalDisplay::write` (Part 3 Step 5), in the same call. This is the frame path of `TerminalPage::writeToStream`: the terminal graphics context, the paint, the VT lane, the output (`jam_tui/page/jam_TerminalPage.cpp:21-38`). The entry is registered in the form of EVE's chain event (`EVETerminalProcessor.cpp:278-281`).
+   The owner holds the `jam::StyleManager` of that LookAndFeel. The style manager owns the `Colours` store as a member (`jam_style/style_manager/jam_StyleManager.h:334`), and the peer reaches it through `Colours::getInstance()` ("The owner declares the store as a member. A consumer reaches the store through `getInstance()`", `jam_graphics/colours/jam_Colours.h:24-25`), as `TerminalPage` does (`jam_tui/page/jam_TerminalPage.cpp:30`).
 4. Call `setSize` with the columns and rows of `TerminalDisplay::getWinsize()`. `TerminalBuffer::prepare` asserts a height above 0.
 5. Call `addToDesktop (0)` and `setVisible (true)`.
 6. On the message thread, deliver input through `getPeer()->handleKeyPress (key)` and `getPeer()->findCurrentTextInputTarget()->insertTextAtCaret (text)`, and a size change through `setSize`.
@@ -113,42 +118,44 @@ the whole sprint — never per step.
 class TerminalComponentPeer final : public juce::ComponentPeer
 {
 public:
-    TerminalComponentPeer (juce::Component& component, int styleFlags, std::function<void (const char*, int)> newTerminalInput);
+    TerminalComponentPeer (juce::Component& newComponent, int newStyleFlags, std::function<void (const char*, int)> newTerminalInput);
     ~TerminalComponentPeer() override;
 
-    void* getNativeHandle() const override;
-    void setVisible (bool shouldBeVisible) override;
-    void setTitle (const juce::String& title) override;
+    void* getNativeHandle() const noexcept override;
+    void setVisible (bool shouldBeVisible) noexcept override;
+    void setTitle (const juce::String& title) noexcept override;
     void setBounds (const juce::Rectangle<int>& newBounds, bool isNowFullScreen) override;
-    juce::Rectangle<int> getBounds() const override;
+    juce::Rectangle<int> getBounds() const noexcept override;
     juce::Point<float> localToGlobal (juce::Point<float> relativePosition) override;
     juce::Point<float> globalToLocal (juce::Point<float> screenPosition) override;
     using juce::ComponentPeer::localToGlobal;
     using juce::ComponentPeer::globalToLocal;
-    void setMinimised (bool shouldBeMinimised) override;
-    bool isMinimised() const override;
-    bool isShowing() const override;
-    void setFullScreen (bool shouldBeFullScreen) override;
-    bool isFullScreen() const override;
-    void setIcon (const juce::Image& newIcon) override;
-    bool contains (juce::Point<int> localPos, bool trueIfInAChildWindow) const override;
+    void setMinimised (bool shouldBeMinimised) noexcept override;
+    bool isMinimised() const noexcept override;
+    bool isShowing() const noexcept override;
+    void setFullScreen (bool shouldBeFullScreen) noexcept override;
+    bool isFullScreen() const noexcept override;
+    void setIcon (const juce::Image& newIcon) noexcept override;
+    bool contains (juce::Point<int> localPos, bool trueIfInAChildWindow) const noexcept override;
     OptionalBorderSize getFrameSizeIfPresent() const override;
     juce::BorderSize<int> getFrameSize() const override;
-    bool setAlwaysOnTop (bool alwaysOnTop) override;
-    void toFront (bool makeActive) override;
-    void toBehind (juce::ComponentPeer* other) override;
-    bool isFocused() const override;
-    void grabFocus() override;
+    bool setAlwaysOnTop (bool alwaysOnTop) noexcept override;
+    void toFront (bool takeKeyboardFocus) override;
+    void toBehind (juce::ComponentPeer* other) noexcept override;
+    bool isFocused() const noexcept override;
+    void grabFocus() noexcept override;
     void repaint (const juce::Rectangle<int>& area) override;
     void performAnyPendingRepaintsNow() override;
-    void setAlpha (float newAlpha) override;
+    void setAlpha (float newAlpha) noexcept override;
     juce::StringArray getAvailableRenderingEngines() override;
 
 private:
-    void textInputRequired (juce::Point<int> position, juce::TextInputTarget& target) override;
+    void textInputRequired (juce::Point<int> position, juce::TextInputTarget& target) noexcept override;
     void onVBlank();
+    void write (const juce::MemoryOutputStream& output) const;
 
-    jam::TerminalBuffer terminalBuffer { true };
+    static constexpr bool shouldUseInlineImages { true };
+    jam::TerminalBuffer terminalBuffer { shouldUseInlineImages };
     juce::MemoryOutputStream frame;
     juce::RectangleList<int> regionsNeedingRepaint;
     std::function<void (const char*, int)> terminalInput;
@@ -158,14 +165,16 @@ private:
 };
 ```
 
-The parameter names of the overrides are the names of `juce_ComponentPeer.h`. `vBlankManager` is the last member, so it stops before the other members go.
+The parameter names of the overrides are the names of `juce_ComponentPeer.h`: `toFront (bool takeKeyboardFocus)` (`juce_ComponentPeer.h:361`), not the Linux name `makeActive`. `vBlankManager` is the last member, so it stops before the other members go.
 
-`terminalBuffer` turns the inline image lane on (`explicit TerminalBuffer (bool newShouldUseInlineImages = false)`, Part 3 Step 2). The inline lane is the only body of `drawImage` (ruling 28), so with the lane off, an image in the window draws nothing. TIT renders its pixels itself (ruling 24), and Part 3 names this peer the first user of the output lane (`PLAN-tit-3-terminal-display.md:16`).
+`noexcept` is on each member whose body cannot throw (CODING.md: "Always use `noexcept` where applicable"); an override can add it to a base virtual.
+
+`terminalBuffer` turns the inline image lane on (`explicit TerminalBuffer (bool newShouldUseInlineImages = false)`, Part 3 Step 2), through the named constant `shouldUseInlineImages` (MANIFESTO E, "No magic values"; the family of the buffer member `shouldUseInlineImages`, Sprint 20). The inline lane is the only body of `drawImage` (ruling 28), so with the lane off, an image in the window draws nothing. TIT renders its pixels itself (ruling 24), and Part 3 names this peer the first user of the output lane (`PLAN-tit-3-terminal-display.md:16`).
 
 **Validation:**
 - The class overrides each of the 26 pure virtuals of the inventory, and no other base member.
-- No member holds a pointer or a reference to another object. `terminalInput` is a copy of the window's callable.
-- New names and their families: `TerminalComponentPeer` (ruling 14); `terminalBuffer` (`EVETerminalProcessor.h:363-364`); `frame` (`ling/Source/Help.cpp:8`); `regionsNeedingRepaint`, `vBlankManager`, `onVBlank` (`juce_Windowing_linux.cpp:561,661,636`); `terminalInput`, `newTerminalInput` (`jam_TextEditor.h:1286`; CODING.md, a distinct constructor parameter name).
+- No member is a pointer or a reference. `terminalInput` is a copy of the window's callable. The callable holds a reference to the owner's event map, and owner contract step 7 bounds its life. The window keeps its own callable, because JUCE builds a new peer from it on a style change (`juce_Component.cpp:641-665,805-809,1022-1026`).
+- New names and their families: `TerminalComponentPeer` (ruling 14); `terminalBuffer` (`EVETerminalProcessor.h:363-364`); `frame` ("Writes the frame to a stream as VT bytes", `jam_TerminalBuffer.h:112`); `regionsNeedingRepaint`, `vBlankManager`, `onVBlank` (`juce_Windowing_linux.cpp:561,661,636`); `terminalInput`, `newTerminalInput` (`jam_TextEditor.h:1286`; CODING.md, a distinct constructor parameter name); `newComponent`, `newStyleFlags` (the same CODING.md rule: the base members are `component` and `styleFlags`, `juce_ComponentPeer.h:683-684`); `write` (`TerminalDisplay::write`, Part 3 Step 5; `Id::write`); `shouldUseInlineImages` (the `TerminalBuffer` member, Sprint 20); `privateModes` (`TerminalEncoder::writePrivateMode`, `jam_TerminalEncoder.h:66`).
 
 ### Step 2: The peer: construction, modes, frame, vblank
 **Scope:** `jam_gui/windows/jam_TerminalComponentPeer.cpp` (new).
@@ -173,33 +182,34 @@ The parameter names of the overrides are the names of `juce_ComponentPeer.h`. `v
 1. The constructor. It enters the full-screen modes and starts the frame clock:
 
 ```cpp
-TerminalComponentPeer::TerminalComponentPeer (juce::Component& component, int styleFlags, std::function<void (const char*, int)> newTerminalInput)
-    : juce::ComponentPeer (component, styleFlags),
+TerminalComponentPeer::TerminalComponentPeer (juce::Component& newComponent, int newStyleFlags, std::function<void (const char*, int)> newTerminalInput)
+    : juce::ComponentPeer (newComponent, newStyleFlags),
       terminalInput (std::move (newTerminalInput))
 {
-    TerminalEncoder::writePrivateMode (frame, map::DEC::alternateScreen, map::CSI::setMode);
-    TerminalEncoder::writePrivateMode (frame, map::DEC::cursorVisible, map::CSI::resetMode);
-    TerminalEncoder::writePrivateMode (frame, map::DEC::bracketedPaste, map::CSI::setMode);
-    terminalInput (static_cast<const char*> (frame.getData()), static_cast<int> (frame.getDataSize()));
+    juce::MemoryOutputStream privateModes;
+    TerminalEncoder::writePrivateMode (privateModes, map::DEC::alternateScreen, map::CSI::setMode);
+    TerminalEncoder::writePrivateMode (privateModes, map::DEC::cursorVisible, map::CSI::resetMode);
+    TerminalEncoder::writePrivateMode (privateModes, map::DEC::bracketedPaste, map::CSI::setMode);
+    write (privateModes);
     vBlankManager.startTimerHz (juce::roundToInt (CpuGraphicsEngine::getRefreshRateHz()));
 }
 ```
 
-2. The destructor. It leaves the modes in the reverse order:
+2. The destructor. It leaves the modes in the reverse order. The mode bytes live in a local stream, so the destructor calls no `reset()` on a member (CODING.md: "Never manually manage RAII objects in destructors — `.reset()` … or any equivalent"):
 
 ```cpp
 TerminalComponentPeer::~TerminalComponentPeer()
 {
-    frame.reset();
-    TerminalEncoder::writePrivateMode (frame, map::DEC::bracketedPaste, map::CSI::resetMode);
-    TerminalEncoder::writePrivateMode (frame, map::DEC::cursorVisible, map::CSI::setMode);
-    TerminalEncoder::writePrivateMode (frame, map::DEC::alternateScreen, map::CSI::resetMode);
-    terminalInput (static_cast<const char*> (frame.getData()), static_cast<int> (frame.getDataSize()));
+    juce::MemoryOutputStream privateModes;
+    TerminalEncoder::writePrivateMode (privateModes, map::DEC::bracketedPaste, map::CSI::resetMode);
+    TerminalEncoder::writePrivateMode (privateModes, map::DEC::cursorVisible, map::CSI::setMode);
+    TerminalEncoder::writePrivateMode (privateModes, map::DEC::alternateScreen, map::CSI::resetMode);
+    write (privateModes);
 }
 ```
 
 3. `repaint (area)`: the Linux body (`juce_Windowing_linux.cpp:331-335,490-493`) with no scale factor: `regionsNeedingRepaint.add (area.getIntersection (getBounds().withZeroOrigin()));`.
-4. `performAnyPendingRepaintsNow()`: the Linux order (`juce_Windowing_linux.cpp:495-547`), with the context and the frame of `printHelp` (`ling/Source/Help.cpp:23-32`):
+4. `performAnyPendingRepaintsNow()`: the Linux order (`juce_Windowing_linux.cpp:495-547`), with the context and the frame of `TerminalPage::writeToStream` (`jam_tui/page/jam_TerminalPage.cpp:27-36`):
 
 ```cpp
 void TerminalComponentPeer::performAnyPendingRepaintsNow()
@@ -224,7 +234,7 @@ void TerminalComponentPeer::performAnyPendingRepaintsNow()
             const auto history { terminalBuffer.read() };
         }
 
-        terminalInput (static_cast<const char*> (frame.getData()), static_cast<int> (frame.getDataSize()));
+        write (frame);
     }
 }
 ```
@@ -242,6 +252,15 @@ void TerminalComponentPeer::onVBlank()
 }
 ```
 
+6. `write (output)`: the one path of the bytes to the owner's callable, for the constructor, the destructor, and each frame (MANIFESTO S: "If the same logic appears more than twice, it must be abstracted"):
+
+```cpp
+void TerminalComponentPeer::write (const juce::MemoryOutputStream& output) const
+{
+    terminalInput (static_cast<const char*> (output.getData()), static_cast<int> (output.getDataSize()));
+}
+```
+
 **Validation:**
 - A frame has this byte order: sync set, erase screen, the rows with a newline between two rows, sync reset.
 - The peer writes no frame when no repaint is pending.
@@ -252,18 +271,18 @@ void TerminalComponentPeer::onVBlank()
 ### Step 3: The peer: bounds, focus, and the members with no capability
 **Scope:** `jam_gui/windows/jam_TerminalComponentPeer.cpp`.
 **Action:**
-1. `getBounds()`: `return getComponent().getBounds();`. `Component::setBounds` writes the component bounds before it calls `updateBounds` (`juce_Component.cpp:1111,1128-1130`). So the peer holds no copy of the size (MANIFESTO S, SSOT), and `handlePaint` adds no scale (`juce_ComponentPeer.cpp:122-131`).
-2. `setBounds (newBounds, isNowFullScreen)`: `terminalBuffer.prepare (newBounds.getWidth(), newBounds.getHeight(), newBounds.getHeight());`, the arguments of `printHelp` (`ling/Source/Help.cpp:24`). Then `handleMovedOrResized()`, as the base asks: "This should result in a callback to handleMovedOrResized()" (`juce_ComponentPeer.h:204`). The bounds are equal, so it changes nothing (`juce_ComponentPeer.cpp:329-335`). `isNowFullScreen` stays unnamed in the definition.
+1. `getBounds()`: `return component.getBounds();`. `getBounds` is `const`, and `getComponent()` has no `const` overload (`juce_ComponentPeer.h:151`); the body reads the protected base member `Component& component` (`juce_ComponentPeer.h:683`). `Component::setBounds` writes the component bounds before it calls `updateBounds` (`juce_Component.cpp:1111,1128-1130`). So the peer holds no copy of the size (MANIFESTO S, SSOT), and `handlePaint` adds no scale (`juce_ComponentPeer.cpp:122-131`).
+2. `setBounds (newBounds, isNowFullScreen)`: `terminalBuffer.prepare (newBounds.getWidth(), newBounds.getHeight(), newBounds.getHeight());`, the arguments of `TerminalPage::writeToStream` (`jam_tui/page/jam_TerminalPage.cpp:28`). Then `handleMovedOrResized()`, as the base asks: "This should result in a callback to handleMovedOrResized()" (`juce_ComponentPeer.h:204`). The bounds are equal, so it changes nothing (`juce_ComponentPeer.cpp:329-335`). `isNowFullScreen` stays unnamed in the definition.
 3. `localToGlobal (relativePosition)`: `return relativePosition + getBounds().getPosition().toFloat();`. `globalToLocal (screenPosition)`: `return screenPosition - getBounds().getPosition().toFloat();`.
 4. `contains (localPos, trueIfInAChildWindow)`: `return getBounds().withZeroOrigin().contains (localPos);`. The peer has no child window. `trueIfInAChildWindow` stays unnamed in the definition.
-5. `toFront (makeActive)`: the Linux body (`juce_Windowing_linux.cpp:291-301`) without the X11 call: when `makeActive`, `setVisible (true)` and `grabFocus()`; then `handleBroughtToFront()`.
-6. `grabFocus()`: `handleFocusGain();` (`juce_ComponentPeer.cpp:362-379`).
+5. `toFront`: `handleBroughtToFront();`. The parameter stays unnamed in the definition. The Linux body (`juce_Windowing_linux.cpp:291-301`) also calls `setVisible (true)` and `grabFocus()`. Both are empty bodies in this `final` class (items 6 and 12), so the branch has no effect (MANIFESTO L, YAGNI).
+6. `grabFocus()`: an empty body. A native peer asks the OS for the focus, and the OS event calls `handleFocusGain` later. The terminal window always has the keyboard (item 7), so no OS call exists. A body of `handleFocusGain()` recurses with no end: `Component::takeKeyboardFocus` calls `peer->grabFocus()` before it sets `currentlyFocusedComponent` (`juce_Component.cpp:2951-2968`), and `handleFocusGain` calls `component.grabKeyboardFocus()` (`juce_ComponentPeer.cpp:372-375`). With `isFocused()` true, `takeKeyboardFocus` gives the focus to the component after the empty call (`juce_Component.cpp:2959-2978`).
 7. `isFocused()`: `return true;`. The host terminal sends every key to this program, so the window always has the keyboard.
 8. `isShowing()`: `return true;`. `isMinimised()`: `return false;`. `isFullScreen()`: `return false;`. A terminal window has no minimised state and no full-screen state.
-9. `getFrameSizeIfPresent()`: `return OptionalBorderSize { juce::BorderSize<int> {} };`. The window has no frame. `getFrameSize()`: the Linux body (`juce_Windowing_linux.cpp:170-174`).
+9. `getFrameSizeIfPresent()`: `return OptionalBorderSize { juce::BorderSize<int> {} };`. The window has no frame. `getFrameSize()`: `return *getFrameSizeIfPresent();`. The value is always valid, so the test of the Linux body (`juce_Windowing_linux.cpp:170-174`) is not carried (MANIFESTO D, pessimistic programming).
 10. `getNativeHandle()`: `return nullptr;`. No OS window exists. The accessibility code returns early with no native client (tracker, "The JUCE attach path", row "Accessibility").
 11. `getAvailableRenderingEngines()`: `return {};`. The one renderer is `TerminalGraphicsContext`, and the window offers no choice.
-12. `setAlwaysOnTop`: `return false;`, the Linux body (`juce_Windowing_linux.cpp:371`). The empty bodies, in the form of the Linux `setAlpha` and `textInputRequired` (`:370,372`): `setVisible`, `setTitle`, `setMinimised`, `setFullScreen`, `setIcon`, `toBehind`, `setAlpha`, `textInputRequired`. Each parameter stays unnamed in the definition. No SPEC line and no ruling names a window title, an icon, or transparency (MANIFESTO L, YAGNI).
+12. `setAlwaysOnTop`: `return false;`, the Linux body (`juce_Windowing_linux.cpp:371`). The empty bodies, in the form of the Linux `setAlpha` and `textInputRequired` (`:370,372`): `grabFocus` (item 6), `setVisible`, `setTitle`, `setMinimised`, `setFullScreen`, `setIcon`, `toBehind`, `setAlpha`, `textInputRequired`. Each parameter stays unnamed in the definition. Each empty body has its braces on their own lines (CODING.md: "Always place opening braces on a new line"). No SPEC line and no ruling names a window title, an icon, or transparency (MANIFESTO L, YAGNI).
 
 **Validation:**
 - `getBounds()` reads the component. The peer holds no field for the size.
@@ -294,9 +313,19 @@ private:
 };
 ```
 
-2. The constructor: `: juce::Component (name), contentComponent (std::move (mainComponent))`, then `addAndMakeVisible (*contentComponent);`. The signature is the one of `jam::Window` without the native window options (`jam_Window.h:76`).
+2. The constructor: `: juce::Component (name), contentComponent (std::move (mainComponent))`, then `jassert (contentComponent != nullptr);` (CAROL Code Contract, "Preconditions use assert") and `addAndMakeVisible (*contentComponent);`. The signature is the one of `jam::Window` without the native window options (`jam_Window.h:76`).
 3. `resized()`: `contentComponent->setBounds (getLocalBounds());`.
-4. `bindToEvents (callbacks)`: the body of `TextEditor::bindToEvents` (`jam_TextEditor.cpp:104-107`), verbatim.
+4. `bindToEvents (callbacks)`: `terminalInput = Registry::getTerminalInput (callbacks);`. The body of `TextEditor::bindToEvents` (`jam_TextEditor.cpp:102-108`) moves to one static function of `Registry`, and both classes call it (MANIFESTO S: "Logic duplicated across two files"; CODING.md DRY; audit finding 2, fixed on ARCHITECT's /go). `Registry` owns the `Events` type (`jam_Registry.h:52`) and holds the `static get…` family (`jam_Registry.h:256-279`). The scope of this item: `jam_gui/registry/jam_Registry.h`, `jam_gui/registry/jam_Registry.cpp`, `jam_gui/widgets/jam_TextEditor.cpp`.
+
+```cpp
+std::function<void (const char*, int)> Registry::getTerminalInput (Events::mapped_type& callbacks)
+{
+    return [&callbacks] (const char* bytes, int size)
+    {
+        callbacks.get (Id::write, static_cast<const char*> (bytes), static_cast<int> (size));
+    };
+}
+```
 5. `createNewPeer (styleFlags, nativeWindowToAttachTo)`:
 
 ```cpp
@@ -314,7 +343,7 @@ juce::ComponentPeer* TerminalWindow::createNewPeer (int styleFlags, void*)
 **Validation:**
 - `TerminalWindow` is a plain `juce::Component`. `addToDesktop` calls its `createNewPeer` (`juce_Component.cpp:691`), and no native window exists.
 - No member is a non-owning pointer. The window owns its content and the peer, through the JUCE desktop contract.
-- New names and their families: `TerminalWindow` (ruling 13); `mainComponent` (`jam_Window.h:76`); `contentComponent` (`juce_ResizableWindow.h:403`); `bindToEvents`, `terminalInput` (`jam_TextEditor.cpp:102-108`; `jam_TextEditor.h:1286`).
+- New names and their families: `TerminalWindow` (ruling 13); `mainComponent` (`jam_Window.h:76`); `contentComponent` (`juce_ResizableWindow.h:403`); `bindToEvents`, `terminalInput` (`jam_TextEditor.cpp:102-108`; `jam_TextEditor.h:1286`); `getTerminalInput` (the `static get…` family of `Registry`, `jam_Registry.h:256-279`, named for the member it gives, NAMES Rule 7).
 
 ### Step 5: Wire the module
 **Scope:** `jam_gui/jam_gui.h`, `jam_gui/jam_gui.cpp`.
@@ -324,18 +353,7 @@ juce::ComponentPeer* TerminalWindow::createNewPeer (int styleFlags, void*)
 
 **Validation:** Each new header and source is included once. The four new files hold no include.
 
-### Step 6: Build and check the consumers
-**Scope:** JAM through its consumers on macOS: `ling`, `cast`, `scout`. Each one links `jam_gui` (`ling/project-info.md:131`; `cast/project-info.md:134`; `scout/project-info.md:130`).
-**Owner:** ARCHITECT builds, or COUNSELOR on ARCHITECT's explicit request (CAROL.md Build).
-**Action:**
-1. Build each consumer with `cast cast/spell.md --debug`.
-2. Run `ling --help`, `cast --help`, and `scout --help`. Compare each output with the output saved at Part 3 Step 9.
-3. Build `ling` on a Windows machine.
-
-**Validation:**
-- Each build ends with exit code 0.
-- Each help output is byte-identical to its saved output. No consumer constructs a `TerminalWindow`.
-- The runtime facts of this part are in the tracker list "Facts that execution measures first". Part 7 runs the window for the first time.
+No build step: ARCHITECT, Sprint 21, *"dont fucking give me build any project bullshit, remove from plan"*. The runtime facts of this part are in the tracker list "Facts that execution measures first". Part 7 runs the window for the first time.
 
 ## BLESSED Alignment
 
