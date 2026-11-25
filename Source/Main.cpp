@@ -37,12 +37,8 @@ static void writeVersion()
 static void writeHelp()
 {
     const BinaryData::Raw binary { files::titcHelp };
-    jam::TerminalPage page { { BinaryData::fetcher }, jam::Strings { files::styleSheet } };
-    juce::MemoryOutputStream frame;
-
-    page.setDocument (std::move (*jam::MarkdownDocument::parse (std::string_view (binary.data, static_cast<size_t> (binary.size)), files::titcHelp)));
-    page.writeToStream (frame);
-    fwrite (frame.getData(), sizeof (char), frame.getDataSize(), stdout);
+    assert (binary.exists());
+    fwrite (binary.data, sizeof (char), static_cast<size_t> (binary.size), stdout);
 }
 
 static bool isTerminalOutput() noexcept
@@ -115,9 +111,9 @@ public:
 
         if (isTerminalOutput())
         {
-            juce::MemoryOutputStream erase;
-            jam::TerminalEncoder::writeEraseScreen (erase);
-            fwrite (erase.getData(), sizeof (char), erase.getDataSize(), stdout);
+            const BinaryData::Raw erase { files::screenErase };
+            assert (erase.exists());
+            fwrite (erase.data, sizeof (char), static_cast<size_t> (erase.size), stdout);
             fflush (stdout);
         }
 

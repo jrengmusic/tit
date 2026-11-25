@@ -134,6 +134,24 @@ Every field is a complete literal; nothing downstream derives, concatenates, or 
 | @user-module | jam_tui               | Terminal user interface components, painted through the terminal graphics context                |
 +--------------+-----------------------+--------------------------------------------------------------------------------------------------+
 
+## program module
+
++-------------+--------------+
+| name        | value        |
++=============+==============+
+| core        | juce_core    |
+| events      | juce_events  |
+| jamCore     | jam_core     |
+| jamTerminal | jam_terminal |
++-------------+--------------+
+
+## program user module
+
++------+------+-------------+
+| root | name | description |
++======+======+=============+
++------+------+-------------+
+
 ## source glob
 
 +---------+-----------+-------------------------------------+
@@ -153,6 +171,8 @@ Every field is a complete literal; nothing downstream derives, concatenates, or 
 | juceStrictRefCountedPointer        | JUCE_STRICT_REFCOUNTEDPOINTER=1                                      | Strict ReferenceCountedObjectPtr casting                      |
 | juceWebBrowser                     | JUCE_WEB_BROWSER=0                                                   | WebBrowserComponent support                                   |
 | juceUseCurl                        | JUCE_USE_CURL=0                                                      | libcurl for http on Linux                                     |
+| juceUseFoundation                  | JUCE_USE_FOUNDATION=0                                                | POSIX file and system functions on macOS, no Foundation       |
+| juceUseResilientMapping            | JUCE_USE_RESILIENT_MAPPING=1                                         | A read-only map of a file that becomes shorter gives no fault |
 | win32LeanAndMean                   | `$<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN=1>`                    | Exclude rarely used Windows headers                           |
 | nominmax                           | `$<$<PLATFORM_ID:Windows>:NOMINMAX=1>`                               | No Windows min/max macros                                     |
 | win32Ie                            | `$<$<PLATFORM_ID:Windows>:_WIN32_IE=0x0A00>`                         | Windows IE platform version                                   |
@@ -174,7 +194,7 @@ Every field is a complete literal; nothing downstream derives, concatenates, or 
 | harfbuzz   | `${CAST_JUCE_PATH}/modules/juce_graphics/fonts/harfbuzz` |                                           |
 +------------+----------------------------------------------------------+-------------------------------------------+
 
-## binary
+## help
 
 +------------+-------------------------------+------------------------------------+
 | name       | value                         | description                        |
@@ -182,6 +202,13 @@ Every field is a complete literal; nothing downstream derives, concatenates, or 
 | help       | Source/HELP.md                | Help document source               |
 | styleSheet | ../jam/jam_tui/page/style.css | Stylesheet, embedded as BinaryData |
 +------------+-------------------------------+------------------------------------+
+
+## binary
+
++------+-------+-------------+
+| name | value | description |
++======+=======+=============+
++------+-------+-------------+
 
 ## library
 
@@ -274,6 +301,11 @@ Every field is a complete literal; nothing downstream derives, concatenates, or 
 | linkTimeCodegen         |                                | /LTCG          | linker | MSVC whole-program link-time codegen     |
 +-------------------------+--------------------------------+----------------+--------+------------------------------------------+
 | deadCodeStripping       | -dead_strip                    | /OPT:REF       | linker | Strip unreferenced functions and data    |
++-------------------------+--------------------------------+----------------+--------+------------------------------------------+
+| deadDylibStripping      | -Wl,-dead_strip_dylibs         |                | linker | Drop the libraries that no live code     |
+|                         |                                |                |        |  references.                             |
++-------------------------+--------------------------------+----------------+--------+------------------------------------------+
+| exportedSymbols         | -Wl,-exported_symbol,_main     |                | linker | Export the entry point only.             |
 +-------------------------+--------------------------------+----------------+--------+------------------------------------------+
 | identicalCodeFolding    |                                | /OPT:ICF       | linker | Fold identical COMDATs                   |
 +-------------------------+--------------------------------+----------------+--------+------------------------------------------+
