@@ -29,3 +29,5 @@ Thumbs.db
 # Harness
 .claude/
 
+.claude/agents/
+.claude/commands/
